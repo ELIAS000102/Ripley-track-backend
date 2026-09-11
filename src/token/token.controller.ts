@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { TokenService } from './token.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
 
@@ -9,7 +9,7 @@ export class TokenController {
 
   /**
    * Endpoint invocado por la extensión de Chrome para enviar los tokens cifrados.
-   * Recibe el payload cifrado en tránsito (AES-256-GCM) y lo carga en memoria RAM.
+   * Recibe el payload cifrado en tránsito (AES-256-GCM) y lo guarda en memoria RAM por usuario.
    */
   @Post()
   recibirTokenCifrado(@Body() encryptedPayload: { iv: number[]; data: number[] }) {
@@ -17,11 +17,15 @@ export class TokenController {
   }
 
   /**
-   * Endpoint consultado desde Postman.
-   * Retorna simultáneamente el token e información de ambos países (Perú y Chile).
+   * Endpoint para consultar tokens desde Postman.
+   * Requiere de manera obligatoria el correo del usuario como parámetro de consulta.
+   * Ejemplo de uso: GET /token?email=usuario@ripley.com
    */
   @Get()
-  obtenerTokensParaPostman() {
-    return this.tokenService.obtenerTodosLosTokensMemoria();
+  obtenerTokensParaPostman(@Query('email') email: string) {
+    if (!email) {
+      throw new BadRequestException('Debe proporcionar un correo electrónico en la consulta. Ej: /token?email=correo@ripley.com');
+    }
+    return this.tokenService.obtenerTokensPorCorreo(email);
   }
 }
