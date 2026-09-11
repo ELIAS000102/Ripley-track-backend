@@ -1,116 +1,79 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
-import * as path from 'path';
 import * as crypto from 'crypto';
 
-interface DeviceTokens {
-  PE: string | null;
-  CL: string | null;
-  PE_updated_at?: string;
-  CL_updated_at?: string;
+export interface TokenPayload {
+  m_t: string;
+  email: string;
+  pais: string;
+  timestamp: number;
 }
 
 @Injectable()
 export class TokenService {
-  private readonly logger = new Logger(TokenService.name);
-  private encryptionKey: Buffer;
-  private tokensFile: string;
-  // Estructura: { [deviceId: string]: DeviceTokens }
-  private devicesData: Record<string, DeviceTokens> = {};
+  // Almacenamiento únicamente en memoria RAM (no persiste archivos en disco)
+  private memoryStore: Map<string, TokenPayload> = new Map();
 
-  constructor(private configService: ConfigService) {
-    const secret = this.configService.get<string>('TOKEN_SECRET_KEY') || 'default-fallback-key';
-    this.encryptionKey = crypto.scryptSync(secret, 'salt', 32);
-    this.tokensFile = path.join(process.cwd(), 'tokens.bin');
-    this.loadTokens();
+  constructor(private readonly configService: ConfigService) {}
+
+  // Descifra el paquete proveniente de la extensión de Chrome (AES-256-GCM)
+  private descifrarPayload(encryptedData: { iv: number[]; data: number[] }): TokenPayload {
+    // Garantizamos que la variable no sea undefined para evitar errores de TypeScript
+    const secretKey = this.configService.get<string>('TOKEN_SECRET_KEY') || '';
+
+    if (!secretKey) {
+      throw new Error('TOKEN_SECRET_KEY no está configurada en el archivo .env');
+    }
+
+    // Derivación de clave PBKDF2 SHA-256 (idéntica a la extensión)
+    const key = crypto.pbkdf2Sync(secretKey, 'matrix-salt-2026', 100000, 32, 'sha256');
+    const iv = Buffer.from(encryptedData.iv);
+    const encryptedText = Buffer.from(encryptedData.data);
+
+    // Separar el Tag de autenticación (últimos 16 bytes) del texto cifrado
+    const tag = encryptedText.subarray(encryptedText.length - 16);
+    const cipherText = encryptedText.subarray(0, encryptedText.length - 16);
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+
+    const decrypted = Buffer.concat([decipher.update(cipherText), decipher.final()]);
+    return JSON.parse(decrypted.toString('utf8'));
   }
 
-  private encrypt(text: string): string {
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-    return JSON.stringify({ iv: iv.toString('hex'), encrypted, authTag });
-  }
-
-  private decrypt(data: string): string | null {
+  // Recibe los datos cifrados de la extensión y actualiza el estado en memoria RAM
+  actualizarTokenEnMemoria(encryptedBody: { iv: number[]; data: number[] }) {
     try {
-      const { iv, encrypted, authTag } = JSON.parse(data);
-      const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, Buffer.from(iv, 'hex'));
-      decipher.setAuthTag(Buffer.from(authTag, 'hex'));
-      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return decrypted;
-    } catch (e) {
-      return null;
+      const data = this.descifrarPayload(encryptedBody);
+      // Almacena indexado por el código de país ('PE' o 'CL')
+      this.memoryStore.set(data.pais.toUpperCase(), data);
+      return { success: true, message: `Token de ${data.pais} cargado en memoria exitosamente` };
+    } catch (error) {
+      throw new UnauthorizedException('No se pudo descifrar el paquete de token enviado.');
     }
   }
 
-  private loadTokens() {
-    if (fs.existsSync(this.tokensFile)) {
-      const decryptedData = this.decrypt(fs.readFileSync(this.tokensFile, 'utf-8'));
-      if (decryptedData) {
-        this.devicesData = JSON.parse(decryptedData);
+  // Retorna simultáneamente el token e información de ambos países (PE y CL) para Postman
+  obtenerTodosLosTokensMemoria() {
+    const formatCountryResponse = (paisKey: string) => {
+      const tokenData = this.memoryStore.get(paisKey);
+      if (!tokenData) {
+        return {
+          active: false,
+          message: `No hay token disponible en memoria para ${paisKey}. Inicie sesión en Matrix (${paisKey}) en el navegador.`
+        };
       }
-    }
-  }
-
-  private saveToDisk() {
-    fs.writeFileSync(this.tokensFile, this.encrypt(JSON.stringify(this.devicesData)), 'utf-8');
-  }
-
-  saveToken(deviceId: string, country: 'PE' | 'CL', token: string | null) {
-    if (!deviceId) deviceId = 'unknown_device';
-
-    // Inicializar el espacio del dispositivo si no existe
-    if (!this.devicesData[deviceId]) {
-      this.devicesData[deviceId] = { PE: null, CL: null };
-    }
-
-    if (!token) {
-      this.devicesData[deviceId][country] = null;
-      this.devicesData[deviceId][`${country}_updated_at`] = new Date().toISOString();
-      this.logger.log(`🗑️ [Dispositivo: ${deviceId}] Token de Matrix ${country} eliminado.`);
-    } else {
-      this.devicesData[deviceId][country] = token.trim().replace(/^"|"$/g, '');
-      this.devicesData[deviceId][`${country}_updated_at`] = new Date().toISOString();
-      this.logger.log(`✅ [Dispositivo: ${deviceId}] Token de Matrix ${country} actualizado.`);
-    }
-
-    this.saveToDisk();
-    return { status: "success", deviceId, country, active: !!this.devicesData[deviceId][country] };
-  }
-
-  getTokensByDevice(deviceId: string, country?: 'PE' | 'CL') {
-    if (!this.devicesData[deviceId]) {
-      return { deviceId, PE: null, CL: null };
-    }
-
-    // Si especifican un país, devuelve solo ese
-    if (country) {
-      const token = this.devicesData[deviceId][country];
-      if (!token) return null;
       return {
-        deviceId,
-        country,
-        id_token: token,
-        updated_at: this.devicesData[deviceId][`${country}_updated_at`],
+        active: true,
+        solicitadoPor: tokenData.email, // Correo extraído de u_d (sin ID)
+        m_t: tokenData.m_t,
+        capturadoEn: new Date(tokenData.timestamp).toISOString()
       };
-    }
+    };
 
-    // Si NO especifican país, devuelve ambos
     return {
-      deviceId,
-      PE: {
-        id_token: this.devicesData[deviceId].PE || null,
-        updated_at: this.devicesData[deviceId].PE_updated_at || null,
-      },
-      CL: {
-        id_token: this.devicesData[deviceId].CL || null,
-        updated_at: this.devicesData[deviceId].CL_updated_at || null,
-      }
+      PE: formatCountryResponse('PE'),
+      CL: formatCountryResponse('CL')
     };
   }
 }

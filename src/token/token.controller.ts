@@ -1,22 +1,27 @@
-import { Controller, Post, Body, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { TokenService } from './token.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
 
-@Controller()
-@UseGuards(AuthGuard)
-export class TokenController { 
+@Controller('token')
+@UseGuards(AuthGuard) // Exige la cabecera Authorization: Bearer <API_SECRET>
+export class TokenController {
   constructor(private readonly tokenService: TokenService) {}
 
-  @Post('save-token')
-  saveToken(@Body() body: { deviceId: string; country: 'PE' | 'CL'; token: string | null }) {
-    return this.tokenService.saveToken(body.deviceId, body.country, body.token);
+  /**
+   * Endpoint invocado por la extensión de Chrome para enviar los tokens cifrados.
+   * Recibe el payload cifrado en tránsito (AES-256-GCM) y lo carga en memoria RAM.
+   */
+  @Post()
+  recibirTokenCifrado(@Body() encryptedPayload: { iv: number[]; data: number[] }) {
+    return this.tokenService.actualizarTokenEnMemoria(encryptedPayload);
   }
 
-  @Get('get-token')
-  getToken(
-    @Query('deviceId') deviceId: string, 
-    @Query('country') country?: 'PE' | 'CL'
-  ) {
-    return this.tokenService.getTokensByDevice(deviceId, country);
+  /**
+   * Endpoint consultado desde Postman.
+   * Retorna simultáneamente el token e información de ambos países (Perú y Chile).
+   */
+  @Get()
+  obtenerTokensParaPostman() {
+    return this.tokenService.obtenerTodosLosTokensMemoria();
   }
 }
