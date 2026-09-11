@@ -8,6 +8,12 @@ export class AuthGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
+    
+    // PERMITIR EL PREFLIGHT DE CORS: Las peticiones OPTIONS no llevan token de autorización
+    if (request.method === 'OPTIONS') {
+      return true;
+    }
+
     const authHeader = request.headers['authorization'];
     const apiSecret = this.configService.get<string>('API_SECRET');
 
