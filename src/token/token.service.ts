@@ -4,15 +4,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
+interface DeviceTokens {
+  PE: string | null;
+  CL: string | null;
+  PE_updated_at?: string;
+  CL_updated_at?: string;
+}
+
 @Injectable()
 export class TokenService {
   private readonly logger = new Logger(TokenService.name);
   private encryptionKey: Buffer;
   private tokensFile: string;
-  private tokens: { PE: string | null; CL: string | null; PE_updated_at?: string; CL_updated_at?: string } = {
-    PE: null,
-    CL: null,
-  };
+  // Estructura: { [deviceId: string]: DeviceTokens }
+  private devicesData: Record<string, DeviceTokens> = {};
 
   constructor(private configService: ConfigService) {
     const secret = this.configService.get<string>('TOKEN_SECRET_KEY') || 'default-fallback-key';
@@ -47,53 +52,47 @@ export class TokenService {
     if (fs.existsSync(this.tokensFile)) {
       const decryptedData = this.decrypt(fs.readFileSync(this.tokensFile, 'utf-8'));
       if (decryptedData) {
-        this.tokens = JSON.parse(decryptedData);
+        this.devicesData = JSON.parse(decryptedData);
       }
     }
   }
 
   private saveToDisk() {
-    fs.writeFileSync(this.tokensFile, this.encrypt(JSON.stringify(this.tokens)), 'utf-8');
+    fs.writeFileSync(this.tokensFile, this.encrypt(JSON.stringify(this.devicesData)), 'utf-8');
   }
 
-  saveToken(country: 'PE' | 'CL', token: string | null) {
+  saveToken(deviceId: string, country: 'PE' | 'CL', token: string | null) {
+    if (!deviceId) deviceId = 'unknown_device';
+
+    // Inicializar el espacio del dispositivo si no existe
+    if (!this.devicesData[deviceId]) {
+      this.devicesData[deviceId] = { PE: null, CL: null };
+    }
+
     if (!token) {
-      this.tokens[country] = null;
-      this.tokens[`${country}_updated_at`] = new Date().toISOString();
-      this.logger.log(`🗑️ Token de Matrix ${country} eliminado (Cierre de sesión detectado).`);
+      this.devicesData[deviceId][country] = null;
+      this.devicesData[deviceId][`${country}_updated_at`] = new Date().toISOString();
+      this.logger.log(`🗑️ [Dispositivo: ${deviceId}] Token de Matrix ${country} eliminado.`);
     } else {
-      this.tokens[country] = token.trim().replace(/^"|"$/g, '');
-      this.tokens[`${country}_updated_at`] = new Date().toISOString();
-      this.logger.log(`✅ Token de Matrix ${country} recibido y cifrado correctamente.`);
+      this.devicesData[deviceId][country] = token.trim().replace(/^"|"$/g, '');
+      this.devicesData[deviceId][`${country}_updated_at`] = new Date().toISOString();
+      this.logger.log(`✅ [Dispositivo: ${deviceId}] Token de Matrix ${country} actualizado.`);
     }
+
     this.saveToDisk();
-    return { status: "success", country, active: !!this.tokens[country] };
+    return { status: "success", deviceId, country, active: !!this.devicesData[deviceId][country] };
   }
 
-  getAllTokens() {
-    if (!this.tokens.PE && !this.tokens.CL) {
-      return { found: false, message: "Token no encontrado. Las sesiones de Perú y Chile están cerradas." };
-    }
-    return {
-      found: true,
-      tokens: {
-        PE: this.tokens.PE || "Token no encontrado",
-        PE_updated_at: this.tokens.PE_updated_at || null,
-        CL: this.tokens.CL || "Token no encontrado",
-        CL_updated_at: this.tokens.CL_updated_at || null,
-      },
-    };
-  }
+  getTokenByDeviceAndCountry(deviceId: string, country: 'PE' | 'CL') {
+    if (!this.devicesData[deviceId]) return null;
+    const token = this.devicesData[deviceId][country];
+    if (!token) return null;
 
-  getTokenByCountry(country: 'PE' | 'CL') {
-    const token = this.tokens[country];
-    if (!token) {
-      return null;
-    }
     return {
+      deviceId,
       country,
       id_token: token,
-      updated_at: this.tokens[`${country}_updated_at`],
+      updated_at: this.devicesData[deviceId][`${country}_updated_at`],
     };
   }
 }
