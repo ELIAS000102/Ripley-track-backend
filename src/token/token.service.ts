@@ -83,16 +83,34 @@ export class TokenService {
     return { status: "success", deviceId, country, active: !!this.devicesData[deviceId][country] };
   }
 
-  getTokenByDeviceAndCountry(deviceId: string, country: 'PE' | 'CL') {
-    if (!this.devicesData[deviceId]) return null;
-    const token = this.devicesData[deviceId][country];
-    if (!token) return null;
+  getTokensByDevice(deviceId: string, country?: 'PE' | 'CL') {
+    if (!this.devicesData[deviceId]) {
+      return { deviceId, PE: null, CL: null };
+    }
 
+    // Si especifican un país, devuelve solo ese
+    if (country) {
+      const token = this.devicesData[deviceId][country];
+      if (!token) return null;
+      return {
+        deviceId,
+        country,
+        id_token: token,
+        updated_at: this.devicesData[deviceId][`${country}_updated_at`],
+      };
+    }
+
+    // Si NO especifican país, devuelve ambos
     return {
       deviceId,
-      country,
-      id_token: token,
-      updated_at: this.devicesData[deviceId][`${country}_updated_at`],
+      PE: {
+        id_token: this.devicesData[deviceId].PE || null,
+        updated_at: this.devicesData[deviceId].PE_updated_at || null,
+      },
+      CL: {
+        id_token: this.devicesData[deviceId].CL || null,
+        updated_at: this.devicesData[deviceId].CL_updated_at || null,
+      }
     };
   }
 }

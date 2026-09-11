@@ -4,7 +4,7 @@ import { AuthGuard } from './guards/auth.guard.js';
 
 @Controller()
 @UseGuards(AuthGuard)
-export class TokenController {  // <--- Eliminamos 'public' de aquí
+export class TokenController { 
   constructor(private readonly tokenService: TokenService) {}
 
   @Post('save-token')
@@ -13,7 +13,10 @@ export class TokenController {  // <--- Eliminamos 'public' de aquí
   }
 
   @Get('get-token')
-  getToken(@Query('deviceId') deviceId: string, @Query('country') country: 'PE' | 'CL') {
-    return this.tokenService.getTokenByDeviceAndCountry(deviceId, country);
+  getToken(
+    @Query('deviceId') deviceId: string, 
+    @Query('country') country?: 'PE' | 'CL'
+  ) {
+    return this.tokenService.getTokensByDevice(deviceId, country);
   }
 }
