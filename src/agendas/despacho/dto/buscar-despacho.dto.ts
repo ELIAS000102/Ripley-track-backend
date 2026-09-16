@@ -1,18 +1,12 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 const FECHA = /^\d{2}-\d{2}-\d{4}$/;
-
-/** Autocompletado del buscador de operador logístico */
-export class BuscarOplDto {
-  @IsString()
-  @IsNotEmpty()
-  q: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
 
 export class ListarZonasDto {
   @IsString()

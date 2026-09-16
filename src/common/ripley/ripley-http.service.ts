@@ -1,4 +1,3 @@
-//src/common/ripley/ripley-http.service.ts
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -36,7 +35,7 @@ export class RipleyHttpService {
       );
     }
     return baseUrl;
-  };
+  }
 
   /** Cada país tiene su propio token corporativo */
   private getHeaders(pais: string) {
@@ -51,7 +50,7 @@ export class RipleyHttpService {
     }
 
     return { 'x-access-token': token };
-  };
+  }
 
   private manejarError(
     error: unknown,
@@ -82,7 +81,7 @@ export class RipleyHttpService {
     throw new BadGatewayException(
       `Error al ${accion} en la API corporativa: ${axiosError.message}`,
     );
-  };
+  }
 
   async get<T>(
     path: string,
@@ -102,7 +101,7 @@ export class RipleyHttpService {
     } catch (error) {
       this.manejarError(error, 'consultar', url, params);
     }
-  };
+  }
 
   /**
    * "params" es opcional: picking lleva el id en la ruta,
@@ -127,9 +126,9 @@ export class RipleyHttpService {
     } catch (error) {
       this.manejarError(error, 'actualizar', url, params);
     }
-  };
+  }
 
-    async post<T>(
+  async post<T>(
     path: string,
     pais: string,
     body: any,
@@ -139,7 +138,10 @@ export class RipleyHttpService {
 
     try {
       const { data } = await firstValueFrom(
-        this.httpService.post<T>(url, body, { params, headers: this.getHeaders(pais) }),
+        this.httpService.post<T>(url, body, {
+          params,
+          headers: this.getHeaders(pais),
+        }),
       );
       return data;
     } catch (error) {

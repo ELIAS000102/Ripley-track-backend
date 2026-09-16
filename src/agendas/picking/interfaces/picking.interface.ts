@@ -1,5 +1,3 @@
-//src/agendas/picking/interfaces/picking.interface.ts
-
 // Compartidas con las demás agendas
 export type {
   OfficeRow,

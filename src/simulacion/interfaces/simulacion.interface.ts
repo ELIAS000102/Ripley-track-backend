@@ -104,7 +104,12 @@ export interface ResultadoServicio {
 
 export interface MatrizSimulacion {
   typeOfServices: Record<string, ResultadoServicio>;
-  products: { sku: number; description: string; sizeName: string; department: string }[];
+  products: {
+    sku: number;
+    description: string;
+    sizeName: string;
+    department: string;
+  }[];
   deliveryMethod: string;
   error: unknown[];
 }

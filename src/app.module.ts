@@ -4,9 +4,9 @@ import configuration from './config/configuration.js';
 import { PickingModule } from './agendas/picking/picking.module.js';
 import { DespachoModule } from './agendas/despacho/despacho.module.js';
 import { CdsModule } from './reportes/cds/cds.module.js';
-import { OplMasivoModule } from './configuracion/tipoServicio/OPLmasivo/oplmasivo.module.js';
-import { OplModule } from './configuracion/tipoServicio/OPL/opl.module.js';
-import { TransfModule } from './configuracion/transfSuc/transf.module.js';
+import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
+import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
+import { TransfModule } from './configuracion/transf-suc/transf.module.js';
 import { SimulacionModule } from './simulacion/simulacion.module.js';
 
 @Module({
@@ -21,7 +21,11 @@ import { SimulacionModule } from './simulacion/simulacion.module.js';
     OplMasivoModule,
     OplModule,
     TransfModule,
-    SimulacionModule
+    SimulacionModule,
   ],
 })
+/**
+ * Módulo raíz: registra la configuración global (variables de entorno)
+ * y cada feature de agendas/configuración/reportes de Ripley como módulo independiente.
+ */
 export class AppModule {}

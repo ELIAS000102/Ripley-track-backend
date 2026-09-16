@@ -8,4 +8,5 @@ import { TransfService } from './transf.service.js';
   controllers: [TransfController],
   providers: [TransfService],
 })
+/** Feature de transferencia de stock entre sucursales. */
 export class TransfModule {}

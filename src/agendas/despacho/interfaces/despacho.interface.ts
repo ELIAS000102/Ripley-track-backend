@@ -23,7 +23,7 @@ export interface MainScheduleRow {
 /** Tipo de servicio ya resuelto por la API */
 export interface ServiceTypeRef {
   id: string;
-  code: string;   // "EX", "DT"...
+  code: string; // "EX", "DT"...
   label: string;
 }
 
@@ -64,7 +64,7 @@ export interface DespachoScheduleConfig {
   country: string;
   idOffice: string;
   zoneId: string;
-  type: string;           // "despacho"
-  typeOfService: string;  // "EX", "DT"...
+  type: string; // "despacho"
+  typeOfService: string; // "EX", "DT"...
   unitMeasure: string;
 }

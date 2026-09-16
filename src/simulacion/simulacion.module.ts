@@ -8,4 +8,5 @@ import { SimulacionService } from './simulacion.service.js';
   controllers: [SimulacionController],
   providers: [SimulacionService],
 })
+/** Feature de simulación: reproduce el cálculo de fecha de entrega del motor de Ripley. */
 export class SimulacionModule {}

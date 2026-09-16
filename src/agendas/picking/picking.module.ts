@@ -8,4 +8,5 @@ import { PickingService } from './picking.service.js';
   controllers: [PickingController],
   providers: [PickingService],
 })
+/** Feature de agendas de picking: capacidades por almacén y tipo de servicio. */
 export class PickingModule {}

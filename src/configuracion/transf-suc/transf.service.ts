@@ -16,6 +16,11 @@ import {
   RipleyListResponse,
 } from './interfaces/transf.interface.js';
 
+/**
+ * Relaciones de transferencia entre sucursales. El GET trae un único documento con
+ * todas las relaciones de un almacén; al guardar una, se relee ese documento para
+ * que los campos no editados (courier, label, etc.) salgan de la API y no del cliente.
+ */
 @Injectable()
 export class TransfService {
   private readonly logger = new Logger(TransfService.name);
@@ -105,7 +110,7 @@ export class TransfService {
     actuales: DiasDisponibles,
     cambios?: Partial<DiasDisponibles>,
   ): DiasDisponibles {
-    return { ...actuales, ...(cambios ?? {}) };
+    return { ...actuales, ...cambios };
   }
 
   /**
@@ -145,7 +150,9 @@ export class TransfService {
       canTransferValue: canTransfer ? 1 : 0,
     };
 
-    this.logger.log(`Guardando relación "${actual.label}" del almacén ${dto.warehouseId}`);
+    this.logger.log(
+      `Guardando relación "${actual.label}" del almacén ${dto.warehouseId}`,
+    );
 
     const respuesta = await this.ripley.put<RelacionesResponse>(
       this.endpoint('officeRelationship'),
@@ -155,7 +162,9 @@ export class TransfService {
     );
 
     // La API devuelve el documento completo ya actualizado
-    const guardada = respuesta?.relationships?.find((r) => r._id === dto.relacionId);
+    const guardada = respuesta?.relationships?.find(
+      (r) => r._id === dto.relacionId,
+    );
 
     return {
       warehouseId: dto.warehouseId,

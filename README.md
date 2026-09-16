@@ -1,114 +1,89 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Ripley Track Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API NestJS que actúa como capa intermedia hacia las APIs corporativas de Ripley
+(picking, despacho, configuración de tipos de servicio, transferencias entre
+sucursales y simulación de entregas), para Perú y Chile.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+El backend no tiene base de datos propia: cada request resuelve su estado leyendo
+en vivo los catálogos y capacidades de la API de Ripley, y arma el payload de
+escritura reconstruyendo los campos que la API exige pero que el cliente nunca
+recibió (identificadores internos, campos "espejo", etc.).
 
-## Description
+## Arquitectura
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Cada carpeta bajo `src/` es un módulo de Nest independiente, con la carpeta
+espejando el path de su propio `@Controller(...)`:
 
-## Project setup
+| Módulo | Ruta base | Qué hace |
+| --- | --- | --- |
+| [agendas/picking](src/agendas/picking) | `/agendas/picking` | Capacidades de picking por almacén y tipo de servicio |
+| [agendas/despacho](src/agendas/despacho) | `/agendas/despacho` | Capacidades de despacho por operador logístico, zona y agenda |
+| [reportes/cds](src/reportes/cds) | `/reportes/cds` | Reporte pivote de uso de capacidad por centro de distribución |
+| [configuracion/tipo-servicio/opl](src/configuracion/tipo-servicio/opl) | `/configuracion/tipo-servicio/opl` | Servicios configurados en la agenda de un OPL |
+| [configuracion/tipo-servicio/opl-masivo](src/configuracion/tipo-servicio/opl-masivo) | `/configuracion/tipo-servicio/opl-masivo` | Activación/desactivación masiva de tipos de servicio |
+| [configuracion/transf-suc](src/configuracion/transf-suc) | `/configuracion/transferencia-sucursales` | Relaciones de transferencia de stock entre sucursales |
+| [simulacion](src/simulacion) | `/simulacion` | Simulación de fecha/hora de entrega antes de vender |
 
-```bash
-$ npm install
-```
+Todas comparten [common/ripley](src/common/ripley), que centraliza:
 
-## Compile and run the project
+- **`RipleyHttpService`** — resuelve URL base y token por país, y traduce errores
+  de la API corporativa a excepciones de Nest (un 404 se trata distinto de un 5xx).
+- **`configuration.ts`** — carga URLs, tokens y endpoints desde variables de entorno.
+- **`date.util.ts`** — conversión de fechas entre el formato ISO del backend y el
+  `DD-MM-YYYY` que usa Ripley, y utilidades de zona horaria (PE/CL).
 
-```bash
-# development
-$ npm run start
+`prueba.html`, en la raíz del repo, es un panel HTML de un solo archivo para probar
+manualmente todos los endpoints sin depender de un cliente externo.
 
-# watch mode
-$ npm run start:dev
+## Requisitos
 
-# production mode
-$ npm run start:prod
-```
+- Node.js 22+
+- Acceso a la API corporativa de Ripley (URL base y token por país)
 
-## Run tests
+## Configuración
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
 ```
 
-## Deployment
+Completa en `.env` la URL base, el token y los endpoints (`RIPLEY_EP_*`) de cada
+país. `RIPLEY_PATH_PREFIX` es un prefijo común que se antepone a todos los
+`RIPLEY_EP_*`; puede dejarse vacío si los endpoints ya vienen completos. El detalle
+de cada variable está documentado en [`.env.example`](.env.example).
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Instalación y ejecución
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm install
+
+# desarrollo, con recarga en caliente
+npm run start:dev
+
+# producción (requiere `npm run build` antes)
+npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+El servidor arranca en `http://localhost:3000` por defecto (`PORT` en `.env`).
 
-## Observability
+## Scripts
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+| Script | Qué hace |
+| --- | --- |
+| `npm run start:dev` | Servidor en modo watch |
+| `npm run build` | Compila a `dist/` |
+| `npm run lint` | oxlint sobre `src/` y `test/` |
+| `npm run format` | Prettier sobre `src/` y `test/` |
+| `npm run test` | Tests unitarios (Vitest) |
+| `npm run test:e2e` | Tests end-to-end |
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+## Convenciones del proyecto
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- Cada carpeta de módulo sigue `feature.controller.ts` / `feature.service.ts` /
+  `feature.module.ts`, con `dto/` e `interfaces/` como subcarpetas. Nombres de
+  carpeta y archivo en minúsculas, kebab-case para nombres compuestos.
+- Los DTOs validan con `class-validator`; los controllers no acceden a la API de
+  Ripley directamente, siempre a través del service de su propio módulo.
+- Los campos que la API de Ripley exige pero el cliente no controla (identificadores
+  internos, banderas de compatibilidad con el frontend original, etc.) se resuelven
+  en el service releyendo el estado actual — nunca se confía en lo que envía el
+  cliente para esos campos.

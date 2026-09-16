@@ -12,7 +12,7 @@ import {
 const FECHA = /^\d{2}-\d{2}-\d{4}$/;
 
 /** La agenda se identifica de forma explícita, no se deduce de la zona */
-export class UpdateDespachoQueryDto {
+export class ActualizarDespachoQueryDto {
   @IsString()
   @IsNotEmpty()
   officeCode: string;
@@ -32,7 +32,7 @@ export class UpdateDespachoQueryDto {
 }
 
 /** El cliente solo cambia "assigned" y "active" */
-export class UpdateDespachoBodyDto {
+export class ActualizarDespachoBodyDto {
   @IsString()
   @Matches(FECHA, { message: 'date debe tener el formato DD-MM-YYYY' })
   date: string;

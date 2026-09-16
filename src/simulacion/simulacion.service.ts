@@ -20,6 +20,12 @@ import {
   SkuRow,
 } from './interfaces/simulacion.interface.js';
 
+/**
+ * Simula la fecha/hora de entrega de una venta antes de concretarla. Resuelve los
+ * catálogos de entrada (SKU, oficinas, región/comuna) en paralelo, arma el payload
+ * que exige el motor de Ripley y aplana la respuesta —muy anidada— a algo que el
+ * frontend pueda pintar directamente.
+ */
 @Injectable()
 export class SimulacionService {
   private readonly logger = new Logger(SimulacionService.name);
@@ -81,10 +87,14 @@ export class SimulacionService {
 
   /** Búsqueda incremental de productos */
   async buscarSku(q: string, pais = 'PE') {
-    const data = await this.ripley.get<SkuResponse>(this.endpoint('sku'), pais, {
-      q,
-      isStoreProduct: true,
-    });
+    const data = await this.ripley.get<SkuResponse>(
+      this.endpoint('sku'),
+      pais,
+      {
+        q,
+        isStoreProduct: true,
+      },
+    );
 
     return (data?.rows ?? []).map((s) => ({
       sku: s.code,
@@ -110,7 +120,10 @@ export class SimulacionService {
    * El detalle de una región trae provincias y distritos anidados.
    * Es una respuesta grande, así que no se devuelve cruda al cliente.
    */
-  private async traerRegion(regionId: string, pais: string): Promise<RegionDetalle> {
+  private async traerRegion(
+    regionId: string,
+    pais: string,
+  ): Promise<RegionDetalle> {
     const region = await this.ripley.get<RegionDetalle>(
       `${this.endpoint('regions')}/${regionId}`,
       pais,
@@ -132,7 +145,9 @@ export class SimulacionService {
 
   async listarDistritos(regionId: string, provinciaId: string, pais = 'PE') {
     const region = await this.traerRegion(regionId, pais);
-    const provincia = (region.provinces ?? []).find((p) => p.id === provinciaId);
+    const provincia = (region.provinces ?? []).find(
+      (p) => p.id === provinciaId,
+    );
 
     if (!provincia) {
       throw new NotFoundException(
@@ -179,10 +194,14 @@ export class SimulacionService {
   ): Promise<SimulacionPayload['products']> {
     return Promise.all(
       productos.map(async (p) => {
-        const data = await this.ripley.get<SkuResponse>(this.endpoint('sku'), pais, {
-          q: String(p.sku),
-          isStoreProduct: true,
-        });
+        const data = await this.ripley.get<SkuResponse>(
+          this.endpoint('sku'),
+          pais,
+          {
+            q: String(p.sku),
+            isStoreProduct: true,
+          },
+        );
 
         const encontrado: SkuRow | undefined = data?.rows?.find(
           (s) => Number(s.code) === Number(p.sku),
@@ -210,7 +229,8 @@ export class SimulacionService {
 
   /** Hora actual en la zona del país */
   private horaEnPais(pais: string): string {
-    const zona = pais.toUpperCase().trim() === 'CL' ? 'America/Santiago' : 'America/Lima';
+    const zona =
+      pais.toUpperCase().trim() === 'CL' ? 'America/Santiago' : 'America/Lima';
 
     return new Intl.DateTimeFormat('es', {
       timeZone: zona,

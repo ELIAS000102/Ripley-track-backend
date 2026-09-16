@@ -8,4 +8,5 @@ import { CdsService } from './cds.service.js';
   controllers: [CdsController],
   providers: [CdsService],
 })
+/** Feature de reportes: uso de capacidad de picking agregado por centro de distribución. */
 export class CdsModule {}

@@ -1,8 +1,12 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { OplMasivoService } from './oplmasivo.service.js';
+import { OplMasivoService } from './opl-masivo.service.js';
 import { ConsultarOplDto } from './dto/consultar-opl.dto.js';
 import { ActualizarOplDto } from './dto/actualizar-opl.dto.js';
 
+/**
+ * Búsqueda masiva de agendas por método de entrega/servicio/orígenes de stock,
+ * y activación o desactivación en bloque de las agendas encontradas.
+ */
 @Controller('configuracion/tipo-servicio/opl-masivo')
 export class OplMasivoController {
   constructor(private readonly oplMasivoService: OplMasivoService) {}

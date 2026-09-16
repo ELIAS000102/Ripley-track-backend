@@ -19,6 +19,12 @@ import {
   TipoServicioOpl,
 } from './interfaces/opl.interface.js';
 
+/**
+ * Configuración de tipos de servicio por OPL. Al guardar, relee el servicio completo
+ * desde la API antes de escribir: el PUT exige de vuelta varios campos que el cliente
+ * nunca recibió (código, canales, id de la ruta, etc.), así que se reconstruyen desde
+ * el estado actual y solo se reemplazan los campos que el usuario realmente editó.
+ */
 @Injectable()
 export class OplService {
   private readonly logger = new Logger(OplService.name);
@@ -137,7 +143,9 @@ export class OplService {
     const pais = dto.pais ?? 'PE';
     const contexto = this.contextoDe(dto);
 
-    this.logger.log(`Consultando servicios de la agenda ${contexto.mainSchedule}`);
+    this.logger.log(
+      `Consultando servicios de la agenda ${contexto.mainSchedule}`,
+    );
 
     const servicios = await this.traerServicios(contexto, pais);
 
@@ -197,7 +205,9 @@ export class OplService {
       // Campos editables: lo que no llega conserva su valor actual
       isActive: dto.isActive ?? actual.isActive,
       enabledForCheckout: dto.enabledForCheckout ?? actual.enabledForCheckout,
-      maxOcurrence: String(dto.maxOcurrence ?? this.aNumero(actual.maxOcurrence)),
+      maxOcurrence: String(
+        dto.maxOcurrence ?? this.aNumero(actual.maxOcurrence),
+      ),
       slackDays: String(dto.slackDays ?? this.aNumero(actual.slackDays)),
       cutTime,
 

@@ -8,6 +8,10 @@ import {
 } from './dto/buscar-simulacion.dto.js';
 import { SimularDto } from './dto/simular.dto.js';
 
+/**
+ * Catálogos de entrada para armar una simulación (métodos de entrega, almacenes,
+ * OPL, geografía, SKU) y el endpoint de simulación en sí.
+ */
 @Controller('simulacion')
 export class SimulacionController {
   constructor(private readonly simulacionService: SimulacionService) {}

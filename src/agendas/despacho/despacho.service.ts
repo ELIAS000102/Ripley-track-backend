@@ -1,4 +1,3 @@
-//src/agendas/despacho/despacho.service.ts
 import {
   BadGatewayException,
   Injectable,
@@ -7,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
-import { UpdateDespachoBodyDto } from './dto/update-despacho.dto.js';
+import { ActualizarDespachoBodyDto } from './dto/actualizar-despacho.dto.js';
 import {
   CapacityBaseResponse,
   CapacityScheduleResponse,
@@ -19,11 +18,13 @@ import {
   ServiceTypeRef,
 } from './interfaces/despacho.interface.js';
 
+/**
+ * Agendas de despacho de Ripley. A diferencia de picking, el PUT exige una entrada
+ * de "schedules" por cada tipo de servicio de la agenda (no solo el que se edita),
+ * así que la actualización siempre relee la configuración base antes de escribir.
+ */
 @Injectable()
 export class DespachoService {
-  buscarOpls(q: string, pais: string | undefined) {
-      throw new Error('Method not implemented.');
-  }
   private readonly logger = new Logger(DespachoService.name);
 
   /** Valor fijo que espera el PUT de despacho en el campo "type" */
@@ -60,17 +61,23 @@ export class DespachoService {
   }
 
   /** Busca el operador logístico por su código visible ("1130") */
-  private async buscarOpl(officeCode: string, pais: string): Promise<OfficeRow> {
+  private async buscarOpl(
+    officeCode: string,
+    pais: string,
+  ): Promise<OfficeRow> {
     const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
       this.endpoint('offices'),
       pais,
       { q: officeCode, isOPLOffice: true },
     );
 
-    const opl = data?.rows?.find((o) => o.code === officeCode) ?? data?.rows?.[0];
+    const opl =
+      data?.rows?.find((o) => o.code === officeCode) ?? data?.rows?.[0];
 
     if (!opl) {
-      throw new NotFoundException(`No se encontró el OPL con código ${officeCode}`);
+      throw new NotFoundException(
+        `No se encontró el OPL con código ${officeCode}`,
+      );
     }
 
     return opl;
@@ -138,7 +145,9 @@ export class DespachoService {
     date?: string,
     pais = 'PE',
   ): Promise<CapacityScheduleResponse> {
-    this.logger.log(`Consultando capacidades de despacho ${mainScheduleId} (${pais})`);
+    this.logger.log(
+      `Consultando capacidades de despacho ${mainScheduleId} (${pais})`,
+    );
 
     return this.ripley.get<CapacityScheduleResponse>(
       this.endpoint('capacitiesSchedule'),
@@ -183,7 +192,9 @@ export class DespachoService {
       this.logger.error(
         `Respuesta de /capacities/base sin tipos de servicio: ${JSON.stringify(base)}`,
       );
-      throw new BadGatewayException('La agenda no tiene tipos de servicio configurados');
+      throw new BadGatewayException(
+        'La agenda no tiene tipos de servicio configurados',
+      );
     }
 
     return servicios.map((s) => ({
@@ -201,7 +212,7 @@ export class DespachoService {
     officeCode: string,
     zoneId: string,
     mainScheduleId: string,
-    body: UpdateDespachoBodyDto,
+    body: ActualizarDespachoBodyDto,
     pais = 'PE',
   ) {
     const { date, assigned, active } = body;
@@ -224,7 +235,9 @@ export class DespachoService {
     const diaActual = dias.find((d) => d.date === date);
 
     if (!diaActual) {
-      this.logger.warn(`Días disponibles: ${dias.map((d) => d.date).join(', ')}`);
+      this.logger.warn(
+        `Días disponibles: ${dias.map((d) => d.date).join(', ')}`,
+      );
       throw new NotFoundException(
         `No se encontró el día ${date} en la agenda ${mainScheduleId}`,
       );

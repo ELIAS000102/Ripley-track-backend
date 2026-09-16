@@ -7,4 +7,5 @@ import { RipleyHttpService } from './ripley-http.service.js';
   providers: [RipleyHttpService],
   exports: [RipleyHttpService],
 })
+/** Módulo compartido: expone RipleyHttpService a cualquier feature que hable con la API corporativa. */
 export class RipleyModule {}

@@ -1,4 +1,11 @@
-import { ArrayMinSize, IsArray, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class ConsultarOplDto {
   /** Código del método de entrega: "RT", "DP", "V"... */

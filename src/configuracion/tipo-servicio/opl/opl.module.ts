@@ -8,4 +8,5 @@ import { OplService } from './opl.service.js';
   controllers: [OplController],
   providers: [OplService],
 })
+/** Feature de configuración de tipos de servicio por operador logístico (OPL). */
 export class OplModule {}

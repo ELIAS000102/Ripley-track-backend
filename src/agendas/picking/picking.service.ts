@@ -6,8 +6,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
-import { isoToRipleyDate, soloFecha } from '../../common/ripley/utils/date.util.js';
-import { UpdatePickingBodyDto } from './dto/update-picking.dto.js';
+import {
+  isoToRipleyDate,
+  soloFecha,
+} from '../../common/ripley/utils/date.util.js';
+import { ActualizarPickingBodyDto } from './dto/actualizar-picking.dto.js';
 import {
   CapacitiesResponse,
   OfficeRow,
@@ -18,6 +21,12 @@ import {
   ServiceRow,
 } from './interfaces/picking.interface.js';
 
+/**
+ * Agendas de picking de Ripley. Consulta capacidades por scheduleId y las actualiza
+ * ("assigned"/"active") resolviendo el resto del payload — oficina, servicio y tipo
+ * de agenda — contra los catálogos de la API corporativa, ya que el PUT los exige
+ * completos aunque el cliente solo cambie dos campos.
+ */
 @Injectable()
 export class PickingService {
   private readonly logger = new Logger(PickingService.name);
@@ -56,9 +65,15 @@ export class PickingService {
     pais = 'PE',
   ): Promise<CapacitiesResponse> {
     const path = `${this.endpoint('capacitiesPicking')}/${scheduleId}`;
-    this.logger.log(`Consultando capacidades de picking ${scheduleId} (${pais})`);
+    this.logger.log(
+      `Consultando capacidades de picking ${scheduleId} (${pais})`,
+    );
 
-    return this.ripley.get<CapacitiesResponse>(path, pais, from ? { from } : undefined);
+    return this.ripley.get<CapacitiesResponse>(
+      path,
+      pais,
+      from ? { from } : undefined,
+    );
   }
 
   // ---------- Pasos 2, 3 y 4: catálogos ----------
@@ -89,7 +104,10 @@ export class PickingService {
   }
 
   /** Traduce el id de servicio a su código: "62b380..." -> "S" */
-  private async buscarCodigoServicio(serviceId: string, pais: string): Promise<string> {
+  private async buscarCodigoServicio(
+    serviceId: string,
+    pais: string,
+  ): Promise<string> {
     const data = await this.ripley.get<RipleyListResponse<ServiceRow>>(
       this.endpoint('services'),
       pais,
@@ -98,14 +116,19 @@ export class PickingService {
     const servicio = data?.rows?.find((s) => s.id === serviceId);
 
     if (!servicio?.code) {
-      throw new NotFoundException(`No se encontró el servicio ${serviceId} en el catálogo`);
+      throw new NotFoundException(
+        `No se encontró el servicio ${serviceId} en el catálogo`,
+      );
     }
 
     return servicio.code;
   }
 
   /** Traduce el id de almacén a su código de oficina: "5dd808..." -> "20026" */
-  private async buscarCodigoOficina(warehouseId: string, pais: string): Promise<string> {
+  private async buscarCodigoOficina(
+    warehouseId: string,
+    pais: string,
+  ): Promise<string> {
     const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
       this.endpoint('offices'),
       pais,
@@ -115,7 +138,9 @@ export class PickingService {
     const oficina = data?.rows?.find((o) => o.id === warehouseId);
 
     if (!oficina?.code) {
-      throw new NotFoundException(`No se encontró la oficina del almacén ${warehouseId}`);
+      throw new NotFoundException(
+        `No se encontró la oficina del almacén ${warehouseId}`,
+      );
     }
 
     return oficina.code;
@@ -123,9 +148,9 @@ export class PickingService {
 
   /** Traduce las banderas al string del PUT: { isPickingSchedule: true } -> "picking" */
   private resolverTipo(type: ScheduleType): string {
-    const activa = (Object.keys(this.TIPOS_DE_AGENDA) as (keyof ScheduleType)[]).find(
-      (flag) => type?.[flag] === true,
-    );
+    const activa = (
+      Object.keys(this.TIPOS_DE_AGENDA) as (keyof ScheduleType)[]
+    ).find((flag) => type?.[flag] === true);
 
     if (!activa) {
       throw new BadGatewayException('La agenda no tiene un tipo definido');
@@ -164,7 +189,9 @@ export class PickingService {
       unitMeasure: agenda.unitMeasure,
     };
 
-    this.logger.log(`Agenda resuelta: "${agenda.name}" -> ${JSON.stringify(config)}`);
+    this.logger.log(
+      `Agenda resuelta: "${agenda.name}" -> ${JSON.stringify(config)}`,
+    );
 
     return config;
   }
@@ -172,7 +199,11 @@ export class PickingService {
   // ---------- Paso 5: escritura ----------
 
   /** Actualiza solo "assigned" y "active" de un día puntual */
-  async actualizar(scheduleId: string, body: UpdatePickingBodyDto, pais = 'PE') {
+  async actualizar(
+    scheduleId: string,
+    body: ActualizarPickingBodyDto,
+    pais = 'PE',
+  ) {
     const { day, assigned, active } = body;
 
     // 1. Estado actual: day exacto, occupied, warehouse y servicio
@@ -189,7 +220,9 @@ export class PickingService {
     const diaActual = dias.find((d) => soloFecha(d.day) === soloFecha(day));
 
     if (!diaActual) {
-      this.logger.warn(`Días disponibles: ${dias.map((d) => d.day).join(', ')}`);
+      this.logger.warn(
+        `Días disponibles: ${dias.map((d) => d.day).join(', ')}`,
+      );
       throw new NotFoundException(
         `No se encontró el día ${day} en la agenda ${scheduleId}`,
       );
@@ -212,7 +245,9 @@ export class PickingService {
     };
 
     const path = `${this.endpoint('capacitiesPicking')}/${scheduleId}`;
-    this.logger.log(`Actualizando picking ${scheduleId} — día ${diaActual.day}`);
+    this.logger.log(
+      `Actualizando picking ${scheduleId} — día ${diaActual.day}`,
+    );
 
     return this.ripley.put(path, pais, payload);
   }
@@ -252,10 +287,13 @@ export class PickingService {
       { q: officeCode, isStoreOffice: true },
     );
 
-    const oficina = data?.rows?.find((o) => o.code === officeCode) ?? data?.rows?.[0];
+    const oficina =
+      data?.rows?.find((o) => o.code === officeCode) ?? data?.rows?.[0];
 
     if (!oficina) {
-      throw new NotFoundException(`No se encontró la oficina con código ${officeCode}`);
+      throw new NotFoundException(
+        `No se encontró la oficina con código ${officeCode}`,
+      );
     }
 
     return oficina;

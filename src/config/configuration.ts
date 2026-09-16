@@ -1,3 +1,8 @@
+/**
+ * Configuración cargada por @nestjs/config desde variables de entorno (ver .env.example).
+ * Cada país tiene su propia URL base y token; los endpoints son rutas relativas que
+ * se arman con un prefijo común (RIPLEY_PATH_PREFIX), igual para PE y CL.
+ */
 export default () => {
   const prefijo = process.env.RIPLEY_PATH_PREFIX ?? '';
 

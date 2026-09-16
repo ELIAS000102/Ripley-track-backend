@@ -8,4 +8,5 @@ import { DespachoService } from './despacho.service.js';
   controllers: [DespachoController],
   providers: [DespachoService],
 })
+/** Feature de agendas de despacho: capacidades por operador logístico, zona y agenda. */
 export class DespachoModule {}

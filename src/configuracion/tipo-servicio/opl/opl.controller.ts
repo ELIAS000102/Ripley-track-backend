@@ -9,6 +9,10 @@ import {
 } from './dto/buscar-opl.dto.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
 
+/**
+ * Catálogos en cascada (canal → OPL → zona → agenda) y edición de los servicios
+ * configurados en la agenda de un operador logístico.
+ */
 @Controller('configuracion/tipo-servicio/opl')
 export class OplController {
   constructor(private readonly oplService: OplService) {}

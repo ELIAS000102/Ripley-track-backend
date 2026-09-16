@@ -18,8 +18,14 @@ import {
   FilaActualizacion,
   MetodoEntrega,
   OpcionRef,
-} from './interfaces/oplmasivo.interface.js';
+} from './interfaces/opl-masivo.interface.js';
 
+/**
+ * Activación masiva de tipos de servicio. El flujo es: armar el payload de consulta
+ * contra los catálogos (método de entrega, orígenes de stock), traer las agendas que
+ * coinciden y, al aplicar cambios, releerlas de nuevo para que los identificadores
+ * internos (courier, mainSchedule, mainZone...) salgan de la API y no del cliente.
+ */
 @Injectable()
 export class OplMasivoService {
   private readonly logger = new Logger(OplMasivoService.name);
@@ -52,7 +58,10 @@ export class OplMasivoService {
 
   /** GET /delivery devuelve un array plano, sin el envoltorio { count, rows } */
   private async traerDelivery(pais: string): Promise<MetodoEntrega[]> {
-    const data = await this.ripley.get<MetodoEntrega[]>(this.endpoint('delivery'), pais);
+    const data = await this.ripley.get<MetodoEntrega[]>(
+      this.endpoint('delivery'),
+      pais,
+    );
     return Array.isArray(data) ? data : [];
   }
 
@@ -75,7 +84,10 @@ export class OplMasivoService {
   // ---------- Paso 2: orígenes de stock ----------
 
   /** Catálogo genérico: el identificador va en "q" y takeFirst devuelve el objeto */
-  private async traerCatalogo(identificador: string, pais: string): Promise<CatalogoResponse> {
+  private async traerCatalogo(
+    identificador: string,
+    pais: string,
+  ): Promise<CatalogoResponse> {
     return this.ripley.get<CatalogoResponse>(this.endpoint('catalogs'), pais, {
       q: identificador,
       takeFirst: 1,
@@ -111,7 +123,9 @@ export class OplMasivoService {
     const metodo = metodos.find((m) => m.code === dto.deliveryCode);
 
     if (!metodo) {
-      throw new NotFoundException(`No existe el método de entrega ${dto.deliveryCode}`);
+      throw new NotFoundException(
+        `No existe el método de entrega ${dto.deliveryCode}`,
+      );
     }
 
     const servicios: OpcionRef[] = (metodo.typeOfServices ?? []).map((s) => ({
@@ -153,7 +167,10 @@ export class OplMasivoService {
   // ---------- Paso 3: consultar agendas ----------
 
   /** Devuelve las agendas que coinciden con la selección */
-  private async traerAgendas(dto: ConsultarOplDto, pais: string): Promise<AgendaState[]> {
+  private async traerAgendas(
+    dto: ConsultarOplDto,
+    pais: string,
+  ): Promise<AgendaState[]> {
     const payload = await this.armarPayloadConsulta(dto, pais);
 
     const data = await this.ripley.post<ConsultaStateResponse>(
@@ -225,7 +242,8 @@ export class OplMasivoService {
         typeOfService: actual.typeOfService,
         // Lo que no se envía conserva su valor actual
         isActive: cambio.isActive ?? actual.active,
-        enabledForCheckout: cambio.enabledForCheckout ?? actual.enabledForCheckout,
+        enabledForCheckout:
+          cambio.enabledForCheckout ?? actual.enabledForCheckout,
         changed: false,
         tableData: { id: indice },
       };
