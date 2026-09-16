@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplMasivoService } from './opl-masivo.service.js';
 import { ConsultarOplDto } from './dto/consultar-opl.dto.js';
 import { ActualizarOplDto } from './dto/actualizar-opl.dto.js';
@@ -30,6 +31,7 @@ export class OplMasivoController {
   }
 
   /** POST .../actualizar */
+  @Auditar('oplMasivo.actualizar')
   @Post('actualizar')
   async actualizar(@Body() body: ActualizarOplDto) {
     return this.oplMasivoService.actualizar(body);

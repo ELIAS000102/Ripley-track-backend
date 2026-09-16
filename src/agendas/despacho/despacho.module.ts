@@ -7,6 +7,8 @@ import { DespachoService } from './despacho.service.js';
   imports: [RipleyModule],
   controllers: [DespachoController],
   providers: [DespachoService],
+  // Lo usa el módulo del agente para resolver capacidades en una sola llamada
+  exports: [DespachoService],
 })
 /** Feature de agendas de despacho: capacidades por operador logístico, zona y agenda. */
 export class DespachoModule {}

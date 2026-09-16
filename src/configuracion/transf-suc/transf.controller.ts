@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
+import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { TransfService } from './transf.service.js';
 import {
   BuscarAlmacenDto,
@@ -27,6 +28,7 @@ export class TransfController {
   }
 
   /** PUT .../relaciones */
+  @Auditar('transferencia.actualizarRelacion')
   @Put('relaciones')
   async actualizar(@Body() body: ActualizarRelacionDto) {
     return this.transfService.actualizarRelacion(body);

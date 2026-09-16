@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import { ActualizarRelacionDto } from './dto/actualizar-relacion.dto.js';
 import {
@@ -31,6 +32,7 @@ export class TransfService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly config: ConfigService,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   private endpoint(nombre: string): string {
@@ -149,6 +151,26 @@ export class TransfService {
       relationshipType: dto.relationshipType ?? this.TIPO_RELACION,
       canTransferValue: canTransfer ? 1 : 0,
     };
+
+    // Para el registro de cambios: solo los campos editables de la relación
+    this.contexto.registrarCambio(
+      {
+        relacionId: actual._id,
+        destino: actual.label,
+        canTransfer: actual.canTransfer,
+        transferPeriod: actual.transferPeriod,
+        preTransferPeriod: actual.preTransferPeriod,
+        availableDays: actual.availableDays,
+      },
+      {
+        relacionId: actual._id,
+        destino: actual.label,
+        canTransfer: payload.canTransfer,
+        transferPeriod: payload.transferPeriod,
+        preTransferPeriod: payload.preTransferPeriod,
+        availableDays: payload.availableDays,
+      },
+    );
 
     this.logger.log(
       `Guardando relación "${actual.label}" del almacén ${dto.warehouseId}`,

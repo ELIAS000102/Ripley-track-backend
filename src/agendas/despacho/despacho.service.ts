@@ -5,10 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
+import {
+  hoyEnPais,
+  isoToRipleyDate,
+  ripleyDateToIso,
+} from '../../common/ripley/utils/date.util.js';
 import { ActualizarDespachoBodyDto } from './dto/actualizar-despacho.dto.js';
 import {
   CapacityBaseResponse,
+  CapacityDay,
   CapacityScheduleResponse,
   DespachoScheduleConfig,
   MainScheduleRow,
@@ -33,6 +40,7 @@ export class DespachoService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly config: ConfigService,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   private endpoint(nombre: string): string {
@@ -157,11 +165,22 @@ export class DespachoService {
   }
 
   /** Configuración y días de una agenda concreta */
-  async buscarCapacidades(mainScheduleId: string, date?: string, pais = 'PE') {
+  async buscarCapacidades(
+    mainScheduleId: string,
+    date?: string,
+    pais = 'PE',
+    dias?: number,
+  ) {
+    // Sin fecha, Ripley devuelve cero días en lugar de la agenda completa.
+    // Se asume hoy para que la consulta no parezca "sin datos" cuando sí los hay.
+    const desde = date ?? isoToRipleyDate(hoyEnPais(pais));
+
     const [base, detalle] = await Promise.all([
       this.obtenerBase(mainScheduleId, pais),
-      this.obtener(mainScheduleId, date, pais),
+      this.obtener(mainScheduleId, desde, pais),
     ]);
+
+    const todos = detalle?.capacity ?? [];
 
     return {
       agenda: {
@@ -170,8 +189,32 @@ export class DespachoService {
         servicios: this.extraerServicios(base).map((s) => s.code),
         vigencia: { init: base.schedule?.init, end: base.schedule?.end },
       },
-      dias: detalle?.capacity ?? [],
+      dias: dias ? this.recortar(todos, desde, pais, dias) : todos,
     };
+  }
+
+  /**
+   * Devuelve como mucho `dias` días, contados desde la fecha pedida.
+   *
+   * Ripley entrega la agenda completa aunque se le pase una fecha, así que hay
+   * que filtrar antes de cortar: cortar sin filtrar devolvería los primeros
+   * días de la agenda, que son historia vieja y se leerían como si fueran
+   * los próximos.
+   */
+  private recortar(
+    todos: CapacityDay[],
+    date: string | undefined,
+    pais: string,
+    dias: number,
+  ): CapacityDay[] {
+    const desde = date ? ripleyDateToIso(date) : hoyEnPais(pais);
+
+    return todos
+      .map((d) => ({ dia: d, iso: ripleyDateToIso(d.date) }))
+      .filter(({ iso }) => iso >= desde)
+      .sort((a, b) => a.iso.localeCompare(b.iso))
+      .slice(0, dias)
+      .map(({ dia }) => dia);
   }
 
   // ---------- Escritura ----------
@@ -255,6 +298,23 @@ export class DespachoService {
       ],
       schedules: this.armarSchedules(base, officeCode, zoneId, pais),
     };
+
+    // Para el registro de cambios: cómo estaba el día y cómo queda
+    this.contexto.registrarCambio(
+      {
+        mainScheduleId,
+        date: diaActual.date,
+        assigned: diaActual.assigned,
+        active: diaActual.active,
+        occupied: diaActual.occupied,
+      },
+      {
+        mainScheduleId,
+        date: diaActual.date,
+        assigned: String(assigned),
+        active,
+      },
+    );
 
     this.logger.log(`Actualizando despacho ${mainScheduleId} — día ${date}`);
 

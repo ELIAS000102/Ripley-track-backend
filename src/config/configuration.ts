@@ -45,5 +45,21 @@ export default () => {
         simulator: `${prefijo}${process.env.RIPLEY_EP_SIMULATOR}`,
       },
     },
+    agente: {
+      /**
+       * Webhook del agente en n8n. Lo consume el frontend, no el backend:
+       * se sirve desde aquí para que la URL viva en el entorno y no repartida
+       * por el código de cada cliente.
+       */
+      webhookUrl: process.env.N8N_WEBHOOK_URL ?? '',
+    },
+    supabase: {
+      url: process.env.SUPABASE_URL,
+      /** Key pública: solo se usa para las operaciones de login */
+      anonKey: process.env.SUPABASE_ANON_KEY,
+      /** Key privada: escribe el registro de uso saltándose las políticas RLS */
+      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      tablaAuditoria: process.env.SUPABASE_TABLA_AUDITORIA ?? 'registro_uso',
+    },
   };
 };

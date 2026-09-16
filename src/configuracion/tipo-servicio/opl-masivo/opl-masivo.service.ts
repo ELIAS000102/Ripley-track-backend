@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
 import { ActualizarOplDto } from './dto/actualizar-opl.dto.js';
 import { ConsultarOplDto } from './dto/consultar-opl.dto.js';
@@ -43,6 +44,7 @@ export class OplMasivoService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly config: ConfigService,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   private endpoint(nombre: string): string {
@@ -248,6 +250,28 @@ export class OplMasivoService {
         tableData: { id: indice },
       };
     });
+
+    // Para el registro de cambios: el estado de cada agenda antes y después.
+    // Es un cambio masivo, así que se guarda una entrada por agenda tocada.
+    this.contexto.registrarCambio(
+      dto.cambios.map((cambio) => {
+        const actual = porId.get(cambio.mainRouteId);
+        return {
+          mainRouteId: cambio.mainRouteId,
+          opl: actual?.opl,
+          typeOfService: actual?.typeOfService,
+          isActive: actual?.active,
+          enabledForCheckout: actual?.enabledForCheckout,
+        };
+      }),
+      data.map((fila) => ({
+        mainRouteId: fila.mainRouteId,
+        opl: fila.opl,
+        typeOfService: fila.typeOfService,
+        isActive: fila.isActive,
+        enabledForCheckout: fila.enabledForCheckout,
+      })),
+    );
 
     this.logger.log(`Actualizando ${data.length} agenda(s)`);
 

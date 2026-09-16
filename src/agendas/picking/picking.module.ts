@@ -7,6 +7,8 @@ import { PickingService } from './picking.service.js';
   imports: [RipleyModule],
   controllers: [PickingController],
   providers: [PickingService],
+  // Lo usa el módulo del agente para resolver capacidades en una sola llamada
+  exports: [PickingService],
 })
 /** Feature de agendas de picking: capacidades por almacén y tipo de servicio. */
 export class PickingModule {}

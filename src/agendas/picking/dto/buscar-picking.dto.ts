@@ -1,9 +1,13 @@
+import { Type } from 'class-transformer';
 import {
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class ListarOficinasDto {
@@ -39,6 +43,18 @@ export class BuscarCapacidadesDto {
     message: 'from debe tener el formato DD-MM-YYYY',
   })
   from?: string;
+
+  /**
+   * Cuántos días devolver como máximo.
+   * Sin esto, Ripley devuelve la agenda completa —más de mil días— y la
+   * respuesta ronda los 100 KB, que no hay cliente que aproveche.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  dias?: number;
 
   @IsOptional()
   @IsString()

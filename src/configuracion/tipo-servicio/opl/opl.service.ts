@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
 import { ListarServiciosDto } from './dto/buscar-opl.dto.js';
@@ -35,6 +36,7 @@ export class OplService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly config: ConfigService,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   private endpoint(nombre: string): string {
@@ -232,6 +234,28 @@ export class OplService {
       validityRender: 'No',
       visibleRender: (actual.channelSale ?? []).map((c) => c.label).join(', '),
     };
+
+    // Para el registro de cambios: solo los campos editables, no el objeto entero
+    this.contexto.registrarCambio(
+      {
+        idServicio,
+        code: actual.code,
+        isActive: actual.isActive,
+        enabledForCheckout: actual.enabledForCheckout,
+        maxOcurrence: this.aNumero(actual.maxOcurrence),
+        slackDays: this.aNumero(actual.slackDays),
+        cutTime: actual.cutTime ?? [],
+      },
+      {
+        idServicio,
+        code: actual.code,
+        isActive: payload.isActive,
+        enabledForCheckout: payload.enabledForCheckout,
+        maxOcurrence: Number(payload.maxOcurrence),
+        slackDays: Number(payload.slackDays),
+        cutTime,
+      },
+    );
 
     this.logger.log(`Guardando servicio ${actual.code} (${idServicio})`);
 

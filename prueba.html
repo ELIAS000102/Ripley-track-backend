@@ -329,6 +329,74 @@
   table.mini tbody tr:last-child td { border-bottom: none; }
   table.mini tbody tr.inactiva td { color: var(--off); font-style: italic; }
   table.mini td.avanza { font-weight: 700; color: var(--acento); }
+
+  /* --- Barra de sesión --- */
+  .sesion {
+    display: flex; align-items: end; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 20px; padding: 14px 18px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  }
+  .sesion input { width: 220px; }
+  .sesion .btn { width: auto; }
+  .sesion .quien { font-size: 14px; }
+  .sesion .quien strong { font-weight: 600; }
+  .sesion .rol {
+    margin-left: 8px; padding: 2px 8px; border-radius: 10px;
+    background: #e8f0f4; color: var(--accent); font-size: 12px;
+  }
+  .sesion .salir {
+    font: inherit; font-size: 13px; height: 34px; width: auto; margin-left: auto;
+    padding: 0 14px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  }
+  .sesion .salir:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* --- Chat con el agente --- */
+  #panel-agente { --tabcolor: #3a5a7a; --acento: #3a5a7a; }
+  #panel-agente .controles { grid-template-columns: 1fr auto; align-items: center; }
+  .etiqueta-webhook { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+  #g-url { font-size: 12.5px; color: var(--ink); word-break: break-all; }
+
+  .chat {
+    margin-top: 16px; padding: 18px; min-height: 260px; max-height: 460px;
+    overflow-y: auto; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 6px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .chat:empty { display: none; }
+
+  .msg { max-width: 76%; padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.5; }
+  .msg.usuario { align-self: flex-end; background: var(--acento); color: #fff; border-bottom-right-radius: 3px; }
+  .msg.agente { align-self: flex-start; background: #f2f5f8; border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+  .msg.agente.error { background: #fdf4f4; border-color: #e2bcbc; color: var(--danger); }
+  .msg.agente.pensando { color: var(--muted); font-style: italic; }
+  .msg .quien-msg { display: block; font-size: 11.5px; opacity: .75; margin-bottom: 3px; }
+  .msg p { margin: 0 0 8px; }
+  .msg p:last-child { margin-bottom: 0; }
+
+  .chat-entrada { display: flex; gap: 10px; margin-top: 12px; }
+  .chat-entrada input { flex: 1; }
+  .chat-entrada .btn { width: auto; }
+
+  /* Alternar entre iniciar sesión y crear cuenta */
+  .sesion-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: -1px; }
+
+  .tab-sesion {
+    height: 36px; padding: 0 18px; width: auto;
+    border: 1px solid var(--line); border-bottom-color: transparent;
+    border-radius: 6px 6px 0 0;
+    background: #e3e8ee; color: var(--muted);
+    font: inherit; font-size: 14px; cursor: pointer;
+  }
+  .tab-sesion[aria-selected="true"] {
+    background: var(--surface); color: var(--ink); font-weight: 600;
+    box-shadow: inset 0 3px 0 var(--accent);
+  }
+
+  #sesion-form .sesion { margin-bottom: 20px; border-radius: 0 6px 6px 6px; }
+  .sesion.compacta input { width: 150px; }
+  .sesion .opcional { color: var(--off); }
+  .sesion .perfil-extra { color: var(--muted); font-size: 13px; margin-left: 10px; }
 </style>
 </head>
 <body>
@@ -336,6 +404,62 @@
 
   <h1>Capacidades de agendas</h1>
   <p class="sub">Consulta, ajusta y reporta la ocupación diaria.</p>
+
+  <!-- ══════════ SESIÓN ══════════ -->
+  <div id="sesion-form">
+    <div class="sesion-tabs">
+      <button class="tab-sesion" id="a-tab-login" aria-selected="true">Iniciar sesión</button>
+      <button class="tab-sesion" id="a-tab-registro" aria-selected="false">Crear cuenta</button>
+    </div>
+
+    <div class="sesion" id="form-login">
+      <div>
+        <label for="a-email">Correo</label>
+        <input id="a-email" type="email" autocomplete="username" placeholder="usuario@ripley.com.pe">
+      </div>
+      <div>
+        <label for="a-password">Contraseña</label>
+        <input id="a-password" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="btn" id="a-entrar">Entrar</button>
+    </div>
+
+    <div class="sesion compacta" id="form-registro" hidden>
+      <div>
+        <label for="r-nombre">Nombre</label>
+        <input id="r-nombre" autocomplete="given-name" placeholder="Ana">
+      </div>
+      <div>
+        <label for="r-apellido">Apellido</label>
+        <input id="r-apellido" autocomplete="family-name" placeholder="López">
+      </div>
+      <div>
+        <label for="r-email">Correo</label>
+        <input id="r-email" type="email" autocomplete="username" placeholder="ana@ripley.com.pe">
+      </div>
+      <div>
+        <label for="r-password">Contraseña</label>
+        <input id="r-password" type="password" autocomplete="new-password" placeholder="mín. 8 caracteres">
+      </div>
+      <div>
+        <label for="r-tienda">Tienda <span class="opcional">(opcional)</span></label>
+        <input id="r-tienda" placeholder="20026">
+      </div>
+      <button class="btn" id="a-registrar">Crear cuenta</button>
+    </div>
+  </div>
+
+  <div class="sesion" id="sesion-activa" hidden>
+    <span class="quien">
+      <strong id="a-quien"></strong><span class="rol" id="a-rol" hidden></span>
+      <span class="perfil-extra" id="a-extra"></span>
+    </span>
+    <button class="salir" id="a-salir">Cerrar sesión</button>
+  </div>
+
+  <div id="a-aviso" class="aviso" hidden></div>
+
+  <div id="contenido" hidden>
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-picking" aria-controls="panel-picking" aria-selected="true">Picking</button>
@@ -345,6 +469,7 @@
     <button class="tab" role="tab" id="tab-masivo" aria-controls="panel-masivo" aria-selected="false">Activación masiva</button>
     <button class="tab" role="tab" id="tab-transf" aria-controls="panel-transf" aria-selected="false">Transferencia</button>
     <button class="tab" role="tab" id="tab-simular" aria-controls="panel-simular" aria-selected="false">Simulación</button>
+    <button class="tab" role="tab" id="tab-agente" aria-controls="panel-agente" aria-selected="false">Agente</button>
   </div>
 
   <!-- ══════════ PICKING ══════════ -->
@@ -609,12 +734,57 @@
     <div id="s-resultado"></div>
   </section>
 
+  <!-- ══════════ AGENTE ══════════ -->
+  <section id="panel-agente" role="tabpanel" aria-labelledby="tab-agente" hidden>
+    <div class="controles">
+      <div>
+        <span class="etiqueta-webhook">Webhook de n8n</span>
+        <span class="mono" id="g-url">—</span>
+      </div>
+      <button class="btn" id="g-limpiar">Limpiar chat</button>
+    </div>
+
+    <div id="g-conversacion" class="chat"></div>
+
+    <div class="chat-entrada">
+      <input id="g-pregunta" placeholder="Escribe tu pregunta…" autocomplete="off">
+      <button class="btn" id="g-enviar">Enviar</button>
+    </div>
+
+    <div id="g-aviso" class="aviso">Escribe tu pregunta. El agente consulta con tu propia sesión, así que solo ve lo que tú puedes ver.</div>
+  </section>
+
+  </div><!-- /#contenido -->
+
 </div>
 
 <script>
 const BASE = 'http://localhost:3000';
 const $ = (id) => document.getElementById(id);
 const hoy = new Date().toISOString().slice(0, 10);
+
+/* ───────── sesión ───────── */
+
+/** Los tokens se guardan para no tener que entrar otra vez al recargar */
+const CLAVE_SESION = 'ripley-track-sesion';
+
+let sesion = null;
+
+function cargarSesion() {
+  try {
+    sesion = JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null');
+  } catch { sesion = null; }
+}
+
+function guardarSesion(datos) {
+  sesion = datos;
+  try { localStorage.setItem(CLAVE_SESION, JSON.stringify(datos)); } catch { /* modo privado */ }
+}
+
+function olvidarSesion() {
+  sesion = null;
+  try { localStorage.removeItem(CLAVE_SESION); } catch { /* modo privado */ }
+}
 
 /* ───────── utilidades compartidas ───────── */
 
@@ -626,10 +796,22 @@ function urlCon(ruta, params) {
   return url;
 }
 
+/** Toda llamada al backend viaja con el token, salvo el propio login */
+function cabeceras(conCuerpo = false) {
+  const h = {};
+  if (conCuerpo) h['Content-Type'] = 'application/json';
+  if (sesion?.accessToken) h.Authorization = `Bearer ${sesion.accessToken}`;
+  return h;
+}
+
 async function leerRespuesta(res) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    // La sesión caducó: se vuelve a la pantalla de login en vez de dar un error suelto
+    if (res.status === 401 && sesion) {
+      cerrarSesionLocal('Tu sesión expiró. Vuelve a entrar.');
+    }
 
     const msg = Array.isArray(data.message) ? data.message.join(' · ') : data.message;
     throw new Error(msg || 'Error en la consulta');
@@ -638,13 +820,13 @@ async function leerRespuesta(res) {
 }
 
 async function pedir(ruta, params) {
-  return leerRespuesta(await fetch(urlCon(ruta, params)));
+  return leerRespuesta(await fetch(urlCon(ruta, params), { headers: cabeceras() }));
 }
 
 async function enviar(ruta, params, body) {
   const res = await fetch(urlCon(ruta, params), {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: cabeceras(true),
     body: JSON.stringify(body)
   });
   return leerRespuesta(res);
@@ -653,7 +835,7 @@ async function enviar(ruta, params, body) {
 async function enviarPost(ruta, body, params = {}) {
   const res = await fetch(urlCon(ruta, params), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: cabeceras(true),
     body: JSON.stringify(body)
   });
   return leerRespuesta(res);
@@ -783,6 +965,174 @@ function pintarTabla(el, filas, onGuardar) {
     });
   });
 }
+
+/* ═════════ SESIÓN ═════════ */
+
+const A = {
+  email: $('a-email'), password: $('a-password'), entrar: $('a-entrar'),
+  salir: $('a-salir'), quien: $('a-quien'), rol: $('a-rol'), extra: $('a-extra'),
+  aviso: $('a-aviso'), form: $('sesion-form'), activa: $('sesion-activa'),
+  contenido: $('contenido'),
+  // Crear cuenta
+  tabLogin: $('a-tab-login'), tabRegistro: $('a-tab-registro'),
+  formLogin: $('form-login'), formRegistro: $('form-registro'),
+  registrar: $('a-registrar'), rNombre: $('r-nombre'), rApellido: $('r-apellido'),
+  rEmail: $('r-email'), rPassword: $('r-password'), rTienda: $('r-tienda')
+};
+
+/** Alterna entre el formulario de login y el de registro */
+function mostrarFormulario(cual) {
+  const esLogin = cual === 'login';
+
+  A.tabLogin.setAttribute('aria-selected', esLogin);
+  A.tabRegistro.setAttribute('aria-selected', !esLogin);
+  A.formLogin.hidden = !esLogin;
+  A.formRegistro.hidden = esLogin;
+  A.aviso.hidden = true;
+}
+
+/** Muestra el formulario o el panel, según haya sesión o no */
+function pintarSesion() {
+  const dentro = Boolean(sesion?.accessToken);
+  const u = sesion?.usuario;
+
+  A.form.hidden = dentro;
+  A.activa.hidden = !dentro;
+  A.contenido.hidden = !dentro;
+
+  if (!dentro) return;
+
+  // El nombre es más útil que el correo; si aún no lo tiene, se cae al correo
+  const nombre = [u?.nombre, u?.apellido].filter(Boolean).join(' ');
+  A.quien.textContent = nombre || u?.email || '';
+
+  A.rol.textContent = u?.rol ?? '';
+  A.rol.hidden = !u?.rol;
+
+  const detalle = [nombre ? u?.email : null, u?.tienda ? `Tienda ${u.tienda}` : null]
+    .filter(Boolean).join(' · ');
+  A.extra.textContent = detalle;
+}
+
+/** Vuelve a la pantalla de login sin llamar al backend (sesión ya inválida) */
+function cerrarSesionLocal(mensaje) {
+  olvidarSesion();
+  pintarSesion();
+  if (mensaje) aviso(A.aviso, mensaje, true);
+}
+
+async function entrar() {
+  const email = A.email.value.trim();
+  const password = A.password.value;
+
+  if (!email || !password) {
+    aviso(A.aviso, 'Escribe tu correo y contraseña.', true);
+    return;
+  }
+
+  A.entrar.disabled = true;
+  aviso(A.aviso, 'Entrando…');
+
+  try {
+    const datos = await enviarPost('/auth/login', { email, password });
+
+    guardarSesion(datos);
+    A.password.value = '';
+    A.aviso.hidden = true;
+    pintarSesion();
+    cargarCatalogos();
+  } catch (e) {
+    aviso(A.aviso, e.message, true);
+  } finally {
+    A.entrar.disabled = false;
+  }
+}
+
+async function registrarse() {
+  const cuenta = {
+    nombre: A.rNombre.value.trim(),
+    apellido: A.rApellido.value.trim(),
+    email: A.rEmail.value.trim(),
+    password: A.rPassword.value,
+    tienda: A.rTienda.value.trim() || undefined
+  };
+
+  if (!cuenta.nombre || !cuenta.apellido || !cuenta.email || !cuenta.password) {
+    aviso(A.aviso, 'Completa nombre, apellido, correo y contraseña.', true);
+    return;
+  }
+
+  A.registrar.disabled = true;
+  aviso(A.aviso, 'Creando la cuenta…');
+
+  try {
+    const datos = await enviarPost('/auth/registro', cuenta);
+
+    A.rPassword.value = '';
+
+    // Si el proyecto exige confirmar el correo, no llega sesión: solo un aviso
+    if (!datos.accessToken) {
+      aviso(A.aviso, datos.mensaje ?? 'Cuenta creada. Ya puedes iniciar sesión.');
+      mostrarFormulario('login');
+      A.email.value = cuenta.email;
+      return;
+    }
+
+    guardarSesion(datos);
+    A.aviso.hidden = true;
+    pintarSesion();
+    cargarCatalogos();
+  } catch (e) {
+    aviso(A.aviso, e.message, true);
+  } finally {
+    A.registrar.disabled = false;
+  }
+}
+
+async function salir() {
+  A.salir.disabled = true;
+
+  try {
+    await enviarPost('/auth/logout', {});
+  } catch { /* la sesión se cierra igual en el cliente */ }
+
+  olvidarSesion();
+  pintarSesion();
+  aviso(A.aviso, 'Sesión cerrada.');
+  A.salir.disabled = false;
+}
+
+/** Al recargar: si hay token guardado, se comprueba que siga vivo antes de confiar en él */
+async function restaurarSesion() {
+  cargarSesion();
+
+  if (!sesion?.accessToken) {
+    pintarSesion();
+    return;
+  }
+
+  try {
+    const usuario = await pedir('/auth/me', {});
+    guardarSesion({ ...sesion, usuario });
+    pintarSesion();
+    cargarCatalogos();
+  } catch {
+    // leerRespuesta ya limpió la sesión si fue un 401
+    cerrarSesionLocal('Tu sesión expiró. Vuelve a entrar.');
+  }
+}
+
+A.entrar.addEventListener('click', entrar);
+A.registrar.addEventListener('click', registrarse);
+A.salir.addEventListener('click', salir);
+A.tabLogin.addEventListener('click', () => mostrarFormulario('login'));
+A.tabRegistro.addEventListener('click', () => mostrarFormulario('registro'));
+
+[A.email, A.password].forEach(campo =>
+  campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); }));
+
+[A.rNombre, A.rApellido, A.rEmail, A.rPassword, A.rTienda].forEach(campo =>
+  campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') registrarse(); }));
 
 /* ───────── pestañas ───────── */
 
@@ -2312,13 +2662,190 @@ S.provincia.addEventListener('change', cargarDistritos);
 S.distrito.addEventListener('change', revisarSimulacion);
 S.simular.addEventListener('click', ejecutarSimulacion);
 
+/* ═════════ AGENTE (chat con n8n) ═════════ */
+
+const G = {
+  url: $('g-url'), conversacion: $('g-conversacion'), pregunta: $('g-pregunta'),
+  enviar: $('g-enviar'), limpiar: $('g-limpiar'), aviso: $('g-aviso')
+};
+
+/**
+ * Identifica la conversación para que el agente recuerde el contexto.
+ *
+ * crypto.randomUUID solo existe en contextos seguros (https y file://). Servido
+ * por http plano no está, y llamarlo sin más tumbaría el script entero —no solo
+ * el chat—, así que hay respaldo.
+ */
+function nuevaConversacion() {
+  return typeof crypto?.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `sesion-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+let idConversacion = nuevaConversacion();
+
+/** La URL del webhook la define el backend por variable de entorno */
+let webhookAgente = '';
+
+/**
+ * La conversación se guarda en el navegador para que no se pierda si la página
+ * se recarga (un servidor de desarrollo con recarga automática, por ejemplo).
+ */
+const CLAVE_CHAT = 'ripley-track-chat';
+let historial = [];
+
+function guardarHistorial() {
+  try {
+    localStorage.setItem(CLAVE_CHAT, JSON.stringify({ idConversacion, historial }));
+  } catch { /* modo privado o contexto sin almacenamiento */ }
+}
+
+function restaurarHistorial() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE_CHAT) || 'null');
+    if (!guardado?.historial?.length) return;
+
+    idConversacion = guardado.idConversacion || idConversacion;
+    historial = guardado.historial;
+    historial.forEach((m) => pintarMensaje(m.quien, m.texto, m.clases));
+  } catch { /* si está corrupto, se empieza de cero */ }
+}
+
+async function cargarConfigAgente() {
+  restaurarHistorial();
+
+  try {
+    const { webhookUrl } = await pedir('/agente/configuracion', {});
+    webhookAgente = webhookUrl ?? '';
+    G.url.textContent = webhookAgente || 'sin configurar';
+
+    if (!webhookAgente) {
+      aviso(G.aviso, 'Falta N8N_WEBHOOK_URL en el .env del backend.', true);
+    }
+  } catch (e) {
+    G.url.textContent = 'sin configurar';
+    aviso(G.aviso, `No se pudo leer la configuración del agente: ${e.message}`, true);
+  }
+}
+
+/** Pinta un mensaje sin guardarlo: lo usan tanto el chat como la restauración */
+function pintarMensaje(quien, texto, clases = '') {
+  const div = document.createElement('div');
+  div.className = `msg ${quien} ${clases}`.trim();
+
+  const etiqueta = document.createElement('span');
+  etiqueta.className = 'quien-msg';
+  etiqueta.textContent = quien === 'usuario'
+    ? (sesion?.usuario?.nombre || 'Tú')
+    : 'Agente';
+
+  const cuerpo = document.createElement('span');
+  cuerpo.textContent = texto;
+
+  div.append(etiqueta, cuerpo);
+  G.conversacion.append(div);
+  G.conversacion.scrollTop = G.conversacion.scrollHeight;
+
+  return cuerpo;
+}
+
+/** Pinta y recuerda. El "Pensando…" no pasa por aquí: es pasajero. */
+function agregarMensaje(quien, texto, clases = '') {
+  historial.push({ quien, texto, clases });
+  guardarHistorial();
+  return pintarMensaje(quien, texto, clases);
+}
+
+/**
+ * El agente vive en n8n, no en el backend, así que aquí se llama al webhook
+ * directamente. Se le manda el token del usuario para que n8n lo reenvíe al
+ * backend: así la consulta queda a nombre de quien pregunta, no del agente.
+ */
+async function preguntarAgente() {
+  const texto = G.pregunta.value.trim();
+
+  if (!texto) return;
+
+  if (!webhookAgente) {
+    aviso(G.aviso, 'No hay webhook configurado: revisa N8N_WEBHOOK_URL en el backend.', true);
+    return;
+  }
+
+  agregarMensaje('usuario', texto);
+  G.pregunta.value = '';
+  G.enviar.disabled = true;
+  G.aviso.hidden = true;
+
+  // Pasajero: no entra al historial, para no restaurar un "Pensando…" eterno
+  const respuesta = pintarMensaje('agente', 'Pensando…', 'pensando');
+
+  try {
+    const res = await fetch(webhookAgente, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pregunta: texto,
+        token: sesion?.accessToken,
+        sessionId: idConversacion,
+        usuario_email: sesion?.usuario?.email
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      // n8n responde 404 cuando el webhook de prueba no está escuchando
+      throw new Error(
+        data.message ||
+        (res.status === 404
+          ? 'El webhook no responde. Comprueba que el workflow esté activo en n8n.'
+          : `El webhook respondió ${res.status}`)
+      );
+    }
+
+    const contestacion = data.respuesta ?? data.output ?? JSON.stringify(data);
+
+    respuesta.parentElement.classList.remove('pensando');
+    respuesta.textContent = contestacion;
+    historial.push({ quien: 'agente', texto: contestacion, clases: '' });
+    guardarHistorial();
+  } catch (e) {
+    respuesta.parentElement.classList.remove('pensando');
+    respuesta.parentElement.classList.add('error');
+    respuesta.textContent = e.message;
+    historial.push({ quien: 'agente', texto: e.message, clases: 'error' });
+    guardarHistorial();
+  } finally {
+    G.enviar.disabled = false;
+    G.pregunta.focus();
+  }
+}
+
+G.enviar.addEventListener('click', preguntarAgente);
+G.pregunta.addEventListener('keydown', (e) => { if (e.key === 'Enter') preguntarAgente(); });
+
+G.limpiar.addEventListener('click', () => {
+  G.conversacion.innerHTML = '';
+  historial = [];
+  idConversacion = nuevaConversacion();
+  guardarHistorial();
+  aviso(G.aviso, 'Conversación reiniciada. El agente ya no recuerda lo anterior.');
+});
+
 /* ───────── arranque ───────── */
-cargarAlmacenes();
-cargarOpls();
-cargarMetodos();
-cargarOrigenes();
-cargarMetodosSim();
-cargarRegiones();
+
+/** Los catálogos necesitan sesión, así que se cargan recién después de entrar */
+function cargarCatalogos() {
+  cargarAlmacenes();
+  cargarOpls();
+  cargarMetodos();
+  cargarOrigenes();
+  cargarMetodosSim();
+  cargarRegiones();
+  cargarConfigAgente();
+}
+
+restaurarSesion();
 </script>
 </body>
 </html>

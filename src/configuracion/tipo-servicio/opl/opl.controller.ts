@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplService } from './opl.service.js';
 import {
   BuscarOplDto,
@@ -48,6 +49,7 @@ export class OplController {
   }
 
   /** PUT .../servicios/{idServicio} */
+  @Auditar('opl.actualizarServicio')
   @Put('servicios/:idServicio')
   async actualizar(
     @Param('idServicio') idServicio: string,

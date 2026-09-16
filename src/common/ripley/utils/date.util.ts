@@ -20,6 +20,12 @@ export function soloFecha(isoDate: string): string {
   return isoDate.split('T')[0];
 }
 
+/** "14-09-2026" -> "2026-09-14". El inverso de isoToRipleyDate. */
+export function ripleyDateToIso(fecha: string): string {
+  const [day, month, year] = fecha.split('-');
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Fecha de hoy en la zona horaria del país, no la del servidor.
  * A las 00:00 de Lima el reporte ya arranca en el día nuevo.

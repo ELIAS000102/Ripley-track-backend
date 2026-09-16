@@ -1,9 +1,13 @@
+import { Type } from 'class-transformer';
 import {
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
+  Max,
+  Min,
 } from 'class-validator';
 
 const FECHA = /^\d{2}-\d{2}-\d{4}$/;
@@ -39,6 +43,14 @@ export class BuscarCapacidadesDto {
   @IsString()
   @Matches(FECHA, { message: 'date debe tener el formato DD-MM-YYYY' })
   date?: string;
+
+  /** Cuántos días devolver como máximo. Sin esto llega la agenda completa. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  dias?: number;
 
   @IsOptional()
   @IsString()
