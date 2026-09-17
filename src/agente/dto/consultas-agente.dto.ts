@@ -1,5 +1,6 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -168,4 +169,32 @@ export class SimularAgenteDto extends BaseAgenteDto {
   @IsInt()
   @Min(1)
   cantidad?: number = 1;
+}
+
+// ───────────────────────── Búsqueda masiva ─────────────────────────
+
+export class BuscarMasivoDto extends BaseAgenteDto {
+  /** Código del método de entrega ("RT") o su descripción */
+  @IsString()
+  @IsNotEmpty()
+  metodo: string;
+
+  /** Código del tipo de servicio ("SE") o su descripción */
+  @IsString()
+  @IsNotEmpty()
+  servicio: string;
+
+  /**
+   * Orígenes de stock separados por coma. Si se omite, se buscan todos: el
+   * agente no tiene por qué conocer el catálogo.
+   */
+  @IsOptional()
+  @IsString()
+  origenes?: string;
+
+  /** Deja fuera las agendas desactivadas, que suelen ser la mayoría */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  soloActivas?: boolean = false;
 }

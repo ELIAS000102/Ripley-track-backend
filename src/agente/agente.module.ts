@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { DespachoModule } from '../agendas/despacho/despacho.module.js';
 import { PickingModule } from '../agendas/picking/picking.module.js';
 import { AuthModule } from '../auth/auth.module.js';
+import { OplMasivoModule } from '../configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from '../configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from '../configuracion/transf-suc/transf.module.js';
 import { CdsModule } from '../reportes/cds/cds.module.js';
 import { SimulacionModule } from '../simulacion/simulacion.module.js';
 import { AgenteController } from './agente.controller.js';
 import { AgenteService } from './agente.service.js';
+import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { ReporteAgenteService } from './reporte.service.js';
 import { SimulacionAgenteService } from './simulacion.service.js';
@@ -32,6 +34,7 @@ import { TransferenciaAgenteService } from './transferencia.service.js';
     CdsModule,
     TransfModule,
     OplModule,
+    OplMasivoModule,
     SimulacionModule,
     AuthModule,
   ],
@@ -42,6 +45,7 @@ import { TransferenciaAgenteService } from './transferencia.service.js';
     ReporteAgenteService,
     TransferenciaAgenteService,
     TipoServicioAgenteService,
+    BusquedaMasivaAgenteService,
     SimulacionAgenteService,
   ],
 })

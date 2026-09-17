@@ -160,3 +160,31 @@ export interface SimulacionRespuesta {
   };
   aviso?: string;
 }
+
+// ───────────────────────── Búsqueda masiva ─────────────────────────
+
+/** Una agenda encontrada por servicio, sin identificadores internos */
+export interface AgendaMasiva {
+  opl: string;
+  agenda: string;
+  zona: string;
+  servicio: string;
+  activa: boolean;
+  enCheckout: boolean;
+}
+
+export interface BusquedaMasivaRespuesta {
+  contexto: ContextoAgente;
+  /** Códigos ya resueltos, por si el usuario los dio por su nombre */
+  metodo: string;
+  servicio: string;
+  origenes: string[];
+  /** Cuenta TODAS las agendas, aunque la lista venga recortada */
+  resumen: {
+    total: number;
+    activas: number;
+    enCheckout: number;
+  };
+  agendas: AgendaMasiva[];
+  aviso?: string;
+}

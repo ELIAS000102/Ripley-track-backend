@@ -4,6 +4,7 @@ import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { AgenteService } from './agente.service.js';
+import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { PermitidoAgente } from './decorators/permitido-agente.decorator.js';
 import { ReporteAgenteService } from './reporte.service.js';
@@ -11,6 +12,7 @@ import { SimulacionAgenteService } from './simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia.service.js';
 import {
+  BuscarMasivoDto,
   ConsultarCapacidadDto,
   ConsultarReporteDto,
   ConsultarTipoServicioDto,
@@ -48,6 +50,7 @@ export class AgenteController {
     private readonly reporte: ReporteAgenteService,
     private readonly transferencia: TransferenciaAgenteService,
     private readonly tipoServicio: TipoServicioAgenteService,
+    private readonly masivo: BusquedaMasivaAgenteService,
     private readonly simulacion: SimulacionAgenteService,
     private readonly contexto: ContextoAgenteService,
     private readonly config: ConfigService,
@@ -143,6 +146,23 @@ export class AgenteController {
     @Query() query: ConsultarTipoServicioDto,
   ) {
     return this.tipoServicio.consultar(usuario, query);
+  }
+
+  /**
+   * GET /agente/busqueda-masiva?metodo=RT&servicio=SE&soloActivas=true
+   *
+   * La pregunta al revés que `/agente/tipo-servicio`: qué agendas tienen un
+   * servicio, en vez de qué servicios tiene una agenda. Devuelve los totales
+   * siempre y como mucho 40 filas, porque una búsqueda amplia trae cientos.
+   */
+  @PermitidoAgente()
+  @Auditar('agente.busquedaMasiva')
+  @Get('busqueda-masiva')
+  async busquedaMasiva(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: BuscarMasivoDto,
+  ) {
+    return this.masivo.buscar(usuario, query);
   }
 
   /**

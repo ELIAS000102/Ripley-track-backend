@@ -7,6 +7,7 @@ import { OplMasivoService } from './opl-masivo.service.js';
   imports: [RipleyModule],
   controllers: [OplMasivoController],
   providers: [OplMasivoService],
+  exports: [OplMasivoService],
 })
 /** Feature de activación masiva de tipos de servicio (por método de entrega y orígenes de stock). */
 export class OplMasivoModule {}
