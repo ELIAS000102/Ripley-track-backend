@@ -8,6 +8,7 @@ import { AuditoriaModule } from './auditoria/auditoria.module.js';
 import { AuditoriaInterceptor } from './auditoria/auditoria.interceptor.js';
 import { AuditoriaMiddleware } from './auditoria/auditoria.middleware.js';
 import { AgenteModule } from './agente/agente.module.js';
+import { ChatsModule } from './chats/chats.module.js';
 import { AgenteGuard } from './agente/guards/agente.guard.js';
 import { CifradoModule } from './common/cifrado/cifrado.module.js';
 import { SupabaseModule } from './common/supabase/supabase.module.js';
@@ -45,6 +46,7 @@ import { SimulacionModule } from './simulacion/simulacion.module.js';
     TransfModule,
     SimulacionModule,
     AgenteModule,
+    ChatsModule,
   ],
   providers: [
     // Toda ruta exige sesión salvo las marcadas con @Publico()

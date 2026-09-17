@@ -7,6 +7,15 @@ export type {
 export interface Cd {
   code: string;
   nombre: string;
+  /**
+   * Jornadas que cuentan para el total de este CD.
+   *
+   * Ripley devuelve más de las que la operación considera suyas —agendas de
+   * prueba, restos de configuraciones viejas—, y sumarlas todas infla el
+   * porcentaje de uso. Cada CD tiene su lista, y lo que quede fuera se informa
+   * en vez de descartarse en silencio.
+   */
+  jornadas: string[];
 }
 
 /** Un servicio del catálogo /services */

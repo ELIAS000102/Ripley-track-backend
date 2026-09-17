@@ -130,39 +130,50 @@ export class ConsultarTipoServicioDto extends BaseAgenteDto {
 // ───────────────────────── Simulación ─────────────────────────
 
 export class SimularAgenteDto extends BaseAgenteDto {
-  /** Código o nombre del almacén que aporta el stock */
+  /** Código o nombre del almacén que aporta el stock. Lo único obligatorio. */
   @IsString()
   @IsNotEmpty()
   almacen: string;
 
-  /** Código o nombre del operador logístico o tienda de retiro */
+  /**
+   * Código del operador. Si se omite se simulan los predeterminados del
+   * servicio: los cinco de despacho o los once de retiro en tienda.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  operador: string;
+  operador?: string;
 
-  /** Nombre de la región de destino */
+  /**
+   * Tipo de servicio: SD, SE… **Vacío es válido y útil**: Ripley devuelve
+   * entonces todos los tipos aplicables al destino, que para los OPL de
+   * despacho son SD y S.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  region: string;
+  servicio?: string;
 
-  /** Nombre del distrito de destino; se busca en todas las provincias */
+  /**
+   * Método de entrega. Normalmente no hace falta: lo determina el servicio
+   * (SD → DP, SE → RT) o la lista a la que pertenece el OPL.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  distrito: string;
+  metodo?: string;
 
+  /** Solo para operadores que no estén entre los conocidos */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  sku: string;
+  region?: string;
 
-  /** Código del método de entrega: "RT", "DP"… */
+  /** Solo para operadores que no estén entre los conocidos */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  metodo: string;
+  distrito?: string;
 
-  /** Código del tipo de servicio: "RT", "SE", "ST"… */
+  /** Si se omite se usa un SKU de referencia */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  servicio: string;
+  sku?: string;
 
   @IsOptional()
   @Type(() => Number)

@@ -63,7 +63,7 @@ export class ReporteAgenteService {
     const cds: CdReporte[] = crudo.cds.map((cd) => {
       const jornadasDelCd = porCd.get(cd.code) ?? new Map();
 
-      const jornadas: JornadaReporte[] = [...jornadasDelCd.entries()]
+      const todas: JornadaReporte[] = [...jornadasDelCd.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([jornada, porFecha]) => {
           const dias = fechas.map(
@@ -76,11 +76,22 @@ export class ReporteAgenteService {
           };
         });
 
+      // Solo cuentan las jornadas propias del CD. Ripley devuelve alguna más
+      // —agendas de prueba, restos de configuraciones viejas— y sumarlas
+      // desvirtúa el porcentaje de uso.
+      const propias = todas.filter((j) => cd.jornadas.includes(j.jornada));
+      const excluidas = todas
+        .filter((j) => !cd.jornadas.includes(j.jornada))
+        .map((j) => j.jornada);
+
       return {
         cd: cd.code,
         nombre: cd.nombre,
-        jornadas,
-        total: this.totales(jornadas, fechas.length),
+        jornadas: propias,
+        total: this.totales(propias, fechas.length),
+        // Se informan en vez de desaparecer: quien lea el reporte tiene que
+        // poder notar si Ripley empezó a devolver una jornada nueva.
+        excluidas,
       };
     });
 

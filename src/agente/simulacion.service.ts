@@ -3,24 +3,40 @@ import { SimulacionService } from '../simulacion/simulacion.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { SimularAgenteDto } from './dto/consultas-agente.dto.js';
-import type { SimulacionRespuesta } from './interfaces/agente.interface.js';
+import {
+  METODO_POR_SERVICIO,
+  SKU_POR_DEFECTO,
+  metodoDeOpl,
+  oplConocido,
+  oplsDe,
+  type OplPorDefecto,
+} from './simulacion.constants.js';
+import type {
+  ResultadoSimulacion,
+  SimulacionRespuesta,
+} from './interfaces/agente.interface.js';
 
 /**
- * Simulación de entrega resuelta de extremo a extremo.
+ * Simulación de entrega, resuelta de extremo a extremo.
  *
- * Es la cadena más larga del sistema: método de entrega, almacén, operador,
- * región, distrito y SKU, cada uno con su propia búsqueda y su identificador
- * interno. El agente tenía que encadenar ocho llamadas y arrastrar seis ids; en
- * la práctica se perdía o acababa pidiéndoselos al usuario.
+ * Tres reglas de la operación viven aquí y no en el prompt:
  *
- * Aquí entra todo por nombre o código visible y sale una sola frase útil: cuándo
- * llegaría. La respuesta cruda de Ripley trae la matriz completa de servicios,
- * con el log paso a paso de cómo calculó cada fecha —miles de tokens que el
- * modelo no va a leer—, así que de todo eso se extrae la primera opción válida.
+ * 1. **El método lo determina el servicio.** SD se despacha (DP), SE se retira
+ *    en tienda (RT). No es un valor razonable por defecto, es la regla.
+ * 2. **Sin OPL, se simulan los de siempre.** Los cinco de despacho o los once
+ *    de retiro, cada uno con su distrito, que es donde está la tienda.
+ * 3. **Sin servicio, Ripley devuelve todos los aplicables.** Es una consulta
+ *    válida y frecuente: para los OPL de despacho devuelve SD y S.
+ *
+ * Tenerlas en el backend ahorra unos 400 tokens de tablas en cada petición del
+ * modelo y evita que el prompt describa unos códigos y el código use otros.
  */
 @Injectable()
 export class SimulacionAgenteService {
   private readonly logger = new Logger(SimulacionAgenteService.name);
+
+  /** OPL que se simulan a la vez, para no saturar la API corporativa */
+  private readonly CONCURRENCIA = 3;
 
   constructor(
     private readonly simulacion: SimulacionService,
@@ -34,117 +50,226 @@ export class SimulacionAgenteService {
     const contexto = await this.contexto.armar(usuario, dto.pais ?? 'PE');
     const pais = contexto.pais;
 
+    const servicio = dto.servicio?.trim().toUpperCase() || null;
+    const sku = dto.sku?.trim() || SKU_POR_DEFECTO;
+    const cantidad = dto.cantidad ?? 1;
+    const destinos = this.destinos(dto, servicio);
+    const metodo = this.metodo(dto, servicio, destinos);
+
     this.logger.log(
-      `Agente simulando ${dto.metodo}/${dto.servicio}: ${dto.almacen} → ${dto.distrito}`,
+      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} OPL (${pais})`,
     );
 
-    // Las cuatro búsquedas son independientes entre sí
-    const [almacen, operador, region, producto] = await Promise.all([
+    const [almacen, producto] = await Promise.all([
       this.unico(
         this.simulacion.buscarAlmacenes(dto.almacen, pais),
         dto.almacen,
         'almacén',
       ),
-      this.unico(
-        this.simulacion.buscarOpl(dto.operador, pais),
-        dto.operador,
-        'operador logístico',
-      ),
-      this.region(dto.region, pais),
-      this.sku(dto.sku, pais),
+      this.sku(sku, pais),
     ]);
+
+    const resultados = await this.enLotes(destinos, (d) =>
+      this.simularUno(d, {
+        almacen,
+        producto,
+        metodo,
+        servicio,
+        cantidad,
+        pais,
+      }),
+    );
+
+    const conEntrega = resultados.filter((r) => r.entrega).length;
+
+    return {
+      contexto,
+      parametros: {
+        servicio,
+        metodo,
+        almacen: `${almacen.code} - ${almacen.nombre}`,
+        sku: producto.nombre
+          ? `${producto.sku} - ${producto.nombre}`
+          : String(producto.sku),
+        cantidad,
+        usoPredeterminados: !dto.operador,
+      },
+      resultados,
+      aviso: conEntrega
+        ? undefined
+        : 'Ninguna combinación devolvió fecha de entrega. Puede que ese servicio no cubra esos destinos o que no haya stock simulable.',
+    };
+  }
+
+  // ---------- Qué simular ----------
+
+  /**
+   * Un OPL si lo dieron, si no los predeterminados del servicio.
+   *
+   * Cuando el OPL es conocido se usan su distrito y provincia sin preguntar:
+   * en retiro en tienda el destino ES la tienda, y en despacho es el que la
+   * operación revisa.
+   */
+  private destinos(
+    dto: SimularAgenteDto,
+    servicio: string | null,
+  ): OplPorDefecto[] {
+    if (!dto.operador) return oplsDe(servicio ?? undefined);
+
+    const conocido = oplConocido(dto.operador);
+    if (conocido && !dto.distrito) return [conocido];
+
+    if (!dto.distrito || !dto.region) {
+      throw new NotFoundException(
+        `El operador "${dto.operador}" no está entre los conocidos, así que necesito región y distrito de destino.`,
+      );
+    }
+
+    return [
+      {
+        code: dto.operador.trim(),
+        distrito: dto.distrito.trim(),
+        provincia: '',
+        region: dto.region.trim(),
+      },
+    ];
+  }
+
+  /** Explícito > el que corresponde al servicio > el de la lista del OPL */
+  private metodo(
+    dto: SimularAgenteDto,
+    servicio: string | null,
+    destinos: OplPorDefecto[],
+  ): string {
+    if (dto.metodo?.trim()) return dto.metodo.trim().toUpperCase();
+    if (servicio && METODO_POR_SERVICIO[servicio]) {
+      return METODO_POR_SERVICIO[servicio];
+    }
+    return metodoDeOpl(destinos[0]?.code ?? '') ?? 'DP';
+  }
+
+  // ---------- Una simulación ----------
+
+  private async simularUno(
+    destino: OplPorDefecto,
+    ctx: {
+      almacen: { id: string; code: string; nombre: string };
+      producto: { sku: number | string };
+      metodo: string;
+      servicio: string | null;
+      cantidad: number;
+      pais: string;
+    },
+  ): Promise<ResultadoSimulacion[]> {
+    const etiqueta = `${destino.code} — ${destino.distrito}`;
+
+    try {
+      const operador = await this.unico(
+        this.simulacion.buscarOpl(destino.code, ctx.pais),
+        destino.code,
+        'operador logístico',
+      );
+      const { regionId, communeId } = await this.geografia(destino, ctx.pais);
+
+      const cruda = await this.simulacion.simular({
+        deliveryMethod: ctx.metodo,
+        // Vacío es válido: Ripley devuelve entonces todos los tipos aplicables
+        typeOfServiceCode: ctx.servicio ?? '',
+        warehouseId: ctx.almacen.id,
+        courierId: operador.id,
+        regionId,
+        communeId,
+        products: [{ sku: Number(ctx.producto.sku), quantity: ctx.cantidad }],
+        pais: ctx.pais,
+      });
+
+      return this.aplanar(
+        cruda,
+        `${destino.code} - ${operador.nombre}`,
+        destino.distrito,
+      );
+    } catch (e) {
+      return [
+        {
+          opl: etiqueta,
+          destino: destino.distrito,
+          servicio: ctx.servicio ?? '-',
+          entrega: null,
+          error: (e as Error).message,
+        },
+      ];
+    }
+  }
+
+  /**
+   * De la matriz de Ripley se toma, por cada tipo de servicio, la primera
+   * opción con fecha. El resto —agendas alternativas y el log de cómo se
+   * calculó cada paso— no aporta nada a la respuesta.
+   */
+  private aplanar(
+    cruda: unknown,
+    opl: string,
+    destino: string,
+  ): ResultadoSimulacion[] {
+    const resultados =
+      (
+        cruda as {
+          resultados?: Array<{
+            typeOfService?: string;
+            opciones?: Array<{ fechaEntrega?: string }>;
+          }>;
+        }
+      )?.resultados ?? [];
+
+    if (!resultados.length) {
+      return [{ opl, destino, servicio: '-', entrega: null }];
+    }
+
+    return resultados.map((r) => ({
+      opl,
+      destino,
+      servicio: r.typeOfService ?? '-',
+      entrega:
+        (r.opciones ?? []).find((o) => o.fechaEntrega)?.fechaEntrega ?? null,
+    }));
+  }
+
+  // ---------- Resolución de datos ----------
+
+  private async geografia(destino: OplPorDefecto, pais: string) {
+    const regiones = await this.simulacion.listarRegiones(pais);
+    const buscada = destino.region.toLowerCase();
+
+    const region =
+      regiones.find((r) => r.nombre?.toLowerCase() === buscada) ??
+      regiones.find((r) => r.nombre?.toLowerCase().includes(buscada));
+
+    if (!region) {
+      throw new NotFoundException(
+        `No se encontró la región "${destino.region}"`,
+      );
+    }
 
     const distritos = await this.simulacion.buscarDistritosPorNombre(
       region.id,
-      dto.distrito,
+      destino.distrito,
       pais,
     );
 
     if (!distritos.length) {
       throw new NotFoundException(
-        `No se encontró el distrito "${dto.distrito}" en la región ${region.nombre}`,
+        `No se encontró el distrito "${destino.distrito}" en ${region.nombre}`,
       );
     }
-    if (distritos.length > 1) {
-      return {
-        contexto,
-        entrega: null,
-        usado: this.resumen(dto, almacen, operador, '', producto),
-        aviso: `"${dto.distrito}" coincide con ${distritos.length} distritos de ${region.nombre}: ${distritos
-          .map((d) => `${d.nombre} (${d.provincia})`)
-          .join(', ')}. Pide al usuario que concrete.`,
-      };
-    }
 
-    const distrito = distritos[0];
+    // Si el nombre coincide en varias provincias se toma el de la del OPL, y
+    // en su defecto el primero: son distritos homónimos, no ambigüedad real.
+    const elegido =
+      distritos.find(
+        (d) => d.provincia?.toLowerCase() === destino.provincia.toLowerCase(),
+      ) ?? distritos[0];
 
-    const cruda = await this.simulacion.simular({
-      deliveryMethod: dto.metodo,
-      typeOfServiceCode: dto.servicio,
-      warehouseId: almacen.id,
-      courierId: operador.id,
-      regionId: region.id,
-      communeId: distrito.id,
-      products: [{ sku: Number(producto.sku), quantity: dto.cantidad ?? 1 }],
-      pais,
-    });
-
-    const entrega = this.primeraEntrega(cruda);
-
-    return {
-      contexto,
-      entrega,
-      usado: this.resumen(
-        dto,
-        almacen,
-        operador,
-        `${distrito.nombre}, ${distrito.provincia}, ${region.nombre}`,
-        producto,
-      ),
-      aviso: entrega
-        ? undefined
-        : 'La simulación no devolvió ninguna fecha de entrega para esa combinación. Puede que ese servicio no cubra ese destino.',
-    };
-  }
-
-  /**
-   * De la matriz completa se toma la primera opción con fecha. El resto
-   * —zonas, agendas alternativas y el log de cómo se calculó cada paso— no
-   * aporta nada a la respuesta y multiplicaría el coste de la consulta.
-   */
-  private primeraEntrega(cruda: unknown): string | null {
-    const resultados =
-      (
-        cruda as {
-          resultados?: Array<{ opciones?: Array<{ fechaEntrega?: string }> }>;
-        }
-      )?.resultados ?? [];
-
-    for (const r of resultados)
-      for (const o of r.opciones ?? [])
-        if (o.fechaEntrega) return o.fechaEntrega;
-
-    return null;
-  }
-
-  private resumen(
-    dto: SimularAgenteDto,
-    almacen: { code: string; nombre: string },
-    operador: { code: string; nombre: string },
-    destino: string,
-    producto: { sku: number | string; nombre?: string },
-  ): SimulacionRespuesta['usado'] {
-    return {
-      metodo: dto.metodo,
-      servicio: dto.servicio,
-      almacen: `${almacen.code} - ${almacen.nombre}`,
-      operador: `${operador.code} - ${operador.nombre}`,
-      destino,
-      sku: producto.nombre
-        ? `${producto.sku} - ${producto.nombre}`
-        : String(producto.sku),
-      cantidad: dto.cantidad ?? 1,
-    };
+    return { regionId: region.id, communeId: elegido.id };
   }
 
   /** Un código exacto gana a cualquier coincidencia parcial por nombre */
@@ -160,24 +285,7 @@ export class SimulacionAgenteService {
         `No se encontró ningún ${que} que coincida con "${termino}"`,
       );
     }
-
     return encontrados.find((x) => x.code === termino.trim()) ?? encontrados[0];
-  }
-
-  private async region(nombre: string, pais: string) {
-    const regiones = await this.simulacion.listarRegiones(pais);
-    const buscado = nombre.trim().toLowerCase();
-
-    const encontrada =
-      regiones.find((r) => r.nombre?.toLowerCase() === buscado) ??
-      regiones.find((r) => r.nombre?.toLowerCase().includes(buscado));
-
-    if (!encontrada) {
-      throw new NotFoundException(
-        `No se encontró la región "${nombre}". Las disponibles: ${regiones.map((r) => r.nombre).join(', ')}`,
-      );
-    }
-    return encontrada;
   }
 
   private async sku(q: string, pais: string) {
@@ -187,5 +295,21 @@ export class SimulacionAgenteService {
       throw new NotFoundException(`No se encontró el SKU "${q}"`);
     }
     return productos.find((p) => String(p.sku) === q.trim()) ?? productos[0];
+  }
+
+  /** Por lotes: once OPL en paralelo saturarían la API corporativa */
+  private async enLotes(
+    destinos: OplPorDefecto[],
+    fn: (d: OplPorDefecto) => Promise<ResultadoSimulacion[]>,
+  ): Promise<ResultadoSimulacion[]> {
+    const salida: ResultadoSimulacion[] = [];
+
+    for (let i = 0; i < destinos.length; i += this.CONCURRENCIA) {
+      const lote = destinos.slice(i, i + this.CONCURRENCIA);
+      const resultados = await Promise.all(lote.map(fn));
+      salida.push(...resultados.flat());
+    }
+
+    return salida;
   }
 }

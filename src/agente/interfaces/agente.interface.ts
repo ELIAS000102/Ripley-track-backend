@@ -81,9 +81,12 @@ export interface JornadaReporte {
 export interface CdReporte {
   cd: string;
   nombre: string;
+  /** Solo las jornadas propias del CD */
   jornadas: JornadaReporte[];
-  /** Suma de todas las jornadas, por fecha */
+  /** Suma de las jornadas propias, por fecha */
   total: CeldaReporte[];
+  /** Jornadas que Ripley devolvió y no cuentan para este CD */
+  excluidas: string[];
 }
 
 export interface ReporteRespuesta {
@@ -144,20 +147,30 @@ export interface TipoServicioRespuesta {
 
 // ───────────────────────── Simulación ─────────────────────────
 
+/** Una combinación OPL × tipo de servicio, con su fecha de entrega */
+export interface ResultadoSimulacion {
+  opl: string;
+  destino: string;
+  /** Tipo de servicio que devolvió Ripley: con servicio vacío vienen varios */
+  servicio: string;
+  entrega: string | null;
+  /** Solo si esa combinación falló; las demás siguen valiendo */
+  error?: string;
+}
+
 export interface SimulacionRespuesta {
   contexto: ContextoAgente;
-  /** Lo que se preguntó: cuándo llegaría */
-  entrega: string | null;
-  /** Con qué datos se calculó, ya resueltos a nombres legibles */
-  usado: {
+  parametros: {
+    /** null significa que se pidieron todos los tipos aplicables */
+    servicio: string | null;
     metodo: string;
-    servicio: string;
     almacen: string;
-    operador: string;
-    destino: string;
     sku: string;
     cantidad: number;
+    /** true si se simularon los OPL predeterminados por no indicarse ninguno */
+    usoPredeterminados: boolean;
   };
+  resultados: ResultadoSimulacion[];
   aviso?: string;
 }
 
