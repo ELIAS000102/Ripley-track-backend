@@ -4,6 +4,10 @@
 /build
 *.tsbuildinfo
 
+# Documentación y panel de pruebas: se mantienen fuera del repositorio
+/docs
+/prueba.html
+
 # Logs
 logs
 *.log
@@ -55,3 +59,5 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+.prueba.html

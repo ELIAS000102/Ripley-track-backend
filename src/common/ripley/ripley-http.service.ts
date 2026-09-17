@@ -1,13 +1,25 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import { TokenRipleyService } from '../../configuracion/token-ripley/token-ripley.service.js';
 import { RipleyApiError } from './ripley.errors.js';
 
 /**
  * Cliente HTTP compartido para todas las APIs corporativas de Ripley.
- * Se encarga de: resolver la base URL y el token según el país.
+ *
+ * Resuelve la base URL por país y, sobre todo, el token: ya no sale del
+ * entorno, sino del que cada usuario tiene guardado cifrado. Se averigua quién
+ * pregunta a través del contexto de la petición, para no tener que arrastrar el
+ * usuario por la firma de todos los services.
+ *
  * Cada agenda (picking, despacho, etc.) solo arma su path y sus params.
  */
 @Injectable()
@@ -17,6 +29,8 @@ export class RipleyHttpService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly contexto: ContextoAuditoria,
+    private readonly tokens: TokenRipleyService,
   ) {}
 
   /** Normaliza el país a mayúsculas sin espacios: "pe " -> "PE" */
@@ -37,19 +51,21 @@ export class RipleyHttpService {
     return baseUrl;
   }
 
-  /** Cada país tiene su propio token corporativo */
-  private getHeaders(pais: string) {
+  /** El token corporativo del usuario que hace la petición, por país */
+  private async getHeaders(pais: string) {
     const country = this.normalizarPais(pais);
-    const tokens = this.configService.get('ripley.tokens');
-    const token = tokens?.[country];
+    const usuario = this.contexto.usuarioActual();
 
-    if (!token) {
-      throw new BadGatewayException(
-        `No hay token configurado para el país: ${country}`,
+    if (!usuario) {
+      // Solo pasaría si se llamara a Ripley fuera del ciclo de una petición
+      throw new UnauthorizedException(
+        'No se pudo determinar el usuario de la petición',
       );
     }
 
-    return { 'x-access-token': token };
+    return {
+      'x-access-token': await this.tokens.obtenerParaUso(usuario.id, country),
+    };
   }
 
   private manejarError(
@@ -90,11 +106,15 @@ export class RipleyHttpService {
   ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
+    // Fuera del try a propósito: si falta el token, el aviso debe llegar
+    // íntegro al cliente en vez de convertirse en un 502 genérico.
+    const headers = await this.getHeaders(pais);
+
     try {
       const { data } = await firstValueFrom(
         this.httpService.get<T>(url, {
           params,
-          headers: this.getHeaders(pais),
+          headers,
         }),
       );
       return data;
@@ -115,11 +135,15 @@ export class RipleyHttpService {
   ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
+    // Fuera del try a propósito: si falta el token, el aviso debe llegar
+    // íntegro al cliente en vez de convertirse en un 502 genérico.
+    const headers = await this.getHeaders(pais);
+
     try {
       const { data } = await firstValueFrom(
         this.httpService.put<T>(url, body, {
           params,
-          headers: this.getHeaders(pais),
+          headers,
         }),
       );
       return data;
@@ -136,11 +160,15 @@ export class RipleyHttpService {
   ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
+    // Fuera del try a propósito: si falta el token, el aviso debe llegar
+    // íntegro al cliente en vez de convertirse en un 502 genérico.
+    const headers = await this.getHeaders(pais);
+
     try {
       const { data } = await firstValueFrom(
         this.httpService.post<T>(url, body, {
           params,
-          headers: this.getHeaders(pais),
+          headers,
         }),
       );
       return data;

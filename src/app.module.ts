@@ -9,7 +9,9 @@ import { AuditoriaInterceptor } from './auditoria/auditoria.interceptor.js';
 import { AuditoriaMiddleware } from './auditoria/auditoria.middleware.js';
 import { AgenteModule } from './agente/agente.module.js';
 import { AgenteGuard } from './agente/guards/agente.guard.js';
+import { CifradoModule } from './common/cifrado/cifrado.module.js';
 import { SupabaseModule } from './common/supabase/supabase.module.js';
+import { TokenRipleyModule } from './configuracion/token-ripley/token-ripley.module.js';
 import { PickingModule } from './agendas/picking/picking.module.js';
 import { DespachoModule } from './agendas/despacho/despacho.module.js';
 import { CdsModule } from './reportes/cds/cds.module.js';
@@ -31,8 +33,10 @@ import { SimulacionModule } from './simulacion/simulacion.module.js';
       load: [configuration],
     }),
     SupabaseModule,
+    CifradoModule,
     AuthModule,
     AuditoriaModule,
+    TokenRipleyModule,
     PickingModule,
     DespachoModule,
     CdsModule,

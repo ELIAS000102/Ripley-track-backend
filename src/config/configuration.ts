@@ -13,10 +13,8 @@ export default () => {
         PE: process.env.RIPLEY_API_URL_PE,
         CL: process.env.RIPLEY_API_URL_CL,
       },
-      tokens: {
-        PE: process.env.RIPLEY_TOKEN_PE,
-        CL: process.env.RIPLEY_TOKEN_CL,
-      },
+      // Los tokens ya no viven aquí: cada usuario guarda el suyo cifrado
+      // (ver src/configuracion/token-ripley).
       endpoints: {
         // Compartidos
         offices: `${prefijo}${process.env.RIPLEY_EP_OFFICES}`,
@@ -44,6 +42,10 @@ export default () => {
         sku: `${prefijo}${process.env.RIPLEY_EP_SKU}`,
         simulator: `${prefijo}${process.env.RIPLEY_EP_SIMULATOR}`,
       },
+    },
+    cifrado: {
+      /** Con esta clave se cifran los tokens corporativos antes de guardarlos */
+      clave: process.env.TOKENS_CLAVE_CIFRADO,
     },
     agente: {
       /**

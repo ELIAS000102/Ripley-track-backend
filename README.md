@@ -44,8 +44,10 @@ La puesta en marcha (crear la tabla, configurar las claves, dar de alta usuarios
 
 Todas comparten [common/ripley](src/common/ripley), que centraliza:
 
-- **`RipleyHttpService`** — resuelve URL base y token por país, y traduce errores
-  de la API corporativa a excepciones de Nest (un 404 se trata distinto de un 5xx).
+- **`RipleyHttpService`** — resuelve la URL base por país, adjunta el token corporativo
+  del usuario que hace la petición, y traduce errores de la API corporativa a excepciones
+  de Nest (un 404 se trata distinto de un 5xx). El token no sale del entorno: cada usuario
+  guarda el suyo cifrado, ver [docs/token-ripley.md](docs/token-ripley.md).
 - **`configuration.ts`** — carga URLs, tokens y endpoints desde variables de entorno.
 - **`date.util.ts`** — conversión de fechas entre el formato ISO del backend y el
   `DD-MM-YYYY` que usa Ripley, y utilidades de zona horaria (PE/CL).
@@ -68,8 +70,9 @@ manualmente todos los endpoints sin depender de un cliente externo.
 cp .env.example .env
 ```
 
-Completa en `.env` la URL base, el token y los endpoints (`RIPLEY_EP_*`) de cada
-país. `RIPLEY_PATH_PREFIX` es un prefijo común que se antepone a todos los
+Completa en `.env` la URL base y los endpoints (`RIPLEY_EP_*`) de cada país. El
+**token corporativo ya no va en el `.env`**: lo guarda cada usuario desde el panel y
+se cifra con `TOKENS_CLAVE_CIFRADO`. `RIPLEY_PATH_PREFIX` es un prefijo común que se antepone a todos los
 `RIPLEY_EP_*`; puede dejarse vacío si los endpoints ya vienen completos. El detalle
 de cada variable está documentado en [`.env.example`](.env.example).
 

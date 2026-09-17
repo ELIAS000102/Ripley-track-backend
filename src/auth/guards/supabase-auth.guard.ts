@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { CacheSesiones } from '../cache-sesiones.service.js';
 import { ES_PUBLICO } from '../decorators/publico.decorator.js';
@@ -27,6 +28,7 @@ export class SupabaseAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly supabase: SupabaseService,
     private readonly cache: CacheSesiones,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -49,7 +51,13 @@ export class SupabaseAuthGuard implements CanActivate {
     // El interceptor de auditoría lee de aquí para saber quién hizo la petición.
     // El rol no se resuelve aquí: vive en la tabla profiles, y duplicarlo en el
     // token acabaría en dos fuentes de verdad que se desincronizan.
-    request.usuario = this.cache.obtener(token) ?? (await this.validar(token));
+    const usuario = this.cache.obtener(token) ?? (await this.validar(token));
+
+    request.usuario = usuario;
+
+    // También al contexto de la petición: de ahí lo lee el cliente de Ripley
+    // para saber de quién es el token corporativo que debe usar.
+    this.contexto.identificarUsuario(usuario.id, usuario.email);
 
     return true;
   }

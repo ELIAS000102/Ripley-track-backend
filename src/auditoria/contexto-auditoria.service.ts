@@ -4,17 +4,21 @@ import { Injectable } from '@nestjs/common';
 interface CambioRegistrado {
   antes?: unknown;
   despues?: unknown;
-  /** Solo lo usa el login, que al ser público no pasa por el guard */
+  /** Quién hace la petición: lo pone el guard, o el login si es ruta pública */
   usuario?: { id: string; email: string };
 }
 
 /**
- * Permite que un service reporte qué había antes y qué queda después de un
- * cambio, para que el interceptor lo guarde junto con la petición.
+ * Contexto de la petición en curso: quién la hace y qué está cambiando.
  *
- * Usa AsyncLocalStorage porque el interceptor y el service no se conocen: el
- * almacén viaja solo por toda la cadena de promesas de una misma petición, sin
- * tener que pasar el request de mano en mano ni hacer los services request-scoped.
+ * Usa AsyncLocalStorage porque quienes lo escriben y quien lo lee no se
+ * conocen: el almacén viaja solo por toda la cadena de promesas de una misma
+ * petición, sin pasar el request de mano en mano ni hacer request-scoped a los
+ * services.
+ *
+ * Lo usan dos cosas: el interceptor, para registrar el antes y el después de un
+ * cambio; y el cliente HTTP de Ripley, para saber de quién es el token
+ * corporativo que debe usar.
  */
 @Injectable()
 export class ContextoAuditoria {
@@ -39,14 +43,21 @@ export class ContextoAuditoria {
   }
 
   /**
-   * Identifica al usuario en una ruta pública.
-   * El login es el único caso: el guard no corre, así que sin esto el registro
-   * del inicio de sesión quedaría sin saber quién entró.
+   * Deja anotado quién hace la petición.
+   *
+   * Normalmente lo llama el guard al validar el token. El login también lo
+   * llama porque es ruta pública y el guard no corre: sin eso, el registro del
+   * inicio de sesión quedaría sin saber quién entró.
    */
   identificarUsuario(id: string, email: string): void {
     const actual = this.almacen.getStore();
 
     if (actual) actual.usuario = { id, email };
+  }
+
+  /** Quién hace la petición en curso, si ya se identificó */
+  usuarioActual(): { id: string; email: string } | null {
+    return this.almacen.getStore()?.usuario ?? null;
   }
 
   /** Lo lee el interceptor al terminar la petición */
