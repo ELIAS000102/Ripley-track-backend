@@ -160,6 +160,30 @@ export class SimulacionService {
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }
 
+  /**
+   * Busca distritos por nombre en toda la región, sin exigir la provincia.
+   *
+   * El detalle de la región ya trae el árbol entero, así que esto resuelve en
+   * una sola llamada lo que de otro modo serían tantas como provincias tenga.
+   * Devuelve todas las coincidencias: hay nombres de distrito repetidos entre
+   * provincias, y quien llama decide si desempata o pregunta.
+   */
+  async buscarDistritosPorNombre(regionId: string, nombre: string, pais = 'PE') {
+    const region = await this.traerRegion(regionId, pais);
+    const buscado = nombre.trim().toLowerCase();
+
+    return (region.provinces ?? []).flatMap((p) =>
+      (p.communes ?? [])
+        .filter((c) => c.name?.toLowerCase().includes(buscado))
+        .map((c) => ({
+          id: c.id,
+          nombre: c.name,
+          code: c.code,
+          provincia: p.name,
+        })),
+    );
+  }
+
   /** Busca un distrito en todo el árbol, sin exigir la provincia */
   private buscarComuna(region: RegionDetalle, communeId: string): Comuna {
     for (const provincia of region.provinces ?? []) {

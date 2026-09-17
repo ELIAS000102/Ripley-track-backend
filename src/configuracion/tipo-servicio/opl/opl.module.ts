@@ -7,6 +7,7 @@ import { OplService } from './opl.service.js';
   imports: [RipleyModule],
   controllers: [OplController],
   providers: [OplService],
+  exports: [OplService],
 })
 /** Feature de configuración de tipos de servicio por operador logístico (OPL). */
 export class OplModule {}

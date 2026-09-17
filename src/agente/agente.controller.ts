@@ -1,25 +1,55 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
+import { Usuario } from '../auth/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { AgenteService } from './agente.service.js';
+import { ContextoAgenteService } from './contexto.service.js';
 import { PermitidoAgente } from './decorators/permitido-agente.decorator.js';
-import { ConsultarCapacidadDto } from './dto/consultar-capacidad.dto.js';
+import { ReporteAgenteService } from './reporte.service.js';
+import { SimulacionAgenteService } from './simulacion.service.js';
+import { TipoServicioAgenteService } from './tipo-servicio.service.js';
+import { TransferenciaAgenteService } from './transferencia.service.js';
+import {
+  ConsultarCapacidadDto,
+  ConsultarReporteDto,
+  ConsultarTipoServicioDto,
+  ConsultarTransferenciaDto,
+  SimularAgenteDto,
+} from './dto/consultas-agente.dto.js';
 
 /**
- * Superficie que consume el agente de IA desde n8n.
+ * La única superficie que consume el agente de IA.
+ *
+ * Todo lo que el agente necesita entra por aquí. Ningún otro módulo lleva ya
+ * `@PermitidoAgente()`: las rutas normales están pensadas para un panel que
+ * encadena llamadas y arrastra identificadores, y un modelo de lenguaje hace mal
+ * las dos cosas —se pierde a la tercera llamada o acaba pidiéndole al usuario un
+ * id que nadie conoce—.
+ *
+ * Cada endpoint de aquí resuelve la cadena entera por dentro y devuelve solo lo
+ * que hace falta para responder, ya calculado. Eso es lo que abarata la consulta:
+ * el modelo paga por token en cada paso de su razonamiento, así que la diferencia
+ * entre devolver la respuesta cruda de Ripley y devolver esto es de un orden de
+ * magnitud.
  *
  * El agente no tiene credenciales propias: reenvía el token del usuario que le
- * preguntó, así que cada consulta queda atribuida a esa persona y hereda sus
- * permisos. n8n añade la cabecera "X-Origen: agente" para que el registro de uso
+ * preguntó, así que cada consulta hereda sus permisos y queda atribuida a esa
+ * persona. n8n añade la cabecera "X-Origen: agente" para que el registro de uso
  * distinga lo que se hizo conversando de lo que se hizo desde el panel.
  *
- * Por ahora solo lee. Cuando el agente deba poder editar, se añadirán endpoints
- * explícitos con supervisión humana en vez de abrir estos.
+ * Solo lee. Cuando el agente deba poder editar se añadirán endpoints explícitos
+ * con supervisión humana, no se abrirán estos.
  */
 @Controller('agente')
 export class AgenteController {
   constructor(
     private readonly agenteService: AgenteService,
+    private readonly reporte: ReporteAgenteService,
+    private readonly transferencia: TransferenciaAgenteService,
+    private readonly tipoServicio: TipoServicioAgenteService,
+    private readonly simulacion: SimulacionAgenteService,
+    private readonly contexto: ContextoAgenteService,
     private readonly config: ConfigService,
   ) {}
 
@@ -27,9 +57,8 @@ export class AgenteController {
    * GET /agente/configuracion
    *
    * Le dice al frontend a qué webhook de n8n hablar. La URL vive en el entorno
-   * porque cambia entre pruebas y producción, y así no queda repetida en cada
-   * cliente. No la usa el agente: la usa quien lo invoca, por eso no lleva
-   * @PermitidoAgente().
+   * porque cambia entre pruebas y producción. No la usa el agente: la usa quien
+   * lo invoca, por eso no lleva @PermitidoAgente().
    */
   @Get('configuracion')
   configuracion() {
@@ -39,15 +68,96 @@ export class AgenteController {
   }
 
   /**
-   * GET /agente/capacidad?tipo=picking&codigo=20026&desde=2026-09-16&dias=7
+   * GET /agente/contexto?pais=PE
    *
-   * Resuelve en una sola llamada toda la cadena de catálogos y devuelve los días
-   * con su ocupación ya calculada.
+   * Quién pregunta y qué día es. Se llama al abrir la conversación para que el
+   * agente salude por su nombre en vez de hablarle a un desconocido. Van solo
+   * datos no sensibles: ni el correo ni el id salen de aquí, porque acabarían en
+   * el prompt de un proveedor externo sin aportar nada.
+   */
+  @PermitidoAgente()
+  @Get('contexto')
+  async contextoDelUsuario(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query('pais') pais?: string,
+  ) {
+    return this.contexto.armar(usuario, pais ?? 'PE');
+  }
+
+  /**
+   * GET /agente/capacidad?tipo=picking&codigo=20026&desde=2026-09-17&dias=7
+   *
+   * Resuelve la cadena de catálogos —almacén → agendas en picking, operador →
+   * zonas → agendas en despacho— y devuelve los días con su ocupación calculada.
    */
   @PermitidoAgente()
   @Auditar('agente.consultarCapacidad')
   @Get('capacidad')
   async capacidad(@Query() query: ConsultarCapacidadDto) {
     return this.agenteService.consultarCapacidad(query);
+  }
+
+  /**
+   * GET /agente/reporte?pais=PE&desde=2026-09-17&dias=7
+   *
+   * El reporte de los CDs ya pivotado por jornada y comprimido en tuplas. Es la
+   * consulta que más contexto gastaba en su forma cruda.
+   */
+  @PermitidoAgente()
+  @Auditar('agente.consultarReporte')
+  @Get('reporte')
+  async consultarReporte(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: ConsultarReporteDto,
+  ) {
+    return this.reporte.consultar(usuario, query);
+  }
+
+  /**
+   * GET /agente/transferencia?origen=20026&destino=20021&pais=PE
+   *
+   * El origen es la fuente de stock, de donde sale. Sin `destino` devuelve todos
+   * los destinos de ese origen.
+   */
+  @PermitidoAgente()
+  @Auditar('agente.consultarTransferencia')
+  @Get('transferencia')
+  async consultarTransferencia(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: ConsultarTransferenciaDto,
+  ) {
+    return this.transferencia.consultar(usuario, query);
+  }
+
+  /**
+   * GET /agente/tipo-servicio?opl=1088&zona=norte&pais=CL
+   *
+   * Servicios configurados en la agenda de un operador, resolviendo por dentro
+   * las cuatro llamadas de la cadena.
+   */
+  @PermitidoAgente()
+  @Auditar('agente.consultarTipoServicio')
+  @Get('tipo-servicio')
+  async consultarTipoServicio(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: ConsultarTipoServicioDto,
+  ) {
+    return this.tipoServicio.consultar(usuario, query);
+  }
+
+  /**
+   * GET /agente/simulacion?almacen=20026&operador=20021&region=Ica&distrito=Pisco&sku=...
+   *
+   * Es GET aunque simule: no crea ni modifica nada, solo calcula. Todo entra por
+   * nombre o código visible; los identificadores internos los resuelve el backend.
+   */
+  @PermitidoAgente()
+  @Auditar('agente.simular')
+  @Get('simulacion')
+  async simular(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: SimularAgenteDto,
+  ) {
+    return this.simulacion.simular(usuario, query);
   }
 }

@@ -7,6 +7,7 @@ import { CdsService } from './cds.service.js';
   imports: [RipleyModule],
   controllers: [CdsController],
   providers: [CdsService],
+  exports: [CdsService],
 })
 /** Feature de reportes: uso de capacidad de picking agregado por centro de distribución. */
 export class CdsModule {}

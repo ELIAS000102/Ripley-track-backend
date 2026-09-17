@@ -7,6 +7,7 @@ import { TransfService } from './transf.service.js';
   imports: [RipleyModule],
   controllers: [TransfController],
   providers: [TransfService],
+  exports: [TransfService],
 })
 /** Feature de transferencia de stock entre sucursales. */
 export class TransfModule {}

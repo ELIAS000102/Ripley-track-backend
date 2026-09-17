@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
-import { PermitidoAgente } from '../../agente/decorators/permitido-agente.decorator.js';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { PickingService } from './picking.service.js';
 import {
@@ -22,14 +21,12 @@ export class PickingController {
   constructor(private readonly pickingService: PickingService) {}
 
   /** GET /agendas/picking/oficinas?pais=PE */
-  @PermitidoAgente()
   @Get('oficinas')
   async oficinas(@Query() query: ListarOficinasDto) {
     return this.pickingService.listarOficinas(query.pais);
   }
 
   /** GET /agendas/picking/agendas?officeCode=20026&pais=PE */
-  @PermitidoAgente()
   @Get('agendas')
   async agendas(@Query() query: ListarAgendasDto) {
     return this.pickingService.listarAgendasPorOficina(
@@ -39,7 +36,6 @@ export class PickingController {
   }
 
   /** GET /agendas/picking/buscar?officeCode=20026&typeOfService=S&from=14-09-2026 */
-  @PermitidoAgente()
   @Get('buscar')
   async buscar(@Query() query: BuscarCapacidadesDto) {
     const { officeCode, typeOfService, from, pais, dias } = query;
@@ -53,7 +49,6 @@ export class PickingController {
   }
 
   /** GET /agendas/picking?scheduleId=...&pais=PE&from=14-09-2026 */
-  @PermitidoAgente()
   @Get()
   async obtener(@Query() query: ObtenerPickingDto) {
     const { scheduleId, from, pais } = query;

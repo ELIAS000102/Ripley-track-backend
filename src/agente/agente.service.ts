@@ -7,7 +7,7 @@ import {
   ripleyDateToIso,
   soloFecha,
 } from '../common/ripley/utils/date.util.js';
-import { ConsultarCapacidadDto } from './dto/consultar-capacidad.dto.js';
+import { ConsultarCapacidadDto } from './dto/consultas-agente.dto.js';
 import type {
   AgendaCapacidad,
   CapacidadRespuesta,
