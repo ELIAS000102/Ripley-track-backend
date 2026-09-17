@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { PermitidoAgente } from '../../../agente/decorators/permitido-agente.decorator.js';
 import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplMasivoService } from './opl-masivo.service.js';
 import { ConsultarOplDto } from './dto/consultar-opl.dto.js';
@@ -13,12 +14,14 @@ export class OplMasivoController {
   constructor(private readonly oplMasivoService: OplMasivoService) {}
 
   /** GET .../metodos-entrega?pais=CL */
+  @PermitidoAgente()
   @Get('metodos-entrega')
   async metodosEntrega(@Query('pais') pais?: string) {
     return this.oplMasivoService.listarMetodosEntrega(pais ?? 'PE');
   }
 
   /** GET .../origenes?pais=CL */
+  @PermitidoAgente()
   @Get('origenes')
   async origenes(@Query('pais') pais?: string) {
     return this.oplMasivoService.listarOrigenes(pais ?? 'PE');

@@ -53,6 +53,7 @@ export class PickingController {
   }
 
   /** GET /agendas/picking?scheduleId=...&pais=PE&from=14-09-2026 */
+  @PermitidoAgente()
   @Get()
   async obtener(@Query() query: ObtenerPickingDto) {
     const { scheduleId, from, pais } = query;

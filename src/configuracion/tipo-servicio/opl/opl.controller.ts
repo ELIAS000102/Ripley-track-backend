@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { PermitidoAgente } from '../../../agente/decorators/permitido-agente.decorator.js';
 import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplService } from './opl.service.js';
 import {
@@ -19,24 +20,28 @@ export class OplController {
   constructor(private readonly oplService: OplService) {}
 
   /** GET .../canales?pais=CL */
+  @PermitidoAgente()
   @Get('canales')
   async canales(@Query() query: PaisDto) {
     return this.oplService.listarCanales(query.pais);
   }
 
   /** GET .../buscar?q=1088&pais=CL */
+  @PermitidoAgente()
   @Get('buscar')
   async buscar(@Query() query: BuscarOplDto) {
     return this.oplService.buscarOpl(query.q, query.pais);
   }
 
   /** GET .../zonas?courier=...&pais=CL */
+  @PermitidoAgente()
   @Get('zonas')
   async zonas(@Query() query: ListarZonasDto) {
     return this.oplService.listarZonas(query.courier, query.pais);
   }
 
   /** GET .../agendas?mainZone=...&pais=CL */
+  @PermitidoAgente()
   @Get('agendas')
   async agendas(@Query() query: ListarAgendasDto) {
     return this.oplService.listarAgendas(query.mainZone, query.pais);

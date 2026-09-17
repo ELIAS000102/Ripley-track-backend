@@ -4,10 +4,13 @@ API NestJS que actúa como capa intermedia hacia las APIs corporativas de Ripley
 (picking, despacho, configuración de tipos de servicio, transferencias entre
 sucursales y simulación de entregas), para Perú y Chile.
 
-El backend no tiene base de datos propia: cada request resuelve su estado leyendo
+**Los datos de negocio no se guardan aquí**: cada request resuelve su estado leyendo
 en vivo los catálogos y capacidades de la API de Ripley, y arma el payload de
 escritura reconstruyendo los campos que la API exige pero que el cliente nunca
 recibió (identificadores internos, campos "espejo", etc.).
+
+En Supabase solo vive lo que es del backend y no de Ripley: las cuentas y sus perfiles,
+el historial de cambios y el token corporativo de cada usuario, cifrado.
 
 ## Arquitectura
 
@@ -24,7 +27,7 @@ espejando el path de su propio `@Controller(...)`:
 | [configuracion/tipo-servicio/opl-masivo](src/configuracion/tipo-servicio/opl-masivo) | `/configuracion/tipo-servicio/opl-masivo` | Activación/desactivación masiva de tipos de servicio |
 | [configuracion/transf-suc](src/configuracion/transf-suc) | `/configuracion/transferencia-sucursales` | Relaciones de transferencia de stock entre sucursales |
 | [simulacion](src/simulacion) | `/simulacion` | Simulación de fecha/hora de entrega antes de vender |
-| [agente](src/agente) | `/agente` | Consultas consolidadas y de solo lectura para el agente de IA en n8n |
+| [agente](src/agente) | `/agente` | Consultas consolidadas para el agente de IA en n8n |
 
 ## Autenticación
 
@@ -39,6 +42,22 @@ cómo quedaron después**, y a qué hora. Las consultas no se registran.
 La puesta en marcha (crear la tabla, configurar las claves, dar de alta usuarios) está en
 [docs/auth-supabase.md](docs/auth-supabase.md), y el SQL de la tabla en
 [docs/supabase-setup.sql](docs/supabase-setup.sql).
+
+## El agente de IA
+
+Un flujo de n8n conversa con los usuarios y consulta este backend en su nombre. **Solo
+puede leer**: las peticiones que llegan con `X-Origen: agente` únicamente pasan por los
+endpoints marcados con `@PermitidoAgente()` —hoy, todas las rutas `GET` de negocio— y
+cualquier escritura le responde `403`. La lista es cerrada, así que un endpoint nuevo nace
+bloqueado para el agente hasta que alguien lo marque a conciencia.
+
+El **token corporativo de Ripley queda fuera de su alcance**: ningún endpoint lo devuelve, y
+las rutas que lo gestionan están en una lista negra que ni siquiera un `@PermitidoAgente()`
+puesto por error puede levantar. Cada consulta que hace el agente queda en el historial a
+nombre de quien preguntó, marcada como hecha por el agente.
+
+El montaje del flujo está en [docs/agente-n8n.md](docs/agente-n8n.md), y el flujo listo para
+importar en [docs/agente-capacidad-n8n.json](docs/agente-capacidad-n8n.json).
 
 ## Piezas compartidas
 
