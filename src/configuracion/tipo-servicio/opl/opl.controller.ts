@@ -47,7 +47,12 @@ export class OplController {
     return this.oplService.listarAgendas(query.mainZone, query.pais);
   }
 
-  /** POST .../servicios */
+  /**
+   * Consulta, aunque sea POST: el cuerpo es grande y no cabe en la query.
+   * No escribe nada —no lleva @Auditar ni registra cambios—, por eso el agente
+   * puede usarla.
+   */
+  @PermitidoAgente()
   @Post('servicios')
   async servicios(@Body() body: ListarServiciosDto) {
     return this.oplService.listarServicios(body);

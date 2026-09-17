@@ -27,7 +27,12 @@ export class OplMasivoController {
     return this.oplMasivoService.listarOrigenes(pais ?? 'PE');
   }
 
-  /** POST .../consultar */
+  /**
+   * Consulta, aunque sea POST: el cuerpo es grande y no cabe en la query.
+   * No escribe nada —no lleva @Auditar ni registra cambios—, por eso el agente
+   * puede usarla.
+   */
+  @PermitidoAgente()
   @Post('consultar')
   async consultar(@Body() body: ConsultarOplDto) {
     return this.oplMasivoService.consultar(body);

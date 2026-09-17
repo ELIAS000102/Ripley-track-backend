@@ -70,7 +70,12 @@ export class SimulacionController {
     return this.simulacionService.buscarSku(query.q, query.pais);
   }
 
-  /** POST /simulacion/simular */
+  /**
+   * Consulta, aunque sea POST: el cuerpo es grande y no cabe en la query.
+   * No escribe nada —no lleva @Auditar ni registra cambios—, por eso el agente
+   * puede usarla.
+   */
+  @PermitidoAgente()
   @Post('simular')
   async simular(@Body() body: SimularDto) {
     return this.simulacionService.simular(body);

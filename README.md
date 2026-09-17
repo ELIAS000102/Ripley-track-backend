@@ -27,7 +27,7 @@ espejando el path de su propio `@Controller(...)`:
 | [configuracion/tipo-servicio/opl-masivo](src/configuracion/tipo-servicio/opl-masivo) | `/configuracion/tipo-servicio/opl-masivo` | Activación/desactivación masiva de tipos de servicio |
 | [configuracion/transf-suc](src/configuracion/transf-suc) | `/configuracion/transferencia-sucursales` | Relaciones de transferencia de stock entre sucursales |
 | [simulacion](src/simulacion) | `/simulacion` | Simulación de fecha/hora de entrega antes de vender |
-| [agente](src/agente) | `/agente` | Consultas consolidadas para el agente de IA en n8n |
+| [agente](src/agente) | `/agente` | Consultas consolidadas para Silvana, la agente de IA en n8n |
 
 ## Autenticación
 
@@ -43,7 +43,7 @@ La puesta en marcha (crear la tabla, configurar las claves, dar de alta usuarios
 [docs/auth-supabase.md](docs/auth-supabase.md), y el SQL de la tabla en
 [docs/supabase-setup.sql](docs/supabase-setup.sql).
 
-## El agente de IA
+## Silvana, la agente de IA
 
 Un flujo de n8n conversa con los usuarios y consulta este backend en su nombre. **Solo
 puede leer**: las peticiones que llegan con `X-Origen: agente` únicamente pasan por los
