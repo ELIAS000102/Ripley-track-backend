@@ -306,7 +306,9 @@ export class SimulacionService {
       pickupStoreCode: courier.code,
 
       deliveryMethod: dto.deliveryMethod,
-      typeOfServiceCode: dto.typeOfServiceCode,
+      // La cadena vacía se traduce a null: Ripley devuelve matriz vacía con
+      // "" y la matriz completa con null, que es lo que se quiere al no filtrar.
+      typeOfServiceCode: dto.typeOfServiceCode?.trim() || null,
       date: dto.date ?? this.aFechaSimulador(hoyEnPais(pais)),
       hour: dto.hour ?? this.horaEnPais(pais),
     };

@@ -272,18 +272,28 @@ export class SimulacionAgenteService {
     opl: string,
     destino: string,
   ): ResultadoSimulacion[] {
-    const resultados =
-      (
-        cruda as {
-          resultados?: Array<{
-            typeOfService?: string;
-            opciones?: Array<{ fechaEntrega?: string }>;
-          }>;
-        }
-      )?.resultados ?? [];
+    const respuesta = cruda as {
+      resultados?: Array<{
+        typeOfService?: string;
+        opciones?: Array<{ fechaEntrega?: string }>;
+      }>;
+      errores?: unknown[];
+      mensaje?: string;
+    };
+
+    const resultados = respuesta?.resultados ?? [];
 
     if (!resultados.length) {
-      return [{ opl, destino, servicio: '-', entrega: null }];
+      // Ripley devolvió la matriz vacía. Su propio mensaje o sus errores dicen
+      // por qué, y sin ellos el resultado es un 'no hay fecha' opaco: pasó al
+      // mandar typeOfServiceCode como cadena vacía en vez de null.
+      const motivo =
+        respuesta?.mensaje?.trim() ||
+        (respuesta?.errores?.length
+          ? JSON.stringify(respuesta.errores).slice(0, 200)
+          : 'Ripley no devolvió ninguna agenda para esta combinación');
+
+      return [{ opl, destino, servicio: '-', entrega: null, error: motivo }];
     }
 
     // Un servicio como "S" trae una opción por día —más de diez— y el chat no

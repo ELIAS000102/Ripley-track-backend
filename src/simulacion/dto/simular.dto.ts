@@ -31,10 +31,15 @@ export class SimularDto extends PaisDto {
   @IsNotEmpty()
   deliveryMethod: string;
 
-  /** Código del tipo de servicio: "RT", "SE", "ST"... */
+  /**
+   * Código del tipo de servicio: "RT", "SE", "ST"…
+   *
+   * Vacío pide todos los tipos aplicables al destino. El service lo traduce a
+   * null antes de llamar a Ripley, que es como el motor entiende "sin filtro".
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  typeOfServiceCode: string;
+  typeOfServiceCode?: string;
 
   /** Id de la oficina que aporta el stock */
   @IsString()

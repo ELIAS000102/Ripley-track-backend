@@ -138,7 +138,13 @@ export interface SimulacionPayload {
   warehouse: string;
   pickupStoreCode: string;
   deliveryMethod: string;
-  typeOfServiceCode: string;
+  /**
+   * null pide TODOS los tipos aplicables al destino.
+   *
+   * No es lo mismo que la cadena vacía: con "" Ripley devuelve una matriz
+   * vacía, con null devuelve la matriz completa. El panel manda null.
+   */
+  typeOfServiceCode: string | null;
   date: string;
   hour: string;
   region: RegionDetalle;
