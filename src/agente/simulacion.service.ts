@@ -115,7 +115,7 @@ export class SimulacionAgenteService {
           ? `${producto.sku} - ${producto.nombre}`
           : String(producto.sku),
         cantidad,
-        usoPredeterminados: !dto.operador,
+        usoPredeterminados: !dto.operador?.trim(),
       },
       resultados,
       aviso: conEntrega
@@ -137,25 +137,51 @@ export class SimulacionAgenteService {
     dto: SimularAgenteDto,
     servicio: string | null,
   ): OplPorDefecto[] {
-    if (!dto.operador) return oplsDe(servicio ?? undefined);
+    if (!dto.operador?.trim()) return oplsDe(servicio ?? undefined);
 
-    const conocido = oplConocido(dto.operador);
-    if (conocido && !dto.distrito) return [conocido];
+    // Admite varios separados por coma: "la 1111, 1110 y 1112" es una sola
+    // consulta, no tres. Sin esto el agente no tenía más remedio que llamar en
+    // bucle, y agotaba las iteraciones.
+    const pedidos = dto.operador
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
 
-    if (!dto.distrito || !dto.region) {
+    return pedidos.map((code) => this.destinoDe(code, dto, pedidos.length));
+  }
+
+  /**
+   * Para un OPL conocido manda su propio distrito, aunque venga otro en la
+   * petición: en retiro en tienda el destino ES la tienda, y en despacho es el
+   * que la operación revisa. El agente mandaba "Lima" y se perdía el distrito
+   * real.
+   */
+  private destinoDe(
+    code: string,
+    dto: SimularAgenteDto,
+    cuantos: number,
+  ): OplPorDefecto {
+    const conocido = oplConocido(code);
+    if (conocido) return conocido;
+
+    if (cuantos > 1) {
       throw new NotFoundException(
-        `El operador "${dto.operador}" no está entre los conocidos, así que necesito región y distrito de destino.`,
+        `El operador "${code}" no está entre los conocidos. Los que no lo están se simulan de uno en uno, indicando región y distrito.`,
       );
     }
 
-    return [
-      {
-        code: dto.operador.trim(),
-        distrito: dto.distrito.trim(),
-        provincia: '',
-        region: dto.region.trim(),
-      },
-    ];
+    if (!dto.distrito?.trim() || !dto.region?.trim()) {
+      throw new NotFoundException(
+        `El operador "${code}" no está entre los conocidos, así que necesito región y distrito de destino.`,
+      );
+    }
+
+    return {
+      code,
+      distrito: dto.distrito.trim(),
+      provincia: '',
+      region: dto.region.trim(),
+    };
   }
 
   /** Explícito > el que corresponde al servicio > el de la lista del OPL */
@@ -359,13 +385,29 @@ export class SimulacionAgenteService {
     return encontrados.find((x) => x.code === termino.trim()) ?? encontrados[0];
   }
 
+  /**
+   * El SKU exacto o ninguno.
+   *
+   * La búsqueda de Ripley es incremental y devuelve parecidos, así que quedarse
+   * con el primero cuando no hay coincidencia exacta simula **otro producto** y
+   * lo presenta como si fuera el pedido. Pasó: se pidió 2013435160001 y la
+   * respuesta salió con un 2032199212573 distinto. Mejor fallar y decirlo.
+   */
   private async sku(q: string, pais: string) {
-    const productos = await this.simulacion.buscarSku(q, pais);
+    const buscado = q.trim();
+    const productos = await this.simulacion.buscarSku(buscado, pais);
 
-    if (!productos.length) {
-      throw new NotFoundException(`No se encontró el SKU "${q}"`);
-    }
-    return productos.find((p) => String(p.sku) === q.trim()) ?? productos[0];
+    const exacto = productos.find((p) => String(p.sku) === buscado);
+    if (exacto) return exacto;
+
+    throw new NotFoundException(
+      productos.length
+        ? `No existe el SKU ${buscado}. Parecidos: ${productos
+            .slice(0, 5)
+            .map((p) => p.sku)
+            .join(', ')}`
+        : `No existe el SKU ${buscado}`,
+    );
   }
 
   /** Por lotes: once OPL en paralelo saturarían la API corporativa */

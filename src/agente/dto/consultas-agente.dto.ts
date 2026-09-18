@@ -136,8 +136,9 @@ export class SimularAgenteDto extends BaseAgenteDto {
   almacen: string;
 
   /**
-   * Código del operador. Si se omite se simulan los predeterminados del
-   * servicio: los cinco de despacho o los once de retiro en tienda.
+   * Código del operador, o varios separados por coma ("1111,1110,1112").
+   * Si se omite se simulan los predeterminados del servicio: los cinco de
+   * despacho o los once de retiro en tienda.
    */
   @IsOptional()
   @IsString()
