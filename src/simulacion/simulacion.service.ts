@@ -161,26 +161,37 @@ export class SimulacionService {
   }
 
   /**
+   * Todos los distritos de una región, aplanados con su provincia.
+   *
+   * El detalle de la región trae el árbol entero en una sola respuesta, así que
+   * quien necesite buscar varios distritos de la misma región puede pedir esto
+   * una vez y filtrar en memoria, en lugar de traerse el árbol por cada
+   * búsqueda. Importa cuando se resuelven once destinos seguidos.
+   */
+  async listarDistritosDeRegion(regionId: string, pais = 'PE') {
+    const region = await this.traerRegion(regionId, pais);
+
+    return (region.provinces ?? []).flatMap((p) =>
+      (p.communes ?? []).map((c) => ({
+        id: c.id,
+        nombre: c.name,
+        code: c.code,
+        provincia: p.name,
+      })),
+    );
+  }
+
+  /**
    * Busca distritos por nombre en toda la región, sin exigir la provincia.
    *
-   * El detalle de la región ya trae el árbol entero, así que esto resuelve en
-   * una sola llamada lo que de otro modo serían tantas como provincias tenga.
    * Devuelve todas las coincidencias: hay nombres de distrito repetidos entre
    * provincias, y quien llama decide si desempata o pregunta.
    */
   async buscarDistritosPorNombre(regionId: string, nombre: string, pais = 'PE') {
-    const region = await this.traerRegion(regionId, pais);
     const buscado = nombre.trim().toLowerCase();
 
-    return (region.provinces ?? []).flatMap((p) =>
-      (p.communes ?? [])
-        .filter((c) => c.name?.toLowerCase().includes(buscado))
-        .map((c) => ({
-          id: c.id,
-          nombre: c.name,
-          code: c.code,
-          provincia: p.name,
-        })),
+    return (await this.listarDistritosDeRegion(regionId, pais)).filter((c) =>
+      c.nombre?.toLowerCase().includes(buscado),
     );
   }
 

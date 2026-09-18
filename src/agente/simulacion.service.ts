@@ -16,6 +16,25 @@ import type {
   SimulacionRespuesta,
 } from './interfaces/agente.interface.js';
 
+/** Un distrito ya aplanado con su provincia */
+interface Distrito {
+  id: string;
+  nombre: string;
+  code: string;
+  provincia: string;
+}
+
+/**
+ * Lo que se resuelve una sola vez por consulta.
+ *
+ * Son Map locales creados dentro de simular(), no estado del service: dos
+ * usuarios preguntando a la vez no comparten nada.
+ */
+interface Caches {
+  regiones: Map<string, { id: string; nombre: string }>;
+  distritos: Map<string, Distrito[]>;
+}
+
 /**
  * Simulación de entrega, resuelta de extremo a extremo.
  *
@@ -69,6 +88,9 @@ export class SimulacionAgenteService {
       this.sku(sku, pais),
     ]);
 
+    // Los once OPL comparten región y árbol de distritos
+    const cache: Caches = { regiones: new Map(), distritos: new Map() };
+
     const resultados = await this.enLotes(destinos, (d) =>
       this.simularUno(d, {
         almacen,
@@ -77,6 +99,7 @@ export class SimulacionAgenteService {
         servicio,
         cantidad,
         pais,
+        cache,
       }),
     );
 
@@ -159,6 +182,7 @@ export class SimulacionAgenteService {
       servicio: string | null;
       cantidad: number;
       pais: string;
+      cache: Caches;
     },
   ): Promise<ResultadoSimulacion[]> {
     const etiqueta = `${destino.code} — ${destino.distrito}`;
@@ -169,7 +193,11 @@ export class SimulacionAgenteService {
         destino.code,
         'operador logístico',
       );
-      const { regionId, communeId } = await this.geografia(destino, ctx.pais);
+      const { regionId, communeId } = await this.geografia(
+        destino,
+        ctx.pais,
+        ctx.cache,
+      );
 
       const cruda = await this.simulacion.simular({
         deliveryMethod: ctx.metodo,
@@ -236,25 +264,68 @@ export class SimulacionAgenteService {
 
   // ---------- Resolución de datos ----------
 
-  private async geografia(destino: OplPorDefecto, pais: string) {
+  /**
+   * Resuelve la región una sola vez por consulta.
+   *
+   * Los once OPL de retiro están todos en Lima, así que sin esto se pedía el
+   * catálogo de regiones once veces seguidas para obtener siempre lo mismo. La
+   * caché dura lo que dura la petición: es un Map local, no estado compartido
+   * entre usuarios.
+   */
+  private async regionDe(
+    nombre: string,
+    pais: string,
+    cache: Map<string, { id: string; nombre: string }>,
+  ) {
+    const clave = `${pais}:${nombre.toLowerCase()}`;
+    const guardada = cache.get(clave);
+    if (guardada) return guardada;
+
     const regiones = await this.simulacion.listarRegiones(pais);
-    const buscada = destino.region.toLowerCase();
+    const buscada = nombre.toLowerCase();
 
     const region =
       regiones.find((r) => r.nombre?.toLowerCase() === buscada) ??
       regiones.find((r) => r.nombre?.toLowerCase().includes(buscada));
 
     if (!region) {
-      throw new NotFoundException(
-        `No se encontró la región "${destino.region}"`,
-      );
+      throw new NotFoundException(`No se encontró la región "${nombre}"`);
     }
 
-    const distritos = await this.simulacion.buscarDistritosPorNombre(
-      region.id,
-      destino.distrito,
+    cache.set(clave, region);
+    return region;
+  }
+
+  /**
+   * El árbol de distritos de una región, también una sola vez por consulta.
+   *
+   * Los once destinos están en Lima pero en distritos distintos, así que sin
+   * esto se pedía el mismo documento de región once veces para buscar en él
+   * once nombres diferentes. Es la llamada más pesada de las cuatro.
+   */
+  private async distritosDe(
+    regionId: string,
+    pais: string,
+    cache: Map<string, Distrito[]>,
+  ): Promise<Distrito[]> {
+    const guardados = cache.get(regionId);
+    if (guardados) return guardados;
+
+    const distritos = await this.simulacion.listarDistritosDeRegion(
+      regionId,
       pais,
     );
+    cache.set(regionId, distritos);
+    return distritos;
+  }
+
+  private async geografia(destino: OplPorDefecto, pais: string, cache: Caches) {
+    const region = await this.regionDe(destino.region, pais, cache.regiones);
+    const buscado = destino.distrito.trim().toLowerCase();
+
+    const distritos = (
+      await this.distritosDe(region.id, pais, cache.distritos)
+    ).filter((c) => c.nombre?.toLowerCase().includes(buscado));
 
     if (!distritos.length) {
       throw new NotFoundException(
