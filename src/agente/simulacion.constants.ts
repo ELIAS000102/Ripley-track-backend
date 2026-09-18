@@ -85,6 +85,30 @@ export const OPLS_SE: OplPorDefecto[] = [
 export const SKU_POR_DEFECTO = '2013435160001';
 
 /**
+ * De dónde sale el stock, en ambos casos.
+ *
+ * Las simulaciones de la operación parten siempre del mismo CD, así que
+ * preguntarlo era pedirle al usuario un dato que nunca cambia.
+ */
+export const ALMACEN_POR_DEFECTO = '20026';
+
+/**
+ * Servicios que se consultan SIN filtrar por tipo.
+ *
+ * Mandar "SD" a Ripley devuelve solo SD. Mandando el tipo vacío devuelve todos
+ * los aplicables al destino, que en los OPL de despacho son **SD y S**: las dos
+ * juntas son lo que la operación compara, así que pedir solo una pierde la
+ * mitad de la respuesta.
+ */
+export const SIN_FILTRAR = ['SD'];
+
+/** Qué tipo mandarle a Ripley para un servicio dado */
+export function tipoParaRipley(servicio: string | null): string {
+  if (!servicio) return '';
+  return SIN_FILTRAR.includes(servicio.toUpperCase()) ? '' : servicio;
+}
+
+/**
  * Qué OPL simular.
  *
  * Con un servicio concreto, los suyos. Sin servicio —que es una consulta

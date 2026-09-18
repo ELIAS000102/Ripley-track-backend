@@ -130,10 +130,13 @@ export class ConsultarTipoServicioDto extends BaseAgenteDto {
 // ───────────────────────── Simulación ─────────────────────────
 
 export class SimularAgenteDto extends BaseAgenteDto {
-  /** Código o nombre del almacén que aporta el stock. Lo único obligatorio. */
+  /**
+   * Código o nombre del almacén que aporta el stock. Si se omite se usa el CD
+   * de siempre: la operación simula siempre desde el mismo.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  almacen: string;
+  almacen?: string;
 
   /**
    * Código del operador, o varios separados por coma ("1111,1110,1112").

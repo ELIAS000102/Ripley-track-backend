@@ -4,11 +4,13 @@ import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { SimularAgenteDto } from './dto/consultas-agente.dto.js';
 import {
+  ALMACEN_POR_DEFECTO,
   METODO_POR_SERVICIO,
   SKU_POR_DEFECTO,
   metodoDeOpl,
   oplConocido,
   oplsDe,
+  tipoParaRipley,
   type OplPorDefecto,
 } from './simulacion.constants.js';
 import type {
@@ -79,10 +81,12 @@ export class SimulacionAgenteService {
       `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} OPL (${pais})`,
     );
 
+    const codigoAlmacen = dto.almacen?.trim() || ALMACEN_POR_DEFECTO;
+
     const [almacen, producto] = await Promise.all([
       this.unico(
-        this.simulacion.buscarAlmacenes(dto.almacen, pais),
-        dto.almacen,
+        this.simulacion.buscarAlmacenes(codigoAlmacen, pais),
+        codigoAlmacen,
         'almacén',
       ),
       this.sku(sku, pais),
@@ -229,8 +233,9 @@ export class SimulacionAgenteService {
 
       const cruda = await this.simulacion.simular({
         deliveryMethod: ctx.metodo,
-        // Vacío es válido: Ripley devuelve entonces todos los tipos aplicables
-        typeOfServiceCode: ctx.servicio ?? '',
+        // En SD se manda vacío a propósito: así Ripley devuelve SD y S, que es
+        // lo que se compara. Filtrar por "SD" perdería la mitad.
+        typeOfServiceCode: tipoParaRipley(ctx.servicio),
         warehouseId: ctx.almacen.id,
         courierId: operador.id,
         regionId,
@@ -281,12 +286,17 @@ export class SimulacionAgenteService {
       return [{ opl, destino, servicio: '-', entrega: null }];
     }
 
+    // Un servicio como "S" trae una opción por día —más de diez— y el chat no
+    // necesita el calendario entero: la primera fecha posible es la respuesta.
     return resultados.map((r) => ({
       opl,
       destino,
       servicio: r.typeOfService ?? '-',
       entrega:
-        (r.opciones ?? []).find((o) => o.fechaEntrega)?.fechaEntrega ?? null,
+        (r.opciones ?? [])
+          .map((o) => o.fechaEntrega)
+          .filter((f): f is string => !!f)
+          .sort()[0] ?? null,
     }));
   }
 
