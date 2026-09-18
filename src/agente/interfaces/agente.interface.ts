@@ -164,7 +164,8 @@ export interface SimulacionRespuesta {
     /** null significa que se pidieron todos los tipos aplicables */
     servicio: string | null;
     metodo: string;
-    almacen: string;
+    /** null si no se fijó fuente de stock: la eligió Ripley */
+    almacen: string | null;
     sku: string;
     cantidad: number;
     /** true si se simularon los OPL predeterminados por no indicarse ninguno */

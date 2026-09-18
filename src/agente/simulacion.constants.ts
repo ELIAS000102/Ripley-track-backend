@@ -14,12 +14,37 @@
  * El método de entrega lo determina el tipo de servicio, siempre.
  *
  * No es una preferencia ni un valor razonable por defecto: es la regla de
- * negocio. Un SD se despacha a domicilio (DP) y un SE se retira en tienda (RT).
+ * negocio, y por eso el agente no tiene que mandar el método nunca. Se retira
+ * en tienda (RT) o se despacha a domicilio (DP), y el servicio decide cuál.
  */
 export const METODO_POR_SERVICIO: Record<string, string> = {
-  SD: 'DP',
+  // Retiro en tienda
+  ST: 'RT',
+  SS: 'RT',
+  SG: 'RT',
   SE: 'RT',
+  RT: 'RT',
+  RE: 'RT',
+
+  // Despacho a domicilio
+  DT: 'DP',
+  SD: 'DP',
+  S: 'DP',
+  EX: 'DP',
+  AT: 'DP',
+  OP: 'DP',
 };
+
+/**
+ * El método que corresponde a un servicio, o undefined si no se conoce.
+ *
+ * Un servicio nuevo que no esté en la tabla no se adivina: se deja que quien
+ * llame decida, porque acertar por parecido daría simulaciones silenciosamente
+ * equivocadas.
+ */
+export function metodoDeServicio(servicio?: string | null): string | undefined {
+  return servicio ? METODO_POR_SERVICIO[servicio.trim().toUpperCase()] : undefined;
+}
 
 /**
  * Un OPL con su destino de simulación.
@@ -81,16 +106,20 @@ export const OPLS_SE: OplPorDefecto[] = [
   { code: '20021', nombre: 'Chorrillos', distrito: 'Lima', ...LIMA },
 ];
 
+/**
+ * Punto de entrega por defecto.
+ *
+ * Es el que usa la operación cuando no simula un destino concreto. Se aplica
+ * solo si tampoco se pidió una simulación preconfigurada, que ya trae el suyo.
+ */
+export const DESTINO_POR_DEFECTO = {
+  region: 'Lima',
+  provincia: 'Lima',
+  distrito: 'Lima',
+};
+
 /** SKU de referencia para cuando el usuario no aporta uno */
 export const SKU_POR_DEFECTO = '2013435160001';
-
-/**
- * De dónde sale el stock, en ambos casos.
- *
- * Las simulaciones de la operación parten siempre del mismo CD, así que
- * preguntarlo era pedirle al usuario un dato que nunca cambia.
- */
-export const ALMACEN_POR_DEFECTO = '20026';
 
 /**
  * Servicios que se consultan SIN filtrar por tipo.

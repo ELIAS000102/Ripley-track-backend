@@ -135,7 +135,8 @@ export interface SimulacionPayload {
   localityCode: string;
   country: string;
   courier: string;
-  warehouse: string;
+  /** null simula sin fijar la fuente de stock: Ripley la resuelve */
+  warehouse: string | null;
   pickupStoreCode: string;
   deliveryMethod: string;
   /**

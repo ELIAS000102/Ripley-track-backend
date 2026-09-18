@@ -4,10 +4,10 @@ import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { SimularAgenteDto } from './dto/consultas-agente.dto.js';
 import {
-  ALMACEN_POR_DEFECTO,
-  METODO_POR_SERVICIO,
+  DESTINO_POR_DEFECTO,
   SKU_POR_DEFECTO,
   metodoDeOpl,
+  metodoDeServicio,
   oplConocido,
   oplsDe,
   tipoParaRipley,
@@ -74,25 +74,35 @@ export class SimulacionAgenteService {
     const servicio = dto.servicio?.trim().toUpperCase() || null;
     const sku = dto.sku?.trim() || SKU_POR_DEFECTO;
     const cantidad = dto.cantidad ?? 1;
-    const destinos = this.destinos(dto, servicio);
+
+    // Preconfigurada: llega el servicio a secas, sin destino ni operador. Es la
+    // consulta que la operación repite a diario y ya trae sus OPL y destinos.
+    const preconfigurada = this.esPreconfigurada(dto, servicio);
+    const destinos = preconfigurada
+      ? oplsDe(servicio ?? undefined)
+      : this.destinosPedidos(dto);
+
     const metodo = this.metodo(dto, servicio, destinos);
+    // Sin almacén la simulación se procesa igual: Ripley resuelve la fuente
+    const codigoAlmacen = dto.almacen?.trim();
 
     this.logger.log(
-      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} OPL (${pais})`,
+      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s)` +
+        `${preconfigurada ? ' (preconfigurada)' : ''} — ${pais}`,
     );
 
-    const codigoAlmacen = dto.almacen?.trim() || ALMACEN_POR_DEFECTO;
-
     const [almacen, producto] = await Promise.all([
-      this.unico(
-        this.simulacion.buscarAlmacenes(codigoAlmacen, pais),
-        codigoAlmacen,
-        'almacén',
-      ),
+      codigoAlmacen
+        ? this.unico(
+            this.simulacion.buscarAlmacenes(codigoAlmacen, pais),
+            codigoAlmacen,
+            'almacén',
+          )
+        : Promise.resolve(null),
       this.sku(sku, pais),
     ]);
 
-    // Los once OPL comparten región y árbol de distritos
+    // Los destinos suelen compartir región y árbol de distritos
     const cache: Caches = { regiones: new Map(), distritos: new Map() };
 
     const resultados = await this.enLotes(destinos, (d) =>
@@ -104,6 +114,8 @@ export class SimulacionAgenteService {
         cantidad,
         pais,
         cache,
+        fecha: dto.fecha?.trim(),
+        hora: dto.hora?.trim(),
       }),
     );
 
@@ -114,78 +126,101 @@ export class SimulacionAgenteService {
       parametros: {
         servicio,
         metodo,
-        almacen: `${almacen.code} - ${almacen.nombre}`,
+        almacen: almacen ? `${almacen.code} - ${almacen.nombre}` : null,
         sku: producto.nombre
           ? `${producto.sku} - ${producto.nombre}`
           : String(producto.sku),
         cantidad,
-        usoPredeterminados: !dto.operador?.trim(),
+        usoPredeterminados: preconfigurada,
       },
       resultados,
-      aviso: conEntrega
-        ? undefined
-        : 'Ninguna combinación devolvió fecha de entrega. Puede que ese servicio no cubra esos destinos o que no haya stock simulable.',
+      aviso: conEntrega ? undefined : this.porQueNoHayFechas(resultados),
     };
+  }
+
+  /**
+   * ¿Es una de las simulaciones que la operación tiene preconfiguradas?
+   *
+   * Lo es cuando llega el tipo de servicio a secas —SD o SE— sin operador ni
+   * punto de entrega. En cuanto se concreta cualquiera de esos dos, deja de
+   * serlo: el usuario está pidiendo un destino suyo, no el de siempre.
+   */
+  private esPreconfigurada(
+    dto: SimularAgenteDto,
+    servicio: string | null,
+  ): boolean {
+    if (!servicio || !oplsDe(servicio).length) return false;
+    if (!['SD', 'SE'].includes(servicio)) return false;
+
+    return !dto.operador?.trim() && !dto.distrito?.trim();
+  }
+
+  /**
+   * El aviso repite el motivo real cuando todos fallaron por lo mismo.
+   *
+   * Antes decía siempre lo mismo —"puede que no cubra esos destinos"— aunque
+   * Ripley hubiera explicado exactamente qué pasaba.
+   */
+  private porQueNoHayFechas(resultados: ResultadoSimulacion[]): string {
+    const motivos = [
+      ...new Set(resultados.map((r) => r.error).filter(Boolean)),
+    ];
+
+    if (motivos.length === 1) {
+      return `Ninguna combinación devolvió fecha. Motivo: ${motivos[0]}`;
+    }
+    if (motivos.length > 1) {
+      return `Ninguna combinación devolvió fecha. Motivos: ${motivos.join(' · ')}`;
+    }
+    return 'Ninguna combinación devolvió fecha de entrega. Puede que ese servicio no cubra esos destinos o que no haya stock simulable.';
   }
 
   // ---------- Qué simular ----------
 
   /**
-   * Un OPL si lo dieron, si no los predeterminados del servicio.
+   * Los destinos de una simulación a medida.
    *
-   * Cuando el OPL es conocido se usan su distrito y provincia sin preguntar:
-   * en retiro en tienda el destino ES la tienda, y en despacho es el que la
-   * operación revisa.
+   * El operador es lo único que Ripley no puede suponer —es quién entrega—, así
+   * que sin él y sin una preconfigurada no hay nada que simular. El punto de
+   * entrega sí tiene valor por defecto: Lima - Lima - Lima, que es contra lo
+   * que se simula salvo que pidan otro sitio.
    */
-  private destinos(
-    dto: SimularAgenteDto,
-    servicio: string | null,
-  ): OplPorDefecto[] {
-    if (!dto.operador?.trim()) return oplsDe(servicio ?? undefined);
+  private destinosPedidos(dto: SimularAgenteDto): OplPorDefecto[] {
+    const operador = dto.operador?.trim();
 
-    // Admite varios separados por coma: "la 1111, 1110 y 1112" es una sola
-    // consulta, no tres. Sin esto el agente no tenía más remedio que llamar en
-    // bucle, y agotaba las iteraciones.
-    const pedidos = dto.operador
+    if (!operador) {
+      throw new NotFoundException(
+        'Para simular necesito el operador logístico, o el tipo de servicio (SD o SE) a secas para usar la simulación preconfigurada.',
+      );
+    }
+
+    // Varios separados por coma: "la 1111, 1110 y 1112" es una sola consulta,
+    // no tres. Sin esto el agente llamaba en bucle y agotaba las iteraciones.
+    return operador
       .split(',')
       .map((o) => o.trim())
-      .filter(Boolean);
-
-    return pedidos.map((code) => this.destinoDe(code, dto, pedidos.length));
+      .filter(Boolean)
+      .map((code) => this.destinoDe(code, dto));
   }
 
   /**
-   * Para un OPL conocido manda su propio distrito, aunque venga otro en la
-   * petición: en retiro en tienda el destino ES la tienda, y en despacho es el
-   * que la operación revisa. El agente mandaba "Lima" y se perdía el distrito
-   * real.
+   * El destino de un operador concreto.
+   *
+   * Un OPL conocido impone el suyo aunque venga otro en la petición: en retiro
+   * en tienda el destino ES la tienda, y el agente mandaba "Lima" perdiendo el
+   * distrito real. Para uno desconocido se usa lo que llegue, y si no llega
+   * nada, el punto de entrega por defecto.
    */
-  private destinoDe(
-    code: string,
-    dto: SimularAgenteDto,
-    cuantos: number,
-  ): OplPorDefecto {
+  private destinoDe(code: string, dto: SimularAgenteDto): OplPorDefecto {
     const conocido = oplConocido(code);
     if (conocido) return conocido;
-
-    if (cuantos > 1) {
-      throw new NotFoundException(
-        `El operador "${code}" no está entre los conocidos. Los que no lo están se simulan de uno en uno, indicando región y distrito.`,
-      );
-    }
-
-    if (!dto.distrito?.trim() || !dto.region?.trim()) {
-      throw new NotFoundException(
-        `El operador "${code}" no está entre los conocidos, así que necesito región y distrito de destino.`,
-      );
-    }
 
     return {
       code,
       nombre: code,
-      distrito: dto.distrito.trim(),
-      provincia: '',
-      region: dto.region.trim(),
+      distrito: dto.distrito?.trim() || DESTINO_POR_DEFECTO.distrito,
+      provincia: dto.provincia?.trim() || DESTINO_POR_DEFECTO.provincia,
+      region: dto.region?.trim() || DESTINO_POR_DEFECTO.region,
     };
   }
 
@@ -196,9 +231,12 @@ export class SimulacionAgenteService {
     destinos: OplPorDefecto[],
   ): string {
     if (dto.metodo?.trim()) return dto.metodo.trim().toUpperCase();
-    if (servicio && METODO_POR_SERVICIO[servicio]) {
-      return METODO_POR_SERVICIO[servicio];
-    }
+
+    // La tabla de negocio manda: el servicio decide si se retira o se despacha
+    const porServicio = metodoDeServicio(servicio);
+    if (porServicio) return porServicio;
+
+    // Sin servicio, el OPL delata el tipo por la lista en la que está
     return metodoDeOpl(destinos[0]?.code ?? '') ?? 'DP';
   }
 
@@ -207,13 +245,16 @@ export class SimulacionAgenteService {
   private async simularUno(
     destino: OplPorDefecto,
     ctx: {
-      almacen: { id: string; code: string; nombre: string };
+      almacen: { id: string; code: string; nombre: string } | null;
       producto: { sku: number | string };
       metodo: string;
       servicio: string | null;
       cantidad: number;
       pais: string;
       cache: Caches;
+      /** Venta simulada. Si no llegan, el service de abajo usa hoy y ahora. */
+      fecha?: string;
+      hora?: string;
     },
   ): Promise<ResultadoSimulacion[]> {
     // Nombre de la tienda para identificarla; el distrito es a dónde se simula
@@ -236,11 +277,13 @@ export class SimulacionAgenteService {
         // En SD se manda vacío a propósito: así Ripley devuelve SD y S, que es
         // lo que se compara. Filtrar por "SD" perdería la mitad.
         typeOfServiceCode: tipoParaRipley(ctx.servicio),
-        warehouseId: ctx.almacen.id,
+        warehouseId: ctx.almacen?.id,
         courierId: operador.id,
         regionId,
         communeId,
         products: [{ sku: Number(ctx.producto.sku), quantity: ctx.cantidad }],
+        date: ctx.fecha,
+        hour: ctx.hora,
         pais: ctx.pais,
       });
 

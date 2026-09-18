@@ -131,48 +131,68 @@ export class ConsultarTipoServicioDto extends BaseAgenteDto {
 
 export class SimularAgenteDto extends BaseAgenteDto {
   /**
-   * Código o nombre del almacén que aporta el stock. Si se omite se usa el CD
-   * de siempre: la operación simula siempre desde el mismo.
-   */
-  @IsOptional()
-  @IsString()
-  almacen?: string;
-
-  /**
-   * Código del operador, o varios separados por coma ("1111,1110,1112").
-   * Si se omite se simulan los predeterminados del servicio: los cinco de
-   * despacho o los once de retiro en tienda.
-   */
-  @IsOptional()
-  @IsString()
-  operador?: string;
-
-  /**
-   * Tipo de servicio: SD, SE… **Vacío es válido y útil**: Ripley devuelve
-   * entonces todos los tipos aplicables al destino, que para los OPL de
-   * despacho son SD y S.
+   * Tipo de servicio: "SD", "SE", "DT", "ST"…
+   *
+   * Por sí solo, con "SD" o "SE", dispara la simulación preconfigurada de la
+   * operación: sus OPL, sus destinos y el SKU de referencia. Vacío pide todos
+   * los tipos aplicables al destino.
    */
   @IsOptional()
   @IsString()
   servicio?: string;
 
   /**
-   * Método de entrega. Normalmente no hace falta: lo determina el servicio
-   * (SD → DP, SE → RT) o la lista a la que pertenece el OPL.
+   * Método de entrega. **Normalmente no hace falta**: lo determina el servicio
+   * (RT para ST/SS/SG/SE/RT/RE, DP para DT/SD/S/EX/AT/OP).
    */
   @IsOptional()
   @IsString()
   metodo?: string;
 
-  /** Solo para operadores que no estén entre los conocidos */
+  /**
+   * Código del operador, o varios separados por coma ("1111,1110"). Si se
+   * omite y se pidió una simulación preconfigurada, se usan los suyos.
+   */
+  @IsOptional()
+  @IsString()
+  operador?: string;
+
+  /** Código o nombre del almacén que aporta el stock. Hay uno por defecto. */
+  @IsOptional()
+  @IsString()
+  almacen?: string;
+
+  // ── Punto de entrega. Obligatorio salvo en las preconfiguradas.
+
   @IsOptional()
   @IsString()
   region?: string;
 
-  /** Solo para operadores que no estén entre los conocidos */
+  @IsOptional()
+  @IsString()
+  provincia?: string;
+
   @IsOptional()
   @IsString()
   distrito?: string;
+
+  // ── Venta simulada
+
+  /** Fecha de la venta, DD/MM/YYYY. Si se omite, hoy. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}\/\d{2}\/\d{4}$/, {
+    message: 'fecha debe tener el formato DD/MM/YYYY',
+  })
+  fecha?: string;
+
+  /** Hora de la venta, HH:MM. Si se omite, la hora actual. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, {
+    message: 'hora debe tener el formato HH:MM',
+  })
+  hora?: string;
 
   /** Si se omite se usa un SKU de referencia */
   @IsOptional()

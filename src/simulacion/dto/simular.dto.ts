@@ -41,10 +41,16 @@ export class SimularDto extends PaisDto {
   @IsString()
   typeOfServiceCode?: string;
 
-  /** Id de la oficina que aporta el stock */
+  /**
+   * Id de la oficina que aporta el stock.
+   *
+   * Opcional: la simulación se procesa igual sin él, y entonces es Ripley quien
+   * decide de dónde sale. Fijar un almacén que nadie pidió cambia el resultado
+   * sin que se note.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  warehouseId: string;
+  warehouseId?: string;
 
   /** Id del operador logístico o tienda de retiro */
   @IsString()

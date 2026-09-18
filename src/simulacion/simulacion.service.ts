@@ -278,10 +278,13 @@ export class SimulacionService {
   async simular(dto: SimularDto) {
     const pais = (dto.pais ?? 'PE').toUpperCase().trim();
 
-    // Las cuatro consultas de contexto son independientes entre sí
+    // Las consultas de contexto son independientes entre sí. El almacén solo
+    // se resuelve si lo pidieron: sin él Ripley elige la fuente de stock.
     const [region, almacen, courier, productos] = await Promise.all([
       this.traerRegion(dto.regionId, pais),
-      this.traerOficina(dto.warehouseId, pais),
+      dto.warehouseId?.trim()
+        ? this.traerOficina(dto.warehouseId, pais)
+        : Promise.resolve(null),
       this.traerOficina(dto.courierId, pais),
       this.resolverProductos(dto.products, pais),
     ]);
@@ -301,7 +304,7 @@ export class SimulacionService {
       region,
 
       country: pais,
-      warehouse: almacen.id,
+      warehouse: almacen?.id ?? null,
       courier: courier.id,
       pickupStoreCode: courier.code,
 
@@ -314,7 +317,7 @@ export class SimulacionService {
     };
 
     this.logger.log(
-      `Simulando ${dto.deliveryMethod}/${dto.typeOfServiceCode} — ${almacen.code} → ${courier.code} (${comuna.name})`,
+      `Simulando ${dto.deliveryMethod}/${dto.typeOfServiceCode} — ${almacen?.code ?? "sin almacén"} → ${courier.code} (${comuna.name})`,
     );
 
     const respuesta = await this.ripley.post<SimulacionResponse>(

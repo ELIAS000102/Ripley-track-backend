@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplService } from '../configuracion/tipo-servicio/opl/opl.service.js';
+import type { HoraCorte } from '../configuracion/tipo-servicio/opl/interfaces/opl.interface.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { ConsultarTipoServicioDto } from './dto/consultas-agente.dto.js';
@@ -120,29 +121,34 @@ export class TipoServicioAgenteService {
   /**
    * Se quedan fuera los ids internos y los campos que el agente nunca va a
    * mencionar: lo que importa de un servicio es su código, si está activo y a
-   * qué hora corta.
+   * qué hora corta cada día.
    */
   private compactar(s: {
     code?: string;
     descripcion?: string;
     isActive?: boolean;
     enabledForCheckout?: boolean;
-    cortes?: unknown[];
+    cortes?: HoraCorte[];
   }): ServicioAgenda {
     return {
       code: s.code ?? '',
       descripcion: s.descripcion ?? '',
       activo: s.isActive === true,
       enCheckout: s.enabledForCheckout === true,
-      cortes: (s.cortes ?? [])
-        .map((c) =>
-          typeof c === 'string'
-            ? c
-            : ((c as Record<string, unknown>)?.cutTime as string) ||
-              ((c as Record<string, unknown>)?.hour as string) ||
-              '',
-        )
-        .filter(Boolean),
+      cortes: this.cortesPorDia(s.cortes),
     };
+  }
+
+  /**
+   * Los cortes vienen como `{ id, label, value }`: el día en `label` y la hora
+   * en `value`. Se devuelven como "Lunes 17:00", que es lo que se va a leer.
+   *
+   * Un día sin hora significa que ese día no hay corte, así que se omite: una
+   * lista con siete entradas vacías no dice nada y ocupa lo mismo.
+   */
+  private cortesPorDia(cortes?: HoraCorte[]): string[] {
+    return (cortes ?? [])
+      .filter((c) => c?.value?.trim())
+      .map((c) => `${c.label?.trim() || `día ${c.id}`} ${c.value.trim()}`);
   }
 }
