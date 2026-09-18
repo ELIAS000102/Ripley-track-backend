@@ -7,7 +7,7 @@
  *
  * Todo esto es conocimiento de la operación, no del modelo: qué método de
  * entrega corresponde a cada tipo de servicio, qué OPL se simulan por defecto y
- * dónde está cada uno. El agente solo tiene que saber que puede omitirlos.
+ * a qué destino. El agente solo tiene que saber que puede omitirlos.
  */
 
 /**
@@ -21,9 +21,20 @@ export const METODO_POR_SERVICIO: Record<string, string> = {
   SE: 'RT',
 };
 
-/** Un OPL con su destino habitual */
+/**
+ * Un OPL con su destino de simulación.
+ *
+ * `nombre` y `distrito` son cosas distintas y conviene no confundirlas: el
+ * nombre identifica la tienda —"Atocongo", "Plaza Lima Norte"— y el distrito es
+ * geografía real. Tenerlos en un solo campo hizo que se simulara contra el
+ * distrito equivocado en los casos donde la tienda se llama como un distrito
+ * (Breña, Comas, San Isidro): la consulta devolvía fecha, pero de otro destino.
+ */
 export interface OplPorDefecto {
   code: string;
+  /** Cómo se conoce la tienda, para mostrarlo */
+  nombre: string;
+  /** Dónde se simula la entrega */
   distrito: string;
   provincia: string;
   region: string;
@@ -34,35 +45,40 @@ const LIMA = { provincia: 'Lima', region: 'Lima' };
 /**
  * OPL de despacho a domicilio (SD → DP).
  *
- * Cuando se pide una simulación de SD sin decir qué OPL, se simulan estos
- * cinco: son los que la operación revisa.
+ * Aquí el distrito sí varía: es a dónde se despacha, y cada uno cubre el suyo.
  */
 export const OPLS_SD: OplPorDefecto[] = [
-  { code: '1111', distrito: 'San Borja', ...LIMA },
-  { code: '1110', distrito: 'Chorrillos', ...LIMA },
-  { code: '1112', distrito: 'La Molina', ...LIMA },
-  { code: '1113', distrito: 'San Miguel', ...LIMA },
-  { code: '1114', distrito: 'Miraflores', ...LIMA },
+  { code: '1111', nombre: 'San Borja', distrito: 'San Borja', ...LIMA },
+  { code: '1110', nombre: 'Chorrillos', distrito: 'Chorrillos', ...LIMA },
+  { code: '1112', nombre: 'La Molina', distrito: 'La Molina', ...LIMA },
+  { code: '1113', nombre: 'San Miguel', distrito: 'San Miguel', ...LIMA },
+  { code: '1114', nombre: 'Miraflores', distrito: 'Miraflores', ...LIMA },
 ];
 
 /**
  * Tiendas de retiro (SE → RT).
  *
- * Aquí el distrito no es una preferencia: es dónde está físicamente la tienda,
- * así que simular el retiro en otro distrito no tendría sentido.
+ * **Las once simulan contra Lima - Lima - Lima.** El nombre de la tienda no es
+ * su destino: lo que se simula es si el pedido llega a tiempo para recogerlo,
+ * y esa consulta se hace siempre contra el mismo distrito.
  */
 export const OPLS_SE: OplPorDefecto[] = [
-  { code: '20066', distrito: 'Plaza Lima Norte', ...LIMA },
-  { code: '20073', distrito: 'Santa Anita', ...LIMA },
-  { code: '20028', distrito: 'San Miguel', ...LIMA },
-  { code: '20023', distrito: 'Primavera', ...LIMA },
-  { code: '20030', distrito: 'Miraflores', ...LIMA },
-  { code: '20048', distrito: 'Breña', ...LIMA },
-  { code: '20027', distrito: 'San Isidro', ...LIMA },
-  { code: '20089', distrito: 'Comas', ...LIMA },
-  { code: '20057', distrito: 'San Juan de Lurigancho', ...LIMA },
-  { code: '20058', distrito: 'Atocongo', ...LIMA },
-  { code: '20021', distrito: 'Chorrillos', ...LIMA },
+  { code: '20066', nombre: 'Plaza Lima Norte', distrito: 'Lima', ...LIMA },
+  { code: '20073', nombre: 'Santa Anita', distrito: 'Lima', ...LIMA },
+  { code: '20028', nombre: 'San Miguel', distrito: 'Lima', ...LIMA },
+  { code: '20023', nombre: 'Primavera', distrito: 'Lima', ...LIMA },
+  { code: '20030', nombre: 'Miraflores', distrito: 'Lima', ...LIMA },
+  { code: '20048', nombre: 'Breña', distrito: 'Lima', ...LIMA },
+  { code: '20027', nombre: 'San Isidro', distrito: 'Lima', ...LIMA },
+  { code: '20089', nombre: 'Comas', distrito: 'Lima', ...LIMA },
+  {
+    code: '20057',
+    nombre: 'San Juan de Lurigancho',
+    distrito: 'Lima',
+    ...LIMA,
+  },
+  { code: '20058', nombre: 'Atocongo', distrito: 'Lima', ...LIMA },
+  { code: '20021', nombre: 'Chorrillos', distrito: 'Lima', ...LIMA },
 ];
 
 /** SKU de referencia para cuando el usuario no aporta uno */

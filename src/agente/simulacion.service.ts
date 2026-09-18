@@ -178,6 +178,7 @@ export class SimulacionAgenteService {
 
     return {
       code,
+      nombre: code,
       distrito: dto.distrito.trim(),
       provincia: '',
       region: dto.region.trim(),
@@ -211,7 +212,8 @@ export class SimulacionAgenteService {
       cache: Caches;
     },
   ): Promise<ResultadoSimulacion[]> {
-    const etiqueta = `${destino.code} — ${destino.distrito}`;
+    // Nombre de la tienda para identificarla; el distrito es a dónde se simula
+    const etiqueta = `${destino.code} - ${destino.nombre}`;
 
     try {
       const operador = await this.unico(
@@ -354,8 +356,17 @@ export class SimulacionAgenteService {
     ).filter((c) => c.nombre?.toLowerCase().includes(buscado));
 
     if (!distritos.length) {
+      // El nombre de la tienda no siempre es el de su distrito —"Atocongo" o
+      // "Plaza Lima Norte" son locales, no distritos—, así que el error lleva
+      // candidatos: sin ellos hay que abrir el panel para averiguar cuál es.
+      const todos = await this.distritosDe(region.id, pais, cache.distritos);
+      const pistas = this.parecidos(destino.distrito, todos);
+
       throw new NotFoundException(
-        `No se encontró el distrito "${destino.distrito}" en ${region.nombre}`,
+        `"${destino.distrito}" no es un distrito de ${region.nombre}.` +
+          (pistas.length
+            ? ` ¿Quisiste decir ${pistas.join(', ')}?`
+            : ` Revisa el distrito configurado para el OPL ${destino.code}.`),
       );
     }
 
@@ -367,6 +378,27 @@ export class SimulacionAgenteService {
       ) ?? distritos[0];
 
     return { regionId: region.id, communeId: elegido.id };
+  }
+
+  /**
+   * Distritos que comparten alguna palabra con lo buscado.
+   *
+   * No es una corrección ortográfica: sirve para que el mensaje de error diga
+   * algo accionable cuando el nombre configurado es el de una tienda y no el de
+   * un distrito. Si no hay nada parecido, se prefiere no sugerir.
+   */
+  private parecidos(buscado: string, distritos: Distrito[]): string[] {
+    const palabras = buscado
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((p) => p.length > 3);
+
+    if (!palabras.length) return [];
+
+    return distritos
+      .filter((d) => palabras.some((p) => d.nombre?.toLowerCase().includes(p)))
+      .map((d) => `"${d.nombre}" (${d.provincia})`)
+      .slice(0, 4);
   }
 
   /** Un código exacto gana a cualquier coincidencia parcial por nombre */
