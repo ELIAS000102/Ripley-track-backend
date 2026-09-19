@@ -209,15 +209,22 @@ export class SimularAgenteDto extends BaseAgenteDto {
 // ───────────────────────── Búsqueda masiva ─────────────────────────
 
 export class BuscarMasivoDto extends BaseAgenteDto {
-  /** Código del método de entrega ("RT") o su descripción */
-  @IsString()
-  @IsNotEmpty()
-  metodo: string;
-
-  /** Código del tipo de servicio ("SE") o su descripción */
+  /** Código del tipo de servicio ("SE") o su descripción. Lo único obligatorio. */
   @IsString()
   @IsNotEmpty()
   servicio: string;
+
+  /**
+   * Código del método de entrega ("RT") o su descripción.
+   *
+   * **No hace falta mandarlo**: el tipo de servicio ya determina el método
+   * (RT para ST/SS/SG/SE/RT/RE, DP para DT/SD/S/EX/AT/OP) y el backend lo
+   * resuelve. Solo se acepta para acotar cuando un mismo nombre de servicio
+   * existiera en los dos métodos.
+   */
+  @IsOptional()
+  @IsString()
+  metodo?: string;
 
   /**
    * Orígenes de stock separados por coma. Si se omite, se buscan todos: el

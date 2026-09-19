@@ -3,11 +3,11 @@ import { SimulacionService } from '../simulacion/simulacion.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { SimularAgenteDto } from './dto/consultas-agente.dto.js';
+import { metodoDeServicio } from './servicios.constants.js';
 import {
   DESTINO_POR_DEFECTO,
   SKU_POR_DEFECTO,
   metodoDeOpl,
-  metodoDeServicio,
   oplConocido,
   oplsDe,
   tipoParaRipley,

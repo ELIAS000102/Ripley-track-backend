@@ -5,46 +5,13 @@
  * en cada petición —eran más de 400 tokens de tablas—, y no pueden quedarse
  * desfasados respecto al código que los usa.
  *
- * Todo esto es conocimiento de la operación, no del modelo: qué método de
- * entrega corresponde a cada tipo de servicio, qué OPL se simulan por defecto y
- * a qué destino. El agente solo tiene que saber que puede omitirlos.
- */
-
-/**
- * El método de entrega lo determina el tipo de servicio, siempre.
+ * Todo esto es conocimiento de la operación, no del modelo: qué OPL se simulan
+ * por defecto, a qué destino y con qué SKU. El agente solo tiene que saber que
+ * puede omitirlos.
  *
- * No es una preferencia ni un valor razonable por defecto: es la regla de
- * negocio, y por eso el agente no tiene que mandar el método nunca. Se retira
- * en tienda (RT) o se despacha a domicilio (DP), y el servicio decide cuál.
+ * La tabla de método por tipo de servicio está en `servicios.constants.ts`:
+ * la comparte con la búsqueda masiva.
  */
-export const METODO_POR_SERVICIO: Record<string, string> = {
-  // Retiro en tienda
-  ST: 'RT',
-  SS: 'RT',
-  SG: 'RT',
-  SE: 'RT',
-  RT: 'RT',
-  RE: 'RT',
-
-  // Despacho a domicilio
-  DT: 'DP',
-  SD: 'DP',
-  S: 'DP',
-  EX: 'DP',
-  AT: 'DP',
-  OP: 'DP',
-};
-
-/**
- * El método que corresponde a un servicio, o undefined si no se conoce.
- *
- * Un servicio nuevo que no esté en la tabla no se adivina: se deja que quien
- * llame decida, porque acertar por parecido daría simulaciones silenciosamente
- * equivocadas.
- */
-export function metodoDeServicio(servicio?: string | null): string | undefined {
-  return servicio ? METODO_POR_SERVICIO[servicio.trim().toUpperCase()] : undefined;
-}
 
 /**
  * Un OPL con su destino de simulación.
