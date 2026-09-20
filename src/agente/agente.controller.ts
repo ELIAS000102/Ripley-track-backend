@@ -107,7 +107,6 @@ export class AgenteController {
    * zonas → agendas en despacho— y devuelve los días con su ocupación calculada.
    */
   @PermitidoAgente()
-  @Auditar('agente.consultarCapacidad')
   @Get('capacidad')
   async capacidad(@Query() query: ConsultarCapacidadDto) {
     return this.agenteService.consultarCapacidad(query);
@@ -120,7 +119,6 @@ export class AgenteController {
    * consulta que más contexto gastaba en su forma cruda.
    */
   @PermitidoAgente()
-  @Auditar('agente.consultarReporte')
   @Get('reporte')
   async consultarReporte(
     @Usuario() usuario: UsuarioAutenticado,
@@ -136,7 +134,6 @@ export class AgenteController {
    * los destinos de ese origen.
    */
   @PermitidoAgente()
-  @Auditar('agente.consultarTransferencia')
   @Get('transferencia')
   async consultarTransferencia(
     @Usuario() usuario: UsuarioAutenticado,
@@ -152,7 +149,6 @@ export class AgenteController {
    * las cuatro llamadas de la cadena.
    */
   @PermitidoAgente()
-  @Auditar('agente.consultarTipoServicio')
   @Get('tipo-servicio')
   async consultarTipoServicio(
     @Usuario() usuario: UsuarioAutenticado,
@@ -169,7 +165,6 @@ export class AgenteController {
    * siempre y como mucho 40 filas, porque una búsqueda amplia trae cientos.
    */
   @PermitidoAgente()
-  @Auditar('agente.busquedaMasiva')
   @Get('busqueda-masiva')
   async busquedaMasiva(
     @Usuario() usuario: UsuarioAutenticado,
@@ -185,7 +180,6 @@ export class AgenteController {
    * nombre o código visible; los identificadores internos los resuelve el backend.
    */
   @PermitidoAgente()
-  @Auditar('agente.simular')
   @Get('simulacion')
   async simular(
     @Usuario() usuario: UsuarioAutenticado,

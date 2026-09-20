@@ -5,6 +5,7 @@ import {
   MiddlewareConsumer,
   Module,
   NestModule,
+  Put,
 } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -44,13 +45,25 @@ class ControladorDePrueba {
   constructor(private readonly servicio: ServicioDePrueba) {}
 
   @Auditar('prueba.cambio')
-  @Get('con-auditoria')
+  @Put('con-auditoria')
   conAuditoria() {
     return this.servicio.cambiarAlgo();
   }
 
-  @Get('sin-auditoria')
+  @Put('sin-auditoria')
   sinAuditoria() {
+    return this.servicio.cambiarAlgo();
+  }
+
+  /**
+   * Una consulta marcada por descuido.
+   *
+   * Es el caso real que motivó la regla: las seis consultas del agente
+   * llevaban @Auditar y llenaban la tabla de filas que no decían nada.
+   */
+  @Auditar('prueba.consultaMarcada')
+  @Get('consulta-marcada')
+  consultaMarcada() {
     return this.servicio.cambiarAlgo();
   }
 }
@@ -104,7 +117,7 @@ describe('Auditoría de cambios', () => {
   });
 
   it('guarda el estado anterior y el nuevo en un endpoint marcado con @Auditar', async () => {
-    await request(app.getHttpServer()).get('/prueba/con-auditoria').expect(200);
+    await request(app.getHttpServer()).put('/prueba/con-auditoria').expect(200);
 
     expect(guardadas).toHaveLength(1);
 
@@ -117,16 +130,26 @@ describe('Auditoría de cambios', () => {
   });
 
   it('no registra nada en un endpoint sin @Auditar', async () => {
-    await request(app.getHttpServer()).get('/prueba/sin-auditoria').expect(200);
+    await request(app.getHttpServer()).put('/prueba/sin-auditoria').expect(200);
+
+    expect(guardadas).toHaveLength(0);
+  });
+
+  it('ignora la marca sobre una consulta, aunque el handler cambie algo', async () => {
+    // Un GET no genera un cambio por definición: al historial de cambios no
+    // va, y da igual que esté marcado o que por dentro haga lo que sea.
+    await request(app.getHttpServer())
+      .get('/prueba/consulta-marcada')
+      .expect(200);
 
     expect(guardadas).toHaveLength(0);
   });
 
   it('aísla el contexto entre peticiones simultáneas', async () => {
     await Promise.all([
-      request(app.getHttpServer()).get('/prueba/con-auditoria').expect(200),
-      request(app.getHttpServer()).get('/prueba/con-auditoria').expect(200),
-      request(app.getHttpServer()).get('/prueba/con-auditoria').expect(200),
+      request(app.getHttpServer()).put('/prueba/con-auditoria').expect(200),
+      request(app.getHttpServer()).put('/prueba/con-auditoria').expect(200),
+      request(app.getHttpServer()).put('/prueba/con-auditoria').expect(200),
     ]);
 
     expect(guardadas).toHaveLength(3);
