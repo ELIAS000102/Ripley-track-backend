@@ -1,5 +1,10 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { EditarCapacidadDto } from './dto/consultas-agente.dto.js';
 import type { DespachoService } from '../agendas/despacho/despacho.service.js';
 import type { PickingService } from '../agendas/picking/picking.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
@@ -280,5 +285,89 @@ describe('Edición del agente: cuándo se niega', () => {
       BadRequestException,
       /ya está así/,
     );
+  });
+});
+
+/**
+ * Lo que de verdad llega al service después de pasar por la validación.
+ *
+ * Los tests de arriba construyen el DTO a mano, y por ahí se coló un fallo que
+ * llegó a producción: n8n manda **todos** los campos, rellenos o no, así que
+ * "solo desactiva el día" viajaba con `asignado: ''`. El `@Type(() => Number)`
+ * corría antes del `@Transform` y lo convertía en `Number('') === 0`; el
+ * service recibía un cero indistinguible de uno pedido a propósito y **borraba
+ * la capacidad asignada del día**.
+ *
+ * Por eso esta tanda pasa por el pipe de verdad, con los cuerpos tal como los
+ * arma n8n.
+ */
+describe('Edición del agente: lo que llega tras validar', () => {
+  const pipe = new ValidationPipe({ whitelist: true, transform: true });
+  const meta = {
+    type: 'body' as const,
+    metatype: EditarCapacidadDto,
+    data: '',
+  };
+
+  const validar = (cuerpo: Record<string, unknown>) =>
+    pipe.transform(cuerpo, meta) as Promise<EditarCapacidadDto>;
+
+  /** Un cuerpo como el que arma n8n: todos los campos, vacíos los que no usó */
+  const comoN8n = (relleno: Record<string, unknown>) => ({
+    tipo: 'picking',
+    codigo: '20026',
+    servicio: '',
+    zona: '',
+    agenda: '',
+    fecha: '2026-12-01',
+    asignado: '',
+    activa: '',
+    pais: 'PE',
+    ...relleno,
+  });
+
+  it('desactivar un día NO toca el asignado', async () => {
+    const dto = await validar(comoN8n({ servicio: 'S', activa: 'false' }));
+
+    expect(dto.activa).toBe(false);
+    expect(dto.asignado).toBeUndefined();
+  });
+
+  it('cambiar el asignado NO toca el estado', async () => {
+    const dto = await validar(comoN8n({ servicio: 'S', asignado: '1800' }));
+
+    expect(dto.asignado).toBe(1800);
+    expect(dto.activa).toBeUndefined();
+  });
+
+  it('un cero pedido a propósito sí es un cero', async () => {
+    const dto = await validar(comoN8n({ servicio: 'S', asignado: '0' }));
+
+    expect(dto.asignado).toBe(0);
+  });
+
+  it('los textos vacíos no cuentan como filtro', async () => {
+    const dto = await validar(comoN8n({ activa: 'true' }));
+
+    // Un servicio '' es falsy y el service lo trata como "no indicado", que es
+    // lo que hace saltar la regla de "hay varias agendas, elige tú"
+    expect(dto.servicio).toBe('');
+    expect(dto.zona).toBe('');
+  });
+
+  it('un asignado que no es número se rechaza, no se convierte en NaN', async () => {
+    await expect(
+      validar(comoN8n({ asignado: 'mil ochocientos' })),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('sigue habiendo tope para el asignado', async () => {
+    // Los motivos de un 400 de validación van en el cuerpo, no en el message
+    const motivos = await validar(comoN8n({ asignado: '999999999' })).then(
+      () => [] as string[],
+      (e: { response?: { message?: string[] } }) => e.response?.message ?? [],
+    );
+
+    expect(motivos.join(' ')).toMatch(/no puede pasar de/);
   });
 });

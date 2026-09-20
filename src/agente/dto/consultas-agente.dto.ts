@@ -290,16 +290,26 @@ export class EditarCapacidadDto extends PaisDto {
   /**
    * Capacidad asignada. Si se omite, se deja la que ya tenía.
    *
-   * El `''` se trata como ausente: esto llega en el cuerpo, y el pipe que
-   * limpia los vacíos solo mira los query params. n8n manda igualmente los
-   * campos que el modelo no rellenó, así que sin esto "cambia solo el estado"
-   * fallaría con un error de validación en vez de hacer lo que se pidió.
+   * El `''` cuenta como ausente: esto llega en el cuerpo, y el pipe que limpia
+   * los vacíos solo mira los query params. n8n manda igualmente los campos que
+   * el modelo no rellenó, así que sin esto "solo desactiva el día" no haría lo
+   * que se pidió.
+   *
+   * La conversión a número va **dentro** de este `@Transform` y no en un
+   * `@Type(() => Number)` aparte. Con los dos decoradores, el tipado corre
+   * primero: convertía el `''` en `Number('') === 0` y aquí ya llegaba un cero
+   * indistinguible de uno pedido a propósito. El resultado era que desactivar
+   * un día **borraba su capacidad asignada** sin que nadie lo hubiera pedido.
    */
   @IsOptional()
-  @Transform(({ value }) =>
-    value === '' || value === null ? undefined : value,
-  )
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) return undefined;
+
+    const numero = Number(value);
+    // Lo que no sea un número se deja pasar para que @IsInt lo rechace
+    // diciendo qué llegó, en vez de convertirlo en NaN
+    return Number.isNaN(numero) ? value : numero;
+  })
   @IsInt()
   @Min(0)
   @Max(ASIGNADO_MAXIMO, {
