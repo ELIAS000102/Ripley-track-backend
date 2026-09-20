@@ -234,11 +234,27 @@ export interface EstadoDia {
 }
 
 /**
+ * Un día del rango, con lo que se le hizo.
+ *
+ * `error` no aborta el resto: un día que no existe en la agenda se anota y se
+ * sigue con los demás. Cuando lo lleva, `despues` viene en null.
+ */
+export interface DiaEditado {
+  fecha: string;
+  antes: EstadoDia | null;
+  despues: EstadoDia | null;
+  error?: string;
+}
+
+/**
  * Lo que se devuelve tras escribir.
  *
  * Lleva el antes y el después **releídos de Ripley**, no lo que se pidió: si el
  * agente informa de lo que creía que iba a pasar en vez de lo que pasó, el
  * usuario se entera del desajuste en el peor momento, que es más tarde.
+ *
+ * Siempre es una lista, aunque se haya pedido un solo día: así el agente no
+ * tiene dos formas que interpretar según cuántos días vinieran.
  */
 export interface EdicionRespuesta {
   contexto: ContextoAgente;
@@ -246,6 +262,10 @@ export interface EdicionRespuesta {
   oficina: string;
   zona?: string;
   agenda: string;
-  antes: EstadoDia;
-  despues: EstadoDia;
+  dias: DiaEditado[];
+  resumen: {
+    pedidos: number;
+    cambiados: number;
+    sinCambiar: number;
+  };
 }

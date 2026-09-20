@@ -6,22 +6,38 @@ import {
 } from '@nestjs/common';
 import { DespachoService } from '../agendas/despacho/despacho.service.js';
 import { PickingService } from '../agendas/picking/picking.service.js';
+import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
   ripleyDateToIso,
   soloFecha,
+  sumarDias,
 } from '../common/ripley/utils/date.util.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { EditarCapacidadDto } from './dto/consultas-agente.dto.js';
 import type {
+  DiaEditado,
   EdicionRespuesta,
   EstadoDia,
 } from './interfaces/agente.interface.js';
 
 /**
- * La única escritura que el agente puede hacer: un día de una agenda.
+ * Tope de días por llamada.
+ *
+ * Un mes largo cubre "cierra todo octubre", que es el caso real. Más que eso,
+ * con su lectura y su escritura por día, tarda lo suficiente como para que n8n
+ * corte la conexión y nadie sepa cuántos días llegaron a cambiarse.
+ */
+const MAXIMO_DIAS = 31;
+
+/** Se compara para decidir si un fallo total es un 404 o un 400 */
+const SIN_CONFIGURAR =
+  'No está configurado en esta agenda; no se crean días nuevos.';
+
+/**
+ * La única escritura que el agente puede hacer: días de una agenda.
  *
  * El diseño de todo este archivo parte de una idea: **un modelo de lenguaje
  * acierta casi siempre, y "casi" no basta cuando lo que hace es cambiar la
@@ -31,8 +47,9 @@ import type {
  *
  * Las reglas, y por qué cada una:
  *
- * 1. **Una agenda, un día, una llamada.** No hay edición en bloque. Si el
- *    usuario quiere cinco días, son cinco confirmaciones.
+ * 1. **Una agenda por llamada, uno o varios días.** El rango se resuelve aquí
+ *    en una sola operación: pedir una confirmación por día convertía "cierra
+ *    del 29 al 2" en cuatro idas y venidas y el usuario acababa a mitad.
  * 2. **Si el filtro no deja una sola agenda, no se escribe.** En una consulta,
  *    quedarse con la primera de la lista es una comodidad razonable. En una
  *    escritura es cambiar una agenda que nadie pidió, y nadie se entera.
@@ -42,8 +59,12 @@ import type {
  * 5. **`asignado` nunca por debajo de lo ya ocupado.** Dejaría la agenda
  *    sobrevendida. Para cerrar el día está `activa: false`, que es lo que la
  *    operación usa de verdad.
- * 6. **Se relee el estado antes y se devuelve el antes y el después.** Sin eso
- *    el agente informa de lo que creía que iba a pasar, no de lo que pasó.
+ * 6. **Se relee el estado antes y se devuelve el antes y el después de cada
+ *    día.** Sin eso el agente informa de lo que creía que iba a pasar.
+ *
+ * Un día que falla no aborta los demás: se anota su motivo y el resto sigue.
+ * Cerrar cuatro días y que el tercero no exista no puede dejar los otros tres
+ * sin tocar y sin explicación.
  *
  * Quien decide que esto se puede llamar es el guard, comprobando el modo
  * editor. Aquí se da por hecho que ya se comprobó.
@@ -56,6 +77,7 @@ export class EdicionAgenteService {
     private readonly picking: PickingService,
     private readonly despacho: DespachoService,
     private readonly contexto: ContextoAgenteService,
+    private readonly auditoria: ContextoAuditoria,
   ) {}
 
   async editarCapacidad(
@@ -71,90 +93,100 @@ export class EdicionAgenteService {
       );
     }
 
-    this.exigirFechaUtil(dto.fecha, pais);
+    const fechas = this.diasDelRango(dto, pais);
 
     this.logger.warn(
       `EDICIÓN del agente — ${usuario.email} cambia ${dto.tipo} de ${dto.codigo} ` +
-        `el ${dto.fecha} (asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
+        `en ${fechas.length} día(s) desde ${fechas[0]} ` +
+        `(asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
     );
 
     const resultado =
       dto.tipo === 'picking'
-        ? await this.editarPicking(dto, pais)
-        : await this.editarDespacho(dto, pais);
+        ? await this.editarPicking(dto, pais, fechas)
+        : await this.editarDespacho(dto, pais, fechas);
 
-    return { contexto, ...resultado };
+    this.exigirAlgunCambio(resultado.dias);
+    this.registrarEnAuditoria(resultado);
+
+    return {
+      contexto,
+      ...resultado,
+      resumen: {
+        pedidos: resultado.dias.length,
+        cambiados: resultado.dias.filter((d) => !d.error).length,
+        sinCambiar: resultado.dias.filter((d) => d.error).length,
+      },
+    };
   }
 
-  // ---------- Picking: almacén → agenda → día ----------
+  // ---------- Picking: almacén → agenda → días ----------
 
-  private async editarPicking(dto: EditarCapacidadDto, pais: string) {
+  private async editarPicking(
+    dto: EditarCapacidadDto,
+    pais: string,
+    fechas: string[],
+  ) {
     const todas = await this.picking.listarAgendasPorOficina(dto.codigo, pais);
 
+    // Un mismo tipo de servicio puede repetirse en varias agendas del almacén
+    // —la buena y unas cuantas marcadas "NO FUNCIONAL"—, así que el nombre
+    // también filtra. Sin él no había forma de desempatar y la petición se
+    // quedaba en bucle: el agente preguntaba cuál y no tenía dónde mandarlo.
+    const candidatas = this.filtrar(todas, [
+      [dto.servicio, (a) => a.typeOfService],
+      [dto.agenda, (a) => a.nombre],
+    ]);
+
     const agenda = this.unica(
-      dto.servicio
-        ? todas.filter(
-            (a) =>
-              a.typeOfService?.toUpperCase() ===
-              dto.servicio!.trim().toUpperCase(),
-          )
-        : todas,
-      todas.map((a) => `${a.typeOfService} (${a.nombre})`),
+      candidatas,
+      todas,
+      (a) => `${a.typeOfService} (${a.nombre})`,
       `el almacén ${dto.codigo}`,
       'el servicio',
     );
 
     const capacidades = await this.picking.obtener(
       agenda.scheduleId,
-      isoToRipleyDate(dto.fecha),
+      isoToRipleyDate(fechas[0]),
       pais,
     );
 
-    const dia = (capacidades?.capacityByDayArray ?? []).find(
-      (d) => soloFecha(d.day) === dto.fecha,
+    // Se lee una vez: Ripley devuelve la agenda entera desde esa fecha, y
+    // escribir un día no cambia el estado de los otros
+    const porFecha = new Map(
+      (capacidades?.capacityByDayArray ?? []).map((d) => [soloFecha(d.day), d]),
     );
 
-    if (!dia) {
-      throw new NotFoundException(
-        `La agenda ${agenda.typeOfService} del almacén ${dto.codigo} no tiene configurado el día ${dto.fecha}. No se crean días nuevos desde el chat.`,
-      );
-    }
-
-    const antes = this.estado(
-      dto.fecha,
-      dia.active,
-      Number(dia.assigned),
-      Number(dia.occupied),
-    );
-    const { asignado, activa } = this.resolverCambio(dto, antes);
-
-    await this.picking.actualizar(
-      agenda.scheduleId,
-      { day: dia.day, assigned: asignado, active: activa },
-      pais,
+    const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+      this.picking.actualizar(
+        agenda.scheduleId,
+        { day: dia.day, assigned: cambio.asignado, active: cambio.activa },
+        pais,
+      ),
     );
 
     return {
       tipo: 'picking' as const,
       oficina: dto.codigo,
       agenda: `${agenda.typeOfService} - ${agenda.nombre}`,
-      antes,
-      despues: this.estado(dto.fecha, activa, asignado, antes.ocupado),
+      dias,
     };
   }
 
-  // ---------- Despacho: operador → zona → agenda → día ----------
+  // ---------- Despacho: operador → zona → agenda → días ----------
 
-  private async editarDespacho(dto: EditarCapacidadDto, pais: string) {
+  private async editarDespacho(
+    dto: EditarCapacidadDto,
+    pais: string,
+    fechas: string[],
+  ) {
     const zonas = await this.despacho.listarZonas(dto.codigo, pais);
 
     const zona = this.unica(
-      dto.zona
-        ? zonas.filter((z) =>
-            z.nombre?.toLowerCase().includes(dto.zona!.trim().toLowerCase()),
-          )
-        : zonas,
-      zonas.map((z) => z.nombre),
+      this.filtrar(zonas, [[dto.zona, (z) => z.nombre]]),
+      zonas,
+      (z) => z.nombre,
       `el operador ${dto.codigo}`,
       'la zona',
     );
@@ -162,44 +194,29 @@ export class EdicionAgenteService {
     const agendas = await this.despacho.listarAgendas(zona.zoneId, pais);
 
     const agenda = this.unica(
-      dto.agenda
-        ? agendas.filter((a) =>
-            a.nombre?.toLowerCase().includes(dto.agenda!.trim().toLowerCase()),
-          )
-        : agendas,
-      agendas.map((a) => a.nombre),
+      this.filtrar(agendas, [[dto.agenda, (a) => a.nombre]]),
+      agendas,
+      (a) => a.nombre,
       `la zona ${zona.nombre}`,
       'la agenda',
     );
 
-    const { dias } = await this.despacho.buscarCapacidades(
+    const { dias: detalle } = await this.despacho.buscarCapacidades(
       agenda.mainScheduleId,
-      isoToRipleyDate(dto.fecha),
+      isoToRipleyDate(fechas[0]),
       pais,
     );
 
-    const dia = dias.find((d) => ripleyDateToIso(d.date) === dto.fecha);
+    const porFecha = new Map(detalle.map((d) => [ripleyDateToIso(d.date), d]));
 
-    if (!dia) {
-      throw new NotFoundException(
-        `La agenda "${agenda.nombre}" del operador ${dto.codigo} no tiene configurado el día ${dto.fecha}. No se crean días nuevos desde el chat.`,
-      );
-    }
-
-    const antes = this.estado(
-      dto.fecha,
-      dia.active,
-      Number(dia.assigned),
-      Number(dia.occupied),
-    );
-    const { asignado, activa } = this.resolverCambio(dto, antes);
-
-    await this.despacho.actualizar(
-      dto.codigo,
-      zona.zoneId,
-      agenda.mainScheduleId,
-      { date: dia.date, assigned: asignado, active: activa },
-      pais,
+    const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+      this.despacho.actualizar(
+        dto.codigo,
+        zona.zoneId,
+        agenda.mainScheduleId,
+        { date: dia.date, assigned: cambio.asignado, active: cambio.activa },
+        pais,
+      ),
     );
 
     return {
@@ -207,38 +224,152 @@ export class EdicionAgenteService {
       oficina: dto.codigo,
       zona: zona.nombre,
       agenda: agenda.nombre,
-      antes,
-      despues: this.estado(dto.fecha, activa, asignado, antes.ocupado),
+      dias,
     };
+  }
+
+  // ---------- El recorrido de los días ----------
+
+  /**
+   * Escribe día a día, secuencialmente y sin abortar al primer tropiezo.
+   *
+   * Secuencial a propósito: son escrituras contra la API corporativa y no
+   * conviene lanzarlas en paralelo. Un rango de un mes son treinta y una, que
+   * es lento pero acotado.
+   */
+  private async recorrer<
+    T extends {
+      active: boolean;
+      assigned: number | string;
+      occupied: number | string;
+    },
+  >(
+    fechas: string[],
+    porFecha: Map<string, T>,
+    dto: EditarCapacidadDto,
+    escribir: (
+      dia: T,
+      cambio: { asignado: number; activa: boolean },
+    ) => Promise<unknown>,
+  ): Promise<DiaEditado[]> {
+    const dias: DiaEditado[] = [];
+
+    for (const fecha of fechas) {
+      const dia = porFecha.get(fecha);
+
+      if (!dia) {
+        dias.push({
+          fecha,
+          antes: null,
+          despues: null,
+          error: SIN_CONFIGURAR,
+        });
+        continue;
+      }
+
+      const antes = this.estado(
+        fecha,
+        dia.active,
+        Number(dia.assigned),
+        Number(dia.occupied),
+      );
+
+      try {
+        const cambio = this.resolverCambio(dto, antes);
+        await escribir(dia, cambio);
+
+        dias.push({
+          fecha,
+          antes,
+          despues: this.estado(
+            fecha,
+            cambio.activa,
+            cambio.asignado,
+            antes.ocupado,
+          ),
+        });
+      } catch (e) {
+        dias.push({ fecha, antes, despues: null, error: (e as Error).message });
+      }
+    }
+
+    return dias;
   }
 
   // ---------- Reglas ----------
 
+  /** Los días del rango, ya validados. Sin `hasta`, uno solo. */
+  private diasDelRango(dto: EditarCapacidadDto, pais: string): string[] {
+    const desde = dto.fecha;
+    const hasta = dto.hasta?.trim() || desde;
+
+    if (hasta < desde) {
+      throw new BadRequestException(
+        `El rango va al revés: ${desde} es posterior a ${hasta}.`,
+      );
+    }
+
+    this.exigirFechaUtil(desde, pais);
+    this.exigirFechaUtil(hasta, pais);
+
+    const fechas: string[] = [];
+    for (let f = desde; f <= hasta; f = sumarDias(f, 1)) fechas.push(f);
+
+    if (fechas.length > MAXIMO_DIAS) {
+      throw new BadRequestException(
+        `El rango son ${fechas.length} días y el máximo por vez es ${MAXIMO_DIAS}. Pártelo en tramos.`,
+      );
+    }
+
+    return fechas;
+  }
+
+  /** Aplica los filtros que vengan; los que no vengan no filtran */
+  private filtrar<T>(
+    lista: T[],
+    filtros: Array<
+      [string | undefined, (item: T) => string | null | undefined]
+    >,
+  ): T[] {
+    return filtros.reduce((quedan, [buscado, de]) => {
+      const termino = buscado?.trim().toLowerCase();
+      if (!termino) return quedan;
+
+      return quedan.filter((item) =>
+        (de(item) ?? '').toLowerCase().includes(termino),
+      );
+    }, lista);
+  }
+
   /**
    * Exactamente una, o se para.
    *
-   * El mensaje lleva los candidatos: sin ellos, el agente vuelve a preguntar
-   * "¿cuál?" sin saber qué opciones ofrecer, y el usuario tiene que abrir el
-   * panel para responderle.
+   * El mensaje lleva los candidatos **que quedaron tras filtrar**, no el
+   * catálogo entero: listar las doce agendas del almacén cuando cinco encajan
+   * no ayuda a elegir, confunde.
    */
   private unica<T>(
     candidatos: T[],
-    nombres: string[],
+    todos: T[],
+    etiqueta: (item: T) => string,
     donde: string,
     que: string,
   ): T {
     if (candidatos.length === 1) return candidatos[0];
 
-    const opciones = nombres.join(', ') || 'ninguna';
-
     if (!candidatos.length) {
       throw new NotFoundException(
-        `No encontré ${que} que pides en ${donde}. Las opciones son: ${opciones}`,
+        `No encontré ${que} que pides en ${donde}. Las opciones son: ${
+          todos.map(etiqueta).join(', ') || 'ninguna'
+        }`,
       );
     }
 
     throw new BadRequestException(
-      `Hay ${candidatos.length} opciones en ${donde} y no voy a elegir por ti: indica ${que}. Las opciones son: ${opciones}`,
+      `Hay ${candidatos.length} opciones en ${donde} y no voy a elegir por ti. ` +
+        `Repite indicando el nombre exacto en "agenda". Las opciones son: ${candidatos
+          .map(etiqueta)
+          .join(', ')}`,
     );
   }
 
@@ -256,7 +387,7 @@ export class EdicionAgenteService {
 
     if (asignado === antes.asignado && activa === antes.activo) {
       throw new BadRequestException(
-        `Ese día ya está así (asignado ${antes.asignado}, ${antes.activo ? 'activa' : 'inactiva'}). No he cambiado nada.`,
+        `Ya estaba así (asignado ${antes.asignado}, ${antes.activo ? 'activa' : 'inactiva'}).`,
       );
     }
 
@@ -279,6 +410,54 @@ export class EdicionAgenteService {
         `${fecha} está a más de un año vista. Revisa la fecha: si es correcta, se hace desde el panel.`,
       );
     }
+  }
+
+  /**
+   * Si no cambió ni un día, es un error y no una respuesta a medias.
+   *
+   * Devolver un 200 con todos los días fallidos deja al agente decidiendo si
+   * eso fue un éxito, y decide que sí más veces de las que debería.
+   */
+  private exigirAlgunCambio(dias: DiaEditado[]): void {
+    if (dias.some((d) => !d.error)) return;
+
+    const motivos = [...new Set(dias.map((d) => d.error))];
+    const mensaje =
+      dias.length === 1
+        ? motivos[0]!
+        : `No se cambió ningún día de los ${dias.length} pedidos. Motivos: ${motivos.join(' · ')}`;
+
+    // Si lo único que pasó es que esos días no existen en la agenda, es un
+    // "no encontrado" y no una petición mal formada: el agente los traduce
+    // distinto al contárselo al usuario.
+    throw dias.every((d) => d.error === SIN_CONFIGURAR)
+      ? new NotFoundException(mensaje)
+      : new BadRequestException(mensaje);
+  }
+
+  /**
+   * El registro de uso guarda el conjunto, no el último día.
+   *
+   * Los services de picking y despacho anotan su propio cambio al escribir, y
+   * en un rango cada uno pisa al anterior: sin esto, el historial diría que se
+   * tocó un solo día.
+   */
+  private registrarEnAuditoria(resultado: {
+    agenda: string;
+    dias: DiaEditado[];
+  }): void {
+    const cambiados = resultado.dias.filter((d) => !d.error);
+    const resumir = (lado: 'antes' | 'despues') =>
+      cambiados.map((d) => ({
+        fecha: d.fecha,
+        asignado: d[lado]?.asignado,
+        activo: d[lado]?.activo,
+      }));
+
+    this.auditoria.registrarCambio(
+      { agenda: resultado.agenda, dias: resumir('antes') },
+      { agenda: resultado.agenda, dias: resumir('despues') },
+    );
   }
 
   private estado(

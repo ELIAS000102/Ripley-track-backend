@@ -247,7 +247,7 @@ export class BuscarMasivoDto extends PaisDto {
 const ASIGNADO_MAXIMO = 100_000;
 
 /**
- * Cambiar un día de una agenda. **Solo funciona en modo editor.**
+ * Cambiar uno o varios días de una agenda. **Solo funciona en modo editor.**
  *
  * Todo entra por nombre o código visible, igual que en las consultas, y hay un
  * campo por cada cosa que hace falta para identificar UNA agenda. Si con lo que
@@ -265,7 +265,7 @@ export class EditarCapacidadDto extends PaisDto {
   @IsNotEmpty()
   codigo: string;
 
-  /** Picking: tipo de servicio de la agenda ("S", "ST"). Identifica cuál es. */
+  /** Picking: tipo de servicio de la agenda ("S", "ST", "RC") */
   @IsOptional()
   @IsString()
   servicio?: string;
@@ -275,17 +275,41 @@ export class EditarCapacidadDto extends PaisDto {
   @IsString()
   zona?: string;
 
-  /** Despacho: nombre de la agenda; admite coincidencia parcial */
+  /**
+   * Nombre de la agenda; admite coincidencia parcial.
+   *
+   * En despacho identifica cuál dentro de la zona. En picking **también
+   * filtra**, y ahí hace falta más de lo que parece: un almacén puede tener
+   * cinco agendas con el mismo tipo de servicio —la buena y varias marcadas
+   * "NO FUNCIONAL"—, y sin este campo no había forma de desempatarlas.
+   */
   @IsOptional()
   @IsString()
   agenda?: string;
 
-  /** El día que se cambia, uno solo. No hay rangos a propósito. */
+  /** El primer día que se cambia, o el único si no hay `hasta` */
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'fecha debe tener el formato YYYY-MM-DD',
   })
   fecha: string;
+
+  /**
+   * Último día del rango, incluido. Si se omite, se cambia solo `fecha`.
+   *
+   * El rango se confirma una vez y se aplica en una sola llamada. Antes era un
+   * día por llamada, con su confirmación cada uno: "cierra del 29 al 2" se
+   * convertía en cuatro idas y venidas y el usuario abandonaba a mitad.
+   */
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'hasta debe tener el formato YYYY-MM-DD',
+  })
+  hasta?: string;
 
   /**
    * Capacidad asignada. Si se omite, se deja la que ya tenía.
