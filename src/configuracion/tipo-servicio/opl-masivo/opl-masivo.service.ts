@@ -1,11 +1,9 @@
 import {
-  BadGatewayException,
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
 import { ActualizarOplDto } from './dto/actualizar-opl.dto.js';
@@ -43,25 +41,15 @@ export class OplMasivoService {
 
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
     private readonly contexto: ContextoAuditoria,
   ) {}
-
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
 
   // ---------- Paso 1: métodos de entrega ----------
 
   /** GET /delivery devuelve un array plano, sin el envoltorio { count, rows } */
   private async traerDelivery(pais: string): Promise<MetodoEntrega[]> {
     const data = await this.ripley.get<MetodoEntrega[]>(
-      this.endpoint('delivery'),
+      this.ripley.endpoint('delivery'),
       pais,
     );
     return Array.isArray(data) ? data : [];
@@ -90,20 +78,29 @@ export class OplMasivoService {
     identificador: string,
     pais: string,
   ): Promise<CatalogoResponse> {
-    return this.ripley.get<CatalogoResponse>(this.endpoint('catalogs'), pais, {
-      q: identificador,
-      takeFirst: 1,
-    });
+    return this.ripley.get<CatalogoResponse>(
+      this.ripley.endpoint('catalogs'),
+      pais,
+      {
+        q: identificador,
+        takeFirst: 1,
+      },
+    );
   }
 
-  /** Bodegas, proveedores y tiendas */
+  /**
+   * Bodegas, proveedores y tiendas.
+   *
+   * Los parámetros sin código quedan fuera: hay catálogos de Ripley que solo
+   * traen id y etiqueta, y un origen sin código no se puede mandar de vuelta
+   * —llegaría como "undefined" y la consulta volvería vacía sin decir por qué—.
+   */
   async listarOrigenes(pais = 'PE') {
     const catalogo = await this.traerCatalogo(this.CATALOGO_ORIGENES, pais);
 
-    return (catalogo?.parameters ?? []).map((p) => ({
-      code: p.code,
-      nombre: p.label,
-    }));
+    return (catalogo?.parameters ?? [])
+      .filter((p): p is typeof p & { code: string } => !!p.code)
+      .map((p) => ({ code: p.code, nombre: p.label }));
   }
 
   // ---------- Armado del payload de consulta ----------
@@ -148,7 +145,7 @@ export class OplMasivoService {
     const origenes: OpcionRef[] = dto.origenes.map((code) => {
       const p = disponibles.find((x) => x.code === code);
 
-      if (!p) {
+      if (!p?.code) {
         throw new BadRequestException(`Origen de stock desconocido: ${code}`);
       }
       return { id: p.id, code: p.code, label: p.label };
@@ -176,7 +173,7 @@ export class OplMasivoService {
     const payload = await this.armarPayloadConsulta(dto, pais);
 
     const data = await this.ripley.post<ConsultaStateResponse>(
-      this.endpoint('routesState'),
+      this.ripley.endpoint('routesState'),
       pais,
       payload,
     );
@@ -276,7 +273,7 @@ export class OplMasivoService {
     this.logger.log(`Actualizando ${data.length} agenda(s)`);
 
     const respuesta = await this.ripley.post<ActualizacionResponse>(
-      this.endpoint('routesUpdate'),
+      this.ripley.endpoint('routesUpdate'),
       pais,
       { type: this.TIPO_ACCION, data },
     );

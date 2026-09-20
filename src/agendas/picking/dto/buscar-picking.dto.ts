@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -9,26 +8,17 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { PaisDto } from '../../../common/dto/pais.dto.js';
 
-export class ListarOficinasDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
+// El catálogo de oficinas solo necesita el país: el controller usa PaisDto
 
-export class ListarAgendasDto {
+export class ListarAgendasDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   officeCode: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }
 
-export class BuscarCapacidadesDto {
+export class BuscarCapacidadesDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   officeCode: string;
@@ -55,23 +45,13 @@ export class BuscarCapacidadesDto {
   @Min(1)
   @Max(365)
   dias?: number;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }
 
 /** GET /agendas/picking?scheduleId=...&pais=PE&from=14-09-2026 */
-export class ObtenerPickingDto {
+export class ObtenerPickingDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   scheduleId: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 
   /** Fecha desde la cual traer capacidades, formato DD-MM-YYYY */
   @IsOptional()

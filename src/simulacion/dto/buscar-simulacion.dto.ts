@@ -1,24 +1,5 @@
-import {
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
-
-export class PaisDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
-
-/** Búsqueda incremental: sirve para almacenes, OPL y SKU */
-export class BuscarDto extends PaisDto {
-  @IsString()
-  @MinLength(1)
-  q: string;
-}
+import { IsNotEmpty, IsString } from 'class-validator';
+import { PaisDto } from '../../common/dto/pais.dto.js';
 
 export class ProvinciasDto extends PaisDto {
   @IsString()

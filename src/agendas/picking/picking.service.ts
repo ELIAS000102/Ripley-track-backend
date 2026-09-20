@@ -4,25 +4,20 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import {
-  hoyEnPais,
   isoToRipleyDate,
-  ripleyDateToIso,
+  recortarDesde,
   soloFecha,
 } from '../../common/ripley/utils/date.util.js';
 import { ActualizarPickingBodyDto } from './dto/actualizar-picking.dto.js';
 import {
   CapacitiesResponse,
-  CapacityByDay,
-  OfficeRow,
-  RipleyListResponse,
   ScheduleConfig,
   ScheduleRow,
   ScheduleType,
-  ServiceRow,
 } from './interfaces/picking.interface.js';
 
 /**
@@ -46,20 +41,10 @@ export class PickingService {
   };
 
   constructor(
+    private readonly catalogos: CatalogosRipleyService,
     private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
     private readonly contexto: ContextoAuditoria,
   ) {}
-
-  /** Lee un endpoint desde las variables de entorno */
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
 
   // ---------- Paso 1: capacidades ----------
 
@@ -69,16 +54,11 @@ export class PickingService {
     from?: string,
     pais = 'PE',
   ): Promise<CapacitiesResponse> {
-    const path = `${this.endpoint('capacitiesPicking')}/${scheduleId}`;
     this.logger.log(
       `Consultando capacidades de picking ${scheduleId} (${pais})`,
     );
 
-    return this.ripley.get<CapacitiesResponse>(
-      path,
-      pais,
-      from ? { from } : undefined,
-    );
+    return this.catalogos.capacidadesDePicking(scheduleId, pais, from);
   }
 
   // ---------- Pasos 2, 3 y 4: catálogos ----------
@@ -89,13 +69,9 @@ export class PickingService {
     warehouseId: string,
     pais: string,
   ): Promise<ScheduleRow> {
-    const data = await this.ripley.get<RipleyListResponse<ScheduleRow>>(
-      this.endpoint('schedulesPicking'),
-      pais,
-      { warehouse: warehouseId },
-    );
+    const agendas = await this.catalogos.agendasDePicking(warehouseId, pais);
 
-    const agenda = data?.rows?.find((row) =>
+    const agenda = agendas.find((row) =>
       row.capacities?.some((c) => c.capacityId === scheduleId),
     );
 
@@ -113,12 +89,8 @@ export class PickingService {
     serviceId: string,
     pais: string,
   ): Promise<string> {
-    const data = await this.ripley.get<RipleyListResponse<ServiceRow>>(
-      this.endpoint('services'),
-      pais,
-    );
-
-    const servicio = data?.rows?.find((s) => s.id === serviceId);
+    const servicios = await this.catalogos.servicios(pais);
+    const servicio = servicios.find((s) => s.id === serviceId);
 
     if (!servicio?.code) {
       throw new NotFoundException(
@@ -134,13 +106,8 @@ export class PickingService {
     warehouseId: string,
     pais: string,
   ): Promise<string> {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { id: warehouseId },
-    );
-
-    const oficina = data?.rows?.find((o) => o.id === warehouseId);
+    const filas = await this.catalogos.oficinas(pais, { id: warehouseId });
+    const oficina = filas.find((o) => o.id === warehouseId);
 
     if (!oficina?.code) {
       throw new NotFoundException(
@@ -261,82 +228,37 @@ export class PickingService {
       { scheduleId, day: diaActual.day, assigned, active },
     );
 
-    const path = `${this.endpoint('capacitiesPicking')}/${scheduleId}`;
     this.logger.log(
       `Actualizando picking ${scheduleId} — día ${diaActual.day}`,
     );
 
-    return this.ripley.put(path, pais, payload);
+    return this.ripley.put(
+      `${this.ripley.endpoint('capacitiesPicking')}/${scheduleId}`,
+      pais,
+      payload,
+    );
   }
 
   // ---------- Búsqueda por oficina y servicio ----------
 
-  /** Catálogo de servicios como mapa id -> code */
-  private async mapaServicios(pais: string): Promise<Map<string, string>> {
-    const data = await this.ripley.get<RipleyListResponse<ServiceRow>>(
-      this.endpoint('services'),
-      pais,
-    );
-    return new Map((data?.rows ?? []).map((s) => [s.id, s.code]));
-  }
-
-  /** Agendas de picking de un almacén */
-  private async listarAgendasDelAlmacen(
-    warehouseId: string,
-    pais: string,
-  ): Promise<ScheduleRow[]> {
-    const data = await this.ripley.get<RipleyListResponse<ScheduleRow>>(
-      this.endpoint('schedulesPicking'),
-      pais,
-      { warehouse: warehouseId },
-    );
-    return data?.rows ?? [];
-  }
-
-  /** Busca una oficina por su código visible ("20026") */
-  private async buscarOficinaPorCodigo(
-    officeCode: string,
-    pais: string,
-  ): Promise<OfficeRow> {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { q: officeCode, isStoreOffice: true },
-    );
-
-    const oficina =
-      data?.rows?.find((o) => o.code === officeCode) ?? data?.rows?.[0];
-
-    if (!oficina) {
-      throw new NotFoundException(
-        `No se encontró la oficina con código ${officeCode}`,
-      );
-    }
-
-    return oficina;
-  }
-
   /** Lista de oficinas disponibles, para poblar el selector */
   async listarOficinas(pais = 'PE') {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { isStoreOffice: true },
-    );
+    const filas = await this.catalogos.oficinas(pais, { tipo: 'almacen' });
 
-    return (data?.rows ?? []).map((o) => ({
-      code: o.code,
-      name: o.name ?? '',
-    }));
+    return filas.map((o) => ({ code: o.code, name: o.name ?? '' }));
   }
 
   /** Agendas de una oficina con su tipo de servicio ya resuelto */
   async listarAgendasPorOficina(officeCode: string, pais = 'PE') {
-    const oficina = await this.buscarOficinaPorCodigo(officeCode, pais);
+    const oficina = await this.catalogos.oficinaPorCodigo(
+      officeCode,
+      pais,
+      'almacen',
+    );
 
     const [agendas, servicios] = await Promise.all([
-      this.listarAgendasDelAlmacen(oficina.id, pais),
-      this.mapaServicios(pais),
+      this.catalogos.agendasDePicking(oficina.id, pais),
+      this.catalogos.mapaServicios(pais),
     ]);
 
     return agendas
@@ -375,29 +297,9 @@ export class PickingService {
 
     return {
       agenda,
-      dias: dias ? this.recortar(todos, from, pais, dias) : todos,
+      dias: dias
+        ? recortarDesde(todos, from, pais, dias, (d) => soloFecha(d.day))
+        : todos,
     };
-  }
-
-  /**
-   * Devuelve como mucho `dias` días, contados desde la fecha pedida.
-   *
-   * Ripley entrega la agenda completa —arranca más de un año atrás y llega a
-   * 2028— aunque se le pase "from", así que hay que filtrar por fecha antes de
-   * cortar. Cortar sin filtrar devolvería los primeros días de la agenda, que
-   * son historia vieja y se leerían como si fueran los próximos.
-   */
-  private recortar(
-    todos: CapacityByDay[],
-    from: string | undefined,
-    pais: string,
-    dias: number,
-  ): CapacityByDay[] {
-    const desde = from ? ripleyDateToIso(from) : hoyEnPais(pais);
-
-    return todos
-      .filter((d) => soloFecha(d.day) >= desde)
-      .sort((a, b) => a.day.localeCompare(b.day))
-      .slice(0, dias);
   }
 }

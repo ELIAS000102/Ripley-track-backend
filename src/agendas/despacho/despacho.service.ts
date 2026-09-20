@@ -4,23 +4,22 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
+  recortarDesde,
   ripleyDateToIso,
 } from '../../common/ripley/utils/date.util.js';
 import { ActualizarDespachoBodyDto } from './dto/actualizar-despacho.dto.js';
 import {
   CapacityBaseResponse,
-  CapacityDay,
   CapacityScheduleResponse,
   DespachoScheduleConfig,
   MainScheduleRow,
   MainZoneRow,
-  OfficeRow,
   RipleyListResponse,
   ServiceTypeRef,
 } from './interfaces/despacho.interface.js';
@@ -39,64 +38,30 @@ export class DespachoService {
 
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
+    private readonly catalogos: CatalogosRipleyService,
     private readonly contexto: ContextoAuditoria,
   ) {}
-
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
 
   // ---------- Paso 0 y 1: operadores logísticos y sus zonas ----------
 
   /** Catálogo de operadores logísticos, para poblar el buscador */
   async listarOficinas(pais = 'PE') {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { isOPLOffice: true },
-    );
+    const filas = await this.catalogos.oficinas(pais, { tipo: 'opl' });
 
-    return (data?.rows ?? []).map((o) => ({
-      code: o.code,
-      name: o.name ?? '',
-    }));
-  }
-
-  /** Busca el operador logístico por su código visible ("1130") */
-  private async buscarOpl(
-    officeCode: string,
-    pais: string,
-  ): Promise<OfficeRow> {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { q: officeCode, isOPLOffice: true },
-    );
-
-    const opl =
-      data?.rows?.find((o) => o.code === officeCode) ?? data?.rows?.[0];
-
-    if (!opl) {
-      throw new NotFoundException(
-        `No se encontró el OPL con código ${officeCode}`,
-      );
-    }
-
-    return opl;
+    return filas.map((o) => ({ code: o.code, name: o.name ?? '' }));
   }
 
   /** Zonas de cobertura de un operador logístico */
   async listarZonas(officeCode: string, pais = 'PE') {
-    const opl = await this.buscarOpl(officeCode, pais);
+    const opl = await this.catalogos.oficinaPorCodigo(
+      officeCode,
+      pais,
+      'opl',
+      'el OPL',
+    );
 
     const data = await this.ripley.get<RipleyListResponse<MainZoneRow>>(
-      this.endpoint('mainzones'),
+      this.ripley.endpoint('mainzones'),
       pais,
       { courier: opl.id },
     );
@@ -113,7 +78,7 @@ export class DespachoService {
   /** Una zona puede tener más de una agenda: se listan todas */
   async listarAgendas(zoneId: string, pais = 'PE') {
     const data = await this.ripley.get<RipleyListResponse<MainScheduleRow>>(
-      this.endpoint('mainschedules'),
+      this.ripley.endpoint('mainschedules'),
       pais,
       { mainZone: zoneId },
     );
@@ -133,7 +98,7 @@ export class DespachoService {
     pais: string,
   ): Promise<CapacityBaseResponse> {
     return this.ripley.get<CapacityBaseResponse>(
-      this.endpoint('capacitiesBase'),
+      this.ripley.endpoint('capacitiesBase'),
       pais,
       { id: mainScheduleId },
     );
@@ -158,7 +123,7 @@ export class DespachoService {
     );
 
     return this.ripley.get<CapacityScheduleResponse>(
-      this.endpoint('capacitiesSchedule'),
+      this.ripley.endpoint('capacitiesSchedule'),
       pais,
       date ? { id: mainScheduleId, date } : { id: mainScheduleId },
     );
@@ -189,32 +154,12 @@ export class DespachoService {
         servicios: this.extraerServicios(base).map((s) => s.code),
         vigencia: { init: base.schedule?.init, end: base.schedule?.end },
       },
-      dias: dias ? this.recortar(todos, desde, pais, dias) : todos,
+      dias: dias
+        ? recortarDesde(todos, desde, pais, dias, (d) =>
+            ripleyDateToIso(d.date),
+          )
+        : todos,
     };
-  }
-
-  /**
-   * Devuelve como mucho `dias` días, contados desde la fecha pedida.
-   *
-   * Ripley entrega la agenda completa aunque se le pase una fecha, así que hay
-   * que filtrar antes de cortar: cortar sin filtrar devolvería los primeros
-   * días de la agenda, que son historia vieja y se leerían como si fueran
-   * los próximos.
-   */
-  private recortar(
-    todos: CapacityDay[],
-    date: string | undefined,
-    pais: string,
-    dias: number,
-  ): CapacityDay[] {
-    const desde = date ? ripleyDateToIso(date) : hoyEnPais(pais);
-
-    return todos
-      .map((d) => ({ dia: d, iso: ripleyDateToIso(d.date) }))
-      .filter(({ iso }) => iso >= desde)
-      .sort((a, b) => a.iso.localeCompare(b.iso))
-      .slice(0, dias)
-      .map(({ dia }) => dia);
   }
 
   // ---------- Escritura ----------
@@ -318,8 +263,13 @@ export class DespachoService {
 
     this.logger.log(`Actualizando despacho ${mainScheduleId} — día ${date}`);
 
-    return this.ripley.put(this.endpoint('capacitiesSchedule'), pais, payload, {
-      id: mainScheduleId,
-    });
+    return this.ripley.put(
+      this.ripley.endpoint('capacitiesSchedule'),
+      pais,
+      payload,
+      {
+        id: mainScheduleId,
+      },
+    );
   }
 }

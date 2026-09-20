@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../auth/decorators/usuario.decorator.js';
@@ -6,17 +6,24 @@ import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { AgenteService } from './agente.service.js';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
 import { ContextoAgenteService } from './contexto.service.js';
-import { PermitidoAgente } from './decorators/permitido-agente.decorator.js';
+import {
+  PermitidoAgente,
+  PermitidoAgenteEditor,
+} from './decorators/permitido-agente.decorator.js';
+import { EdicionAgenteService } from './edicion.service.js';
+import { ModoAgenteService } from './modo.service.js';
 import { ReporteAgenteService } from './reporte.service.js';
 import { SimulacionAgenteService } from './simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia.service.js';
 import {
   BuscarMasivoDto,
+  CambiarModoDto,
   ConsultarCapacidadDto,
   ConsultarReporteDto,
   ConsultarTipoServicioDto,
   ConsultarTransferenciaDto,
+  EditarCapacidadDto,
   SimularAgenteDto,
 } from './dto/consultas-agente.dto.js';
 
@@ -40,13 +47,19 @@ import {
  * persona. n8n añade la cabecera "X-Origen: agente" para que el registro de uso
  * distinga lo que se hizo conversando de lo que se hizo desde el panel.
  *
- * Solo lee. Cuando el agente deba poder editar se añadirán endpoints explícitos
- * con supervisión humana, no se abrirán estos.
+ * Casi todo lee. La única escritura es `PUT /agente/capacidad`, y solo responde
+ * cuando el usuario ha puesto el interruptor del chat en modo editor: el resto
+ * del tiempo el guard la rechaza con un 403. El interruptor se mueve por
+ * `/agente/modo`, que el agente no puede alcanzar —está en la lista negra del
+ * guard—, porque un permiso que el permitido puede concederse a sí mismo no es
+ * un permiso.
  */
 @Controller('agente')
 export class AgenteController {
   constructor(
     private readonly agenteService: AgenteService,
+    private readonly modo: ModoAgenteService,
+    private readonly edicion: EdicionAgenteService,
     private readonly reporte: ReporteAgenteService,
     private readonly transferencia: TransferenciaAgenteService,
     private readonly tipoServicio: TipoServicioAgenteService,
@@ -84,7 +97,7 @@ export class AgenteController {
     @Usuario() usuario: UsuarioAutenticado,
     @Query('pais') pais?: string,
   ) {
-    return this.contexto.armar(usuario, pais ?? 'PE');
+    return this.contexto.armar(usuario, pais);
   }
 
   /**
@@ -179,5 +192,61 @@ export class AgenteController {
     @Query() query: SimularAgenteDto,
   ) {
     return this.simulacion.simular(usuario, query);
+  }
+
+  // ───────────────── Modo consultor / editor ─────────────────
+
+  /**
+   * GET /agente/modo
+   *
+   * En qué modo está el agente para este usuario. Lo consulta el panel al abrir
+   * el chat, para que el interruptor no mienta si el modo caducó mientras tanto.
+   *
+   * Sin @PermitidoAgente() y además en la lista negra del guard: esta ruta y la
+   * siguiente son las únicas que el agente tiene expresamente prohibidas aunque
+   * alguien las marque por error.
+   */
+  @Get('modo')
+  estadoDelModo(@Usuario() usuario: UsuarioAutenticado) {
+    return this.modo.estado(usuario.id);
+  }
+
+  /**
+   * PUT /agente/modo  { "modo": "editor" }
+   *
+   * El interruptor. Lo mueve una persona desde el panel, nunca el agente.
+   * Volver a "editor" estando ya en editor renueva el tiempo.
+   */
+  @Auditar('agente.cambiarModo')
+  @Put('modo')
+  cambiarModo(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: CambiarModoDto,
+  ) {
+    return body.modo === 'editor'
+      ? this.modo.activar(usuario.id)
+      : this.modo.desactivar(usuario.id);
+  }
+
+  // ───────────────── Escritura ─────────────────
+
+  /**
+   * PUT /agente/capacidad
+   *
+   * Cambia el asignado o el estado de UN día de UNA agenda. Es la única
+   * operación con la que el agente modifica algo, y solo funciona en modo
+   * editor: en modo consultor el guard responde 403 antes de llegar aquí.
+   *
+   * Queda registrada en el historial de uso con el antes y el después, a nombre
+   * de quien preguntó y marcada como hecha por el agente.
+   */
+  @PermitidoAgenteEditor()
+  @Auditar('agente.editarCapacidad')
+  @Put('capacidad')
+  async editarCapacidad(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: EditarCapacidadDto,
+  ) {
+    return this.edicion.editarCapacidad(usuario, body);
   }
 }

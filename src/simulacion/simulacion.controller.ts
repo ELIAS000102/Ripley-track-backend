@@ -1,11 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { SimulacionService } from './simulacion.service.js';
-import {
-  BuscarDto,
-  DistritosDto,
-  PaisDto,
-  ProvinciasDto,
-} from './dto/buscar-simulacion.dto.js';
+import { DistritosDto, ProvinciasDto } from './dto/buscar-simulacion.dto.js';
+import { BuscarDto, PaisDto } from '../common/dto/pais.dto.js';
 import { SimularDto } from './dto/simular.dto.js';
 
 /**

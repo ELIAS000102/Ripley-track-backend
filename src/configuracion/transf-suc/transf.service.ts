@@ -1,20 +1,13 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import { ActualizarRelacionDto } from './dto/actualizar-relacion.dto.js';
 import {
   DiasDisponibles,
-  OfficeRow,
   Relacion,
   RelacionesResponse,
   RelacionPayload,
-  RipleyListResponse,
 } from './interfaces/transf.interface.js';
 
 /**
@@ -31,18 +24,9 @@ export class TransfService {
 
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
+    private readonly catalogos: CatalogosRipleyService,
     private readonly contexto: ContextoAuditoria,
   ) {}
-
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
 
   // ---------- Paso 1: buscar el almacén origen ----------
 
@@ -51,15 +35,14 @@ export class TransfService {
    * Aquí se buscan almacenes (isStoreOffice), no operadores logísticos.
    */
   async buscarAlmacen(q: string, pais = 'PE') {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { q, isStoreOffice: true },
-    );
+    const { total, filas } = await this.catalogos.oficinasConTotal(pais, {
+      q,
+      tipo: 'almacen',
+    });
 
     return {
-      total: data?.count ?? 0,
-      almacenes: (data?.rows ?? []).map((o) => ({
+      total,
+      almacenes: filas.map((o) => ({
         id: o.id,
         code: o.code,
         nombre: o.name ?? '',
@@ -77,7 +60,7 @@ export class TransfService {
     pais: string,
   ): Promise<RelacionesResponse> {
     return this.ripley.get<RelacionesResponse>(
-      this.endpoint('officeRelationship'),
+      this.ripley.endpoint('officeRelationship'),
       pais,
       { id: warehouseId, kind: '' },
     );
@@ -177,7 +160,7 @@ export class TransfService {
     );
 
     const respuesta = await this.ripley.put<RelacionesResponse>(
-      this.endpoint('officeRelationship'),
+      this.ripley.endpoint('officeRelationship'),
       pais,
       payload,
       { id: dto.warehouseId },

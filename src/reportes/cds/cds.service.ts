@@ -1,6 +1,5 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
+import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
@@ -9,15 +8,11 @@ import {
 } from '../../common/ripley/utils/date.util.js';
 import { CDS } from './cds.constants.js';
 import {
-  CapacitiesResponse,
   Cd,
   FalloReporte,
-  OfficeRow,
   RegistroReporte,
   ReporteCds,
-  RipleyListResponse,
   ScheduleRow,
-  ServiceRow,
 } from './interfaces/reporte-cds.interface.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 
@@ -44,19 +39,7 @@ export class CdsService {
   /** Llamadas simultáneas a la API corporativa */
   private readonly CONCURRENCIA = 6;
 
-  constructor(
-    private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
-  ) {}
-
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
+  constructor(private readonly catalogos: CatalogosRipleyService) {}
 
   private cdsDelPais(pais: string): Cd[] {
     return CDS[pais.toUpperCase().trim()] ?? [];
@@ -79,42 +62,6 @@ export class CdsService {
   }
 
   // ---------- Catálogos ----------
-
-  /** id de servicio -> code ("S", "ST", "SG"...) */
-  private async mapaServicios(pais: string): Promise<Map<string, string>> {
-    const data = await this.ripley.get<RipleyListResponse<ServiceRow>>(
-      this.endpoint('services'),
-      pais,
-    );
-    return new Map((data?.rows ?? []).map((s) => [s.id, s.code]));
-  }
-
-  private async buscarOficina(code: string, pais: string): Promise<OfficeRow> {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { q: code, isStoreOffice: true },
-    );
-
-    const oficina = data?.rows?.find((o) => o.code === code) ?? data?.rows?.[0];
-
-    if (!oficina) {
-      throw new Error(`No se encontró la oficina con código ${code}`);
-    }
-    return oficina;
-  }
-
-  private async listarAgendas(
-    warehouseId: string,
-    pais: string,
-  ): Promise<ScheduleRow[]> {
-    const data = await this.ripley.get<RipleyListResponse<ScheduleRow>>(
-      this.endpoint('schedulesPicking'),
-      pais,
-      { warehouse: warehouseId },
-    );
-    return data?.rows ?? [];
-  }
 
   // ---------- Reporte ----------
 
@@ -143,15 +90,22 @@ export class CdsService {
     const fallidas: FalloReporte[] = [];
 
     // 1. Catálogo de servicios: una sola vez para todo el reporte
-    const servicios = await this.mapaServicios(pais);
+    const servicios = await this.catalogos.mapaServicios(pais);
 
     // 2. Agendas de cada CD, en paralelo. Guardamos el id del almacén
     //    porque hace falta para elegir la capacidad correcta.
     const porCd = await Promise.all(
       cds.map(async (cd) => {
         try {
-          const oficina = await this.buscarOficina(cd.code, pais);
-          const agendas = await this.listarAgendas(oficina.id, pais);
+          const oficina = await this.catalogos.oficinaPorCodigo(
+            cd.code,
+            pais,
+            'almacen',
+          );
+          const agendas = await this.catalogos.agendasDePicking(
+            oficina.id,
+            pais,
+          );
           return { cd, warehouseId: oficina.id, agendas };
         } catch (e) {
           fallidas.push({
@@ -209,10 +163,10 @@ export class CdsService {
       this.CONCURRENCIA,
       async (t) => {
         try {
-          const data = await this.ripley.get<CapacitiesResponse>(
-            `${this.endpoint('capacitiesPicking')}/${t.scheduleId}`,
+          const data = await this.catalogos.capacidadesDePicking(
+            t.scheduleId,
             pais,
-            { from: desdeRipley },
+            desdeRipley,
           );
           return {
             tarea: t,

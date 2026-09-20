@@ -42,6 +42,35 @@ export function hoyEnPais(pais: string): string {
   }).format(new Date());
 }
 
+/**
+ * Los primeros `dias` días de una agenda, contados desde la fecha pedida.
+ *
+ * Ripley entrega la agenda **completa** aunque se le pase "from": arranca más
+ * de un año atrás y llega a 2028. Por eso hay que filtrar por fecha antes de
+ * cortar; cortar sin filtrar devuelve los primeros días de la agenda, que son
+ * historia vieja y se leen como si fueran los próximos.
+ *
+ * Picking y despacho tenían cada uno su copia de esto, con el mismo comentario
+ * y distinto nombre de campo —`day` en ISO, `date` en DD-MM-YYYY—. La forma de
+ * leer la fecha la pone quien llama; la regla, que es lo que importa, vive aquí.
+ */
+export function recortarDesde<T>(
+  todos: T[],
+  desde: string | undefined,
+  pais: string,
+  dias: number,
+  fechaIso: (dia: T) => string,
+): T[] {
+  const limite = desde ? ripleyDateToIso(desde) : hoyEnPais(pais);
+
+  return todos
+    .map((dia) => ({ dia, iso: fechaIso(dia) }))
+    .filter(({ iso }) => iso >= limite)
+    .sort((a, b) => a.iso.localeCompare(b.iso))
+    .slice(0, dias)
+    .map(({ dia }) => dia);
+}
+
 /** Suma días a una fecha YYYY-MM-DD. El mediodía evita saltos por horario de verano. */
 export function sumarDias(fecha: string, dias: number): string {
   const d = new Date(`${fecha}T12:00:00Z`);

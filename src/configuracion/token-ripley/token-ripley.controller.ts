@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { EliminarTokenDto, GuardarTokenDto } from './interfaces/dto/token-ripley.dto.js';
+import { EliminarTokenDto, GuardarTokenDto } from './dto/token-ripley.dto.js';
 import { TokenRipleyService } from './token-ripley.service.js';
 
 /**

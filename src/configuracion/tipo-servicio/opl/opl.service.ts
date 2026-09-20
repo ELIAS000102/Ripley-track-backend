@@ -1,11 +1,6 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
+import { CatalogosRipleyService } from '../../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
 import { ListarServiciosDto } from './dto/buscar-opl.dto.js';
@@ -15,7 +10,6 @@ import {
   ListaServiciosResponse,
   MainScheduleRow,
   MainZoneRow,
-  OfficeRow,
   RipleyListResponse,
   TipoServicioOpl,
 } from './interfaces/opl.interface.js';
@@ -35,25 +29,16 @@ export class OplService {
 
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
+    private readonly catalogos: CatalogosRipleyService,
     private readonly contexto: ContextoAuditoria,
   ) {}
-
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
 
   // ---------- Paso 1: canales de venta ----------
 
   /** Catálogo de canales: POS, TVI... */
   async listarCanales(pais = 'PE') {
     const catalogo = await this.ripley.get<CatalogoResponse>(
-      this.endpoint('catalogs'),
+      this.ripley.endpoint('catalogs'),
       pais,
       { q: this.CATALOGO_CANALES, takeFirst: 1 },
     );
@@ -71,16 +56,15 @@ export class OplService {
    * el catálogo completo de OPL es demasiado grande para traerlo entero.
    */
   async buscarOpl(q: string, pais = 'PE') {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { q, isOPLOffice: true },
-    );
+    const { total, filas } = await this.catalogos.oficinasConTotal(pais, {
+      q,
+      tipo: 'opl',
+    });
 
     // Los datos del usuario que editó el registro no se reenvían
     return {
-      total: data?.count ?? 0,
-      opls: (data?.rows ?? []).map((o) => ({
+      total,
+      opls: filas.map((o) => ({
         id: o.id,
         code: o.code,
         nombre: o.name ?? '',
@@ -93,7 +77,7 @@ export class OplService {
 
   async listarZonas(courier: string, pais = 'PE') {
     const data = await this.ripley.get<RipleyListResponse<MainZoneRow>>(
-      this.endpoint('mainzones'),
+      this.ripley.endpoint('mainzones'),
       pais,
       { courier },
     );
@@ -106,7 +90,7 @@ export class OplService {
 
   async listarAgendas(mainZone: string, pais = 'PE') {
     const data = await this.ripley.get<RipleyListResponse<MainScheduleRow>>(
-      this.endpoint('mainschedules'),
+      this.ripley.endpoint('mainschedules'),
       pais,
       { mainZone },
     );
@@ -126,7 +110,7 @@ export class OplService {
     pais: string,
   ): Promise<TipoServicioOpl[]> {
     const data = await this.ripley.post<ListaServiciosResponse>(
-      this.endpoint('listTypeServices'),
+      this.ripley.endpoint('listTypeServices'),
       pais,
       contexto,
       { active: true },
@@ -260,7 +244,7 @@ export class OplService {
     this.logger.log(`Guardando servicio ${actual.code} (${idServicio})`);
 
     return this.ripley.put(
-      `${this.endpoint('saveOplService')}/${idServicio}`,
+      `${this.ripley.endpoint('saveOplService')}/${idServicio}`,
       pais,
       payload,
     );

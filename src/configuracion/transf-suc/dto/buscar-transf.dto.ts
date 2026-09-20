@@ -1,24 +1,7 @@
-import {
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
+import { PaisDto } from '../../../common/dto/pais.dto.js';
 
-export class PaisDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
-
-/** Búsqueda incremental de almacenes origen */
-export class BuscarAlmacenDto extends PaisDto {
-  @IsString()
-  @MinLength(1)
-  q: string;
-}
+// La búsqueda incremental de almacenes usa BuscarDto (q + pais) de common/dto
 
 /** Relaciones de un almacén */
 export class ListarRelacionesDto extends PaisDto {

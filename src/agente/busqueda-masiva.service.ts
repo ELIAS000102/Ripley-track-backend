@@ -49,7 +49,7 @@ export class BusquedaMasivaAgenteService {
     usuario: UsuarioAutenticado,
     dto: BuscarMasivoDto,
   ): Promise<BusquedaMasivaRespuesta> {
-    const contexto = await this.contexto.armar(usuario, dto.pais ?? 'PE');
+    const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
     this.logger.log(

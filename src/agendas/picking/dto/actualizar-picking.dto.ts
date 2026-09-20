@@ -1,24 +1,18 @@
 import {
   IsBoolean,
-  IsIn,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Matches,
   Min,
 } from 'class-validator';
+import { PaisDto } from '../../../common/dto/pais.dto.js';
 
 /** Query params del PUT: qué agenda y de qué país */
-export class ActualizarPickingQueryDto {
+export class ActualizarPickingQueryDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   scheduleId: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }
 
 /**

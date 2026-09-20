@@ -14,6 +14,10 @@ const TABLA_MENSAJES = 'chat_mensajes';
 /** Con más de esto, el título se corta */
 const LARGO_TITULO = 60;
 
+/** Columnas que se devuelven de un chat: nunca el usuario_id */
+const CAMPOS_CHAT = 'id, titulo, creado_en, actualizado_en';
+const CAMPOS_MENSAJE = 'id, rol, texto, creado_en';
+
 /**
  * Conversaciones con el agente, guardadas por usuario.
  *
@@ -32,7 +36,7 @@ export class ChatsService {
   async listar(usuarioId: string): Promise<Chat[]> {
     const { data, error } = await this.supabase.admin
       .from(TABLA_CHATS)
-      .select('id, titulo, creado_en, actualizado_en')
+      .select(CAMPOS_CHAT)
       .eq('usuario_id', usuarioId)
       .order('actualizado_en', { ascending: false });
 
@@ -48,7 +52,7 @@ export class ChatsService {
         usuario_id: usuarioId,
         ...(titulo?.trim() ? { titulo: this.recortar(titulo) } : {}),
       })
-      .select('id, titulo, creado_en, actualizado_en')
+      .select(CAMPOS_CHAT)
       .single();
 
     if (error) this.reventar('crear el chat', error.message);
@@ -84,7 +88,7 @@ export class ChatsService {
       .update({ titulo: this.recortar(titulo) })
       .eq('id', chatId)
       .eq('usuario_id', usuarioId)
-      .select('id, titulo, creado_en, actualizado_en')
+      .select(CAMPOS_CHAT)
       .single();
 
     if (error) this.reventar('renombrar el chat', error.message);
@@ -97,7 +101,7 @@ export class ChatsService {
 
     const { data, error } = await this.supabase.admin
       .from(TABLA_MENSAJES)
-      .select('id, rol, texto, creado_en')
+      .select(CAMPOS_MENSAJE)
       .eq('chat_id', chatId)
       .order('creado_en', { ascending: true });
 
@@ -124,7 +128,7 @@ export class ChatsService {
     const { data, error } = await this.supabase.admin
       .from(TABLA_MENSAJES)
       .insert({ chat_id: chatId, rol, texto })
-      .select('id, rol, texto, creado_en')
+      .select(CAMPOS_MENSAJE)
       .single();
 
     if (error) this.reventar('guardar el mensaje', error.message);
@@ -152,7 +156,7 @@ export class ChatsService {
   ): Promise<Chat> {
     const { data, error } = await this.supabase.admin
       .from(TABLA_CHATS)
-      .select('id, titulo, usuario_id, creado_en, actualizado_en')
+      .select(`${CAMPOS_CHAT}, usuario_id`)
       .eq('id', chatId)
       .maybeSingle();
 

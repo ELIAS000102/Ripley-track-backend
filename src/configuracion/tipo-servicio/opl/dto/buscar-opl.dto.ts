@@ -1,24 +1,7 @@
-import {
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
+import { PaisDto } from '../../../../common/dto/pais.dto.js';
 
-export class PaisDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
-
-/** Búsqueda incremental de operadores logísticos */
-export class BuscarOplDto extends PaisDto {
-  @IsString()
-  @MinLength(1)
-  q: string;
-}
+// La búsqueda incremental de OPL usa BuscarDto (q + pais) de common/dto
 
 export class ListarZonasDto extends PaisDto {
   @IsString()

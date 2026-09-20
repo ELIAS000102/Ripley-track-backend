@@ -4,9 +4,9 @@ import { DespachoService } from './despacho.service.js';
 import {
   BuscarCapacidadesDto,
   ListarAgendasDto,
-  ListarOficinasDto,
   ListarZonasDto,
 } from './dto/buscar-despacho.dto.js';
+import { PaisDto } from '../../common/dto/pais.dto.js';
 import {
   ActualizarDespachoBodyDto,
   ActualizarDespachoQueryDto,
@@ -22,7 +22,7 @@ export class DespachoController {
 
   /** GET /agendas/despacho/oficinas?pais=PE */
   @Get('oficinas')
-  async oficinas(@Query() query: ListarOficinasDto) {
+  async oficinas(@Query() query: PaisDto) {
     return this.despachoService.listarOficinas(query.pais);
   }
 

@@ -20,6 +20,24 @@ export interface ContextoAgente {
   pais: string;
 }
 
+// ───────────────────────── Modo del agente ─────────────────────────
+
+/**
+ * Consultor lee; editor lee y además escribe.
+ *
+ * No hay un tercer modo ni un permiso por endpoint: el interruptor es uno solo
+ * y se ve en el chat, porque un permiso que no se ve es un permiso que se
+ * olvida encendido.
+ */
+export type ModoAgente = 'consultor' | 'editor';
+
+export interface EstadoModo {
+  modo: ModoAgente;
+  /** Cuándo vuelve solo a consultor. En consultor, null. */
+  expiraEn: string | null;
+  minutosRestantes: number;
+}
+
 // ───────────────────────── Capacidad ─────────────────────────
 
 /**
@@ -201,4 +219,33 @@ export interface BusquedaMasivaRespuesta {
   };
   agendas: AgendaMasiva[];
   aviso?: string;
+}
+
+// ───────────────────────── Edición ─────────────────────────
+
+/** El estado de un día, antes o después de tocarlo */
+export interface EstadoDia {
+  fecha: string;
+  activo: boolean;
+  asignado: number;
+  ocupado: number;
+  disponible: number;
+  uso: number;
+}
+
+/**
+ * Lo que se devuelve tras escribir.
+ *
+ * Lleva el antes y el después **releídos de Ripley**, no lo que se pidió: si el
+ * agente informa de lo que creía que iba a pasar en vez de lo que pasó, el
+ * usuario se entera del desajuste en el peor momento, que es más tarde.
+ */
+export interface EdicionRespuesta {
+  contexto: ContextoAgente;
+  tipo: 'picking' | 'despacho';
+  oficina: string;
+  zona?: string;
+  agenda: string;
+  antes: EstadoDia;
+  despues: EstadoDia;
 }

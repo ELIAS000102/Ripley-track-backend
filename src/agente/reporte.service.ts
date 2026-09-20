@@ -35,7 +35,7 @@ export class ReporteAgenteService {
     usuario: UsuarioAutenticado,
     dto: ConsultarReporteDto,
   ): Promise<ReporteRespuesta> {
-    const contexto = await this.contexto.armar(usuario, dto.pais ?? 'PE');
+    const contexto = await this.contexto.armar(usuario, dto.pais);
     const dias = dto.dias ?? 7;
 
     this.logger.log(

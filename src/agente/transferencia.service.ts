@@ -48,7 +48,7 @@ export class TransferenciaAgenteService {
     usuario: UsuarioAutenticado,
     dto: ConsultarTransferenciaDto,
   ): Promise<TransferenciaRespuesta> {
-    const contexto = await this.contexto.armar(usuario, dto.pais ?? 'PE');
+    const contexto = await this.contexto.armar(usuario, dto.pais);
 
     this.logger.log(
       `Agente consultando transferencia ${dto.origen} → ${dto.destino ?? 'todos'}`,

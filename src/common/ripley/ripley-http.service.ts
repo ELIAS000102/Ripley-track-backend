@@ -38,6 +38,22 @@ export class RipleyHttpService {
     return pais.toUpperCase().trim();
   }
 
+  /**
+   * El path de un endpoint, leído del entorno.
+   *
+   * Cada service tenía su copia idéntica de este método, y con ella una
+   * dependencia de ConfigService que solo usaba para esto. Vive aquí porque
+   * quien resuelve la URL es quien la va a llamar.
+   */
+  endpoint(nombre: string): string {
+    const path = this.configService.get<string>(`ripley.endpoints.${nombre}`);
+
+    if (!path) {
+      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
+    }
+    return path;
+  }
+
   private getBaseUrl(pais: string): string {
     const country = this.normalizarPais(pais);
     const urls = this.configService.get('ripley.urls');
@@ -104,23 +120,7 @@ export class RipleyHttpService {
     pais: string,
     params?: Record<string, any>,
   ): Promise<T> {
-    const url = `${this.getBaseUrl(pais)}${path}`;
-
-    // Fuera del try a propósito: si falta el token, el aviso debe llegar
-    // íntegro al cliente en vez de convertirse en un 502 genérico.
-    const headers = await this.getHeaders(pais);
-
-    try {
-      const { data } = await firstValueFrom(
-        this.httpService.get<T>(url, {
-          params,
-          headers,
-        }),
-      );
-      return data;
-    } catch (error) {
-      this.manejarError(error, 'consultar', url, params);
-    }
+    return this.peticion<T>('get', 'consultar', path, pais, params);
   }
 
   /**
@@ -133,23 +133,7 @@ export class RipleyHttpService {
     body: any,
     params?: Record<string, any>,
   ): Promise<T> {
-    const url = `${this.getBaseUrl(pais)}${path}`;
-
-    // Fuera del try a propósito: si falta el token, el aviso debe llegar
-    // íntegro al cliente en vez de convertirse en un 502 genérico.
-    const headers = await this.getHeaders(pais);
-
-    try {
-      const { data } = await firstValueFrom(
-        this.httpService.put<T>(url, body, {
-          params,
-          headers,
-        }),
-      );
-      return data;
-    } catch (error) {
-      this.manejarError(error, 'actualizar', url, params);
-    }
+    return this.peticion<T>('put', 'actualizar', path, pais, params, body);
   }
 
   async post<T>(
@@ -158,22 +142,43 @@ export class RipleyHttpService {
     body: any,
     params?: Record<string, any>,
   ): Promise<T> {
+    return this.peticion<T>('post', 'enviar', path, pais, params, body);
+  }
+
+  /**
+   * El cuerpo común de los tres verbos.
+   *
+   * Eran tres copias del mismo bloque —resolver URL, pedir cabeceras fuera del
+   * try, llamar, traducir el error— que solo se diferenciaban en el método de
+   * axios y en el verbo del mensaje de error. Tres copias son tres sitios donde
+   * arreglar lo mismo: el comentario de abajo ya iba repetido palabra por
+   * palabra en las tres.
+   */
+  private async peticion<T>(
+    metodo: 'get' | 'put' | 'post',
+    accion: string,
+    path: string,
+    pais: string,
+    params?: Record<string, any>,
+    body?: any,
+  ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
     // Fuera del try a propósito: si falta el token, el aviso debe llegar
     // íntegro al cliente en vez de convertirse en un 502 genérico.
     const headers = await this.getHeaders(pais);
+    const config = { params, headers };
 
     try {
-      const { data } = await firstValueFrom(
-        this.httpService.post<T>(url, body, {
-          params,
-          headers,
-        }),
-      );
+      const respuesta =
+        metodo === 'get'
+          ? this.httpService.get<T>(url, config)
+          : this.httpService[metodo]<T>(url, body, config);
+
+      const { data } = await firstValueFrom(respuesta);
       return data;
     } catch (error) {
-      this.manejarError(error, 'enviar', url, params);
+      this.manejarError(error, accion, url, params);
     }
   }
 }

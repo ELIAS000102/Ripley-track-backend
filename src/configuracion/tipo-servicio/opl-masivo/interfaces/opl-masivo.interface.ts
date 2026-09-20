@@ -1,3 +1,6 @@
+// ---------- GET /catalogs ----------
+export type { CatalogoResponse } from '../../../../common/ripley/interfaces/ripley.interface.js';
+
 /** Referencia corta que usa la API en los payloads: id, código y etiqueta */
 export interface OpcionRef {
   id: string | number;
@@ -25,15 +28,6 @@ export interface MetodoEntrega {
   code: string;
   description: string;
   typeOfServices: ServicioDelivery[];
-}
-
-// ---------- GET /catalogs ----------
-
-export interface CatalogoResponse {
-  id: string;
-  identifier: string;
-  description: string;
-  parameters: { id: number; code: string; label: string }[];
 }
 
 // ---------- POST /mainroutes/schedules/state ----------
@@ -87,11 +81,6 @@ export interface FilaActualizacion {
   changed: boolean;
   /** Índice de la fila en la tabla del frontend original */
   tableData: { id: number };
-}
-
-export interface ActualizacionPayload {
-  type: string;
-  data: FilaActualizacion[];
 }
 
 /** Resultado por fila que devuelve Mongo a través de la API */

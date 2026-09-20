@@ -2,13 +2,12 @@ import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplService } from './opl.service.js';
 import {
-  BuscarOplDto,
   ListarAgendasDto,
   ListarServiciosDto,
   ListarZonasDto,
-  PaisDto,
 } from './dto/buscar-opl.dto.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
+import { BuscarDto, PaisDto } from '../../../common/dto/pais.dto.js';
 
 /**
  * Catálogos en cascada (canal → OPL → zona → agenda) y edición de los servicios
@@ -26,7 +25,7 @@ export class OplController {
 
   /** GET .../buscar?q=1088&pais=CL */
   @Get('buscar')
-  async buscar(@Query() query: BuscarOplDto) {
+  async buscar(@Query() query: BuscarDto) {
     return this.oplService.buscarOpl(query.q, query.pais);
   }
 

@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -9,32 +8,25 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { PaisDto } from '../../../common/dto/pais.dto.js';
 
 const FECHA = /^\d{2}-\d{2}-\d{4}$/;
 
-export class ListarZonasDto {
+// El catálogo de operadores solo necesita el país: el controller usa PaisDto
+
+export class ListarZonasDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   officeCode: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }
 
-export class ListarAgendasDto {
+export class ListarAgendasDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   zoneId: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }
 
-export class BuscarCapacidadesDto {
+export class BuscarCapacidadesDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   mainScheduleId: string;
@@ -51,17 +43,4 @@ export class BuscarCapacidadesDto {
   @Min(1)
   @Max(365)
   dias?: number;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
-
-/** Paso 0: catálogo de operadores logísticos */
-export class ListarOficinasDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }

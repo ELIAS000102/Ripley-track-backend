@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -8,13 +7,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { PaisDto } from '../../../common/dto/pais.dto.js';
 
-export class ReporteCdsDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-
+export class ReporteCdsDto extends PaisDto {
   /** Cuántos días mostrar desde la fecha inicial */
   @IsOptional()
   @Type(() => Number)

@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
+import { CatalogosRipleyService } from './catalogos.service.js';
 import { RipleyHttpService } from './ripley-http.service.js';
 
 @Module({
   imports: [HttpModule],
-  providers: [RipleyHttpService],
-  exports: [RipleyHttpService],
+  providers: [RipleyHttpService, CatalogosRipleyService],
+  exports: [RipleyHttpService, CatalogosRipleyService],
 })
-/** Módulo compartido: expone RipleyHttpService a cualquier feature que hable con la API corporativa. */
+/**
+ * Módulo compartido: expone a cualquier feature que hable con la API corporativa
+ * el cliente HTTP y los catálogos que varios módulos leen igual.
+ */
 export class RipleyModule {}

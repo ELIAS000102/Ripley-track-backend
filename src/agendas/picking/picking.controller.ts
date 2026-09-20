@@ -8,9 +8,9 @@ import {
 import {
   BuscarCapacidadesDto,
   ListarAgendasDto,
-  ListarOficinasDto,
   ObtenerPickingDto,
 } from './dto/buscar-picking.dto.js';
+import { PaisDto } from '../../common/dto/pais.dto.js';
 
 /**
  * Endpoints de agendas de picking: catálogos para poblar selectores
@@ -22,7 +22,7 @@ export class PickingController {
 
   /** GET /agendas/picking/oficinas?pais=PE */
   @Get('oficinas')
-  async oficinas(@Query() query: ListarOficinasDto) {
+  async oficinas(@Query() query: PaisDto) {
     return this.pickingService.listarOficinas(query.pais);
   }
 

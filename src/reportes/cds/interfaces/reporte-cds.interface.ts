@@ -1,6 +1,11 @@
+// Respuestas de Ripley que comparten varios módulos
 export type {
+  CapacitiesResponse,
+  CapacityByDay,
   OfficeRow,
   RipleyListResponse,
+  ScheduleRow,
+  ServiceRow,
 } from '../../../common/ripley/interfaces/ripley.interface.js';
 
 /** Un centro de distribución */
@@ -16,33 +21,6 @@ export interface Cd {
    * en vez de descartarse en silencio.
    */
   jornadas: string[];
-}
-
-/** Un servicio del catálogo /services */
-export interface ServiceRow {
-  id: string;
-  code: string;
-}
-
-/** Una agenda de picking del listado /schedules/picking */
-export interface ScheduleRow {
-  id: string;
-  name: string;
-  active: boolean;
-  services: string[];
-  capacities: { capacityId: string; warehouseId: string }[];
-}
-
-/** Un día del capacityByDayArray */
-export interface CapacityByDay {
-  day: string;
-  active: boolean;
-  assigned: number;
-  occupied: number;
-}
-
-export interface CapacitiesResponse {
-  capacityByDayArray?: CapacityByDay[];
 }
 
 /** El grano fino del reporte: un CD, una jornada, un día */

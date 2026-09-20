@@ -10,6 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { PaisDto } from '../../common/dto/pais.dto.js';
 
 /**
  * Entradas de las consultas del agente.
@@ -21,14 +22,7 @@ import {
  * Las fechas van en YYYY-MM-DD, que es el formato que un modelo de lenguaje
  * produce bien; la conversión al DD-MM-YYYY de Ripley la hace el backend.
  */
-class BaseAgenteDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
-}
-
-class ConVentanaDto extends BaseAgenteDto {
+class ConVentanaDto extends PaisDto {
   @IsOptional()
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
@@ -93,7 +87,7 @@ export class ConsultarReporteDto extends ConVentanaDto {
 
 // ───────────────────────── Transferencias ─────────────────────────
 
-export class ConsultarTransferenciaDto extends BaseAgenteDto {
+export class ConsultarTransferenciaDto extends PaisDto {
   /** Código o nombre del almacén de donde SALE el stock (la fuente) */
   @IsString()
   @IsNotEmpty()
@@ -110,7 +104,7 @@ export class ConsultarTransferenciaDto extends BaseAgenteDto {
 
 // ───────────────────────── Tipos de servicio ─────────────────────────
 
-export class ConsultarTipoServicioDto extends BaseAgenteDto {
+export class ConsultarTipoServicioDto extends PaisDto {
   /** Código o nombre del operador logístico */
   @IsString()
   @IsNotEmpty()
@@ -129,7 +123,7 @@ export class ConsultarTipoServicioDto extends BaseAgenteDto {
 
 // ───────────────────────── Simulación ─────────────────────────
 
-export class SimularAgenteDto extends BaseAgenteDto {
+export class SimularAgenteDto extends PaisDto {
   /**
    * Tipo de servicio: "SD", "SE", "DT", "ST"…
    *
@@ -208,7 +202,7 @@ export class SimularAgenteDto extends BaseAgenteDto {
 
 // ───────────────────────── Búsqueda masiva ─────────────────────────
 
-export class BuscarMasivoDto extends BaseAgenteDto {
+export class BuscarMasivoDto extends PaisDto {
   /** Código del tipo de servicio ("SE") o su descripción. Lo único obligatorio. */
   @IsString()
   @IsNotEmpty()
@@ -239,4 +233,103 @@ export class BuscarMasivoDto extends BaseAgenteDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   soloActivas?: boolean = false;
+}
+
+// ───────────────────────── Edición (modo editor) ─────────────────────────
+
+/**
+ * Tope de lo que el agente puede asignar en un día.
+ *
+ * No es un límite de la operación: las agendas reales rondan los miles. Es una
+ * red contra un cero de más o un número inventado, que en una escritura no se
+ * nota hasta que alguien mira el panel.
+ */
+const ASIGNADO_MAXIMO = 100_000;
+
+/**
+ * Cambiar un día de una agenda. **Solo funciona en modo editor.**
+ *
+ * Todo entra por nombre o código visible, igual que en las consultas, y hay un
+ * campo por cada cosa que hace falta para identificar UNA agenda. Si con lo que
+ * llega quedan varias, el backend no elige: responde con las opciones.
+ */
+export class EditarCapacidadDto extends PaisDto {
+  @IsString()
+  @IsIn(['picking', 'despacho'], {
+    message: 'tipo debe ser "picking" o "despacho"',
+  })
+  tipo: 'picking' | 'despacho';
+
+  /** Almacén en picking (20026), operador logístico en despacho (1130) */
+  @IsString()
+  @IsNotEmpty()
+  codigo: string;
+
+  /** Picking: tipo de servicio de la agenda ("S", "ST"). Identifica cuál es. */
+  @IsOptional()
+  @IsString()
+  servicio?: string;
+
+  /** Despacho: nombre de la zona; admite coincidencia parcial */
+  @IsOptional()
+  @IsString()
+  zona?: string;
+
+  /** Despacho: nombre de la agenda; admite coincidencia parcial */
+  @IsOptional()
+  @IsString()
+  agenda?: string;
+
+  /** El día que se cambia, uno solo. No hay rangos a propósito. */
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fecha debe tener el formato YYYY-MM-DD',
+  })
+  fecha: string;
+
+  /**
+   * Capacidad asignada. Si se omite, se deja la que ya tenía.
+   *
+   * El `''` se trata como ausente: esto llega en el cuerpo, y el pipe que
+   * limpia los vacíos solo mira los query params. n8n manda igualmente los
+   * campos que el modelo no rellenó, así que sin esto "cambia solo el estado"
+   * fallaría con un error de validación en vez de hacer lo que se pidió.
+   */
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(ASIGNADO_MAXIMO, {
+    message: `asignado no puede pasar de ${ASIGNADO_MAXIMO}: revisa el número`,
+  })
+  asignado?: number;
+
+  /** Si el día acepta pedidos. Si se omite, se deja como estaba. */
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    // Igual que arriba: vacío es "no lo estoy indicando"
+    if (value === '' || value === null) return undefined;
+    return value;
+  })
+  @IsBoolean()
+  activa?: boolean;
+}
+
+/**
+ * El interruptor del chat.
+ *
+ * Solo dos valores, y ninguno por defecto: cambiar de modo es una decisión
+ * explícita, no algo que pase por omitir un campo.
+ */
+export class CambiarModoDto {
+  @IsString()
+  @IsIn(['consultor', 'editor'], {
+    message: 'modo debe ser "consultor" o "editor"',
+  })
+  modo: 'consultor' | 'editor';
 }

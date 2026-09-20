@@ -68,7 +68,7 @@ export class SimulacionAgenteService {
     usuario: UsuarioAutenticado,
     dto: SimularAgenteDto,
   ): Promise<SimulacionRespuesta> {
-    const contexto = await this.contexto.armar(usuario, dto.pais ?? 'PE');
+    const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
     const servicio = dto.servicio?.trim().toUpperCase() || null;
@@ -414,15 +414,15 @@ export class SimulacionAgenteService {
     const region = await this.regionDe(destino.region, pais, cache.regiones);
     const buscado = destino.distrito.trim().toLowerCase();
 
-    const distritos = (
-      await this.distritosDe(region.id, pais, cache.distritos)
-    ).filter((c) => c.nombre?.toLowerCase().includes(buscado));
+    const todos = await this.distritosDe(region.id, pais, cache.distritos);
+    const distritos = todos.filter((c) =>
+      c.nombre?.toLowerCase().includes(buscado),
+    );
 
     if (!distritos.length) {
       // El nombre de la tienda no siempre es el de su distrito —"Atocongo" o
       // "Plaza Lima Norte" son locales, no distritos—, así que el error lleva
       // candidatos: sin ellos hay que abrir el panel para averiguar cuál es.
-      const todos = await this.distritosDe(region.id, pais, cache.distritos);
       const pistas = this.parecidos(destino.distrito, todos);
 
       throw new NotFoundException(

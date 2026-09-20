@@ -1,18 +1,17 @@
 import {
   IsBoolean,
-  IsIn,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Matches,
   Min,
 } from 'class-validator';
+import { PaisDto } from '../../../common/dto/pais.dto.js';
 
 const FECHA = /^\d{2}-\d{2}-\d{4}$/;
 
 /** La agenda se identifica de forma explícita, no se deduce de la zona */
-export class ActualizarDespachoQueryDto {
+export class ActualizarDespachoQueryDto extends PaisDto {
   @IsString()
   @IsNotEmpty()
   officeCode: string;
@@ -24,11 +23,6 @@ export class ActualizarDespachoQueryDto {
   @IsString()
   @IsNotEmpty()
   mainScheduleId: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }
 
 /** El cliente solo cambia "assigned" y "active" */

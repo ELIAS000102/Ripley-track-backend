@@ -1,25 +1,10 @@
 export type {
   CatalogoResponse,
+  MainScheduleRow,
+  MainZoneRow,
   OfficeRow,
   RipleyListResponse,
 } from '../../../../common/ripley/interfaces/ripley.interface.js';
-
-/** Una zona del OPL — GET /mainzones?courier={id} */
-export interface MainZoneRow {
-  id: string;
-  name: string;
-  courier: string;
-  mainWizard: string;
-}
-
-/** Una agenda de la zona — GET /mainschedules?mainZone={id} */
-export interface MainScheduleRow {
-  id: string;
-  name: string;
-  mainZone: string;
-  courier: string;
-  mainWizard: string;
-}
 
 /** Hora de corte de un día: id 1 = lunes … 7 = domingo */
 export interface HoraCorte {

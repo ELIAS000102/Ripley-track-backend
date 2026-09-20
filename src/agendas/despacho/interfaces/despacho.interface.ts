@@ -1,24 +1,9 @@
 export type {
+  MainScheduleRow,
+  MainZoneRow,
   OfficeRow,
   RipleyListResponse,
 } from '../../../common/ripley/interfaces/ripley.interface.js';
-
-/** Una zona de cobertura de un OPL — GET /mainzones?courier={officeId} */
-export interface MainZoneRow {
-  id: string;
-  name: string;
-  courier: string;
-  mainWizard: string;
-}
-
-/** La agenda de una zona — GET /mainschedules?mainZone={zoneId} */
-export interface MainScheduleRow {
-  id: string;
-  name: string;
-  mainZone: string;
-  courier: string;
-  mainWizard: string;
-}
 
 /** Tipo de servicio ya resuelto por la API */
 export interface ServiceTypeRef {

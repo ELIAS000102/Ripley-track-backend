@@ -11,13 +11,15 @@ import { AgenteController } from './agente.controller.js';
 import { AgenteService } from './agente.service.js';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
 import { ContextoAgenteService } from './contexto.service.js';
+import { EdicionAgenteService } from './edicion.service.js';
+import { ModoAgenteService } from './modo.service.js';
 import { ReporteAgenteService } from './reporte.service.js';
 import { SimulacionAgenteService } from './simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia.service.js';
 
 /**
- * Feature del agente de IA: consultas consolidadas y de solo lectura.
+ * Feature del agente de IA: consultas consolidadas y una escritura acotada.
  *
  * Importa los módulos de negocio para reutilizar sus services. Ese es el punto
  * de todo el diseño: la lógica de cómo se habla con Ripley vive en un solo
@@ -26,6 +28,11 @@ import { TransferenciaAgenteService } from './transferencia.service.js';
  *
  * AuthModule entra por PerfilService, que es de donde sale el nombre del usuario
  * que acompaña a cada respuesta.
+ *
+ * `ModoAgenteService` se exporta porque quien lo consulta es el AgenteGuard, que
+ * se registra como guard global en AppModule y por tanto se resuelve fuera de
+ * este módulo. Es la pieza que decide si una escritura pasa, así que hay un solo
+ * ejemplar para toda la aplicación.
  */
 @Module({
   imports: [
@@ -47,6 +54,9 @@ import { TransferenciaAgenteService } from './transferencia.service.js';
     TipoServicioAgenteService,
     BusquedaMasivaAgenteService,
     SimulacionAgenteService,
+    ModoAgenteService,
+    EdicionAgenteService,
   ],
+  exports: [ModoAgenteService],
 })
 export class AgenteModule {}

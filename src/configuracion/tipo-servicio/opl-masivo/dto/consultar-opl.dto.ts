@@ -1,13 +1,7 @@
-import {
-  ArrayMinSize,
-  IsArray,
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { ArrayMinSize, IsArray, IsNotEmpty, IsString } from 'class-validator';
+import { PaisDto } from '../../../../common/dto/pais.dto.js';
 
-export class ConsultarOplDto {
+export class ConsultarOplDto extends PaisDto {
   /** Código del método de entrega: "RT", "DP", "V"... */
   @IsString()
   @IsNotEmpty()
@@ -23,9 +17,4 @@ export class ConsultarOplDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   origenes: string[];
-
-  @IsOptional()
-  @IsString()
-  @IsIn(['PE', 'CL'])
-  pais?: string = 'PE';
 }

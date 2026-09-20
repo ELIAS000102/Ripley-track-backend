@@ -34,7 +34,7 @@ export class TipoServicioAgenteService {
     usuario: UsuarioAutenticado,
     dto: ConsultarTipoServicioDto,
   ): Promise<TipoServicioRespuesta> {
-    const contexto = await this.contexto.armar(usuario, dto.pais ?? 'PE');
+    const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
     const sinDatos: string[] = [];
 

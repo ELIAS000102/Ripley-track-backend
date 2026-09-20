@@ -1,11 +1,9 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { TransfService } from './transf.service.js';
-import {
-  BuscarAlmacenDto,
-  ListarRelacionesDto,
-} from './dto/buscar-transf.dto.js';
+import { ListarRelacionesDto } from './dto/buscar-transf.dto.js';
 import { ActualizarRelacionDto } from './dto/actualizar-relacion.dto.js';
+import { BuscarDto } from '../../common/dto/pais.dto.js';
 
 /**
  * Relaciones de transferencia de un almacén origen hacia sus destinos:
@@ -17,7 +15,7 @@ export class TransfController {
 
   /** GET .../buscar?q=20026&pais=PE */
   @Get('buscar')
-  async buscar(@Query() query: BuscarAlmacenDto) {
+  async buscar(@Query() query: BuscarDto) {
     return this.transfService.buscarAlmacen(query.q, query.pais);
   }
 

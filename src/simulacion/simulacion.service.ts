@@ -1,10 +1,8 @@
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+  CatalogosRipleyService,
+  type TipoOficina,
+} from '../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../common/ripley/ripley-http.service.js';
 import { hoyEnPais } from '../common/ripley/utils/date.util.js';
 import { SimularDto } from './dto/simular.dto.js';
@@ -32,23 +30,17 @@ export class SimulacionService {
 
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly config: ConfigService,
+    private readonly catalogos: CatalogosRipleyService,
   ) {}
-
-  private endpoint(nombre: string): string {
-    const path = this.config.get<string>(`ripley.endpoints.${nombre}`);
-
-    if (!path) {
-      throw new BadGatewayException(`Falta configurar el endpoint "${nombre}"`);
-    }
-    return path;
-  }
 
   // ---------- Catálogos de entrada ----------
 
   /** Métodos de entrega con sus tipos de servicio */
   async listarMetodosEntrega(pais = 'PE') {
-    const data = await this.ripley.get<any[]>(this.endpoint('delivery'), pais);
+    const data = await this.ripley.get<any[]>(
+      this.ripley.endpoint('delivery'),
+      pais,
+    );
 
     return (Array.isArray(data) ? data : []).map((m) => ({
       code: m.code,
@@ -60,17 +52,11 @@ export class SimulacionService {
     }));
   }
 
-  /** Búsqueda incremental de oficinas; el flag decide si son almacenes u OPL */
-  private async buscarOficinas(q: string, pais: string, soloOpl: boolean) {
-    const filtro = soloOpl ? { isOPLOffice: true } : { isStoreOffice: true };
+  /** Búsqueda incremental de oficinas; el tipo decide si son almacenes u OPL */
+  private async buscarOficinas(q: string, pais: string, tipo: TipoOficina) {
+    const filas = await this.catalogos.oficinas(pais, { q, tipo });
 
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.endpoint('offices'),
-      pais,
-      { q, ...filtro },
-    );
-
-    return (data?.rows ?? []).map((o) => ({
+    return filas.map((o) => ({
       id: o.id,
       code: o.code,
       nombre: o.name ?? '',
@@ -78,17 +64,17 @@ export class SimulacionService {
   }
 
   buscarAlmacenes(q: string, pais = 'PE') {
-    return this.buscarOficinas(q, pais, false);
+    return this.buscarOficinas(q, pais, 'almacen');
   }
 
   buscarOpl(q: string, pais = 'PE') {
-    return this.buscarOficinas(q, pais, true);
+    return this.buscarOficinas(q, pais, 'opl');
   }
 
   /** Búsqueda incremental de productos */
   async buscarSku(q: string, pais = 'PE') {
     const data = await this.ripley.get<SkuResponse>(
-      this.endpoint('sku'),
+      this.ripley.endpoint('sku'),
       pais,
       {
         q,
@@ -107,7 +93,7 @@ export class SimulacionService {
 
   async listarRegiones(pais = 'PE') {
     const data = await this.ripley.get<RipleyListResponse<RegionRow>>(
-      this.endpoint('regions'),
+      this.ripley.endpoint('regions'),
       pais,
     );
 
@@ -125,7 +111,7 @@ export class SimulacionService {
     pais: string,
   ): Promise<RegionDetalle> {
     const region = await this.ripley.get<RegionDetalle>(
-      `${this.endpoint('regions')}/${regionId}`,
+      `${this.ripley.endpoint('regions')}/${regionId}`,
       pais,
     );
 
@@ -187,7 +173,11 @@ export class SimulacionService {
    * Devuelve todas las coincidencias: hay nombres de distrito repetidos entre
    * provincias, y quien llama decide si desempata o pregunta.
    */
-  async buscarDistritosPorNombre(regionId: string, nombre: string, pais = 'PE') {
+  async buscarDistritosPorNombre(
+    regionId: string,
+    nombre: string,
+    pais = 'PE',
+  ) {
     const buscado = nombre.trim().toLowerCase();
 
     return (await this.listarDistritosDeRegion(regionId, pais)).filter((c) =>
@@ -212,7 +202,7 @@ export class SimulacionService {
   /** Detalle de una oficina por su id */
   private async traerOficina(id: string, pais: string): Promise<OfficeRow> {
     const oficina = await this.ripley.get<OfficeRow>(
-      `${this.endpoint('offices')}/${id}`,
+      `${this.ripley.endpoint('offices')}/${id}`,
       pais,
     );
 
@@ -230,7 +220,7 @@ export class SimulacionService {
     return Promise.all(
       productos.map(async (p) => {
         const data = await this.ripley.get<SkuResponse>(
-          this.endpoint('sku'),
+          this.ripley.endpoint('sku'),
           pais,
           {
             q: String(p.sku),
@@ -317,11 +307,11 @@ export class SimulacionService {
     };
 
     this.logger.log(
-      `Simulando ${dto.deliveryMethod}/${dto.typeOfServiceCode} — ${almacen?.code ?? "sin almacén"} → ${courier.code} (${comuna.name})`,
+      `Simulando ${dto.deliveryMethod}/${dto.typeOfServiceCode} — ${almacen?.code ?? 'sin almacén'} → ${courier.code} (${comuna.name})`,
     );
 
     const respuesta = await this.ripley.post<SimulacionResponse>(
-      this.endpoint('simulator'),
+      this.ripley.endpoint('simulator'),
       pais,
       payload,
     );

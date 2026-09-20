@@ -23,7 +23,7 @@ export class ContextoAgenteService {
 
   async armar(
     usuario: UsuarioAutenticado,
-    pais: string,
+    pais?: string,
   ): Promise<ContextoAgente> {
     const normalizado = (pais ?? 'PE').toUpperCase().trim();
 
