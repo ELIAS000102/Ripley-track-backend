@@ -1,13 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { TransfService } from '../configuracion/transf-suc/transf.service.js';
-import type { DiasDisponibles } from '../configuracion/transf-suc/interfaces/transf.interface.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import { ConsultarTransferenciaDto } from './dto/consultas-agente.dto.js';
+import { TransfService } from '../../configuracion/transf-suc/transf.service.js';
+import type { DiasDisponibles } from '../../configuracion/transf-suc/interfaces/transf.interface.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { ConsultarTransferenciaDto } from '../dto/consultas.dto.js';
 import type {
   Transferencia,
   TransferenciaRespuesta,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /** Orden en el que se nombran los días, y su traducción */
 const DIAS: ReadonlyArray<[clave: keyof DiasDisponibles, nombre: string]> = [

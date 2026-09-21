@@ -7,20 +7,35 @@ import { OplModule } from '../configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from '../configuracion/transf-suc/transf.module.js';
 import { CdsModule } from '../reportes/cds/cds.module.js';
 import { SimulacionModule } from '../simulacion/simulacion.module.js';
-import { AgenteController } from './agente.controller.js';
-import { AgenteService } from './agente.service.js';
-import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
 import { ContextoAgenteService } from './contexto.service.js';
-import { EdicionAgenteService } from './edicion.service.js';
-import { SinRastroInterceptor } from './interceptors/sin-rastro.interceptor.js';
-import { ModoAgenteService } from './modo.service.js';
-import { ReporteAgenteService } from './reporte.service.js';
-import { SimulacionAgenteService } from './simulacion.service.js';
-import { TipoServicioAgenteService } from './tipo-servicio.service.js';
-import { TransferenciaAgenteService } from './transferencia.service.js';
+
+import { ConsultasAgenteController } from './consultas/consultas.controller.js';
+import { BusquedaMasivaAgenteService } from './consultas/busqueda-masiva.service.js';
+import { CapacidadAgenteService } from './consultas/capacidad.service.js';
+import { ReporteAgenteService } from './consultas/reporte.service.js';
+import { SimulacionAgenteService } from './consultas/simulacion.service.js';
+import { TipoServicioAgenteService } from './consultas/tipo-servicio.service.js';
+import { TransferenciaAgenteService } from './consultas/transferencia.service.js';
+
+import { EdicionAgenteController } from './edicion/edicion.controller.js';
+import { EditarCapacidadAgenteService } from './edicion/capacidad.service.js';
+import { EditarMasivoAgenteService } from './edicion/masivo.service.js';
+import { EditarTipoServicioAgenteService } from './edicion/tipo-servicio.service.js';
+import { EditarTransferenciaAgenteService } from './edicion/transferencia.service.js';
+
+import { ModoAgenteController } from './seguridad/modo.controller.js';
+import { ModoAgenteService } from './seguridad/modo.service.js';
+import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
 
 /**
- * Feature del agente de IA: consultas consolidadas y una escritura acotada.
+ * Feature del agente de IA.
+ *
+ * Está partido en tres por lo que hace cada parte, que es también lo que decide
+ * cuánto cuidado merece cada una:
+ *
+ * - `consultas/` — lee y resume. Es la mayor parte y la inofensiva.
+ * - `edicion/` — las cuatro cosas que puede cambiar, cada una con sus reglas.
+ * - `seguridad/` — quién puede hacer qué, y qué no puede salir de aquí.
  *
  * Importa los módulos de negocio para reutilizar sus services. Ese es el punto
  * de todo el diseño: la lógica de cómo se habla con Ripley vive en un solo
@@ -46,18 +61,31 @@ import { TransferenciaAgenteService } from './transferencia.service.js';
     SimulacionModule,
     AuthModule,
   ],
-  controllers: [AgenteController],
+  controllers: [
+    ConsultasAgenteController,
+    EdicionAgenteController,
+    ModoAgenteController,
+  ],
   providers: [
-    AgenteService,
     ContextoAgenteService,
+    SinRastroInterceptor,
+
+    // Consultas
+    CapacidadAgenteService,
     ReporteAgenteService,
     TransferenciaAgenteService,
     TipoServicioAgenteService,
     BusquedaMasivaAgenteService,
     SimulacionAgenteService,
+
+    // Edición
+    EditarCapacidadAgenteService,
+    EditarTipoServicioAgenteService,
+    EditarMasivoAgenteService,
+    EditarTransferenciaAgenteService,
+
+    // Seguridad
     ModoAgenteService,
-    EdicionAgenteService,
-    SinRastroInterceptor,
   ],
   exports: [ModoAgenteService],
 })

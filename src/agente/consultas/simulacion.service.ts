@@ -1,9 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { SimulacionService } from '../simulacion/simulacion.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import { SimularAgenteDto } from './dto/consultas-agente.dto.js';
-import { metodoDeServicio } from './servicios.constants.js';
+import { SimulacionService } from '../../simulacion/simulacion.service.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { SimularAgenteDto } from '../dto/consultas.dto.js';
+import { metodoDeServicio } from '../constantes/servicios.constants.js';
 import {
   DESTINO_POR_DEFECTO,
   SKU_POR_DEFECTO,
@@ -12,11 +12,11 @@ import {
   oplsDe,
   tipoParaRipley,
   type OplPorDefecto,
-} from './simulacion.constants.js';
+} from '../constantes/simulacion.constants.js';
 import type {
   ResultadoSimulacion,
   SimulacionRespuesta,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /** Un distrito ya aplanado con su provincia */
 interface Distrito {

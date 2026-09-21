@@ -1,13 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OplService } from '../configuracion/tipo-servicio/opl/opl.service.js';
-import type { HoraCorte } from '../configuracion/tipo-servicio/opl/interfaces/opl.interface.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import { ConsultarTipoServicioDto } from './dto/consultas-agente.dto.js';
+import { OplService } from '../../configuracion/tipo-servicio/opl/opl.service.js';
+import type { HoraCorte } from '../../configuracion/tipo-servicio/opl/interfaces/opl.interface.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { ConsultarTipoServicioDto } from '../dto/consultas.dto.js';
 import type {
   ServicioAgenda,
   TipoServicioRespuesta,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /**
  * Servicios configurados en la agenda de un operador logístico.

@@ -1,9 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
-import type { OplMasivoService } from '../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
-import type { ContextoAgenteService } from './contexto.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import type { OplMasivoService } from '../../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
+import type { ContextoAgenteService } from '../contexto.service.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 
 /**
  * El agente manda el tipo de servicio y nada más: el método de entrega es una

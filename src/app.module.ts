@@ -9,7 +9,7 @@ import { AuditoriaInterceptor } from './auditoria/auditoria.interceptor.js';
 import { AuditoriaMiddleware } from './auditoria/auditoria.middleware.js';
 import { AgenteModule } from './agente/agente.module.js';
 import { ChatsModule } from './chats/chats.module.js';
-import { AgenteGuard } from './agente/guards/agente.guard.js';
+import { AgenteGuard } from './agente/seguridad/agente.guard.js';
 import { CifradoModule } from './common/cifrado/cifrado.module.js';
 import { SupabaseModule } from './common/supabase/supabase.module.js';
 import { TokenRipleyModule } from './configuracion/token-ripley/token-ripley.module.js';

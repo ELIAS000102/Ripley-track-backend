@@ -1,13 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { OplMasivoService } from '../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import { metodoDeServicio } from './servicios.constants.js';
-import { BuscarMasivoDto } from './dto/consultas-agente.dto.js';
+import { OplMasivoService } from '../../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { metodoDeServicio } from '../constantes/servicios.constants.js';
+import { BuscarMasivoDto } from '../dto/consultas.dto.js';
 import type {
   AgendaMasiva,
   BusquedaMasivaRespuesta,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /** Tope de agendas que se devuelven al modelo; el resumen cuenta todas */
 const MAXIMO = 40;

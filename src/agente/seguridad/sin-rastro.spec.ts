@@ -2,7 +2,7 @@ import { Controller, Get, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SinRastroInterceptor } from './interceptors/sin-rastro.interceptor.js';
+import { SinRastroInterceptor } from './sin-rastro.interceptor.js';
 
 /**
  * Lo que el agente devuelve acaba impreso en el chat.

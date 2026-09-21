@@ -1,78 +1,51 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Put,
-  Query,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseInterceptors } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
-import { Usuario } from '../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { AgenteService } from './agente.service.js';
+import { Usuario } from '../../auth/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { PermitidoAgente } from '../seguridad/permitido-agente.decorator.js';
+import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import {
-  PermitidoAgente,
-  PermitidoAgenteEditor,
-} from './decorators/permitido-agente.decorator.js';
-import { EdicionAgenteService } from './edicion.service.js';
-import { SinRastroInterceptor } from './interceptors/sin-rastro.interceptor.js';
-import { ModoAgenteService } from './modo.service.js';
+import { CapacidadAgenteService } from './capacidad.service.js';
 import { ReporteAgenteService } from './reporte.service.js';
 import { SimulacionAgenteService } from './simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia.service.js';
 import {
   BuscarMasivoDto,
-  CambiarModoDto,
   ConsultarCapacidadDto,
   ConsultarReporteDto,
   ConsultarTipoServicioDto,
   ConsultarTransferenciaDto,
-  EditarCapacidadDto,
   SimularAgenteDto,
-} from './dto/consultas-agente.dto.js';
+} from '../dto/consultas.dto.js';
 
 /**
- * La única superficie que consume el agente de IA.
+ * Lo que el agente puede preguntar.
  *
- * Todo lo que el agente necesita entra por aquí. Ningún otro módulo lleva ya
- * `@PermitidoAgente()`: las rutas normales están pensadas para un panel que
- * encadena llamadas y arrastra identificadores, y un modelo de lenguaje hace mal
- * las dos cosas —se pierde a la tercera llamada o acaba pidiéndole al usuario un
- * id que nadie conoce—.
+ * Las rutas normales del backend están pensadas para un panel que encadena
+ * llamadas y arrastra identificadores, y un modelo de lenguaje hace mal las dos
+ * cosas: se pierde a la tercera llamada o acaba pidiéndole al usuario un id que
+ * nadie conoce. Cada endpoint de aquí resuelve la cadena entera por dentro y
+ * devuelve solo lo necesario, ya calculado.
  *
- * Cada endpoint de aquí resuelve la cadena entera por dentro y devuelve solo lo
- * que hace falta para responder, ya calculado. Eso es lo que abarata la consulta:
- * el modelo paga por token en cada paso de su razonamiento, así que la diferencia
- * entre devolver la respuesta cruda de Ripley y devolver esto es de un orden de
- * magnitud.
+ * Eso es lo que abarata la consulta: el modelo paga por token en cada paso de su
+ * razonamiento, así que la diferencia entre devolver la respuesta cruda de
+ * Ripley y devolver esto es de un orden de magnitud.
  *
  * El agente no tiene credenciales propias: reenvía el token del usuario que le
  * preguntó, así que cada consulta hereda sus permisos y queda atribuida a esa
  * persona. n8n añade la cabecera "X-Origen: agente" para que el registro de uso
  * distinga lo que se hizo conversando de lo que se hizo desde el panel.
  *
- * Todo lo que sale por aquí hacia el agente pasa antes por SinRastroInterceptor,
- * que borra direcciones: lo que el modelo recibe acaba impreso en el chat, así
- * que ninguna URL de la API corporativa puede viajar en una respuesta.
- *
- * Casi todo lee. La única escritura es `PUT /agente/capacidad`, y solo responde
- * cuando el usuario ha puesto el interruptor del chat en modo editor: el resto
- * del tiempo el guard la rechaza con un 403. El interruptor se mueve por
- * `/agente/modo`, que el agente no puede alcanzar —está en la lista negra del
- * guard—, porque un permiso que el permitido puede concederse a sí mismo no es
- * un permiso.
+ * Nada de aquí se registra en el historial: es de cambios, y una consulta no lo
+ * es. Lo que se preguntó vive en la tabla de chats.
  */
 @Controller('agente')
 @UseInterceptors(SinRastroInterceptor)
-export class AgenteController {
+export class ConsultasAgenteController {
   constructor(
-    private readonly agenteService: AgenteService,
-    private readonly modo: ModoAgenteService,
-    private readonly edicion: EdicionAgenteService,
+    private readonly capacidad: CapacidadAgenteService,
     private readonly reporte: ReporteAgenteService,
     private readonly transferencia: TransferenciaAgenteService,
     private readonly tipoServicio: TipoServicioAgenteService,
@@ -121,8 +94,8 @@ export class AgenteController {
    */
   @PermitidoAgente()
   @Get('capacidad')
-  async capacidad(@Query() query: ConsultarCapacidadDto) {
-    return this.agenteService.consultarCapacidad(query);
+  async consultarCapacidad(@Query() query: ConsultarCapacidadDto) {
+    return this.capacidad.consultar(query);
   }
 
   /**
@@ -171,7 +144,7 @@ export class AgenteController {
   }
 
   /**
-   * GET /agente/busqueda-masiva?metodo=RT&servicio=SE&soloActivas=true
+   * GET /agente/busqueda-masiva?servicio=SE&soloActivas=true
    *
    * La pregunta al revés que `/agente/tipo-servicio`: qué agendas tienen un
    * servicio, en vez de qué servicios tiene una agenda. Devuelve los totales
@@ -199,61 +172,5 @@ export class AgenteController {
     @Query() query: SimularAgenteDto,
   ) {
     return this.simulacion.simular(usuario, query);
-  }
-
-  // ───────────────── Modo consultor / editor ─────────────────
-
-  /**
-   * GET /agente/modo
-   *
-   * En qué modo está el agente para este usuario. Lo consulta el panel al abrir
-   * el chat, para que el interruptor no mienta si el modo caducó mientras tanto.
-   *
-   * Sin @PermitidoAgente() y además en la lista negra del guard: esta ruta y la
-   * siguiente son las únicas que el agente tiene expresamente prohibidas aunque
-   * alguien las marque por error.
-   */
-  @Get('modo')
-  estadoDelModo(@Usuario() usuario: UsuarioAutenticado) {
-    return this.modo.estado(usuario.id);
-  }
-
-  /**
-   * PUT /agente/modo  { "modo": "editor" }
-   *
-   * El interruptor. Lo mueve una persona desde el panel, nunca el agente.
-   * Volver a "editor" estando ya en editor renueva el tiempo.
-   */
-  @Auditar('agente.cambiarModo')
-  @Put('modo')
-  cambiarModo(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: CambiarModoDto,
-  ) {
-    return body.modo === 'editor'
-      ? this.modo.activar(usuario.id)
-      : this.modo.desactivar(usuario.id);
-  }
-
-  // ───────────────── Escritura ─────────────────
-
-  /**
-   * PUT /agente/capacidad
-   *
-   * Cambia el asignado o el estado de UN día de UNA agenda. Es la única
-   * operación con la que el agente modifica algo, y solo funciona en modo
-   * editor: en modo consultor el guard responde 403 antes de llegar aquí.
-   *
-   * Queda registrada en el historial de uso con el antes y el después, a nombre
-   * de quien preguntó y marcada como hecha por el agente.
-   */
-  @PermitidoAgenteEditor()
-  @Auditar('agente.editarCapacidad')
-  @Put('capacidad')
-  async editarCapacidad(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EditarCapacidadDto,
-  ) {
-    return this.edicion.editarCapacidad(usuario, body);
   }
 }

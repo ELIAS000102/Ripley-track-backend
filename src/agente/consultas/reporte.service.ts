@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CdsService } from '../reportes/cds/cds.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import { ConsultarReporteDto } from './dto/consultas-agente.dto.js';
+import { CdsService } from '../../reportes/cds/cds.service.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { ConsultarReporteDto } from '../dto/consultas.dto.js';
 import type {
   CdReporte,
   CeldaReporte,
   JornadaReporte,
   ReporteRespuesta,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /**
  * Reporte de los CDs, pivotado y comprimido para el agente.

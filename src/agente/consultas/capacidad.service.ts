@@ -1,19 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DespachoService } from '../agendas/despacho/despacho.service.js';
-import { PickingService } from '../agendas/picking/picking.service.js';
-import { RipleyApiError } from '../common/ripley/ripley.errors.js';
+import { DespachoService } from '../../agendas/despacho/despacho.service.js';
+import { PickingService } from '../../agendas/picking/picking.service.js';
+import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
   ripleyDateToIso,
   soloFecha,
-} from '../common/ripley/utils/date.util.js';
-import { ConsultarCapacidadDto } from './dto/consultas-agente.dto.js';
+} from '../../common/ripley/utils/date.util.js';
+import { ConsultarCapacidadDto } from '../dto/consultas.dto.js';
 import type {
   AgendaCapacidad,
   CapacidadRespuesta,
   DiaCapacidad,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /**
  * Consultas consolidadas para el agente de IA.
@@ -27,8 +27,8 @@ import type {
  * no se abrirá este.
  */
 @Injectable()
-export class AgenteService {
-  private readonly logger = new Logger(AgenteService.name);
+export class CapacidadAgenteService {
+  private readonly logger = new Logger(CapacidadAgenteService.name);
 
   /** Agendas que se consultan a la vez, para no saturar la API corporativa */
   private readonly CONCURRENCIA = 4;
@@ -38,9 +38,7 @@ export class AgenteService {
     private readonly despacho: DespachoService,
   ) {}
 
-  async consultarCapacidad(
-    dto: ConsultarCapacidadDto,
-  ): Promise<CapacidadRespuesta> {
+  async consultar(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {
     const pais = (dto.pais ?? 'PE').toUpperCase().trim();
     const desde = dto.desde ?? hoyEnPais(pais);
     const dias = dto.dias ?? 7;

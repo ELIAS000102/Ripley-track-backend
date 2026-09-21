@@ -4,14 +4,14 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { EditarCapacidadDto } from './dto/consultas-agente.dto.js';
-import type { DespachoService } from '../agendas/despacho/despacho.service.js';
-import type { PickingService } from '../agendas/picking/picking.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { hoyEnPais, sumarDias } from '../common/ripley/utils/date.util.js';
-import type { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
-import type { ContextoAgenteService } from './contexto.service.js';
-import { EdicionAgenteService } from './edicion.service.js';
+import { EditarCapacidadDto } from '../dto/edicion.dto.js';
+import type { DespachoService } from '../../agendas/despacho/despacho.service.js';
+import type { PickingService } from '../../agendas/picking/picking.service.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
+import type { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import type { ContextoAgenteService } from '../contexto.service.js';
+import { EditarCapacidadAgenteService } from './capacidad.service.js';
 
 /**
  * La escritura del agente, y sobre todo **cuándo se niega a escribir**.
@@ -93,7 +93,12 @@ function armar(
   const auditoria = { registrarCambio } as unknown as ContextoAuditoria;
 
   return {
-    servicio: new EdicionAgenteService(picking, despacho, contexto, auditoria),
+    servicio: new EditarCapacidadAgenteService(
+      picking,
+      despacho,
+      contexto,
+      auditoria,
+    ),
     actualizarPicking,
     actualizarDespacho,
     registrarCambio,

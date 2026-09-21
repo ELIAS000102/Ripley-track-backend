@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { EstadoModo } from './interfaces/agente.interface.js';
+import type { EstadoModo } from '../interfaces/agente.interface.js';
 
 /**
  * Cuánto dura el modo editor antes de volver solo a consultor.

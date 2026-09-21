@@ -13,12 +13,12 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RequestConUsuario } from '../auth/interfaces/auth.interface.js';
+import type { RequestConUsuario } from '../../auth/interfaces/auth.interface.js';
 import {
   PermitidoAgente,
   PermitidoAgenteEditor,
-} from './decorators/permitido-agente.decorator.js';
-import { AgenteGuard } from './guards/agente.guard.js';
+} from './permitido-agente.decorator.js';
+import { AgenteGuard } from './agente.guard.js';
 import { ModoAgenteService } from './modo.service.js';
 
 /**

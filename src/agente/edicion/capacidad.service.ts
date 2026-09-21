@@ -4,24 +4,24 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DespachoService } from '../agendas/despacho/despacho.service.js';
-import { PickingService } from '../agendas/picking/picking.service.js';
-import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import { DespachoService } from '../../agendas/despacho/despacho.service.js';
+import { PickingService } from '../../agendas/picking/picking.service.js';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
   ripleyDateToIso,
   soloFecha,
   sumarDias,
-} from '../common/ripley/utils/date.util.js';
-import { ContextoAgenteService } from './contexto.service.js';
-import { EditarCapacidadDto } from './dto/consultas-agente.dto.js';
+} from '../../common/ripley/utils/date.util.js';
+import { ContextoAgenteService } from '../contexto.service.js';
+import { EditarCapacidadDto } from '../dto/edicion.dto.js';
 import type {
   DiaEditado,
   EdicionRespuesta,
   EstadoDia,
-} from './interfaces/agente.interface.js';
+} from '../interfaces/agente.interface.js';
 
 /**
  * Tope de días por llamada.
@@ -79,8 +79,8 @@ const NO_FUNCIONAL = /no\s*funcional/i;
  * editor. Aquí se da por hecho que ya se comprobó.
  */
 @Injectable()
-export class EdicionAgenteService {
-  private readonly logger = new Logger(EdicionAgenteService.name);
+export class EditarCapacidadAgenteService {
+  private readonly logger = new Logger(EditarCapacidadAgenteService.name);
 
   constructor(
     private readonly picking: PickingService,

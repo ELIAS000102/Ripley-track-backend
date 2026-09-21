@@ -9,8 +9,8 @@ import type { RequestConUsuario } from '../../auth/interfaces/auth.interface.js'
 import {
   PERMITIDO_AGENTE,
   PERMITIDO_AGENTE_EDITOR,
-} from '../decorators/permitido-agente.decorator.js';
-import { ModoAgenteService } from '../modo.service.js';
+} from './permitido-agente.decorator.js';
+import { ModoAgenteService } from './modo.service.js';
 
 /**
  * Rutas que el agente no puede tocar bajo ningún concepto.
