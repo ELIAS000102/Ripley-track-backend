@@ -248,7 +248,21 @@ export class PickingService {
     return filas.map((o) => ({ code: o.code, name: o.name ?? '' }));
   }
 
-  /** Agendas de una oficina con su tipo de servicio ya resuelto */
+  /**
+   * Agendas de una oficina con su tipo de servicio ya resuelto.
+   *
+   * **Cada agenda se queda con la capacidad de ESTE almacén**, no con la
+   * primera de su lista. Una agenda puede tener capacidades en varios
+   * almacenes, y quedarse con `capacities[0]` hacía que varias agendas
+   * distintas del 20026 —la de RC y cuatro marcadas "NO FUNCIONAL"— acabaran
+   * apuntando al mismo `scheduleId`: el panel las mostraba como cinco agendas
+   * con exactamente los mismos días, y editar cualquiera de ellas escribía
+   * sobre la misma. Cada agenda tiene su identificador y hay que respetarlo.
+   *
+   * Sin fallback a propósito: una agenda sin capacidad en este almacén no es
+   * usable aquí, y quedarse con la de otro almacén sería escribir donde nadie
+   * pidió. El filtro de abajo la deja fuera.
+   */
   async listarAgendasPorOficina(officeCode: string, pais = 'PE') {
     const oficina = await this.catalogos.oficinaPorCodigo(
       officeCode,
@@ -263,13 +277,20 @@ export class PickingService {
 
     return agendas
       .map((a) => ({
-        scheduleId: a.capacities?.[0]?.capacityId,
+        scheduleId: a.capacities?.find((c) => c.warehouseId === oficina.id)
+          ?.capacityId,
         nombre: a.name,
         typeOfService: servicios.get(a.services?.[0]) ?? null,
         unitMeasure: a.unitMeasure,
         activa: a.active,
       }))
-      .filter((a) => a.scheduleId && a.typeOfService);
+      .filter(
+        // Es una guarda de tipo y no un filtro a secas para que quien la use
+        // no tenga que volver a comprobar que hay scheduleId: la lista solo
+        // trae agendas usables en este almacén.
+        (a): a is typeof a & { scheduleId: string; typeOfService: string } =>
+          !!a.scheduleId && !!a.typeOfService,
+      );
   }
 
   /** Capacidades a partir del código de oficina y el tipo de servicio */

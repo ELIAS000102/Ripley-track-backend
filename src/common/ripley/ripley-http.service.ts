@@ -84,6 +84,17 @@ export class RipleyHttpService {
     };
   }
 
+  /**
+   * Traduce el fallo a una excepción de Nest **sin filtrar la URL**.
+   *
+   * La dirección de la API corporativa, con su host y su path, no tiene por qué
+   * salir del backend: el panel no la necesita y en el chat acababa impresa en
+   * la respuesta del agente, a la vista de cualquiera. Queda en el log del
+   * servidor, que es donde sirve para diagnosticar.
+   *
+   * El objeto de error sí la conserva en `url` para quien la necesite dentro
+   * del proceso; lo que no la lleva es el `message`, que es lo que viaja.
+   */
   private manejarError(
     error: unknown,
     accion: string,
@@ -98,20 +109,24 @@ export class RipleyHttpService {
     // Un 404 no es un fallo del servidor: el recurso simplemente no existe.
     // Se lanza sin registrarlo como error para que quien llama decida.
     if (status === 404) {
+      this.logger.warn(`Sin resultado al ${accion} [404] ${destino}`);
+
       throw new RipleyApiError(
-        `Recurso no encontrado en ${destino}`,
+        'La API corporativa no tiene ese recurso',
         404,
         destino,
       );
     }
 
     this.logger.error(
-      `Error al ${accion} [${status ?? 'sin respuesta'}] ${destino}`,
+      `Error al ${accion} [${status ?? 'sin respuesta'}] ${destino}: ${axiosError.message}`,
       JSON.stringify(axiosError.response?.data ?? {}),
     );
 
     throw new BadGatewayException(
-      `Error al ${accion} en la API corporativa: ${axiosError.message}`,
+      status
+        ? `La API corporativa respondió ${status} al ${accion}`
+        : `No se pudo contactar con la API corporativa al ${accion}`,
     );
   }
 

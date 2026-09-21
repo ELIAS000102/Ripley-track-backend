@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Put,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../auth/decorators/usuario.decorator.js';
@@ -11,6 +18,7 @@ import {
   PermitidoAgenteEditor,
 } from './decorators/permitido-agente.decorator.js';
 import { EdicionAgenteService } from './edicion.service.js';
+import { SinRastroInterceptor } from './interceptors/sin-rastro.interceptor.js';
 import { ModoAgenteService } from './modo.service.js';
 import { ReporteAgenteService } from './reporte.service.js';
 import { SimulacionAgenteService } from './simulacion.service.js';
@@ -47,6 +55,10 @@ import {
  * persona. n8n añade la cabecera "X-Origen: agente" para que el registro de uso
  * distinga lo que se hizo conversando de lo que se hizo desde el panel.
  *
+ * Todo lo que sale por aquí hacia el agente pasa antes por SinRastroInterceptor,
+ * que borra direcciones: lo que el modelo recibe acaba impreso en el chat, así
+ * que ninguna URL de la API corporativa puede viajar en una respuesta.
+ *
  * Casi todo lee. La única escritura es `PUT /agente/capacidad`, y solo responde
  * cuando el usuario ha puesto el interruptor del chat en modo editor: el resto
  * del tiempo el guard la rechaza con un 403. El interruptor se mueve por
@@ -55,6 +67,7 @@ import {
  * un permiso.
  */
 @Controller('agente')
+@UseInterceptors(SinRastroInterceptor)
 export class AgenteController {
   constructor(
     private readonly agenteService: AgenteService,

@@ -531,44 +531,16 @@ describe('Edición del agente: varios días de una vez', () => {
   });
 });
 
-describe('Edición del agente: elegir entre agendas que comparten servicio', () => {
-  it('con solo el servicio no elige, y ofrece SOLO las que encajan', async () => {
-    const { servicio, actualizarPicking } = armar({ agendas: AGENDAS_20026 });
-
-    const error = await servicio
-      .editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }))
-      .catch((e: Error) => e.message);
-
-    expect(error).toMatch(/Hay 5 opciones/);
-    // Las cinco de RC, y ninguna de las otras
-    expect(error).toMatch(/Agenda Picking RC - 20026/);
-    expect(error).toMatch(/Agenda Picking Tambo/);
-    expect(error).not.toMatch(/Agenda Picking S - 20026/);
-
-    expect(actualizarPicking).not.toHaveBeenCalled();
-  });
-
-  it('dice que el desempate va en "agenda"', async () => {
-    const { servicio } = armar({ agendas: AGENDAS_20026 });
-
-    await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ servicio: 'RC', activa: false }),
-      ),
-    ).rejects.toThrow(/indicando el nombre exacto en "agenda"/);
-  });
-
-  it('con el nombre de la agenda ya escribe', async () => {
+describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
+  it('con el servicio RC no pregunta nada: solo una es utilizable', async () => {
+    // Cinco agendas comparten el servicio RC y cuatro están marcadas fuera de
+    // uso. Preguntar a cuál aplicar el cambio es preguntar por algo que solo
+    // tiene una respuesta posible.
     const { servicio, actualizarPicking } = armar({ agendas: AGENDAS_20026 });
 
     const r = await servicio.editarCapacidad(
       USUARIO,
-      editar({
-        servicio: 'RC',
-        agenda: 'Agenda Picking RC - 20026',
-        activa: false,
-      }),
+      editar({ servicio: 'RC', activa: false }),
     );
 
     expect(r.agenda).toBe('RC - Agenda Picking RC - 20026');
@@ -579,18 +551,64 @@ describe('Edición del agente: elegir entre agendas que comparten servicio', () 
     );
   });
 
-  it('el nombre basta aunque no manden el servicio', async () => {
+  it('se niega si nombran una a propósito, y dice por qué', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: AGENDAS_20026 });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ agenda: 'Picking Olva', activa: false }),
-    );
+    await expect(
+      servicio.editarCapacidad(
+        USUARIO,
+        editar({ agenda: 'Agenda Picking Olva - NO FUNCIONAL', activa: false }),
+      ),
+    ).rejects.toThrow(/NO FUNCIONAL: no se edita desde el chat/);
 
-    expect(actualizarPicking).toHaveBeenCalledWith(
-      'c-olva',
-      expect.anything(),
-      'PE',
-    );
+    expect(actualizarPicking).not.toHaveBeenCalled();
+  });
+
+  it('tampoco cuentan para decidir si hay ambigüedad', async () => {
+    // Dos utilizables con el mismo servicio: ahí sí hay que preguntar, y las
+    // opciones que se ofrecen son solo las que se pueden tocar.
+    const { servicio } = armar({
+      agendas: [
+        ...AGENDAS_20026,
+        {
+          scheduleId: 'c-rc2',
+          nombre: 'Agenda Picking RC turno tarde',
+          typeOfService: 'RC',
+        },
+      ],
+    });
+
+    const error = await servicio
+      .editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }))
+      .catch((e: Error) => e.message);
+
+    expect(error).toMatch(/Hay 2 opciones/);
+    expect(error).toMatch(/Agenda Picking RC - 20026/);
+    expect(error).toMatch(/turno tarde/);
+    expect(error).not.toMatch(/NO FUNCIONAL/);
+  });
+
+  it('cuando hay que preguntar, dice que el desempate va en "agenda"', async () => {
+    const { servicio } = armar({
+      agendas: [
+        {
+          scheduleId: 'a',
+          nombre: 'Agenda Picking RC - 20026',
+          typeOfService: 'RC',
+        },
+        {
+          scheduleId: 'b',
+          nombre: 'Agenda Picking RC turno tarde',
+          typeOfService: 'RC',
+        },
+      ],
+    });
+
+    await expect(
+      servicio.editarCapacidad(
+        USUARIO,
+        editar({ servicio: 'RC', activa: false }),
+      ),
+    ).rejects.toThrow(/indicando el nombre exacto en "agenda"/);
   });
 });

@@ -37,6 +37,17 @@ const SIN_CONFIGURAR =
   'No está configurado en esta agenda; no se crean días nuevos.';
 
 /**
+ * Agendas que la operación marca como fuera de uso en su propio nombre.
+ *
+ * No es una heurística caprichosa: es cómo están rotuladas en Ripley. El 20026
+ * tiene cinco agendas de servicio RC y cuatro llevan "NO FUNCIONAL" en el
+ * nombre; preguntar a cuál de las cinco aplicar el cambio es preguntar por algo
+ * que solo tiene una respuesta posible. Quedan fuera de la edición, y si
+ * alguien nombra una a propósito se le dice que no en vez de escribirla.
+ */
+const NO_FUNCIONAL = /no\s*funcional/i;
+
+/**
  * La única escritura que el agente puede hacer: días de una agenda.
  *
  * El diseño de todo este archivo parte de una idea: **un modelo de lenguaje
@@ -128,19 +139,24 @@ export class EdicionAgenteService {
     fechas: string[],
   ) {
     const todas = await this.picking.listarAgendasPorOficina(dto.codigo, pais);
+    const utilizables = this.soloUtilizables(
+      todas,
+      dto.agenda,
+      (a) => a.nombre,
+    );
 
-    // Un mismo tipo de servicio puede repetirse en varias agendas del almacén
-    // —la buena y unas cuantas marcadas "NO FUNCIONAL"—, así que el nombre
-    // también filtra. Sin él no había forma de desempatar y la petición se
-    // quedaba en bucle: el agente preguntaba cuál y no tenía dónde mandarlo.
-    const candidatas = this.filtrar(todas, [
+    // Un mismo tipo de servicio puede repetirse en varias agendas del almacén,
+    // así que el nombre también filtra. Sin él no había forma de desempatar y
+    // la petición se quedaba en bucle: el agente preguntaba cuál y no tenía
+    // dónde mandar la respuesta.
+    const candidatas = this.filtrar(utilizables, [
       [dto.servicio, (a) => a.typeOfService],
       [dto.agenda, (a) => a.nombre],
     ]);
 
     const agenda = this.unica(
       candidatas,
-      todas,
+      utilizables,
       (a) => `${a.typeOfService} (${a.nombre})`,
       `el almacén ${dto.codigo}`,
       'el servicio',
@@ -191,7 +207,11 @@ export class EdicionAgenteService {
       'la zona',
     );
 
-    const agendas = await this.despacho.listarAgendas(zona.zoneId, pais);
+    const agendas = this.soloUtilizables(
+      await this.despacho.listarAgendas(zona.zoneId, pais),
+      dto.agenda,
+      (a) => a.nombre,
+    );
 
     const agenda = this.unica(
       this.filtrar(agendas, [[dto.agenda, (a) => a.nombre]]),
@@ -322,6 +342,31 @@ export class EdicionAgenteService {
     }
 
     return fechas;
+  }
+
+  /**
+   * Deja fuera las agendas marcadas como no funcionales.
+   *
+   * Si alguien nombra una a propósito, no se filtra en silencio: se rechaza
+   * diciendo por qué. Dejar pasar el cambio sería escribir en una agenda que la
+   * operación tiene por muerta, y no dar explicación sería peor: el usuario
+   * vería "no la encontré" para algo que está en su lista.
+   */
+  private soloUtilizables<T>(
+    agendas: T[],
+    pedida: string | undefined,
+    nombreDe: (item: T) => string | null | undefined,
+  ): T[] {
+    const termino = pedida?.trim().toLowerCase();
+
+    if (termino && NO_FUNCIONAL.test(termino)) {
+      throw new BadRequestException(
+        'Esa agenda está marcada como NO FUNCIONAL: no se edita desde el chat. ' +
+          'Si de verdad hay que tocarla, se hace desde el panel.',
+      );
+    }
+
+    return agendas.filter((a) => !NO_FUNCIONAL.test(nombreDe(a) ?? ''));
   }
 
   /** Aplica los filtros que vengan; los que no vengan no filtran */

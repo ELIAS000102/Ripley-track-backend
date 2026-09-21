@@ -12,6 +12,7 @@ import { AgenteService } from './agente.service.js';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
 import { ContextoAgenteService } from './contexto.service.js';
 import { EdicionAgenteService } from './edicion.service.js';
+import { SinRastroInterceptor } from './interceptors/sin-rastro.interceptor.js';
 import { ModoAgenteService } from './modo.service.js';
 import { ReporteAgenteService } from './reporte.service.js';
 import { SimulacionAgenteService } from './simulacion.service.js';
@@ -56,6 +57,7 @@ import { TransferenciaAgenteService } from './transferencia.service.js';
     SimulacionAgenteService,
     ModoAgenteService,
     EdicionAgenteService,
+    SinRastroInterceptor,
   ],
   exports: [ModoAgenteService],
 })
