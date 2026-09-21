@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import type { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import type { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { PickingService } from './picking.service.js';
 
 /**
@@ -261,5 +262,82 @@ describe('Elegir una agenda entre varias del mismo servicio', () => {
     await expect(
       servicio.buscarCapacidades('20026', undefined),
     ).rejects.toThrow(/Indica el tipo de servicio o el identificador/);
+  });
+});
+
+describe('Una agenda sin capacidades no es un error', () => {
+  /**
+   * Es el caso de las agendas apartadas: existen en el catálogo pero nunca se
+   * les creó una capacidad, y Ripley responde 404. Subía hasta el manejador de
+   * excepciones, que imprimía una traza por cada una y devolvía un 500 al panel
+   * por consultar algo que simplemente no tiene días.
+   */
+  function conRespuesta(respuesta: unknown | Error) {
+    const { servicio, catalogos } = armar(AGENDAS_RC);
+
+    (
+      catalogos as unknown as {
+        capacidadesDePicking: ReturnType<typeof vi.fn>;
+      }
+    ).capacidadesDePicking = vi.fn(() =>
+      respuesta instanceof Error
+        ? Promise.reject(respuesta)
+        : Promise.resolve(respuesta),
+    );
+
+    return servicio;
+  }
+
+  const buscar = (servicio: PickingService) =>
+    servicio.buscarCapacidades(
+      '20026',
+      undefined,
+      undefined,
+      'PE',
+      undefined,
+      '651c80d62b24860012956e46',
+    );
+
+  it('devuelve la agenda con cero días en vez de reventar', async () => {
+    const servicio = conRespuesta(new RipleyApiError('No hay datos'));
+
+    const r = await buscar(servicio);
+
+    expect(r.agenda.nombre).toBe('Agenda Picking Olva - NO FUNCIONAL');
+    expect(r.dias).toEqual([]);
+  });
+
+  it('y lo dice, para que el panel no parezca roto', async () => {
+    const servicio = conRespuesta(new RipleyApiError('No hay datos'));
+
+    expect((await buscar(servicio)).aviso).toMatch(/no tiene capacidades/);
+  });
+
+  it('un fallo que no sea "sin datos" sí sube', async () => {
+    // Callar un 502 sería decir que la agenda no tiene días cuando lo que pasó
+    // es que no se pudo preguntar
+    const servicio = conRespuesta(
+      new Error('La API corporativa respondió 502'),
+    );
+
+    await expect(buscar(servicio)).rejects.toThrow(/502/);
+  });
+
+  it('con días, no hay aviso', async () => {
+    const servicio = conRespuesta({
+      capacityByDayArray: [
+        {
+          day: '2026-09-21T00:00:00.000Z',
+          active: true,
+          assigned: 350,
+          occupied: 0,
+        },
+      ],
+    });
+
+    const r = await buscar(servicio);
+
+    expect(r.dias).toHaveLength(1);
+    expect(r.aviso).toBeUndefined();
   });
 });

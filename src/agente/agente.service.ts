@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DespachoService } from '../agendas/despacho/despacho.service.js';
 import { PickingService } from '../agendas/picking/picking.service.js';
+import { RipleyApiError } from '../common/ripley/ripley.errors.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
@@ -117,7 +118,7 @@ export class AgenteService {
           ),
         };
       } catch (e) {
-        sinDatos.push(`${a.nombre}: ${(e as Error).message}`);
+        this.anotarSalvoVacia(sinDatos, a.nombre, e);
         return null;
       }
     });
@@ -184,13 +185,35 @@ export class AgenteService {
           ),
         };
       } catch (e) {
-        sinDatos.push(`${a.nombre}: ${(e as Error).message}`);
+        this.anotarSalvoVacia(sinDatos, a.nombre, e);
         return null;
       }
     });
   }
 
   // ---------- Utilidades ----------
+
+  /**
+   * Una agenda sin capacidades se calla; lo demás se cuenta.
+   *
+   * Un almacén arrastra agendas apartadas a las que nunca se les creó ninguna
+   * capacidad. Mencionarlas una por una llenaba la respuesta de avisos sobre
+   * agendas que a nadie le importan —y que además no son un error—, y el
+   * agente los repetía en el chat como si hubiera pasado algo. Queda fuera de
+   * la tabla y fuera de los avisos.
+   *
+   * Un fallo de verdad sí se cuenta: callarlo sería decir que una agenda no
+   * tiene días cuando lo que pasó es que no se pudo preguntar.
+   */
+  private anotarSalvoVacia(
+    sinDatos: string[],
+    nombre: string,
+    e: unknown,
+  ): void {
+    if (e instanceof RipleyApiError && e.esNoEncontrado) return;
+
+    sinDatos.push(`${nombre}: ${(e as Error).message}`);
+  }
 
   /** Deja resueltos disponible y uso: el modelo no tiene que calcular nada */
   private normalizar(

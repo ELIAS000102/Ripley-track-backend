@@ -85,41 +85,28 @@ export class RipleyHttpService {
   }
 
   /**
-   * Traduce el fallo a una excepción de Nest **sin filtrar la URL**.
+   * Traduce el fallo a una excepción de Nest **sin nombrar la API corporativa**.
    *
-   * La dirección de la API corporativa, con su host y su path, no tiene por qué
-   * salir del backend: el panel no la necesita y en el chat acababa impresa en
-   * la respuesta del agente, a la vista de cualquiera. Queda en el log del
-   * servidor, que es donde sirve para diagnosticar.
+   * Ni en la respuesta ni en el log: su host y sus rutas no aparecen en ningún
+   * sitio. En la respuesta importa porque lo que recibe el agente acaba impreso
+   * en el chat; en el log importa porque una consola se comparte en capturas,
+   * en tickets y en paneles de la nube.
    *
-   * El objeto de error sí la conserva en `url` para quien la necesite dentro
-   * del proceso; lo que no la lleva es el `message`, que es lo que viaja.
+   * Para diagnosticar basta con lo que ya registra quien llama: cada service
+   * anota qué estaba haciendo y sobre qué identificador antes de pedirlo.
    */
-  private manejarError(
-    error: unknown,
-    accion: string,
-    url: string,
-    params?: Record<string, any>,
-  ): never {
+  private manejarError(error: unknown, accion: string): never {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
-    const query = params ? new URLSearchParams(params).toString() : '';
-    const destino = query ? `${url}?${query}` : url;
 
     // Un 404 no es un fallo del servidor: el recurso simplemente no existe.
     // Se lanza sin registrarlo como error para que quien llama decida.
     if (status === 404) {
-      this.logger.warn(`Sin resultado al ${accion} [404] ${destino}`);
-
-      throw new RipleyApiError(
-        'La API corporativa no tiene ese recurso',
-        404,
-        destino,
-      );
+      throw new RipleyApiError('No hay datos para ese recurso');
     }
 
     this.logger.error(
-      `Error al ${accion} [${status ?? 'sin respuesta'}] ${destino}: ${axiosError.message}`,
+      `Error al ${accion} [${status ?? 'sin respuesta'}]`,
       JSON.stringify(axiosError.response?.data ?? {}),
     );
 
@@ -193,7 +180,7 @@ export class RipleyHttpService {
       const { data } = await firstValueFrom(respuesta);
       return data;
     } catch (error) {
-      this.manejarError(error, accion, url, params);
+      this.manejarError(error, accion);
     }
   }
 }

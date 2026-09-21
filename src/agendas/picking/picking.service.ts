@@ -14,8 +14,10 @@ import {
   soloFecha,
 } from '../../common/ripley/utils/date.util.js';
 import { ActualizarPickingBodyDto } from './dto/actualizar-picking.dto.js';
+import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import {
   CapacitiesResponse,
+  CapacityByDay,
   ScheduleConfig,
   ScheduleRow,
   ScheduleType,
@@ -333,15 +335,40 @@ export class PickingService {
       );
     }
 
-    const capacidades = await this.obtener(agenda.scheduleId, from, pais);
-    const todos = capacidades?.capacityByDayArray ?? [];
+    const todos = await this.diasDeLaAgenda(agenda.scheduleId, from, pais);
 
     return {
       agenda,
       dias: dias
         ? recortarDesde(todos, from, pais, dias, (d) => soloFecha(d.day))
         : todos,
+      aviso: todos.length
+        ? undefined
+        : 'Esta agenda no tiene capacidades configuradas.',
     };
+  }
+
+  /**
+   * Los días de una agenda; sin capacidades creadas, ninguno.
+   *
+   * Ripley responde `404` cuando la agenda existe pero nunca se le crearon
+   * capacidades —le pasa a las que están apartadas—, y eso no es un fallo: es
+   * una agenda vacía. Antes subía hasta el manejador de excepciones, que
+   * imprimía una traza por cada una y le devolvía un `500` al panel por
+   * consultar algo que simplemente no tiene días.
+   */
+  private async diasDeLaAgenda(
+    scheduleId: string,
+    from: string | undefined,
+    pais: string,
+  ): Promise<CapacityByDay[]> {
+    try {
+      const capacidades = await this.obtener(scheduleId, from, pais);
+      return capacidades?.capacityByDayArray ?? [];
+    } catch (e) {
+      if (e instanceof RipleyApiError && e.esNoEncontrado) return [];
+      throw e;
+    }
   }
 
   /**
