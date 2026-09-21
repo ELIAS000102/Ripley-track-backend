@@ -70,6 +70,15 @@ export interface ScheduleRow {
   }[];
   services: string[];
   warehouses: string[];
+  /**
+   * Hasta cuándo vale la agenda, en ISO.
+   *
+   * Distingue las que están en uso de las que quedaron atrás: en el 20026, las
+   * cuatro agendas rotuladas "NO FUNCIONAL" vencieron el 31-12-2025 y las que
+   * se usan llegan a 2030.
+   */
+  validityEnd?: string;
+  validityStart?: string;
 }
 
 /** Un día dentro de la agenda de capacidades */

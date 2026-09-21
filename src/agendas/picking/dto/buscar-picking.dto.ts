@@ -23,9 +23,23 @@ export class BuscarCapacidadesDto extends PaisDto {
   @IsNotEmpty()
   officeCode: string;
 
+  /**
+   * Identificador de la agenda. **Es lo único que la distingue.**
+   *
+   * Un almacén puede tener varias agendas con el mismo tipo de servicio, así
+   * que el servicio no sirve para elegir una. Si se manda, manda.
+   */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  typeOfService: string;
+  scheduleId?: string;
+
+  /**
+   * Tipo de servicio. Vale cuando el almacén solo tiene una agenda con él;
+   * si tiene varias, el backend pide el identificador en vez de elegir.
+   */
+  @IsOptional()
+  @IsString()
+  typeOfService?: string;
 
   @IsOptional()
   @IsString()

@@ -35,16 +35,22 @@ export class PickingController {
     );
   }
 
-  /** GET /agendas/picking/buscar?officeCode=20026&typeOfService=S&from=14-09-2026 */
+  /**
+   * GET /agendas/picking/buscar?officeCode=20026&scheduleId=651b44…&from=14-09-2026
+   *
+   * `scheduleId` es lo que identifica la agenda; `typeOfService` solo vale si
+   * el almacén tiene una sola con ese servicio.
+   */
   @Get('buscar')
   async buscar(@Query() query: BuscarCapacidadesDto) {
-    const { officeCode, typeOfService, from, pais, dias } = query;
+    const { officeCode, typeOfService, from, pais, dias, scheduleId } = query;
     return this.pickingService.buscarCapacidades(
       officeCode,
       typeOfService,
       from,
       pais,
       dias,
+      scheduleId,
     );
   }
 

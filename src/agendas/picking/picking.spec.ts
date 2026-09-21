@@ -5,13 +5,16 @@ import type { ContextoAuditoria } from '../../auditoria/contexto-auditoria.servi
 import { PickingService } from './picking.service.js';
 
 /**
- * Cada agenda tiene que quedarse con **su** capacidad en este almacén.
+ * Cómo se identifica una agenda dentro de un almacén.
  *
- * Se tomaba `capacities[0]`, y una agenda puede tener capacidades en varios
- * almacenes. El resultado se vio en el panel: cinco agendas del 20026 —la de RC
- * y cuatro marcadas "NO FUNCIONAL"— aparecían con el mismo Schedule ID y
- * exactamente los mismos días. Editar cualquiera de ellas escribía sobre la
- * misma, y no había forma de saberlo mirando la pantalla.
+ * En el panel, cinco agendas del 20026 —la de RC y cuatro "NO FUNCIONAL"—
+ * aparecían con el mismo Schedule ID y los mismos días. La respuesta real de
+ * Ripley trae **doce agendas con doce capacityId distintos**, así que el
+ * identificador no venía repetido de origen: lo repetía este backend al buscar
+ * la agenda por su tipo de servicio, que cinco de ellas comparten.
+ *
+ * De ahí las dos cosas que se fijan aquí: que cada agenda conserva su propia
+ * capacidad, y que el servicio **no** sirve para elegir una.
  */
 
 const ALMACEN = 'w-20026';
@@ -22,6 +25,31 @@ const SERVICIOS = new Map([
   ['s-rc', 'RC'],
   ['s-s', 'S'],
 ]);
+
+/** Las tres primeras agendas de servicio RC del 20026, como las devuelve Ripley */
+const AGENDAS_RC = [
+  {
+    name: 'Agenda Picking RC - 20026',
+    services: ['s-rc'],
+    capacities: [
+      { capacityId: '651b444be69aaf0012c044c6', warehouseId: ALMACEN },
+    ],
+  },
+  {
+    name: 'Agenda Picking Olva - NO FUNCIONAL',
+    services: ['s-rc'],
+    capacities: [
+      { capacityId: '651c80d62b24860012956e46', warehouseId: ALMACEN },
+    ],
+  },
+  {
+    name: 'Agenda Picking Andes - NO FUNCIONAL',
+    services: ['s-rc'],
+    capacities: [
+      { capacityId: '651c9b1ccc58e90012651e4c', warehouseId: ALMACEN },
+    ],
+  },
+];
 
 function armar(agendas: Array<Record<string, unknown>>) {
   const catalogos = {
@@ -59,34 +87,20 @@ describe('Agendas de un almacén: cada una con su propia capacidad', () => {
     expect(agendas[0].scheduleId).toBe('cap-rc');
   });
 
-  it('dos agendas distintas no comparten identificador', async () => {
-    // El caso real: varias agendas con el servicio RC, cada una con su
-    // capacidad en el 20026 y una ajena compartida que iba primera
-    const compartida = { capacityId: 'cap-compartida', warehouseId: OTRO };
+  it('cada agenda conserva su identificador, como los trae Ripley', async () => {
+    // Tal cual responde la API: una capacidad por agenda, todas en este
+    // almacén y con identificadores distintos
+    const { servicio } = armar(AGENDAS_RC);
 
-    const { servicio } = armar([
-      {
-        name: 'Agenda Picking RC - 20026',
-        services: ['s-rc'],
-        capacities: [
-          compartida,
-          { capacityId: 'cap-rc', warehouseId: ALMACEN },
-        ],
-      },
-      {
-        name: 'Agenda Picking Olva - NO FUNCIONAL',
-        services: ['s-rc'],
-        capacities: [
-          compartida,
-          { capacityId: 'cap-olva', warehouseId: ALMACEN },
-        ],
-      },
+    const ids = (await servicio.listarAgendasPorOficina('20026')).map(
+      (a) => a.scheduleId,
+    );
+
+    expect(ids).toEqual([
+      '651b444be69aaf0012c044c6',
+      '651c80d62b24860012956e46',
+      '651c9b1ccc58e90012651e4c',
     ]);
-
-    const agendas = await servicio.listarAgendasPorOficina('20026');
-    const ids = agendas.map((a) => a.scheduleId);
-
-    expect(ids).toEqual(['cap-rc', 'cap-olva']);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -124,13 +138,14 @@ describe('Agendas de un almacén: cada una con su propia capacidad', () => {
     expect(await servicio.listarAgendasPorOficina('20026')).toHaveLength(0);
   });
 
-  it('resuelve el código visible del servicio', async () => {
+  it('resuelve el código visible del servicio y la vigencia', async () => {
     const { servicio } = armar([
       {
         name: 'Agenda Picking RC - 20026',
         services: ['s-rc'],
         unitMeasure: 'Unidades',
         active: true,
+        validityEnd: '2030-12-31T05:00:00.000Z',
         capacities: [{ capacityId: 'cap-rc', warehouseId: ALMACEN }],
       },
     ]);
@@ -141,6 +156,110 @@ describe('Agendas de un almacén: cada una con su propia capacidad', () => {
       typeOfService: 'RC',
       unitMeasure: 'Unidades',
       activa: true,
+      vigenteHasta: '2030-12-31',
     });
+  });
+
+  it('deja la vigencia en null si Ripley no la manda', async () => {
+    const { servicio } = armar([
+      {
+        name: 'Agenda sin vigencia',
+        services: ['s-rc'],
+        capacities: [{ capacityId: 'cap-x', warehouseId: ALMACEN }],
+      },
+    ]);
+
+    expect(
+      (await servicio.listarAgendasPorOficina('20026'))[0].vigenteHasta,
+    ).toBeNull();
+  });
+});
+
+describe('Elegir una agenda entre varias del mismo servicio', () => {
+  /** Devuelve días para cualquier agenda, para no parar en la lectura */
+  function conCapacidades(agendas: Array<Record<string, unknown>>) {
+    const { servicio, catalogos } = armar(agendas);
+
+    (
+      catalogos as unknown as {
+        capacidadesDePicking: ReturnType<typeof vi.fn>;
+      }
+    ).capacidadesDePicking = vi
+      .fn()
+      .mockResolvedValue({ capacityByDayArray: [] });
+
+    return { servicio, catalogos };
+  }
+
+  it('el identificador elige la agenda, no la primera del servicio', async () => {
+    const { servicio } = conCapacidades(AGENDAS_RC);
+
+    const r = await servicio.buscarCapacidades(
+      '20026',
+      undefined,
+      undefined,
+      'PE',
+      undefined,
+      '651c9b1ccc58e90012651e4c',
+    );
+
+    expect(r.agenda.nombre).toBe('Agenda Picking Andes - NO FUNCIONAL');
+  });
+
+  it('con solo el servicio, y cinco agendas RC, no elige ninguna', async () => {
+    // Era el fallo: devolvía siempre la primera, así que las cinco opciones
+    // del panel enseñaban los datos de la misma
+    const { servicio } = conCapacidades(AGENDAS_RC);
+
+    await expect(servicio.buscarCapacidades('20026', 'RC')).rejects.toThrow(
+      /tiene 3 agendas con servicio RC/,
+    );
+  });
+
+  it('y dice cuáles son, para poder desempatar', async () => {
+    const { servicio } = conCapacidades(AGENDAS_RC);
+
+    await expect(servicio.buscarCapacidades('20026', 'RC')).rejects.toThrow(
+      /Agenda Picking RC - 20026, Agenda Picking Olva/,
+    );
+  });
+
+  it('con el servicio basta cuando solo hay una', async () => {
+    const { servicio } = conCapacidades([
+      {
+        name: 'Agenda Picking S - 20026',
+        services: ['s-s'],
+        capacities: [
+          { capacityId: '63d139467011f400114fa824', warehouseId: ALMACEN },
+        ],
+      },
+    ]);
+
+    const r = await servicio.buscarCapacidades('20026', 'S');
+
+    expect(r.agenda.scheduleId).toBe('63d139467011f400114fa824');
+  });
+
+  it('un identificador que no es de este almacén no vale', async () => {
+    const { servicio } = conCapacidades(AGENDAS_RC);
+
+    await expect(
+      servicio.buscarCapacidades(
+        '20026',
+        undefined,
+        undefined,
+        'PE',
+        undefined,
+        'de-otro-almacen',
+      ),
+    ).rejects.toThrow(/ninguna agenda de picking con ese identificador/);
+  });
+
+  it('sin servicio ni identificador, lo dice en vez de adivinar', async () => {
+    const { servicio } = conCapacidades(AGENDAS_RC);
+
+    await expect(
+      servicio.buscarCapacidades('20026', undefined),
+    ).rejects.toThrow(/Indica el tipo de servicio o el identificador/);
   });
 });

@@ -39,11 +39,9 @@ const SIN_CONFIGURAR =
 /**
  * Agendas que la operación marca como fuera de uso en su propio nombre.
  *
- * No es una heurística caprichosa: es cómo están rotuladas en Ripley. El 20026
- * tiene cinco agendas de servicio RC y cuatro llevan "NO FUNCIONAL" en el
- * nombre; preguntar a cuál de las cinco aplicar el cambio es preguntar por algo
- * que solo tiene una respuesta posible. Quedan fuera de la edición, y si
- * alguien nombra una a propósito se le dice que no en vez de escribirla.
+ * Es cómo están rotuladas en Ripley: el 20026 tiene cinco agendas de servicio
+ * RC y cuatro llevan "NO FUNCIONAL" en el nombre. Preguntar a cuál de las cinco
+ * aplicar el cambio es preguntar por algo que solo tiene una respuesta posible.
  */
 const NO_FUNCIONAL = /no\s*funcional/i;
 
@@ -143,6 +141,8 @@ export class EdicionAgenteService {
       todas,
       dto.agenda,
       (a) => a.nombre,
+      hoyEnPais(pais),
+      (a) => a.vigenteHasta,
     );
 
     // Un mismo tipo de servicio puede repetirse en varias agendas del almacén,
@@ -211,6 +211,7 @@ export class EdicionAgenteService {
       await this.despacho.listarAgendas(zona.zoneId, pais),
       dto.agenda,
       (a) => a.nombre,
+      hoyEnPais(pais),
     );
 
     const agenda = this.unica(
@@ -356,6 +357,9 @@ export class EdicionAgenteService {
     agendas: T[],
     pedida: string | undefined,
     nombreDe: (item: T) => string | null | undefined,
+    hoy: string,
+    // Solo picking trae la vigencia; despacho no la expone y no filtra por ella
+    vigenciaDe: (item: T) => string | null | undefined = () => null,
   ): T[] {
     const termino = pedida?.trim().toLowerCase();
 
@@ -366,7 +370,27 @@ export class EdicionAgenteService {
       );
     }
 
-    return agendas.filter((a) => !NO_FUNCIONAL.test(nombreDe(a) ?? ''));
+    return agendas.filter(
+      (a) =>
+        !NO_FUNCIONAL.test(nombreDe(a) ?? '') &&
+        !this.vencida(vigenciaDe(a), hoy),
+    );
+  }
+
+  /**
+   * Una agenda cuya vigencia terminó tampoco se edita.
+   *
+   * Es mejor señal que el nombre porque es un dato y no un rótulo: las cuatro
+   * agendas RC apartadas del 20026 vencieron el 31-12-2025 mientras las que se
+   * usan llegan a 2030. El nombre se queda igualmente, porque hay alguna
+   * rotulada "NO FUNCIONAL" que aún no ha vencido: ninguna de las dos señales
+   * basta sola.
+   */
+  private vencida(
+    vigenteHasta: string | null | undefined,
+    hoy: string,
+  ): boolean {
+    return !!vigenteHasta && vigenteHasta < hoy;
   }
 
   /** Aplica los filtros que vengan; los que no vengan no filtran */

@@ -551,6 +551,58 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
     );
   });
 
+  it('también deja fuera las que tienen la vigencia vencida', async () => {
+    // Las cuatro RC apartadas del 20026 vencieron el 31-12-2025 y las que se
+    // usan llegan a 2030: la fecha es mejor señal que el rótulo del nombre
+    const { servicio, actualizarPicking } = armar({
+      agendas: [
+        {
+          scheduleId: 'c-rc',
+          nombre: 'Agenda Picking RC - 20026',
+          typeOfService: 'RC',
+          vigenteHasta: '2030-12-31',
+        },
+        {
+          scheduleId: 'c-vieja',
+          nombre: 'Agenda Picking RC del año pasado',
+          typeOfService: 'RC',
+          vigenteHasta: '2025-12-31',
+        },
+      ],
+    });
+
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'RC', activa: false }),
+    );
+
+    expect(actualizarPicking).toHaveBeenCalledWith(
+      'c-rc',
+      expect.anything(),
+      'PE',
+    );
+  });
+
+  it('una vigencia que aún no ha vencido no estorba', async () => {
+    const { servicio, actualizarPicking } = armar({
+      agendas: [
+        {
+          scheduleId: 'c-rc',
+          nombre: 'Agenda Picking RC - 20026',
+          typeOfService: 'RC',
+          vigenteHasta: '2030-12-31',
+        },
+      ],
+    });
+
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'RC', activa: false }),
+    );
+
+    expect(actualizarPicking).toHaveBeenCalledOnce();
+  });
+
   it('se niega si nombran una a propósito, y dice por qué', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: AGENDAS_20026 });
 

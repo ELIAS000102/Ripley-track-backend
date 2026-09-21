@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -251,17 +252,20 @@ export class PickingService {
   /**
    * Agendas de una oficina con su tipo de servicio ya resuelto.
    *
-   * **Cada agenda se queda con la capacidad de ESTE almacén**, no con la
-   * primera de su lista. Una agenda puede tener capacidades en varios
-   * almacenes, y quedarse con `capacities[0]` hacía que varias agendas
-   * distintas del 20026 —la de RC y cuatro marcadas "NO FUNCIONAL"— acabaran
-   * apuntando al mismo `scheduleId`: el panel las mostraba como cinco agendas
-   * con exactamente los mismos días, y editar cualquiera de ellas escribía
-   * sobre la misma. Cada agenda tiene su identificador y hay que respetarlo.
+   * Cada agenda se queda con la capacidad de **este** almacén, no con la
+   * primera de su lista. Hoy las respuestas de Ripley traen una sola capacidad
+   * por agenda y siempre la del almacén consultado, así que en la práctica da
+   * el mismo resultado; se busca por almacén porque el campo admite varias y
+   * quedarse con la primera sería quedarse con la de otro sitio. El reporte de
+   * CDs ya lo hacía así.
    *
-   * Sin fallback a propósito: una agenda sin capacidad en este almacén no es
-   * usable aquí, y quedarse con la de otro almacén sería escribir donde nadie
-   * pidió. El filtro de abajo la deja fuera.
+   * Sin recurrir a la de otro almacén si no la hay: una agenda sin capacidad
+   * aquí no es usable aquí, y escribirla sería escribir donde nadie pidió. El
+   * filtro de abajo la deja fuera.
+   *
+   * Ojo: esto **no** es lo que hacía que el panel enseñara cinco agendas con
+   * el mismo identificador. Eso pasaba al buscar la agenda por su tipo de
+   * servicio, que varias comparten; está en `buscarCapacidades`.
    */
   async listarAgendasPorOficina(officeCode: string, pais = 'PE') {
     const oficina = await this.catalogos.oficinaPorCodigo(
@@ -283,6 +287,7 @@ export class PickingService {
         typeOfService: servicios.get(a.services?.[0]) ?? null,
         unitMeasure: a.unitMeasure,
         activa: a.active,
+        vigenteHasta: a.validityEnd ? soloFecha(a.validityEnd) : null,
       }))
       .filter(
         // Es una guarda de tipo y no un filtro a secas para que quien la use
@@ -293,23 +298,38 @@ export class PickingService {
       );
   }
 
-  /** Capacidades a partir del código de oficina y el tipo de servicio */
+  /**
+   * Capacidades de una agenda concreta de la oficina.
+   *
+   * **El tipo de servicio no identifica una agenda.** Un almacén puede tener
+   * varias con el mismo: el 20026 tiene cinco de servicio RC. Buscar por
+   * servicio devolvía siempre la primera, así que elegir cualquiera de las
+   * cinco en el panel enseñaba los días, el nombre y el identificador de la
+   * misma, y guardar escribía sobre ella. Lo único que distingue una agenda de
+   * otra es su `scheduleId`.
+   *
+   * `typeOfService` se sigue aceptando para quien solo tenga eso, pero ya no
+   * elige cuando hay varias: dice cuáles son.
+   */
   async buscarCapacidades(
     officeCode: string,
-    typeOfService: string,
+    typeOfService: string | undefined,
     from?: string,
     pais = 'PE',
     dias?: number,
+    scheduleId?: string,
   ) {
     const agendas = await this.listarAgendasPorOficina(officeCode, pais);
 
-    const agenda = agendas.find(
-      (a) => a.typeOfService?.toUpperCase() === typeOfService.toUpperCase(),
-    );
+    const agenda = scheduleId?.trim()
+      ? agendas.find((a) => a.scheduleId === scheduleId.trim())
+      : this.unicaPorServicio(agendas, typeOfService, officeCode);
 
     if (!agenda) {
       throw new NotFoundException(
-        `La oficina ${officeCode} no tiene agenda de picking con servicio ${typeOfService}`,
+        scheduleId?.trim()
+          ? `La oficina ${officeCode} no tiene ninguna agenda de picking con ese identificador`
+          : `La oficina ${officeCode} no tiene agenda de picking con servicio ${typeOfService}`,
       );
     }
 
@@ -322,5 +342,38 @@ export class PickingService {
         ? recortarDesde(todos, from, pais, dias, (d) => soloFecha(d.day))
         : todos,
     };
+  }
+
+  /**
+   * La agenda de un servicio, siempre que no haya más de una.
+   *
+   * Si el almacén tiene varias con ese servicio, quedarse con la primera es
+   * enseñar los datos de una agenda que nadie eligió. Se dice cuáles hay y que
+   * hace falta el identificador para desempatar.
+   */
+  private unicaPorServicio<T extends { typeOfService: string; nombre: string }>(
+    agendas: T[],
+    typeOfService: string | undefined,
+    officeCode: string,
+  ): T | undefined {
+    if (!typeOfService?.trim()) {
+      throw new BadRequestException(
+        'Indica el tipo de servicio o el identificador de la agenda',
+      );
+    }
+
+    const buscado = typeOfService.trim().toUpperCase();
+    const candidatas = agendas.filter(
+      (a) => a.typeOfService.toUpperCase() === buscado,
+    );
+
+    if (candidatas.length > 1) {
+      throw new BadRequestException(
+        `La oficina ${officeCode} tiene ${candidatas.length} agendas con servicio ${buscado}: ` +
+          `${candidatas.map((a) => a.nombre).join(', ')}. Indica cuál con su identificador.`,
+      );
+    }
+
+    return candidatas[0];
   }
 }
