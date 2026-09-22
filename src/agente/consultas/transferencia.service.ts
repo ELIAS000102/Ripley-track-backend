@@ -59,9 +59,10 @@ export class TransferenciaAgenteService {
     const contexto = await this.contexto.armar(usuario, dto.pais);
 
     const pedido = this.resolverPedido(dto);
+    const pedidos = this.destinosPedidos(dto.destino);
 
     this.logger.log(
-      `Agente consultando transferencia ${pedido} → ${dto.destino ?? 'todos'}`,
+      `Agente consultando transferencia ${pedido} → ${pedidos.length || 'todos'}`,
     );
 
     const origen = await this.resolverOrigen(pedido, contexto.pais);
@@ -73,28 +74,66 @@ export class TransferenciaAgenteService {
     const etiquetaOrigen = `${origen.code} - ${origen.nombre}`;
     const todas = relaciones.map((r) => this.aTransferencia(etiquetaOrigen, r));
 
-    if (!dto.destino) {
+    if (!pedidos.length) {
       return { contexto, destinos: todas };
     }
 
-    const encontrada = this.buscarDestino(todas, dto.destino);
+    const destinos: Transferencia[] = [];
+    const noEncontrados: Array<{ destino: string; motivo: string }> = [];
 
-    if (encontrada.length === 1) {
-      return { contexto, transferencia: encontrada[0] };
-    }
+    for (const termino of pedidos) {
+      const encontrada = this.buscarDestino(todas, termino);
 
-    if (encontrada.length > 1) {
-      return {
-        contexto,
-        destinos: encontrada,
-        aviso: `"${dto.destino}" coincide con ${encontrada.length} destinos. Pide al usuario que indique el código exacto.`,
-      };
+      if (encontrada.length === 1) {
+        destinos.push(encontrada[0]);
+        continue;
+      }
+
+      noEncontrados.push({
+        destino: termino,
+        motivo: encontrada.length
+          ? `Coincide con ${encontrada.length} destinos (${encontrada
+              .map((t) => t.destino)
+              .join(', ')}). Pide el código exacto.`
+          : `El origen ${etiquetaOrigen} no tiene ninguna relación configurada con este destino. No es lo mismo que estar deshabilitada: simplemente no existe.`,
+      });
     }
 
     return {
       contexto,
-      aviso: `El origen ${etiquetaOrigen} no tiene ninguna relación configurada con "${dto.destino}". No es lo mismo que estar deshabilitada: simplemente no existe la relación.`,
+      destinos,
+      ...(noEncontrados.length ? { noEncontrados } : {}),
+      // El aviso solo cuando NO hay nada que enseñar: si vinieron ocho de once,
+      // lo que importa son los ocho, y los tres fallidos van en su lista
+      ...(destinos.length
+        ? {}
+        : {
+            aviso: `Ninguno de los ${pedidos.length} destinos pedidos dio una relación desde ${etiquetaOrigen}.`,
+          }),
     };
+  }
+
+  /**
+   * Los destinos de una consulta, que pueden ser uno, varios o ninguno.
+   *
+   * Llegan por coma porque es como los pide una persona y como los manda el
+   * agente: pregunta qué operadores tienen un servicio, recibe once códigos y
+   * a continuación pregunta por la transferencia de esos once. Tratarlos como
+   * un único destino literal no encontraba nada y respondía que la relación no
+   * existe, que era **falso**: existían las once.
+   */
+  private destinosPedidos(destino?: string): string[] {
+    if (!destino?.trim()) return [];
+
+    const lista = destino
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean);
+
+    return lista.filter(
+      (d, i) =>
+        lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i,
+    );
   }
 
   /**

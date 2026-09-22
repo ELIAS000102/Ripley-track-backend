@@ -112,6 +112,11 @@ export class ConsultarTransferenciaDto extends PaisDto {
   /**
    * Código o nombre del almacén que RECIBE. Si se omite, se devuelven todos
    * los destinos del origen.
+   *
+   * **Admite varios por coma.** El agente pregunta qué operadores tienen un
+   * servicio, recibe once códigos y a continuación pregunta por la
+   * transferencia de esos once: tratarlos como un único destino literal no
+   * encontraba nada y respondía que la relación no existe, siendo falso.
    */
   @IsOptional()
   @IsString()

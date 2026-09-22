@@ -135,10 +135,21 @@ export interface Transferencia {
 
 export interface TransferenciaRespuesta {
   contexto: ContextoAgente;
-  /** La relación pedida, si se preguntó por un destino concreto */
-  transferencia?: Transferencia;
-  /** Todos los destinos del origen, si no se pidió uno concreto */
-  destinos?: Transferencia[];
+  /**
+   * Las relaciones encontradas.
+   *
+   * Si no se pidió ningún destino, son todos los del origen. Si se pidieron
+   * uno o varios, son los que se resolvieron: **una sola forma que
+   * interpretar**, vengan uno o veinte.
+   */
+  destinos: Transferencia[];
+  /**
+   * Los destinos pedidos que no dieron una relación, con su motivo.
+   *
+   * Van aparte y no como un aviso suelto porque preguntar por once destinos y
+   * que fallen dos no puede leerse igual que si hubieran fallado los once.
+   */
+  noEncontrados?: Array<{ destino: string; motivo: string }>;
   /** Explica por qué no hay resultado, en vez de devolver vacío sin más */
   aviso?: string;
 }
