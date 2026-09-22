@@ -1,4 +1,6 @@
+import { ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { EditarTipoServicioDto } from '../dto/edicion.dto.js';
 import type { OplService } from '../../configuracion/tipo-servicio/opl/opl.service.js';
 import type { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
@@ -92,7 +94,9 @@ const editar = (extra: Record<string, unknown>) =>
   ({ opl: '1130', servicio: 'SD', ...extra }) as never;
 
 describe('Editar un tipo de servicio: lo que sí cambia', () => {
-  it('desactiva el servicio sin tocar el checkout ni los cortes', async () => {
+  it('desactivar apaga también el checkout, aunque solo se pida el estado', async () => {
+    // Un servicio inactivo que sigue ofreciéndose en el checkout es un estado
+    // que nadie pide a propósito: el cliente lo elige y no hay quien lo despache
     const { servicio, actualizarServicio } = armar();
 
     await servicio.editar(USUARIO, editar({ activo: false }));
@@ -104,10 +108,36 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
         mainZone: 'z-1',
         mainSchedule: 'a-1',
         isActive: false,
-        enabledForCheckout: undefined,
+        enabledForCheckout: false,
         cortes: undefined,
       }),
     );
+  });
+
+  it('y quitarlo del checkout también lo desactiva', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    await servicio.editar(USUARIO, editar({ enCheckout: false }));
+
+    expect(actualizarServicio.mock.calls[0][1]).toMatchObject({
+      isActive: false,
+      enabledForCheckout: false,
+    });
+  });
+
+  it('pero activar NO es simétrico: solo toca lo que se pide', async () => {
+    // Activar un servicio para revisarlo antes de ofrecerlo es una operación
+    // real, así que encender el estado no lo mete en el checkout solo
+    const { servicio, actualizarServicio } = armar({
+      servicios: [{ ...SERVICIOS[1], code: 'SD', idServicio: 's-sd' }],
+    });
+
+    await servicio.editar(USUARIO, editar({ activo: true }));
+
+    expect(actualizarServicio.mock.calls[0][1]).toMatchObject({
+      isActive: true,
+      enabledForCheckout: undefined,
+    });
   });
 
   it('traduce el día a su número y manda solo ese corte', async () => {
@@ -138,7 +168,10 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
 
     const r = await servicio.editar(USUARIO, editar({ activo: false }));
 
-    expect(r.antes.cortes).toEqual(['Lunes 23:30', 'Jueves 23:30']);
+    expect(r.servicios[0].antes?.cortes).toEqual([
+      'Lunes 23:30',
+      'Jueves 23:30',
+    ]);
     expect(r.opl).toBe('1130 - Olva');
     expect(r.agenda).toBe('Agenda DT');
   });
@@ -243,16 +276,168 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
   });
 });
 
+/**
+ * Varios servicios en una llamada.
+ *
+ * "Desactiva el SD y el ST de Olva" es una decisión, no dos. Confirmarla
+ * servicio por servicio convertía una frase en cuatro turnos de chat.
+ */
+describe('Editar un tipo de servicio: varios de una vez', () => {
+  it('cambia los dos y devuelve uno por cada uno', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ servicio: 'SD, ST', activo: false }),
+    );
+
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
+
+    // El ST ya estaba inactivo y fuera del checkout: se anota, no se escribe
+    expect(r.servicios[1].error).toMatch(/Ya estaba así/);
+    expect(actualizarServicio).toHaveBeenCalledOnce();
+  });
+
+  it('la lista viene igual aunque se pida uno solo', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.editar(USUARIO, editar({ activo: false }));
+
+    expect(r.servicios).toHaveLength(1);
+    expect(r.resumen.pedidos).toBe(1);
+  });
+
+  it('uno que no existe no arrastra a los demás', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ servicio: 'SD, ZZ', activo: false }),
+    );
+
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
+    expect(r.servicios[1].error).toMatch(/no tiene este servicio/);
+    expect(r.servicios[1].antes).toBeNull();
+    expect(actualizarServicio).toHaveBeenCalledOnce();
+  });
+
+  it('si ninguno existe, es un 404 y no se escribe nada', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    await expect(
+      servicio.editar(USUARIO, editar({ servicio: 'ZZ, YY', activo: false })),
+    ).rejects.toThrow(/Ninguno de los 2 servicios existe/);
+
+    expect(actualizarServicio).not.toHaveBeenCalled();
+  });
+
+  it('una hora de corte se cambia de uno en uno', async () => {
+    // La hora no tiene por qué ser la misma en todos los servicios
+    const { servicio, actualizarServicio } = armar();
+
+    await expect(
+      servicio.editar(
+        USUARIO,
+        editar({ servicio: 'SD, ST', dia: 'jueves', corte: '17:00' }),
+      ),
+    ).rejects.toThrow(/un servicio por vez/);
+
+    expect(actualizarServicio).not.toHaveBeenCalled();
+  });
+
+  it('un servicio repetido se escribe una sola vez', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ servicio: 'SD, sd', activo: false }),
+    );
+
+    expect(r.servicios).toHaveLength(1);
+    expect(actualizarServicio).toHaveBeenCalledOnce();
+  });
+});
+
 describe('Editar un tipo de servicio: el historial', () => {
   it('guarda el antes y el después del servicio', async () => {
     const { servicio, registrarCambio } = armar();
 
     await servicio.editar(USUARIO, editar({ activo: false }));
 
-    const [antes] = registrarCambio.mock.calls[0];
+    const [antes] = registrarCambio.mock.calls[0] as [
+      { agenda: string; servicios: Array<{ activo: boolean }> },
+    ];
 
-    expect(antes).toEqual(
-      expect.objectContaining({ servicio: 'SD', activo: true }),
+    // Se guarda el conjunto, no el último servicio tocado
+    expect(antes.agenda).toBe('Agenda DT');
+    expect(antes.servicios[0].activo).toBe(true);
+  });
+});
+
+describe('Editar un tipo de servicio: lo que llega tras validar', () => {
+  const pipe = new ValidationPipe({ whitelist: true, transform: true });
+  const meta = {
+    type: 'body' as const,
+    metatype: EditarTipoServicioDto,
+    data: '',
+  };
+
+  const validar = (cuerpo: Record<string, unknown>) =>
+    pipe.transform(cuerpo, meta) as Promise<EditarTipoServicioDto>;
+
+  /** Un cuerpo como el que arma n8n: todos los campos, vacíos los que no usó */
+  const comoN8n = (relleno: Record<string, unknown>) => ({
+    opl: '1130',
+    servicio: 'DT',
+    zona: '',
+    agenda: '',
+    activo: '',
+    enCheckout: '',
+    dia: '',
+    corte: '',
+    pais: 'PE',
+    ...relleno,
+  });
+
+  /**
+   * El caso que rompió en producción: desactivar un servicio no lleva hora de
+   * corte, pero n8n manda `corte: ''` igualmente y el formato HH:MM lo
+   * rechazaba. El cambio no se llegaba a intentar.
+   */
+  it('un corte vacío no dispara el formato HH:MM', async () => {
+    const dto = await validar(
+      comoN8n({ activo: 'false', enCheckout: 'false' }),
     );
+
+    expect(dto.corte).toBeUndefined();
+    expect(dto.dia).toBeUndefined();
+    expect(dto.activo).toBe(false);
+    expect(dto.enCheckout).toBe(false);
+  });
+
+  it('y una hora mal escrita sí se sigue rechazando', async () => {
+    const motivos = await validar(
+      comoN8n({ dia: 'jueves', corte: '25:99' }),
+    ).then(
+      () => [] as string[],
+      (e: { response?: { message?: string[] } }) => e.response?.message ?? [],
+    );
+
+    expect(motivos.join(' ')).toMatch(/formato HH:MM/);
+  });
+
+  it('una hora buena pasa tal cual', async () => {
+    const dto = await validar(comoN8n({ dia: 'jueves', corte: '17:00' }));
+
+    expect(dto.corte).toBe('17:00');
+    expect(dto.dia).toBe('jueves');
+  });
+
+  it('los filtros vacíos llegan como ausentes', async () => {
+    const dto = await validar(comoN8n({ activo: 'false' }));
+
+    expect(dto.zona).toBeUndefined();
+    expect(dto.agenda).toBeUndefined();
+    expect(dto.enCheckout).toBeUndefined();
   });
 });

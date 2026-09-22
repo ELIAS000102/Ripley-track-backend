@@ -15,6 +15,7 @@ import {
   soloFecha,
   sumarDias,
 } from '../../common/ripley/utils/date.util.js';
+import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { EditarCapacidadDto } from '../dto/edicion.dto.js';
 import type {
@@ -100,6 +101,12 @@ export class EditarCapacidadAgenteService {
       throw new BadRequestException(
         'No hay nada que cambiar: indica "asignado", "activa" o las dos.',
       );
+    }
+
+    // En despacho el código es un operador, y "90 min" es el 1130. En picking
+    // es un almacén: otro catálogo, donde el alias no significa nada.
+    if (dto.tipo === 'despacho') {
+      dto = { ...dto, codigo: resolverAliasOpl(dto.codigo) };
     }
 
     const fechas = this.diasDelRango(dto, pais);

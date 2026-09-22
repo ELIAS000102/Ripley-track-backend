@@ -44,6 +44,22 @@ function aNumero(value: unknown): unknown {
   return Number.isNaN(numero) ? value : numero;
 }
 
+/**
+ * Y lo mismo con el texto: `''` es "no lo estoy indicando".
+ *
+ * Es el que faltaba, y se notó. `@IsOptional()` de class-validator solo se
+ * salta la validación cuando el valor es `undefined` o `null` — **el vacío sí
+ * la pasa**, así que el `corte: ''` que manda n8n al desactivar un servicio
+ * chocaba contra el formato HH:MM y tumbaba la petición entera por un campo
+ * que nadie había rellenado.
+ */
+function aTexto(value: unknown): string | undefined {
+  if (typeof value !== 'string') return value as undefined;
+
+  const limpio = value.trim();
+  return limpio === '' ? undefined : limpio;
+}
+
 /** Tope de días de preparación o tránsito: más es un dedazo */
 const DIAS_MAXIMOS = 60;
 
@@ -77,11 +93,13 @@ export class EditarCapacidadDto extends PaisDto {
 
   /** Picking: tipo de servicio de la agenda ("S", "ST", "RC") */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   servicio?: string;
 
   /** Despacho: nombre de la zona; admite coincidencia parcial */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   zona?: string;
 
@@ -94,6 +112,7 @@ export class EditarCapacidadDto extends PaisDto {
    * "NO FUNCIONAL"—, y sin este campo no había forma de desempatarlas.
    */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   agenda?: string;
 
@@ -112,9 +131,7 @@ export class EditarCapacidadDto extends PaisDto {
    * convertía en cuatro idas y venidas y el usuario abandonaba a mitad.
    */
   @IsOptional()
-  @Transform(({ value }) =>
-    value === '' || value === null ? undefined : value,
-  )
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'hasta debe tener el formato YYYY-MM-DD',
@@ -187,11 +204,13 @@ export class EditarTipoServicioDto extends PaisDto {
 
   /** Nombre de la zona; admite coincidencia parcial */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   zona?: string;
 
   /** Nombre de la agenda; admite coincidencia parcial */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   agenda?: string;
 
@@ -214,11 +233,13 @@ export class EditarTipoServicioDto extends PaisDto {
    * cosa que nadie revisa entera. Los días que no se nombran conservan su hora.
    */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   dia?: string;
 
   /** La hora de corte nueva para ese día, en HH:MM de 24 horas */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, {
     message: 'corte debe tener el formato HH:MM en 24 horas',
@@ -255,6 +276,7 @@ export class EditarMasivoDto extends PaisDto {
    * Código del método de entrega. No hace falta: lo determina el servicio.
    */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   metodo?: string;
 
@@ -265,11 +287,13 @@ export class EditarMasivoDto extends PaisDto {
    * hace falta declarar a conciencia.
    */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   opls?: string;
 
   /** Orígenes de stock separados por coma. Si se omite, todos. */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   origenes?: string;
 
@@ -318,7 +342,14 @@ export class EditarTransferenciaDto extends PaisDto {
   @IsNotEmpty()
   origen: string;
 
-  /** Código o nombre del almacén que RECIBE */
+  /**
+   * Código o nombre del almacén que RECIBE. Admite varios por coma.
+   *
+   * "Sube el desfase de la 20021 y la 20022 a 4 días" es una decisión, no dos:
+   * pedir una confirmación por destino convierte una frase en una conversación
+   * y el usuario abandona a mitad. El backend los resuelve todos antes de
+   * escribir ninguno.
+   */
   @IsString()
   @IsNotEmpty()
   destino: string;
@@ -356,6 +387,7 @@ export class EditarTransferenciaDto extends PaisDto {
    * "ninguno" valen. Omitirlo deja los días como están.
    */
   @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
   dias?: string;
 }

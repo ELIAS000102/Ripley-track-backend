@@ -108,9 +108,9 @@ describe('Editar una transferencia: lo que sí cambia', () => {
       editar({ preparacion: 2, transito: 4 }),
     );
 
-    expect(r.antes.desfase).toBe(3);
+    expect(r.destinos[0].antes?.desfase).toBe(3);
     expect(r.origen).toBe('20026 - CD Villa El Salvador');
-    expect(r.destino).toBe('20021 - Chorrillos');
+    expect(r.destinos[0].destino).toBe('20021 - Chorrillos');
   });
 
   it('fija los días nombrados y apaga el resto', async () => {
@@ -238,14 +238,16 @@ describe('Editar una transferencia: el historial', () => {
 
     await servicio.editar(USUARIO, editar({ transito: 5 }));
 
-    const [antes, despues] = registrarCambio.mock.calls[0];
+    const [antes, despues] = registrarCambio.mock.calls[0] as [
+      { origen: string; destinos: Array<{ transito: number }> },
+      { origen: string; destinos: Array<{ transito: number }> },
+    ];
 
-    expect(antes).toEqual(
-      expect.objectContaining({ destino: '20021 - Chorrillos', transito: 2 }),
-    );
-    expect(despues).toEqual(
-      expect.objectContaining({ destino: '20021 - Chorrillos' }),
-    );
+    // Se guarda el conjunto, no el último destino: una fila que solo dijera
+    // cuál fue el último no serviría para deshacer nada
+    expect(antes.origen).toBe('20026');
+    expect(antes.destinos[0].transito).toBe(2);
+    expect(despues.destinos).toHaveLength(1);
   });
 });
 
@@ -263,5 +265,104 @@ describe('Editar una transferencia: tipos de error', () => {
     await expect(
       servicio.editar(USUARIO, editar({ destino: 'nada', habilitada: false })),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+/**
+ * Varios destinos en una llamada.
+ *
+ * "Sube el desfase de la 20021 y la 1121 a cuatro días" es una decisión, no
+ * dos. Confirmarla destino por destino era lo que hacía que una frase se
+ * convirtiera en una conversación de cuatro turnos.
+ */
+describe('Editar una transferencia: varios destinos de una vez', () => {
+  it('cambia los dos y devuelve uno por cada uno', async () => {
+    const { servicio, actualizarRelacion } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ destino: '20021, 1121', transito: 7 }),
+    );
+
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 2, sinCambiar: 0 });
+    expect(r.destinos.map((d) => d.destino)).toEqual([
+      '20021 - Chorrillos',
+      '1121 - Suc. Chorrillos',
+    ]);
+    expect(actualizarRelacion).toHaveBeenCalledTimes(2);
+  });
+
+  it('la lista viene igual aunque se pida uno solo', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.editar(USUARIO, editar({ transito: 7 }));
+
+    // Una sola forma que interpretar, vengan uno o cinco
+    expect(r.destinos).toHaveLength(1);
+    expect(r.resumen.pedidos).toBe(1);
+  });
+
+  it('uno que falla no arrastra a los demás', async () => {
+    const { servicio, actualizarRelacion } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ destino: '20021, inexistente', transito: 7 }),
+    );
+
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
+    expect(r.destinos[1].error).toMatch(/no tiene ninguna relación/);
+    expect(r.destinos[1].antes).toBeNull();
+
+    // El que sí se pudo, se escribió
+    expect(actualizarRelacion).toHaveBeenCalledOnce();
+  });
+
+  it('uno que ya estaba así se anota y no se escribe', async () => {
+    const { servicio, actualizarRelacion } = armar();
+
+    // La 1121 ya está deshabilitada; la 20021 no
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ destino: '20021, 1121', habilitada: false }),
+    );
+
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
+    expect(r.destinos[1].error).toMatch(/Ya estaba así/);
+    expect(actualizarRelacion).toHaveBeenCalledOnce();
+  });
+
+  it('si ninguno cambia, es un error y no se escribe nada', async () => {
+    const { servicio, actualizarRelacion } = armar();
+
+    await expect(
+      servicio.editar(USUARIO, editar({ destino: '20021', habilitada: true })),
+    ).rejects.toThrow(/ya está así/);
+
+    expect(actualizarRelacion).not.toHaveBeenCalled();
+  });
+
+  it('un destino repetido se escribe una sola vez', async () => {
+    const { servicio, actualizarRelacion } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ destino: '20021, 20021', transito: 7 }),
+    );
+
+    expect(r.destinos).toHaveLength(1);
+    expect(actualizarRelacion).toHaveBeenCalledOnce();
+  });
+
+  it('hay tope de destinos por llamada', async () => {
+    const { servicio, actualizarRelacion } = armar();
+
+    const muchos = Array.from({ length: 16 }, (_, i) => `d${i}`).join(', ');
+
+    await expect(
+      servicio.editar(USUARIO, editar({ destino: muchos, transito: 7 })),
+    ).rejects.toThrow(/máximo por vez es 15/);
+
+    expect(actualizarRelacion).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,10 @@ import {
   ripleyDateToIso,
   soloFecha,
 } from '../../common/ripley/utils/date.util.js';
+import {
+  aliasUsado,
+  resolverAliasOpl,
+} from '../constantes/alias-opl.constants.js';
 import { ConsultarCapacidadDto } from '../dto/consultas.dto.js';
 import type {
   AgendaCapacidad,
@@ -43,6 +47,14 @@ export class CapacidadAgenteService {
     const desde = dto.desde ?? hoyEnPais(pais);
     const dias = dto.dias ?? 7;
 
+    // En despacho el código es un operador, y ahí "90 min" es el 1130. En
+    // picking es un almacén y el alias no aplica: son catálogos distintos.
+    const alias = dto.tipo === 'despacho' ? aliasUsado(dto.codigo) : undefined;
+
+    if (alias) {
+      dto = { ...dto, codigo: resolverAliasOpl(dto.codigo) };
+    }
+
     this.logger.log(
       `Agente consultando ${dto.tipo} de ${dto.codigo} desde ${desde} (${pais})`,
     );
@@ -57,7 +69,9 @@ export class CapacidadAgenteService {
     return {
       tipo: dto.tipo,
       pais,
-      oficina: dto.codigo,
+      // Quien preguntó por "el 90 min" tiene que reconocer de qué operador se
+      // le habla, así que se devuelven los dos
+      oficina: alias ? `${dto.codigo} (${alias})` : dto.codigo,
       desde,
       agendas,
       sinDatos,

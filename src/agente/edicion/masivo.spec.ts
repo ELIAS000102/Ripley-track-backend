@@ -24,8 +24,14 @@ const CATALOGO = [
   },
 ];
 
-/** Genera n agendas, activas por defecto */
-const agendas = (n: number, activa = true) =>
+/**
+ * Genera n agendas, activas por defecto.
+ *
+ * El checkout acompaña al estado salvo que se diga lo contrario, porque es el
+ * estado coherente: una agenda apagada que sigue en el checkout es justo la
+ * incoherencia que la regla de "apagar es apagar del todo" existe para evitar.
+ */
+const agendas = (n: number, activa = true, checkout = activa) =>
   Array.from({ length: n }, (_, i) => ({
     mainRouteId: `r-${i}`,
     opl: i % 2 === 0 ? 'Olva' : 'Urbano',
@@ -33,7 +39,7 @@ const agendas = (n: number, activa = true) =>
     zona: 'Lima',
     typeOfService: 'SE',
     isActive: activa,
-    enabledForCheckout: true,
+    enabledForCheckout: checkout,
   }));
 
 function armar(lista = agendas(3)) {
@@ -101,6 +107,24 @@ describe('Cambio en bloque: lo que sí hace', () => {
     expect(actualizar.mock.calls[0][0].cambios).toHaveLength(2);
   });
 
+  it('varios operadores en una sola llamada', async () => {
+    // "Activa el SE en Olva y Urbano" es una confirmación, no dos
+    const { servicio, actualizar } = armar([
+      ...agendas(2),
+      { ...agendas(1)[0], mainRouteId: 'r-otro', opl: 'Shalom' },
+    ]);
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ activo: false, opls: 'Olva, Urbano' }),
+    );
+
+    expect(r.resumen.alcanzadas).toBe(2);
+    expect(r.opls).toBe('Olva, Urbano');
+    expect(actualizar).toHaveBeenCalledOnce();
+    expect(actualizar.mock.calls[0][0].cambios).toHaveLength(2);
+  });
+
   it('deja claro cuándo fueron todos los operadores', async () => {
     const { servicio } = armar();
 
@@ -135,6 +159,57 @@ describe('Cambio en bloque: lo que sí hace', () => {
     await servicio.editar(USUARIO, editar({ activo: false }));
 
     expect(actualizar.mock.calls[0][0].deliveryCode).toBe('RT');
+  });
+});
+
+/**
+ * Apagar es apagar del todo, igual que al editar un servicio suelto.
+ *
+ * Que "desactivar" signifique una cosa en bloque y otra de uno en uno es la
+ * clase de diferencia que nadie recuerda en el momento de pedirlo.
+ */
+describe('Cambio en bloque: desactivar apaga también el checkout', () => {
+  it('aunque solo se pida el estado', async () => {
+    const { servicio, actualizar } = armar();
+
+    await servicio.editar(USUARIO, editar({ activo: false }));
+
+    expect(actualizar.mock.calls[0][0].cambios[0]).toMatchObject({
+      isActive: false,
+      enabledForCheckout: false,
+    });
+  });
+
+  it('y aunque solo se pida el checkout', async () => {
+    const { servicio, actualizar } = armar();
+
+    await servicio.editar(USUARIO, editar({ enCheckout: false }));
+
+    expect(actualizar.mock.calls[0][0].cambios[0]).toMatchObject({
+      isActive: false,
+      enabledForCheckout: false,
+    });
+  });
+
+  it('alcanza a las que están a medias, aunque el estado ya coincida', async () => {
+    // Inactivas pero todavía en el checkout: siguen siendo un cambio pendiente
+    const { servicio, actualizar } = armar(agendas(3, false, true));
+
+    const r = await servicio.editar(USUARIO, editar({ activo: false }));
+
+    expect(r.resumen.cambiadas).toBe(3);
+    expect(actualizar.mock.calls[0][0].cambios).toHaveLength(3);
+  });
+
+  it('pero activar NO es simétrico: solo toca lo que se pide', async () => {
+    const { servicio, actualizar } = armar(agendas(3, false, false));
+
+    await servicio.editar(USUARIO, editar({ activo: true }));
+
+    expect(actualizar.mock.calls[0][0].cambios[0]).toMatchObject({
+      isActive: true,
+      enabledForCheckout: undefined,
+    });
   });
 });
 

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,7 +11,18 @@ import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { EditarTransferenciaDto } from '../dto/edicion.dto.js';
-import type { TransferenciaEditada } from '../interfaces/edicion.interface.js';
+import type {
+  DestinoEditado,
+  TransferenciaEditada,
+} from '../interfaces/edicion.interface.js';
+
+/**
+ * Tope de destinos por llamada.
+ *
+ * No es un límite técnico: es hasta dónde llega una lista que alguien pueda
+ * repasar en el chat antes de decir que sí. Por encima, se hace en tandas.
+ */
+const DESTINOS_MAXIMOS = 15;
 
 /** Los siete días, con las formas en que una persona los escribe */
 const DIAS: ReadonlyArray<[clave: keyof DiasDisponibles, nombres: string[]]> = [
@@ -68,48 +80,139 @@ export class EditarTransferenciaAgenteService {
       );
     }
 
+    const pedidos = this.destinosPedidos(dto.destino);
+
     const origen = await this.resolverOrigen(dto.origen, pais);
     const { relaciones } = await this.transf.listarRelaciones(origen.id, pais);
-    const relacion = this.unicoDestino(relaciones, dto.destino, origen);
-
-    const antes = this.estado(relacion);
-    this.exigirAlgunCambio(dto, dias, antes, relacion.availableDays);
 
     this.logger.warn(
-      `EDICIÓN del agente — ${usuario.email} cambia la transferencia ` +
-        `${origen.code} → ${relacion.destino}`,
+      `EDICIÓN del agente — ${usuario.email} cambia ${pedidos.length} ` +
+        `transferencia(s) desde ${origen.code}`,
     );
 
-    await this.transf.actualizarRelacion({
-      warehouseId: origen.id,
-      relacionId: relacion.relacionId,
-      pais,
-      canTransfer: dto.habilitada,
-      preTransferPeriod: dto.preparacion,
-      transferPeriod: dto.transito,
-      availableDays: dias,
+    // Se resuelven todos antes de escribir ninguno: si un destino está mal
+    // escrito, es mejor saberlo antes de haber tocado la mitad de la lista
+    const resueltos = pedidos.map((termino) => {
+      try {
+        const relacion = this.unicoDestino(relaciones, termino, origen);
+        const antes = this.estado(relacion);
+
+        return {
+          termino,
+          relacion,
+          antes,
+          cambia: this.hayCambio(dto, dias, antes, relacion.availableDays),
+        };
+      } catch (error) {
+        return { termino, error: this.motivo(error), original: error };
+      }
     });
 
-    // Se relee para contar lo que quedó, no lo que se pidió
+    const porEscribir = resueltos.filter((r) => r.relacion && r.cambia);
+
+    this.exigirAlgunCambio(resueltos, porEscribir);
+
+    for (const r of porEscribir) {
+      await this.transf.actualizarRelacion({
+        warehouseId: origen.id,
+        relacionId: r.relacion!.relacionId,
+        pais,
+        canTransfer: dto.habilitada,
+        preTransferPeriod: dto.preparacion,
+        transferPeriod: dto.transito,
+        availableDays: dias,
+      });
+    }
+
+    // Se relee UNA vez para contar lo que quedó, no lo que se pidió
     const { relaciones: despues } = await this.transf.listarRelaciones(
       origen.id,
       pais,
     );
-    const nueva = despues.find((r) => r.relacionId === relacion.relacionId);
 
-    const resultado = {
-      origen: `${origen.code} - ${origen.nombre}`,
-      destino: relacion.destino ?? 'sin nombre',
-      antes,
-      despues: nueva ? this.estado(nueva) : antes,
-    };
+    const destinos: DestinoEditado[] = resueltos.map((r) => {
+      if (!r.relacion) {
+        return {
+          destino: r.termino,
+          antes: null,
+          despues: null,
+          error: r.error,
+        };
+      }
+
+      const nueva = despues.find(
+        (x) => x.relacionId === r.relacion!.relacionId,
+      );
+      const etiqueta = r.relacion.destino ?? 'sin nombre';
+
+      return {
+        destino: etiqueta,
+        antes: r.antes!,
+        despues: nueva ? this.estado(nueva) : r.antes!,
+        ...(r.cambia
+          ? {}
+          : { error: 'Ya estaba así. No he cambiado nada aquí.' }),
+      };
+    });
+
+    const cambiados = destinos.filter((d) => !d.error).length;
 
     this.auditoria.registrarCambio(
-      { destino: resultado.destino, ...antes },
-      { destino: resultado.destino, ...resultado.despues },
+      { origen: origen.code, destinos: destinos.map((d) => d.antes) },
+      { origen: origen.code, destinos: destinos.map((d) => d.despues) },
     );
 
-    return { contexto, ...resultado };
+    return {
+      contexto,
+      origen: `${origen.code} - ${origen.nombre}`,
+      destinos,
+      resumen: {
+        pedidos: destinos.length,
+        cambiados,
+        sinCambiar: destinos.length - cambiados,
+      },
+    };
+  }
+
+  /**
+   * Los destinos de una petición, que pueden ser uno o varios.
+   *
+   * Llegan por coma porque es como los escribe una persona y como los manda
+   * n8n. "Sube el desfase de la 20021 y la 20022 a 4 días" es una decisión, no
+   * dos: pedir una confirmación por destino convierte una frase en una
+   * conversación y el usuario abandona a mitad.
+   */
+  private destinosPedidos(destino: string): string[] {
+    const lista = destino
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean);
+
+    if (!lista.length) {
+      throw new BadRequestException('Indica al menos un destino.');
+    }
+
+    // Un mismo destino repetido se escribiría dos veces sin que sirva de nada
+    const unicos = [...new Set(lista.map((d) => d.toLowerCase()))];
+
+    if (unicos.length > DESTINOS_MAXIMOS) {
+      throw new BadRequestException(
+        `Son ${unicos.length} destinos y el máximo por vez es ${DESTINOS_MAXIMOS}. ` +
+          `Hazlo en tandas, o desde el panel.`,
+      );
+    }
+
+    return lista.filter(
+      (d, i) =>
+        lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i,
+    );
+  }
+
+  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
+  private motivo(error: unknown): string {
+    return error instanceof HttpException
+      ? (error.getResponse() as { message?: string }).message || error.message
+      : 'No se pudo resolver este destino';
   }
 
   // ---------- Quién es quién ----------
@@ -258,25 +361,60 @@ export class EditarTransferenciaAgenteService {
     return activos.join(', ');
   }
 
-  private exigirAlgunCambio(
+  /** ¿Esta relación cambia de verdad con lo que se pide? */
+  private hayCambio(
     dto: EditarTransferenciaDto,
     dias: DiasDisponibles | undefined,
     antes: { habilitada: boolean; preparacion: number; transito: number },
     diasActuales?: DiasDisponibles,
-  ): void {
-    const cambia =
+  ): boolean {
+    return (
       (dto.habilitada !== undefined && dto.habilitada !== antes.habilitada) ||
       (dto.preparacion !== undefined &&
         dto.preparacion !== antes.preparacion) ||
       (dto.transito !== undefined && dto.transito !== antes.transito) ||
       (!!dias &&
-        DIAS.some(([clave]) => !!dias[clave] !== !!diasActuales?.[clave]));
+        DIAS.some(([clave]) => !!dias[clave] !== !!diasActuales?.[clave]))
+    );
+  }
 
-    if (cambia) return;
+  /**
+   * Un destino que falla no arrastra a los demás; que fallen todos sí es un
+   * error.
+   *
+   * Es el mismo criterio que el rango de días en capacidad: responder "listo"
+   * cuando no se cambió nada es la única forma de que alguien se quede
+   * pensando que sí.
+   */
+  private exigirAlgunCambio(
+    resueltos: Array<{
+      termino: string;
+      error?: string;
+      original?: unknown;
+      cambia?: boolean;
+    }>,
+    porEscribir: unknown[],
+  ): void {
+    if (porEscribir.length) return;
+
+    const fallidos = resueltos.filter((r) => r.error);
+
+    if (fallidos.length === resueltos.length) {
+      // Con un solo destino se relanza su error tal cual: un destino ambiguo
+      // es un 400 y uno que no existe es un 404, y esa diferencia le dice al
+      // agente si tiene que preguntar o si tiene que rendirse
+      if (fallidos.length === 1) throw fallidos[0].original;
+
+      throw new NotFoundException(
+        `Ninguno de los ${fallidos.length} destinos se pudo resolver: ` +
+          fallidos.map((f) => `${f.termino} (${f.error})`).join('; '),
+      );
+    }
 
     throw new BadRequestException(
-      `La relación ya está así (${antes.habilitada ? 'habilitada' : 'deshabilitada'}, ` +
-        `${antes.preparacion} de preparación y ${antes.transito} de tránsito). No he cambiado nada.`,
+      resueltos.length === 1
+        ? 'La relación ya está así. No he cambiado nada.'
+        : `Los ${resueltos.length} destinos ya estaban así. No he cambiado nada.`,
     );
   }
 }

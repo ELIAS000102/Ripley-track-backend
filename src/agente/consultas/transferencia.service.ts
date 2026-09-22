@@ -1,9 +1,17 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { TransfService } from '../../configuracion/transf-suc/transf.service.js';
 import type { DiasDisponibles } from '../../configuracion/transf-suc/interfaces/transf.interface.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../contexto.service.js';
-import { ConsultarTransferenciaDto } from '../dto/consultas.dto.js';
+import {
+  ConsultarTransferenciaDto,
+  ORIGEN_POR_DEFECTO,
+} from '../dto/consultas.dto.js';
 import type {
   Transferencia,
   TransferenciaRespuesta,
@@ -50,11 +58,13 @@ export class TransferenciaAgenteService {
   ): Promise<TransferenciaRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
 
+    const pedido = this.resolverPedido(dto);
+
     this.logger.log(
-      `Agente consultando transferencia ${dto.origen} → ${dto.destino ?? 'todos'}`,
+      `Agente consultando transferencia ${pedido} → ${dto.destino ?? 'todos'}`,
     );
 
-    const origen = await this.resolverOrigen(dto.origen, contexto.pais);
+    const origen = await this.resolverOrigen(pedido, contexto.pais);
     const { relaciones } = await this.transf.listarRelaciones(
       origen.id,
       contexto.pais,
@@ -85,6 +95,30 @@ export class TransferenciaAgenteService {
       contexto,
       aviso: `El origen ${etiquetaOrigen} no tiene ninguna relación configurada con "${dto.destino}". No es lo mismo que estar deshabilitada: simplemente no existe la relación.`,
     };
+  }
+
+  /**
+   * De dónde sale el stock, y cuándo se puede dar por supuesto.
+   *
+   * Sin origen ni destino, la pregunta es "¿qué transferencias hay?" y el 20026
+   * es la respuesta que se espera: es de donde se transfiere casi siempre.
+   *
+   * Con destino pero sin origen no se supone nada. "¿Cuál es el desfase a
+   * Chorrillos?" tiene una respuesta distinta por cada almacén del que pueda
+   * salir, y devolver la del 20026 como si fuera la única sería contestar otra
+   * pregunta sin decirlo.
+   */
+  private resolverPedido(dto: ConsultarTransferenciaDto): string {
+    if (dto.origen) return dto.origen;
+
+    if (dto.destino) {
+      throw new BadRequestException(
+        `Falta el origen: "${dto.destino}" es el destino, pero el desfase depende de ` +
+          `desde qué almacén sale el stock. Pregunta al usuario cuál es el origen.`,
+      );
+    }
+
+    return ORIGEN_POR_DEFECTO;
   }
 
   /** El origen es la fuente de stock: de aquí cuelgan todas las relaciones */

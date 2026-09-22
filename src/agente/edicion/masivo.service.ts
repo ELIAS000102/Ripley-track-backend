@@ -49,6 +49,11 @@ export class EditarMasivoAgenteService {
       );
     }
 
+    // Apagar es apagar del todo, igual que al editar un servicio suelto: una
+    // agenda inactiva que sigue ofreciéndose en el checkout deja al cliente
+    // eligiendo algo que luego no hay quien despache
+    const cambio = this.resolverCambio(dto);
+
     const { metodo, servicio } = await this.resolverCodigos(dto, pais);
     const origenes = await this.resolverOrigenes(dto.origenes, pais);
 
@@ -60,13 +65,13 @@ export class EditarMasivoAgenteService {
     });
 
     const alcanzadas = this.acotar(agendas, dto);
-    const porCambiar = alcanzadas.filter((a) => this.cambiaAlgo(a, dto));
+    const porCambiar = alcanzadas.filter((a) => this.cambiaAlgo(a, cambio));
 
     this.exigirCantidadRevisable(alcanzadas, porCambiar, dto);
 
     this.logger.warn(
       `EDICIÓN MASIVA del agente — ${usuario.email} cambia ${porCambiar.length} agenda(s) ` +
-        `del servicio ${servicio} (activo: ${dto.activo ?? 'igual'}, checkout: ${dto.enCheckout ?? 'igual'})`,
+        `del servicio ${servicio} (activo: ${cambio.activo ?? 'igual'}, checkout: ${cambio.enCheckout ?? 'igual'})`,
     );
 
     await this.masivo.actualizar({
@@ -76,8 +81,8 @@ export class EditarMasivoAgenteService {
       pais,
       cambios: porCambiar.map((a) => ({
         mainRouteId: a.mainRouteId,
-        isActive: dto.activo,
-        enabledForCheckout: dto.enCheckout,
+        isActive: cambio.activo,
+        enabledForCheckout: cambio.enCheckout,
       })),
     });
 
@@ -90,8 +95,8 @@ export class EditarMasivoAgenteService {
         enCheckout: a.enabledForCheckout === true,
       },
       despues: {
-        activo: dto.activo ?? a.isActive === true,
-        enCheckout: dto.enCheckout ?? a.enabledForCheckout === true,
+        activo: cambio.activo ?? a.isActive === true,
+        enCheckout: cambio.enCheckout ?? a.enabledForCheckout === true,
       },
     }));
 
@@ -136,16 +141,40 @@ export class EditarMasivoAgenteService {
     });
   }
 
+  /**
+   * Qué se cambia de verdad, con la regla de que **apagar es apagar del todo**.
+   *
+   * Es la misma de la edición de un servicio suelto, y tiene que serlo: que
+   * desactivar signifique una cosa en bloque y otra de uno en uno es la clase
+   * de diferencia que nadie recuerda al pedirlo.
+   *
+   * Encender no es simétrico a propósito: activar unas agendas para revisarlas
+   * antes de ofrecerlas es una operación real.
+   */
+  private resolverCambio(dto: EditarMasivoDto): {
+    activo?: boolean;
+    enCheckout?: boolean;
+  } {
+    const apaga = dto.activo === false || dto.enCheckout === false;
+    const enciende = dto.activo === true || dto.enCheckout === true;
+
+    if (apaga && !enciende) {
+      return { activo: false, enCheckout: false };
+    }
+
+    return { activo: dto.activo, enCheckout: dto.enCheckout };
+  }
+
   /** Una agenda que ya está como se pide no se escribe */
   private cambiaAlgo(
     a: { isActive?: boolean; enabledForCheckout?: boolean },
-    dto: EditarMasivoDto,
+    cambio: { activo?: boolean; enCheckout?: boolean },
   ): boolean {
     const cambiaActivo =
-      dto.activo !== undefined && dto.activo !== (a.isActive === true);
+      cambio.activo !== undefined && cambio.activo !== (a.isActive === true);
     const cambiaCheckout =
-      dto.enCheckout !== undefined &&
-      dto.enCheckout !== (a.enabledForCheckout === true);
+      cambio.enCheckout !== undefined &&
+      cambio.enCheckout !== (a.enabledForCheckout === true);
 
     return cambiaActivo || cambiaCheckout;
   }

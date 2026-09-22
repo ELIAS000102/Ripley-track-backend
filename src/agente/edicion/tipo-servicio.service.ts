@@ -7,9 +7,21 @@ import {
 import { OplService } from '../../configuracion/tipo-servicio/opl/opl.service.js';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { EditarTipoServicioDto } from '../dto/edicion.dto.js';
-import type { TipoServicioEditado } from '../interfaces/edicion.interface.js';
+import type {
+  ServicioEditado,
+  TipoServicioEditado,
+} from '../interfaces/edicion.interface.js';
+
+/**
+ * Tope de servicios por llamada.
+ *
+ * Una agenda no suele tener más de media docena; el tope está para que un
+ * modelo que se lía no mande una lista inventada y la aplique entera.
+ */
+const SERVICIOS_MAXIMOS = 10;
 
 /**
  * Los días de la semana como los nombra una persona y como los numera Ripley.
@@ -65,85 +77,199 @@ export class EditarTipoServicioAgenteService {
     const pais = contexto.pais;
 
     const corte = this.resolverCorte(dto);
+    const cambio = this.resolverCambio(dto);
 
-    if (dto.activo === undefined && dto.enCheckout === undefined && !corte) {
+    if (
+      cambio.activo === undefined &&
+      cambio.enCheckout === undefined &&
+      !corte
+    ) {
       throw new BadRequestException(
         'No hay nada que cambiar: indica "activo", "enCheckout" o un día con su hora de corte.',
       );
     }
 
-    const { operador, zona, agenda } = await this.resolverAgenda(dto, pais);
+    const pedidos = this.serviciosPedidos(dto.servicio, corte);
 
-    const { servicios } = await this.opl.listarServicios({
+    const { operador, zona, agenda } = await this.resolverAgenda(dto, pais);
+    const consulta = {
       courier: operador.id,
       mainZone: zona.mainZone,
       mainSchedule: agenda.mainSchedule,
       pais,
-    });
-
-    const buscado = dto.servicio.trim().toUpperCase();
-    const servicio = servicios.find((s) => s.code?.toUpperCase() === buscado);
-
-    if (!servicio) {
-      throw new NotFoundException(
-        `La agenda "${agenda.nombre}" no tiene el servicio ${dto.servicio}. Los que tiene: ${
-          servicios.map((s) => s.code).join(', ') || 'ninguno'
-        }`,
-      );
-    }
-
-    const antes = {
-      activo: servicio.isActive === true,
-      enCheckout: servicio.enabledForCheckout === true,
-      cortes: this.cortesLegibles(servicio.cortes),
     };
 
-    this.exigirAlgunCambio(dto, corte, antes, servicio.cortes);
+    const { servicios } = await this.opl.listarServicios(consulta);
+
+    // Se resuelven todos antes de escribir ninguno: descubrir a mitad que el
+    // tercer código no existe deja la agenda con dos servicios cambiados
+    const resueltos = pedidos.map((codigo) => {
+      const servicio = servicios.find(
+        (s) => s.code?.toUpperCase() === codigo.toUpperCase(),
+      );
+
+      if (!servicio) {
+        return {
+          codigo,
+          error: `La agenda "${agenda.nombre}" no tiene este servicio. Los que tiene: ${
+            servicios.map((s) => s.code).join(', ') || 'ninguno'
+          }`,
+        };
+      }
+
+      const antes = {
+        activo: servicio.isActive === true,
+        enCheckout: servicio.enabledForCheckout === true,
+        cortes: this.cortesLegibles(servicio.cortes),
+      };
+
+      return {
+        codigo: servicio.code,
+        servicio,
+        antes,
+        cambia: this.hayCambio(cambio, corte, antes, servicio.cortes),
+      };
+    });
+
+    const porEscribir = resueltos.filter((r) => r.servicio && r.cambia);
+
+    this.exigirAlgunCambio(resueltos, porEscribir);
 
     this.logger.warn(
-      `EDICIÓN del agente — ${usuario.email} cambia el servicio ${servicio.code} ` +
-        `del OPL ${operador.code}, agenda "${agenda.nombre}"`,
+      `EDICIÓN del agente — ${usuario.email} cambia ${porEscribir.length} ` +
+        `servicio(s) del OPL ${operador.code}, agenda "${agenda.nombre}"`,
     );
 
-    await this.opl.actualizarServicio(servicio.idServicio, {
-      courier: operador.id,
-      mainZone: zona.mainZone,
-      mainSchedule: agenda.mainSchedule,
-      pais,
-      isActive: dto.activo,
-      enabledForCheckout: dto.enCheckout,
-      cortes: corte ? [corte] : undefined,
+    for (const r of porEscribir) {
+      await this.opl.actualizarServicio(r.servicio!.idServicio, {
+        ...consulta,
+        isActive: cambio.activo,
+        enabledForCheckout: cambio.enCheckout,
+        cortes: corte ? [corte] : undefined,
+      });
+    }
+
+    // Se relee UNA vez para contar lo que quedó, no lo que se pidió
+    const { servicios: despues } = await this.opl.listarServicios(consulta);
+
+    const resultado: ServicioEditado[] = resueltos.map((r) => {
+      if (!r.servicio) {
+        return {
+          servicio: r.codigo,
+          antes: null,
+          despues: null,
+          error: r.error,
+        };
+      }
+
+      const nuevo = despues.find(
+        (s) => s.idServicio === r.servicio!.idServicio,
+      );
+
+      return {
+        servicio: r.codigo,
+        antes: r.antes!,
+        despues: {
+          activo: nuevo?.isActive === true,
+          enCheckout: nuevo?.enabledForCheckout === true,
+          cortes: this.cortesLegibles(nuevo?.cortes),
+        },
+        ...(r.cambia
+          ? {}
+          : { error: 'Ya estaba así. No he cambiado nada aquí.' }),
+      };
     });
 
-    // Se relee para contar lo que quedó, no lo que se pidió
-    const { servicios: despues } = await this.opl.listarServicios({
-      courier: operador.id,
-      mainZone: zona.mainZone,
-      mainSchedule: agenda.mainSchedule,
-      pais,
-    });
+    const cambiados = resultado.filter((s) => !s.error).length;
 
-    const nuevo = despues.find((s) => s.idServicio === servicio.idServicio);
+    this.auditoria.registrarCambio(
+      { agenda: agenda.nombre, servicios: resultado.map((s) => s.antes) },
+      { agenda: agenda.nombre, servicios: resultado.map((s) => s.despues) },
+    );
 
-    const resultado = {
+    return {
+      contexto,
       opl: `${operador.code} - ${operador.nombre}`,
       zona: zona.nombre,
       agenda: agenda.nombre,
-      servicio: servicio.code,
-      antes,
-      despues: {
-        activo: nuevo?.isActive === true,
-        enCheckout: nuevo?.enabledForCheckout === true,
-        cortes: this.cortesLegibles(nuevo?.cortes),
+      servicios: resultado,
+      resumen: {
+        pedidos: resultado.length,
+        cambiados,
+        sinCambiar: resultado.length - cambiados,
       },
     };
+  }
 
-    this.auditoria.registrarCambio(
-      { servicio: servicio.code, agenda: agenda.nombre, ...resultado.antes },
-      { servicio: servicio.code, agenda: agenda.nombre, ...resultado.despues },
+  /**
+   * Qué se cambia de verdad, con la regla de que **apagar es apagar del todo**.
+   *
+   * Un servicio inactivo pero que sigue ofreciéndose en el checkout es un
+   * estado que nadie pide a propósito: el cliente lo elige y luego no hay quien
+   * lo despache. Así que desactivar apaga las dos cosas aunque solo se nombre
+   * una.
+   *
+   * Encender no es simétrico y no debe serlo: activar un servicio para revisarlo
+   * antes de ofrecerlo es una operación real, así que ahí solo se toca lo que se
+   * pide.
+   */
+  private resolverCambio(dto: EditarTipoServicioDto): {
+    activo?: boolean;
+    enCheckout?: boolean;
+  } {
+    const apaga = dto.activo === false || dto.enCheckout === false;
+    const enciende = dto.activo === true || dto.enCheckout === true;
+
+    if (apaga && !enciende) {
+      return { activo: false, enCheckout: false };
+    }
+
+    return { activo: dto.activo, enCheckout: dto.enCheckout };
+  }
+
+  /**
+   * Los servicios de una petición, que pueden ser uno o varios.
+   *
+   * Llegan por coma, como los escribe una persona: "desactiva el SD y el ST de
+   * Olva" es una decisión, no dos. Confirmar servicio por servicio convertía
+   * una frase en cuatro turnos de chat.
+   *
+   * Con hora de corte solo se admite uno, y no por comodidad: la hora es
+   * distinta para cada servicio, y aplicar la misma a varios de golpe es un
+   * cambio que nadie pidió con ese detalle.
+   */
+  private serviciosPedidos(
+    servicio: string,
+    corte?: { id: number; value: string },
+  ): string[] {
+    const lista = servicio
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (!lista.length) {
+      throw new BadRequestException('Indica al menos un servicio.');
+    }
+
+    const unicos = lista.filter(
+      (s, i) =>
+        lista.findIndex((x) => x.toUpperCase() === s.toUpperCase()) === i,
     );
 
-    return { contexto, ...resultado };
+    if (corte && unicos.length > 1) {
+      throw new BadRequestException(
+        `Una hora de corte se cambia en un servicio por vez, y aquí vienen ${unicos.length}. ` +
+          `La hora no tiene por qué ser la misma en todos.`,
+      );
+    }
+
+    if (unicos.length > SERVICIOS_MAXIMOS) {
+      throw new BadRequestException(
+        `Son ${unicos.length} servicios y el máximo por vez es ${SERVICIOS_MAXIMOS}.`,
+      );
+    }
+
+    return unicos;
   }
 
   // ---------- La cadena OPL → zona → agenda ----------
@@ -156,7 +282,10 @@ export class EditarTipoServicioAgenteService {
    * cambiar la configuración de una agenda que nadie nombró.
    */
   private async resolverAgenda(dto: EditarTipoServicioDto, pais: string) {
-    const { opls } = await this.opl.buscarOpl(dto.opl, pais);
+    // "90 min" es como se conoce al 1130; no existe como código ni como nombre
+    const buscado = resolverAliasOpl(dto.opl);
+
+    const { opls } = await this.opl.buscarOpl(buscado, pais);
 
     if (!opls.length) {
       throw new NotFoundException(
@@ -164,7 +293,7 @@ export class EditarTipoServicioAgenteService {
       );
     }
 
-    const operador = opls.find((o) => o.code === dto.opl.trim()) ?? opls[0];
+    const operador = opls.find((o) => o.code === buscado.trim()) ?? opls[0];
 
     const zonas = await this.opl.listarZonas(operador.id, pais);
     const zona = this.unica(
@@ -262,26 +391,52 @@ export class EditarTipoServicioAgenteService {
    * Escribir de todos modos deja una fila en el historial de cambios que no
    * cambió nada, y le hace creer al usuario que hizo algo.
    */
-  private exigirAlgunCambio(
-    dto: EditarTipoServicioDto,
+  /** ¿Este servicio cambia de verdad con lo que se pide? */
+  private hayCambio(
+    cambio: { activo?: boolean; enCheckout?: boolean },
     corte: { id: number; value: string } | undefined,
     antes: { activo: boolean; enCheckout: boolean },
     cortesActuales?: Array<{ id?: number; value?: string }>,
-  ): void {
+  ): boolean {
     const cambiaActivo =
-      dto.activo !== undefined && dto.activo !== antes.activo;
+      cambio.activo !== undefined && cambio.activo !== antes.activo;
     const cambiaCheckout =
-      dto.enCheckout !== undefined && dto.enCheckout !== antes.enCheckout;
+      cambio.enCheckout !== undefined && cambio.enCheckout !== antes.enCheckout;
 
     const actual = cortesActuales?.find((c) => c.id === corte?.id);
     const cambiaCorte = !!corte && actual?.value?.trim() !== corte.value;
 
-    if (cambiaActivo || cambiaCheckout || cambiaCorte) return;
+    return cambiaActivo || cambiaCheckout || cambiaCorte;
+  }
+
+  /**
+   * Uno que falla no arrastra a los demás; que fallen todos sí es un error.
+   *
+   * Mismo criterio que el rango de días en capacidad y que los destinos de una
+   * transferencia: responder "listo" cuando no se cambió nada es la única forma
+   * de que alguien se quede pensando que sí.
+   */
+  private exigirAlgunCambio(
+    resueltos: Array<{ codigo: string; error?: string; cambia?: boolean }>,
+    porEscribir: unknown[],
+  ): void {
+    if (porEscribir.length) return;
+
+    const fallidos = resueltos.filter((r) => r.error);
+
+    if (fallidos.length === resueltos.length) {
+      throw new NotFoundException(
+        fallidos.length === 1
+          ? `La agenda no tiene el servicio ${fallidos[0].codigo}. ${fallidos[0].error}`
+          : `Ninguno de los ${fallidos.length} servicios existe en esta agenda: ` +
+              fallidos.map((f) => f.codigo).join(', '),
+      );
+    }
 
     throw new BadRequestException(
-      `El servicio ya está así (${antes.activo ? 'activo' : 'inactivo'}, ${
-        antes.enCheckout ? 'en checkout' : 'fuera del checkout'
-      }). No he cambiado nada.`,
+      resueltos.length === 1
+        ? 'El servicio ya está así. No he cambiado nada.'
+        : `Los ${resueltos.length} servicios ya estaban así. No he cambiado nada.`,
     );
   }
 }

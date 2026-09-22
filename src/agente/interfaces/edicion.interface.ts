@@ -18,14 +18,30 @@ export interface EstadoServicio {
   cortes: string[];
 }
 
+/** Un servicio de los pedidos, con lo que le pasó */
+export interface ServicioEditado {
+  servicio: string;
+  antes: EstadoServicio | null;
+  despues: EstadoServicio | null;
+  /** Por qué este no se tocó, cuando los demás sí */
+  error?: string;
+}
+
 export interface TipoServicioEditado {
   contexto: ContextoAgente;
   opl: string;
   zona: string;
   agenda: string;
-  servicio: string;
-  antes: EstadoServicio;
-  despues: EstadoServicio;
+  /**
+   * Un elemento por servicio pedido. La lista viene siempre, aunque se haya
+   * pedido uno solo: dos formas que interpretar es una de más.
+   */
+  servicios: ServicioEditado[];
+  resumen: {
+    pedidos: number;
+    cambiados: number;
+    sinCambiar: number;
+  };
 }
 
 // ───────────────────────── Activación masiva ─────────────────────────
@@ -76,11 +92,35 @@ export interface EstadoTransferencia {
   dias: string;
 }
 
+/**
+ * Un destino de los pedidos, con lo que le pasó.
+ *
+ * `antes` y `despues` van a null cuando el destino no se pudo resolver: se
+ * anota el motivo en `error` y los demás siguen. Cambiar el desfase de cinco
+ * tiendas y que la tercera no exista no puede dejar las otras cuatro sin tocar
+ * y sin explicación.
+ */
+export interface DestinoEditado {
+  destino: string;
+  antes: EstadoTransferencia | null;
+  despues: EstadoTransferencia | null;
+  error?: string;
+}
+
 export interface TransferenciaEditada {
   contexto: ContextoAgente;
   /** De dónde SALE el stock */
   origen: string;
-  destino: string;
-  antes: EstadoTransferencia;
-  despues: EstadoTransferencia;
+  /**
+   * Un elemento por destino pedido, en el orden en que se pidieron.
+   *
+   * La lista viene siempre, aunque se haya pedido un solo destino: así el
+   * agente no tiene dos formas que interpretar según cuántos vinieran.
+   */
+  destinos: DestinoEditado[];
+  resumen: {
+    pedidos: number;
+    cambiados: number;
+    sinCambiar: number;
+  };
 }

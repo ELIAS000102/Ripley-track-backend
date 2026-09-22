@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplService } from '../../configuracion/tipo-servicio/opl/opl.service.js';
 import type { HoraCorte } from '../../configuracion/tipo-servicio/opl/interfaces/opl.interface.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { ConsultarTipoServicioDto } from '../dto/consultas.dto.js';
 import type {
@@ -40,14 +41,16 @@ export class TipoServicioAgenteService {
 
     this.logger.log(`Agente consultando servicios del OPL ${dto.opl}`);
 
-    // 1. OPL
-    const { opls } = await this.opl.buscarOpl(dto.opl, pais);
+    // 1. OPL. "90 min" no existe en el catálogo: es como se conoce al 1130
+    const buscado = resolverAliasOpl(dto.opl);
+
+    const { opls } = await this.opl.buscarOpl(buscado, pais);
     if (!opls.length) {
       throw new NotFoundException(
         `No se encontró ningún operador logístico que coincida con "${dto.opl}"`,
       );
     }
-    const operador = opls.find((o) => o.code === dto.opl.trim()) ?? opls[0];
+    const operador = opls.find((o) => o.code === buscado.trim()) ?? opls[0];
 
     // 2. Zona
     const zonas = await this.opl.listarZonas(operador.id, pais);

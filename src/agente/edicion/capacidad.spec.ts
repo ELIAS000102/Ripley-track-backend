@@ -398,13 +398,14 @@ describe('Edición del agente: lo que llega tras validar', () => {
     expect(dto.asignado).toBe(0);
   });
 
-  it('los textos vacíos no cuentan como filtro', async () => {
+  it('los textos vacíos llegan como ausentes, no como cadena vacía', async () => {
     const dto = await validar(comoN8n({ activa: 'true' }));
 
-    // Un servicio '' es falsy y el service lo trata como "no indicado", que es
-    // lo que hace saltar la regla de "hay varias agendas, elige tú"
-    expect(dto.servicio).toBe('');
-    expect(dto.zona).toBe('');
+    // Un '' es "no lo indiqué", que es lo que hace saltar la regla de "hay
+    // varias agendas, elige tú". Que llegue como undefined y no como '' evita
+    // además que un formato exigido se aplique a un campo que nadie rellenó.
+    expect(dto.servicio).toBeUndefined();
+    expect(dto.zona).toBeUndefined();
   });
 
   it('un asignado que no es número se rechaza, no se convierte en NaN', async () => {
