@@ -391,3 +391,127 @@ export class EditarTransferenciaDto extends PaisDto {
   @IsString()
   dias?: string;
 }
+
+// ───────────────────────── Cortar un CD ─────────────────────────
+
+/**
+ * Cortar (o reabrir) el picking de un centro de distribución entero.
+ *
+ * Existe porque "desactiva todas las jornadas del CD de hoy" se resolvía con
+ * una llamada por jornada y **una confirmación cada vez**: siete preguntas
+ * seguidas para una sola decisión.
+ */
+export class EditarCdDto extends PaisDto {
+  /**
+   * Código o nombre del CD. Omitirlo, o nombrar al país, son **todos** los
+   * del país: "el CD de Perú" son los dos.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  cd?: string;
+
+  /** El primer día, o el único si no hay `hasta`. Por defecto, hoy. */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fecha debe tener el formato YYYY-MM-DD',
+  })
+  fecha?: string;
+
+  /** Último día del rango, incluido */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'hasta debe tener el formato YYYY-MM-DD',
+  })
+  hasta?: string;
+
+  /**
+   * Jornadas concretas por coma. Omitirlo son **todas** las del CD, que es lo
+   * que se pide al cortar: se deja por si hace falta acotar.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  jornadas?: string;
+
+  /** `false` corta, `true` reabre. Obligatorio: no hay valor por defecto. */
+  @Transform(({ value }) => aBooleano(value))
+  @IsBoolean({ message: 'activa tiene que ser "true" o "false"' })
+  activa: boolean;
+}
+
+// ───────────────────────── Reasignar capacidad ─────────────────────────
+
+/** Tope de unidades por reasignación: red contra un cero de más */
+const UNIDADES_MAXIMAS = 100_000;
+
+/**
+ * Mover capacidad de una jornada a otra dentro del mismo CD.
+ *
+ * Son dos escrituras que solo valen juntas, así que el backend comprueba todo
+ * antes de tocar nada: las jornadas, las unidades libres, la autorización y
+ * las fechas.
+ */
+export class ReasignarCapacidadDto extends PaisDto {
+  /** Código o nombre del CD */
+  @IsString()
+  @IsNotEmpty()
+  cd: string;
+
+  /** Jornada de la que SALE la capacidad */
+  @IsString()
+  @IsNotEmpty()
+  origen: string;
+
+  /** Jornada que la RECIBE */
+  @IsString()
+  @IsNotEmpty()
+  destino: string;
+
+  /** Cuántas unidades se mueven */
+  @Transform(({ value }) => aNumero(value))
+  @IsInt({ message: 'unidades tiene que ser un número entero' })
+  @Min(1, { message: 'unidades tiene que ser al menos 1' })
+  @Max(UNIDADES_MAXIMAS, {
+    message: `unidades no puede pasar de ${UNIDADES_MAXIMAS}: revisa el número`,
+  })
+  unidades: number;
+
+  /** La fecha de la reasignación. Por defecto, hoy. */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fecha debe tener el formato YYYY-MM-DD',
+  })
+  fecha?: string;
+
+  /**
+   * Fecha del destino, **solo si es distinta de la del origen**.
+   *
+   * Una reasignación ocurre dentro del mismo día; cruzar fechas está cerrado
+   * salvo para ND y DX en Chile, que es la excepción acordada.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fechaDestino debe tener el formato YYYY-MM-DD',
+  })
+  fechaDestino?: string;
+
+  /**
+   * Que quien lo pide declara tener permiso para esta pareja de jornadas.
+   *
+   * No lo decide el agente: lo dice la persona en el chat y el agente lo
+   * traslada. Las parejas libres de cada CD no lo necesitan.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aBooleano(value))
+  @IsBoolean()
+  autorizado?: boolean;
+}

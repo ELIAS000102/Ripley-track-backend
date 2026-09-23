@@ -5,14 +5,18 @@ import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js
 import { PermitidoAgenteEditor } from '../seguridad/permitido-agente.decorator.js';
 import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
 import { EditarCapacidadAgenteService } from './capacidad.service.js';
+import { EditarCdAgenteService } from './cd.service.js';
+import { ReasignarCapacidadAgenteService } from './reasignar.service.js';
 import { EditarMasivoAgenteService } from './masivo.service.js';
 import { EditarTipoServicioAgenteService } from './tipo-servicio.service.js';
 import { EditarTransferenciaAgenteService } from './transferencia.service.js';
 import {
   EditarCapacidadDto,
+  EditarCdDto,
   EditarMasivoDto,
   EditarTipoServicioDto,
   EditarTransferenciaDto,
+  ReasignarCapacidadDto,
 } from '../dto/edicion.dto.js';
 
 /**
@@ -44,6 +48,8 @@ export class EdicionAgenteController {
     private readonly tipoServicio: EditarTipoServicioAgenteService,
     private readonly masivo: EditarMasivoAgenteService,
     private readonly transferencia: EditarTransferenciaAgenteService,
+    private readonly cd: EditarCdAgenteService,
+    private readonly reasignar: ReasignarCapacidadAgenteService,
   ) {}
 
   /**
@@ -60,6 +66,38 @@ export class EdicionAgenteController {
     @Body() body: EditarCapacidadDto,
   ) {
     return this.capacidad.editarCapacidad(usuario, body);
+  }
+
+  /**
+   * PUT /agente/cd
+   *
+   * Corta —o reabre— el picking de un centro de distribución entero: todas
+   * sus jornadas de una vez. Sin `cd`, los dos del país.
+   */
+  @PermitidoAgenteEditor()
+  @Auditar('agente.editarCd')
+  @Put('cd')
+  async editarCd(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: EditarCdDto,
+  ) {
+    return this.cd.editar(usuario, body);
+  }
+
+  /**
+   * PUT /agente/reasignar
+   *
+   * Mueve capacidad de una jornada a otra dentro del mismo CD. Son dos
+   * escrituras que solo valen juntas, así que todo se comprueba antes.
+   */
+  @PermitidoAgenteEditor()
+  @Auditar('agente.reasignarCapacidad')
+  @Put('reasignar')
+  async reasignarCapacidad(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: ReasignarCapacidadDto,
+  ) {
+    return this.reasignar.reasignar(usuario, body);
   }
 
   /**

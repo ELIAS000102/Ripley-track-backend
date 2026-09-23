@@ -1,6 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CdsService } from '../../reportes/cds/cds.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import {
+  cdsDelPais,
+  esTodoElPais,
+  resolverCd,
+} from '../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { ConsultarReporteDto } from '../dto/consultas.dto.js';
 import type {
@@ -45,6 +50,8 @@ export class ReporteAgenteService {
     const crudo = await this.cds.reporte(contexto.pais, dias, dto.desde);
     const fechas = crudo.parametros.fechas;
 
+    const soloEste = this.cdPedido(dto.cd, contexto.pais);
+
     // Índice por CD y jornada para no recorrer los registros una vez por celda
     const porCd = new Map<string, Map<string, Map<string, CeldaReporte>>>();
 
@@ -60,7 +67,11 @@ export class ReporteAgenteService {
         .set(r.fecha, [r.utilizado, r.asignado, r.porcentaje]);
     }
 
-    const cds: CdReporte[] = crudo.cds.map((cd) => {
+    const pedidos = soloEste
+      ? crudo.cds.filter((c) => c.code === soloEste.code)
+      : crudo.cds;
+
+    const cds: CdReporte[] = pedidos.map((cd) => {
       const jornadasDelCd = porCd.get(cd.code) ?? new Map();
 
       const todas: JornadaReporte[] = [...jornadasDelCd.entries()]
@@ -106,6 +117,33 @@ export class ReporteAgenteService {
         (f) => `${f.cd}${f.jornada ? ` (${f.jornada})` : ''}: ${f.error}`,
       ),
     };
+  }
+
+  /**
+   * A qué CD se refiere el término, cuando se refiere a uno.
+   *
+   * Sin término, o nombrando al país entero, son los dos del país: es lo que se
+   * pide casi siempre. Con un término que no resuelve a ningún CD se responde
+   * con los que hay, en vez de devolver el reporte completo como si nada:
+   * pedir "aldeas" y recibir los dos CDs se lee como que la respuesta es de
+   * aldeas.
+   */
+  private cdPedido(termino: string | undefined, pais: string) {
+    if (!termino?.trim() || esTodoElPais(termino, pais)) return undefined;
+
+    const cd = resolverCd(termino, pais);
+
+    if (!cd) {
+      const hay = cdsDelPais(pais)
+        .map((c) => `${c.code} (${c.nombre})`)
+        .join(', ');
+
+      throw new NotFoundException(
+        `No reconozco el centro de distribución "${termino}" en ${pais}. Los que hay: ${hay}`,
+      );
+    }
+
+    return cd;
   }
 
   /**

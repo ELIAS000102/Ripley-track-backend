@@ -131,6 +131,8 @@ export class TipoServicioAgenteService {
     descripcion?: string;
     isActive?: boolean;
     enabledForCheckout?: boolean;
+    maxOcurrence?: number | string | null;
+    slackDays?: number | string | null;
     cortes?: HoraCorte[];
   }): ServicioAgenda {
     return {
@@ -138,8 +140,25 @@ export class TipoServicioAgenteService {
       descripcion: s.descripcion ?? '',
       activo: s.isActive === true,
       enCheckout: s.enabledForCheckout === true,
+      maxOcurrencia: this.numeroONulo(s.maxOcurrence),
+      diasHolgura: this.numeroONulo(s.slackDays),
       cortes: this.cortesPorDia(s.cortes),
     };
+  }
+
+  /**
+   * La API mezcla tipos: estos dos llegan como número o como cadena.
+   *
+   * Lo que no sea un número se devuelve como `null` en vez de como `0`: un cero
+   * es una configuración válida y distinta de "no está configurado".
+   */
+  private numeroONulo(
+    valor: number | string | null | undefined,
+  ): number | null {
+    if (valor === null || valor === undefined || valor === '') return null;
+
+    const numero = Number(valor);
+    return Number.isNaN(numero) ? null : numero;
   }
 
   /**

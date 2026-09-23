@@ -124,3 +124,59 @@ export interface TransferenciaEditada {
     sinCambiar: number;
   };
 }
+
+// ───────────────────────── Cortar un CD ─────────────────────────
+
+/** Una jornada de un CD en una fecha, con lo que le pasó */
+export interface JornadaCerrada {
+  cd: string;
+  jornada: string;
+  agenda: string;
+  fecha: string;
+  antes: boolean | null;
+  despues: boolean | null;
+  /** Por qué esta no se tocó, cuando las demás sí */
+  error?: string;
+}
+
+export interface CdEditado {
+  contexto: ContextoAgente;
+  /** Uno, o los dos del país si se pidió el país entero */
+  cds: string[];
+  fechas: string[];
+  activa: boolean;
+  /**
+   * Una entrada por jornada y fecha. Va entera y no resumida: cortar un CD
+   * toca muchas agendas de golpe y la única forma de revisarlo es viendo
+   * cuáles.
+   */
+  jornadas: JornadaCerrada[];
+  resumen: {
+    pedidas: number;
+    cambiadas: number;
+    sinCambiar: number;
+  };
+}
+
+// ───────────────────────── Reasignar capacidad ─────────────────────────
+
+/** Una jornada antes y después de moverle capacidad */
+export interface JornadaReasignada {
+  jornada: string;
+  agenda: string;
+  fecha: string;
+  asignadoAntes: number;
+  asignadoDespues: number;
+  ocupado: number;
+  disponible: number;
+}
+
+export interface CapacidadReasignada {
+  contexto: ContextoAgente;
+  cd: string;
+  unidades: number;
+  origen: JornadaReasignada;
+  destino: JornadaReasignada;
+  /** Se dice cuando la pareja exigía permiso y se declaró tenerlo */
+  conAutorizacion?: boolean;
+}

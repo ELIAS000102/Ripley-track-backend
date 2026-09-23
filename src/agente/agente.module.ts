@@ -19,6 +19,8 @@ import { TransferenciaAgenteService } from './consultas/transferencia.service.js
 
 import { EdicionAgenteController } from './edicion/edicion.controller.js';
 import { EditarCapacidadAgenteService } from './edicion/capacidad.service.js';
+import { EditarCdAgenteService } from './edicion/cd.service.js';
+import { ReasignarCapacidadAgenteService } from './edicion/reasignar.service.js';
 import { EditarMasivoAgenteService } from './edicion/masivo.service.js';
 import { EditarTipoServicioAgenteService } from './edicion/tipo-servicio.service.js';
 import { EditarTransferenciaAgenteService } from './edicion/transferencia.service.js';
@@ -80,6 +82,8 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
 
     // Edición
     EditarCapacidadAgenteService,
+    EditarCdAgenteService,
+    ReasignarCapacidadAgenteService,
     EditarTipoServicioAgenteService,
     EditarMasivoAgenteService,
     EditarTransferenciaAgenteService,

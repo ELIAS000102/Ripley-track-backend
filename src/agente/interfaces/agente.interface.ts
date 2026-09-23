@@ -161,6 +161,16 @@ export interface ServicioAgenda {
   descripcion: string;
   activo: boolean;
   enCheckout: boolean;
+  /**
+   * Máximo de ocurrencias, tal como se llama en el panel.
+   *
+   * Estaba en la respuesta de Ripley y se descartaba al compactar. No es un
+   * campo interno ni un identificador: es parte de la configuración por la que
+   * se pregunta, y faltaba en la respuesta del agente sin que nada lo dijera.
+   */
+  maxOcurrencia: number | null;
+  /** Días de holgura */
+  diasHolgura: number | null;
   /** Horas de corte, ya aplanadas */
   cortes: string[];
 }

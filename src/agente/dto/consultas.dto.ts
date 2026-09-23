@@ -71,6 +71,21 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
 
 export class ConsultarReporteDto extends ConVentanaDto {
   /**
+   * Un CD concreto, por código o por su nombre de siempre.
+   *
+   * Omitirlo devuelve los dos del país, que es lo que se pide casi siempre
+   * ("el reporte de los CDs de Perú"). Indicarlo acota a uno: "CD Villa El
+   * Salvador", "aldeas", "fulfillment GV" — se resuelven en el backend, porque
+   * son nombres de la operación y no están en ningún catálogo de Ripley.
+   */
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && !value.trim() ? undefined : value,
+  )
+  @IsString()
+  cd?: string;
+
+  /**
    * Tope de 14, más bajo que el del reporte normal.
    *
    * La respuesta crece con cada día multiplicado por cada jornada de cada CD, y
