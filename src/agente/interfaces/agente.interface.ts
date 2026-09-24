@@ -8,16 +8,37 @@
  */
 
 /** Quién pregunta y desde cuándo. Va en la cabecera de toda respuesta. */
+/**
+ * La cabecera que acompaña a toda respuesta del agente.
+ *
+ * **Solo el país**, y no por escatimar: el nombre de quien pregunta y la fecha
+ * de hoy ya viajan en el prompt de sistema, puestos por el flujo desde el
+ * cuerpo del webhook. Repetirlos en cada respuesta de cada herramienta era
+ * mandar el mismo dato dos veces —y una tercera, y una cuarta, porque la
+ * respuesta se queda en la memoria de la conversación durante doce turnos—.
+ *
+ * El país sí va: es lo que el modelo no tiene de otro sitio, y confirma cuál se
+ * usó cuando no se indicó ninguno.
+ */
 export interface ContextoAgente {
+  pais: string;
+}
+
+/**
+ * Quién pregunta, para la ruta que existe justamente para eso.
+ *
+ * No viaja en las demás respuestas. Van solo datos no sensibles: ni el correo
+ * ni el id salen de aquí, porque acabarían en el prompt de un proveedor externo
+ * sin aportar nada.
+ */
+export interface ContextoUsuarioAgente extends ContextoAgente {
   usuario: {
     nombre: string;
-    /** Rol en la aplicación, por si el agente debe ajustar el tono */
     rol: string;
     tienda: string | null;
   };
-  /** Hoy en la zona horaria del país, para que el modelo no lo deduzca */
+  /** Hoy en la zona horaria del país */
   hoy: string;
-  pais: string;
 }
 
 // ───────────────────────── Modo del agente ─────────────────────────
@@ -217,11 +238,21 @@ export interface SimulacionRespuesta {
 // ───────────────────────── Búsqueda masiva ─────────────────────────
 
 /** Una agenda encontrada por servicio, sin identificadores internos */
+/**
+ * Una agenda de la búsqueda masiva.
+ *
+ * Dos campos se omiten cuando no aportan, y con once agendas eso son unos
+ * doscientos tokens que además se quedan doce turnos en la memoria del chat:
+ *
+ * - `servicio` no viaja: es el mismo por el que se preguntó y ya está arriba.
+ * - `zona` solo cuando difiere de `agenda`. En la práctica casi siempre son la
+ *   misma cadena ("Zona RT PLN" y "Zona RT PLN"), y repetirla no dice nada.
+ */
 export interface AgendaMasiva {
   opl: string;
   agenda: string;
-  zona: string;
-  servicio: string;
+  /** Solo si no coincide con `agenda` */
+  zona?: string;
   activa: boolean;
   enCheckout: boolean;
 }

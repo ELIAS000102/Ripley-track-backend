@@ -83,7 +83,7 @@ export class ConsultasAgenteController {
     @Usuario() usuario: UsuarioAutenticado,
     @Query('pais') pais?: string,
   ) {
-    return this.contexto.armar(usuario, pais);
+    return this.contexto.armarConUsuario(usuario, pais);
   }
 
   /**

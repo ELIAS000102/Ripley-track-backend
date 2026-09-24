@@ -2,18 +2,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PerfilService } from '../auth/perfil.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { hoyEnPais } from '../common/ripley/utils/date.util.js';
-import type { ContextoAgente } from './interfaces/agente.interface.js';
+import type {
+  ContextoAgente,
+  ContextoUsuarioAgente,
+} from './interfaces/agente.interface.js';
 
 /**
- * Cabecera común de toda respuesta al agente: quién pregunta y qué día es.
+ * La cabecera común de toda respuesta al agente.
  *
- * El nombre viaja para que el agente pueda dirigirse a la persona en vez de
- * hablar al vacío. Va solo lo que no es sensible —nombre, rol y tienda—; ni el
- * correo ni el id salen de aquí, porque acaban en el prompt de un proveedor
- * externo y no hacen falta para responder nada.
+ * Llevaba el nombre de quien pregunta, su rol, su tienda y la fecha de hoy. Ya
+ * no: **todo eso viaja en el prompt de sistema**, puesto por el flujo desde el
+ * cuerpo del webhook, así que repetirlo aquí era mandar el mismo dato dos
+ * veces por petición y arrastrarlo doce turnos en la memoria del chat.
  *
- * La fecha se resuelve aquí a propósito: es la del país consultado, no la del
- * servidor, y un modelo que la deduzca solo se equivoca en la zona horaria.
+ * Quitarlo ahorra además una consulta a Supabase **en cada petición del
+ * agente**: leer el perfil para un nombre que el modelo ya tenía delante.
+ *
+ * Queda el país, que es lo único que el prompt no sabe y que confirma cuál se
+ * usó cuando no se indicó ninguno.
  */
 @Injectable()
 export class ContextoAgenteService {
@@ -21,17 +27,37 @@ export class ContextoAgenteService {
 
   constructor(private readonly perfiles: PerfilService) {}
 
-  async armar(
+  /**
+   * La cabecera de una consulta cualquiera. No toca la base de datos.
+   *
+   * Sigue recibiendo el usuario porque quien llama ya lo tiene y mañana puede
+   * volver a hacer falta; hoy no se usa para armar la respuesta.
+   */
+  armar(_usuario: UsuarioAutenticado, pais?: string): ContextoAgente {
+    return { pais: this.normalizar(pais) };
+  }
+
+  /**
+   * La cabecera completa, solo para la ruta que existe para esto.
+   *
+   * Es la única que lee el perfil, y por eso es la única que paga esa lectura.
+   */
+  async armarConUsuario(
     usuario: UsuarioAutenticado,
     pais?: string,
-  ): Promise<ContextoAgente> {
-    const normalizado = (pais ?? 'PE').toUpperCase().trim();
+  ): Promise<ContextoUsuarioAgente> {
+    const normalizado = this.normalizar(pais);
 
     return {
       usuario: await this.datosDeUsuario(usuario),
+      // La fecha es la del país consultado, no la del servidor
       hoy: hoyEnPais(normalizado),
       pais: normalizado,
     };
+  }
+
+  private normalizar(pais?: string): string {
+    return (pais ?? 'PE').toUpperCase().trim();
   }
 
   /**
@@ -40,7 +66,7 @@ export class ContextoAgenteService {
    */
   private async datosDeUsuario(
     usuario: UsuarioAutenticado,
-  ): Promise<ContextoAgente['usuario']> {
+  ): Promise<ContextoUsuarioAgente['usuario']> {
     try {
       const perfil = await this.perfiles.obtener(usuario.id, usuario.email);
       const nombre = [perfil.nombre, perfil.apellido]

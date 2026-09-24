@@ -44,7 +44,7 @@ export class ReporteAgenteService {
     const dias = dto.dias ?? 7;
 
     this.logger.log(
-      `Agente pidiendo reporte de ${contexto.pais}, ${dias} día(s) desde ${dto.desde ?? contexto.hoy}`,
+      `Agente pidiendo reporte de ${contexto.pais}, ${dias} día(s) desde ${dto.desde ?? 'hoy'}`,
     );
 
     const crudo = await this.cds.reporte(contexto.pais, dias, dto.desde);

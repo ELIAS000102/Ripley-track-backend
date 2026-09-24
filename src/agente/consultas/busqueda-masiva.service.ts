@@ -74,14 +74,19 @@ export class BusquedaMasivaAgenteService {
       ? agendas.filter((a) => a.isActive === true)
       : agendas;
 
-    const compactas: AgendaMasiva[] = filtradas.slice(0, MAXIMO).map((a) => ({
-      opl: a.opl ?? '',
-      agenda: a.agenda ?? '',
-      zona: a.zona ?? '',
-      servicio: a.typeOfService ?? '',
-      activa: a.isActive === true,
-      enCheckout: a.enabledForCheckout === true,
-    }));
+    const compactas: AgendaMasiva[] = filtradas.slice(0, MAXIMO).map((a) => {
+      const agenda = a.agenda ?? '';
+      const zona = a.zona ?? '';
+
+      return {
+        opl: a.opl ?? '',
+        agenda,
+        // La zona solo cuando dice algo que la agenda no diga ya
+        ...(zona && zona !== agenda ? { zona } : {}),
+        activa: a.isActive === true,
+        enCheckout: a.enabledForCheckout === true,
+      };
+    });
 
     return {
       contexto,
