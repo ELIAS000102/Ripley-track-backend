@@ -20,6 +20,10 @@ export interface EstadoServicio {
 
 /** Un servicio de los pedidos, con lo que le pasó */
 export interface ServicioEditado {
+  /** A qué operador pertenece: la lista es plana y puede venir de varios */
+  opl: string;
+  zona: string;
+  agenda: string;
   servicio: string;
   antes: EstadoServicio | null;
   despues: EstadoServicio | null;
@@ -29,12 +33,14 @@ export interface ServicioEditado {
 
 export interface TipoServicioEditado {
   contexto: ContextoAgente;
-  opl: string;
-  zona: string;
-  agenda: string;
+  /** Los operadores alcanzados, como se resolvieron */
+  opls: string[];
   /**
-   * Un elemento por servicio pedido. La lista viene siempre, aunque se haya
-   * pedido uno solo: dos formas que interpretar es una de más.
+   * Un elemento por servicio y operador pedidos, **en una lista plana**.
+   *
+   * Plana y no anidada por operador a propósito: con varios operadores lo que
+   * se quiere ver es una tabla con una columna OPL, no un árbol. La lista
+   * viene siempre, aunque se haya pedido uno solo.
    */
   servicios: ServicioEditado[];
   resumen: {

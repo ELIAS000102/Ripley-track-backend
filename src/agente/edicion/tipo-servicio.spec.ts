@@ -51,13 +51,33 @@ function armar(
     zonas?: Array<Record<string, unknown>>;
     agendas?: Array<Record<string, unknown>>;
     servicios?: typeof SERVICIOS;
+    opls?: Record<string, { id: string; nombre: string }>;
   } = {},
 ) {
   const actualizarServicio = vi.fn().mockResolvedValue({ ok: true });
 
   const opl = {
-    buscarOpl: vi.fn().mockResolvedValue({
-      opls: [{ id: 'o-1', code: '1130', nombre: 'Olva' }],
+    buscarOpl: vi.fn((termino: string) => {
+      // Cada código devuelve su propio operador; lo que no está, no existe
+      const conocidos: Record<string, { id: string; nombre: string }> = {
+        '1130': { id: 'o-1', nombre: 'Olva' },
+        '1140': { id: 'o-2', nombre: 'Urbano' },
+        ...opciones.opls,
+      };
+
+      const encontrado = conocidos[termino.trim()];
+
+      return Promise.resolve({
+        opls: encontrado
+          ? [
+              {
+                id: encontrado.id,
+                code: termino.trim(),
+                nombre: encontrado.nombre,
+              },
+            ]
+          : [],
+      });
     }),
     listarZonas: vi
       .fn()
@@ -172,8 +192,8 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
       'Lunes 23:30',
       'Jueves 23:30',
     ]);
-    expect(r.opl).toBe('1130 - Olva');
-    expect(r.agenda).toBe('Agenda DT');
+    expect(r.opls).toEqual(['1130 - Olva']);
+    expect(r.servicios[0].agenda).toBe('Agenda DT');
   });
 });
 
@@ -262,7 +282,7 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
 
     await expect(
       servicio.editar(USUARIO, editar({ activo: true, enCheckout: true })),
-    ).rejects.toThrow(/ya está así/);
+    ).rejects.toThrow(/Ya estaba así/);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -272,7 +292,7 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
 
     await expect(
       servicio.editar(USUARIO, editar({ dia: 'jueves', corte: '23:30' })),
-    ).rejects.toThrow(/ya está así/);
+    ).rejects.toThrow(/Ya estaba así/);
   });
 });
 
@@ -316,7 +336,7 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
     );
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
-    expect(r.servicios[1].error).toMatch(/no tiene este servicio/);
+    expect(r.servicios[1].error).toMatch(/no tiene el servicio ZZ/);
     expect(r.servicios[1].antes).toBeNull();
     expect(actualizarServicio).toHaveBeenCalledOnce();
   });
@@ -326,7 +346,7 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
 
     await expect(
       servicio.editar(USUARIO, editar({ servicio: 'ZZ, YY', activo: false })),
-    ).rejects.toThrow(/Ninguno de los 2 servicios existe/);
+    ).rejects.toThrow(/Ninguno de los 2 cambios se pudo aplicar.*ZZ.*YY/s);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -358,6 +378,119 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
   });
 });
 
+/**
+ * Varios operadores en una sola llamada.
+ *
+ * Es el caso que falló en producción: se pidió activar un servicio en once
+ * operadores y el agente los mandó todos juntos en "opl". El backend los
+ * buscaba como un único nombre y respondía que no existía ninguno.
+ */
+describe('Editar un tipo de servicio: varios operadores de una vez', () => {
+  it('cambia el servicio en los dos y lo devuelve en una lista plana', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ opl: '1130, 1140', activo: false }),
+    );
+
+    expect(r.opls).toEqual(['1130 - Olva', '1140 - Urbano']);
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 2, sinCambiar: 0 });
+
+    // Cada fila dice de qué operador es: con varios, la tabla necesita esa columna
+    expect(r.servicios.map((s) => s.opl)).toEqual([
+      '1130 - Olva',
+      '1140 - Urbano',
+    ]);
+    expect(actualizarServicio).toHaveBeenCalledTimes(2);
+  });
+
+  it('cruza operadores con servicios', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ opl: '1130, 1140', servicio: 'SD, ST', activo: false }),
+    );
+
+    // Dos operadores por dos servicios
+    expect(r.servicios).toHaveLength(4);
+  });
+
+  it('un operador que no existe no arrastra a los demás', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ opl: '1130, 9999', activo: false }),
+    );
+
+    expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
+    expect(r.servicios[1].error).toMatch(/No se encontró ningún operador/);
+    expect(r.servicios[1].antes).toBeNull();
+
+    // El que sí se pudo, se escribió
+    expect(actualizarServicio).toHaveBeenCalledOnce();
+  });
+
+  it('la lista viene igual aunque se pida uno solo', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.editar(USUARIO, editar({ activo: false }));
+
+    expect(r.opls).toHaveLength(1);
+    expect(r.servicios).toHaveLength(1);
+  });
+
+  it('un operador repetido se escribe una sola vez', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const r = await servicio.editar(
+      USUARIO,
+      editar({ opl: '1130, 1130', activo: false }),
+    );
+
+    expect(r.opls).toHaveLength(1);
+    expect(actualizarServicio).toHaveBeenCalledOnce();
+  });
+
+  it('una hora de corte se cambia en un operador por vez', async () => {
+    // La hora suele ser propia de cada operador
+    const { servicio, actualizarServicio } = armar();
+
+    await expect(
+      servicio.editar(
+        USUARIO,
+        editar({ opl: '1130, 1140', dia: 'jueves', corte: '17:00' }),
+      ),
+    ).rejects.toThrow(/un operador por vez/);
+
+    expect(actualizarServicio).not.toHaveBeenCalled();
+  });
+
+  it('hay tope, y sugiere el cambio en bloque si son demasiados', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    const muchos = Array.from({ length: 11 }, (_, i) => `op${i}`).join(', ');
+
+    await expect(
+      servicio.editar(USUARIO, editar({ opl: muchos, activo: false })),
+    ).rejects.toThrow(/máximo por vez es 10.*cambio en bloque/s);
+
+    expect(actualizarServicio).not.toHaveBeenCalled();
+  });
+
+  it('si ninguno se pudo resolver, es un 404 con los motivos', async () => {
+    const { servicio, actualizarServicio } = armar();
+
+    await expect(
+      servicio.editar(USUARIO, editar({ opl: '9998, 9999', activo: false })),
+    ).rejects.toThrow(/Ninguno de los 2 cambios se pudo aplicar/);
+
+    expect(actualizarServicio).not.toHaveBeenCalled();
+  });
+});
+
 describe('Editar un tipo de servicio: el historial', () => {
   it('guarda el antes y el después del servicio', async () => {
     const { servicio, registrarCambio } = armar();
@@ -365,12 +498,16 @@ describe('Editar un tipo de servicio: el historial', () => {
     await servicio.editar(USUARIO, editar({ activo: false }));
 
     const [antes] = registrarCambio.mock.calls[0] as [
-      { agenda: string; servicios: Array<{ activo: boolean }> },
+      {
+        opls: string[];
+        servicios: Array<{ agenda: string; antes: { activo: boolean } }>;
+      },
     ];
 
-    // Se guarda el conjunto, no el último servicio tocado
-    expect(antes.agenda).toBe('Agenda DT');
-    expect(antes.servicios[0].activo).toBe(true);
+    // Se guarda el conjunto, con su operador y su agenda en cada fila
+    expect(antes.opls).toEqual(['1130 - Olva']);
+    expect(antes.servicios[0].agenda).toBe('Agenda DT');
+    expect(antes.servicios[0].antes.activo).toBe(true);
   });
 });
 

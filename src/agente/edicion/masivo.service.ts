@@ -57,12 +57,27 @@ export class EditarMasivoAgenteService {
     const { metodo, servicio } = await this.resolverCodigos(dto, pais);
     const origenes = await this.resolverOrigenes(dto.origenes, pais);
 
-    const { agendas } = await this.masivo.consultar({
+    const consulta = {
       deliveryCode: metodo,
       serviceCode: servicio,
       origenes,
       pais,
-    });
+    };
+
+    // Se lee UNA vez y ese mismo estado se usa para elegir y para escribir.
+    // Con dos lecturas, la segunda podía no traer alguna agenda de la primera
+    // y la petición entera moría con un 404 sin cambiar nada.
+    const estado = await this.masivo.consultarEstado(consulta);
+
+    const agendas = estado.map((a) => ({
+      mainRouteId: a.id,
+      opl: a.opl,
+      agenda: a.scheduleName,
+      zona: a.zone,
+      typeOfService: a.typeOfService,
+      isActive: a.active,
+      enabledForCheckout: a.enabledForCheckout,
+    }));
 
     const alcanzadas = this.acotar(agendas, dto);
     const porCambiar = alcanzadas.filter((a) => this.cambiaAlgo(a, cambio));
@@ -74,17 +89,17 @@ export class EditarMasivoAgenteService {
         `del servicio ${servicio} (activo: ${cambio.activo ?? 'igual'}, checkout: ${cambio.enCheckout ?? 'igual'})`,
     );
 
-    await this.masivo.actualizar({
-      deliveryCode: metodo,
-      serviceCode: servicio,
-      origenes,
-      pais,
-      cambios: porCambiar.map((a) => ({
-        mainRouteId: a.mainRouteId,
-        isActive: cambio.activo,
-        enabledForCheckout: cambio.enCheckout,
-      })),
-    });
+    await this.masivo.actualizar(
+      {
+        ...consulta,
+        cambios: porCambiar.map((a) => ({
+          mainRouteId: a.mainRouteId,
+          isActive: cambio.activo,
+          enabledForCheckout: cambio.enCheckout,
+        })),
+      },
+      estado,
+    );
 
     const cambiadas = porCambiar.map((a) => ({
       opl: a.opl ?? '',

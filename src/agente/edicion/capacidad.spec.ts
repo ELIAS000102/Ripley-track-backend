@@ -166,12 +166,12 @@ describe('Edición del agente: lo que sí escribe', () => {
       'PE',
     );
 
-    expect(r.dias).toHaveLength(1);
-    expect(r.dias[0].antes?.asignado).toBe(1688);
-    expect(r.dias[0].despues?.asignado).toBe(1800);
+    expect(r.agendas[0].dias).toHaveLength(1);
+    expect(r.agendas[0].dias[0].antes?.asignado).toBe(1688);
+    expect(r.agendas[0].dias[0].despues?.asignado).toBe(1800);
     // El ocupado no lo toca nadie desde aquí
-    expect(r.dias[0].despues?.ocupado).toBe(1282);
-    expect(r.dias[0].despues?.disponible).toBe(518);
+    expect(r.agendas[0].dias[0].despues?.ocupado).toBe(1282);
+    expect(r.agendas[0].dias[0].despues?.disponible).toBe(518);
     expect(r.resumen).toEqual({ pedidos: 1, cambiados: 1, sinCambiar: 0 });
   });
 
@@ -214,9 +214,9 @@ describe('Edición del agente: lo que sí escribe', () => {
       'PE',
     );
 
-    expect(r.zona).toBe('Lima Centro');
+    expect(r.agendas[0].zona).toBe('Lima Centro');
     // "500" llega como texto desde Ripley y sale como número
-    expect(r.dias[0].antes?.asignado).toBe(500);
+    expect(r.agendas[0].dias[0].antes?.asignado).toBe(500);
   });
 });
 
@@ -440,12 +440,12 @@ describe('Edición del agente: varios días de una vez', () => {
       editar({ servicio: 'S', activa: false, hasta }),
     );
 
-    expect(r.dias).toHaveLength(4);
+    expect(r.agendas[0].dias).toHaveLength(4);
     expect(r.resumen).toEqual({ pedidos: 4, cambiados: 4, sinCambiar: 0 });
     expect(actualizarPicking).toHaveBeenCalledTimes(4);
 
     // Y ninguno perdió su capacidad por el camino
-    r.dias.forEach((d) => {
+    r.agendas[0].dias.forEach((d) => {
       expect(d.despues?.activo).toBe(false);
       expect(d.despues?.asignado).toBe(350);
     });
@@ -479,9 +479,9 @@ describe('Edición del agente: varios días de una vez', () => {
     );
 
     expect(r.resumen).toEqual({ pedidos: 3, cambiados: 2, sinCambiar: 1 });
-    expect(r.dias[1].error).toMatch(/no se crean días nuevos/);
-    expect(r.dias[1].despues).toBeNull();
-    expect(r.dias[2].despues?.activo).toBe(false);
+    expect(r.agendas[0].dias[1].error).toMatch(/no se crean días nuevos/);
+    expect(r.agendas[0].dias[1].despues).toBeNull();
+    expect(r.agendas[0].dias[2].despues?.activo).toBe(false);
   });
 
   it('el historial guarda el conjunto, no el último día', async () => {
@@ -549,7 +549,7 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
       editar({ servicio: 'RC', activa: false }),
     );
 
-    expect(r.agenda).toBe('RC - Agenda Picking RC - 20026');
+    expect(r.agendas[0].agenda).toBe('RC - Agenda Picking RC - 20026');
     expect(actualizarPicking).toHaveBeenCalledWith(
       'c-rc',
       expect.objectContaining({ active: false }),
@@ -668,5 +668,129 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
         editar({ servicio: 'RC', activa: false }),
       ),
     ).rejects.toThrow(/indicando el nombre exacto en "agenda"/);
+  });
+});
+
+/**
+ * Varias jornadas en una sola llamada.
+ *
+ * "Cierra la ST y la RC del 20026" es una decisión, no dos. Confirmarla
+ * jornada por jornada era lo que convertía una frase en cuatro turnos de chat.
+ */
+describe('Edición del agente: varias jornadas de una vez', () => {
+  /** Dos jornadas utilizables en el mismo almacén */
+  const DOS = [
+    { scheduleId: 'cap-s', nombre: 'Picking S', typeOfService: 'S' },
+    { scheduleId: 'cap-st', nombre: 'Picking ST', typeOfService: 'ST' },
+  ];
+
+  it('cambia las dos y devuelve una entrada por agenda', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: DOS });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'S, ST', activa: false }),
+    );
+
+    expect(r.agendas).toHaveLength(2);
+    expect(r.agendas.map((a) => a.agenda)).toEqual([
+      'S - Picking S',
+      'ST - Picking ST',
+    ]);
+    expect(actualizarPicking).toHaveBeenCalledTimes(2);
+  });
+
+  it('la lista viene igual aunque se pida una sola', async () => {
+    const { servicio } = armar({ agendas: DOS });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'S', activa: false }),
+    );
+
+    expect(r.agendas).toHaveLength(1);
+  });
+
+  it('una jornada que no existe no arrastra a las demás', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: DOS });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'S, ZZ', activa: false }),
+    );
+
+    expect(r.agendas[1].error).toBeTruthy();
+    expect(r.agendas[1].dias).toHaveLength(0);
+
+    // La que sí existe se escribió
+    expect(actualizarPicking).toHaveBeenCalledOnce();
+    expect(r.resumen.cambiados).toBe(1);
+  });
+
+  it('una jornada repetida se escribe una sola vez', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: DOS });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'S, s', activa: false }),
+    );
+
+    expect(r.agendas).toHaveLength(1);
+    expect(actualizarPicking).toHaveBeenCalledOnce();
+  });
+
+  it('hay tope, y remite a la herramienta del CD si son muchas', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: DOS });
+
+    const muchas = Array.from({ length: 11 }, (_, i) => `J${i}`).join(', ');
+
+    await expect(
+      servicio.editarCapacidad(
+        USUARIO,
+        editar({ servicio: muchas, activa: false }),
+      ),
+    ).rejects.toThrow(/máximo por vez es 10[\s\S]*herramienta del CD/);
+
+    expect(actualizarPicking).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Lo exacto gana sobre lo parecido.
+ *
+ * El filtro usaba `includes` a secas, así que la jornada "S" casaba también
+ * con "ST", "SD" y "SE": no había forma de apuntarla en un almacén que
+ * tuviera varias, y la petición se quedaba pidiendo desempatar algo que ya
+ * venía sin ambigüedad.
+ */
+describe('Edición del agente: el servicio se busca exacto primero', () => {
+  const VARIAS = [
+    { scheduleId: 'cap-s', nombre: 'Picking S', typeOfService: 'S' },
+    { scheduleId: 'cap-st', nombre: 'Picking ST', typeOfService: 'ST' },
+    { scheduleId: 'cap-sd', nombre: 'Picking SD', typeOfService: 'SD' },
+  ];
+
+  it('"S" es la S, no las tres que empiezan por S', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: VARIAS });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'S', activa: false }),
+    );
+
+    expect(r.agendas[0].agenda).toBe('S - Picking S');
+    expect(actualizarPicking).toHaveBeenCalledOnce();
+    expect(actualizarPicking.mock.calls[0][0]).toBe('cap-s');
+  });
+
+  it('y sigue valiendo buscar por parte del nombre', async () => {
+    const { servicio } = armar({ agendas: VARIAS });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'SD', agenda: 'Picking SD', activa: false }),
+    );
+
+    expect(r.agendas[0].agenda).toBe('SD - Picking SD');
   });
 });

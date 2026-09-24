@@ -181,6 +181,19 @@ export class OplMasivoService {
     return data?.rows ?? [];
   }
 
+  /**
+   * Las agendas **tal como vienen**, sin compactar.
+   *
+   * La consulta pública recorta a lo que el panel enseña, y ahí se pierden
+   * `courier`, `mainSchedule`, `mainZone` e `idService`, que hacen falta para
+   * escribir. Quien vaya a consultar y escribir seguido usa esto y se ahorra
+   * la segunda lectura — que no es solo trabajo de más: es la que puede
+   * devolver un conjunto distinto y dejar el cambio a medias.
+   */
+  async consultarEstado(dto: ConsultarOplDto): Promise<AgendaState[]> {
+    return this.traerAgendas(dto, dto.pais ?? 'PE');
+  }
+
   async consultar(dto: ConsultarOplDto) {
     const pais = dto.pais ?? 'PE';
 
@@ -212,22 +225,41 @@ export class OplMasivoService {
 
   // ---------- Paso 4: aplicar el cambio ----------
 
-  async actualizar(dto: ActualizarOplDto) {
+  /**
+   * Aplica los cambios.
+   *
+   * `estado` son las agendas ya leídas por quien llama. Si no viene, se leen
+   * aquí: el panel manda datos del cliente y no hay que fiarse de ellos.
+   *
+   * Pasarlo importa. La lectura devuelve `courier`, `mainSchedule` y demás, y
+   * hacerla **dos veces** —una para elegir qué cambiar y otra para escribir—
+   * abre una ventana en la que el segundo resultado no trae alguna de las
+   * agendas del primero. Cuando eso pasaba, la petición entera moría con un
+   * 404 y no se cambiaba ninguna.
+   */
+  async actualizar(dto: ActualizarOplDto, estado?: AgendaState[]) {
     const pais = dto.pais ?? 'PE';
 
-    // Se releen las agendas para que courier, mainSchedule y demás
-    // salgan de la API y no de lo que envíe el cliente.
-    const agendas = await this.traerAgendas(dto, pais);
+    const agendas = estado ?? (await this.traerAgendas(dto, pais));
     const porId = new Map(agendas.map((a) => [a.id, a]));
 
-    const data: FilaActualizacion[] = dto.cambios.map((cambio, indice) => {
-      const actual = porId.get(cambio.mainRouteId);
+    // Una agenda que ya no está se anota y se deja fuera; las demás se
+    // escriben igual. Abortar el lote entero por una deja al que pidió el
+    // cambio sin nada y sin saber cuál falló.
+    const ausentes = dto.cambios
+      .filter((c) => !porId.has(c.mainRouteId))
+      .map((c) => c.mainRouteId);
 
-      if (!actual) {
-        throw new NotFoundException(
-          `La agenda ${cambio.mainRouteId} no está en el resultado de la consulta`,
-        );
-      }
+    const aplicables = dto.cambios.filter((c) => porId.has(c.mainRouteId));
+
+    if (!aplicables.length) {
+      throw new NotFoundException(
+        `Ninguna de las ${dto.cambios.length} agendas está en el resultado de la consulta`,
+      );
+    }
+
+    const data: FilaActualizacion[] = aplicables.map((cambio, indice) => {
+      const actual = porId.get(cambio.mainRouteId)!;
 
       return {
         mainRouteId: actual.id,
@@ -251,7 +283,7 @@ export class OplMasivoService {
     // Para el registro de cambios: el estado de cada agenda antes y después.
     // Es un cambio masivo, así que se guarda una entrada por agenda tocada.
     this.contexto.registrarCambio(
-      dto.cambios.map((cambio) => {
+      aplicables.map((cambio) => {
         const actual = porId.get(cambio.mainRouteId);
         return {
           mainRouteId: cambio.mainRouteId,
@@ -285,6 +317,7 @@ export class OplMasivoService {
       modificadas: filas.reduce((n, r) => n + (r.modifiedCount ?? 0), 0),
       coincidencias: filas.reduce((n, r) => n + (r.matchedCount ?? 0), 0),
       detalle: filas,
+      ...(ausentes.length ? { ausentes } : {}),
     };
   }
 }

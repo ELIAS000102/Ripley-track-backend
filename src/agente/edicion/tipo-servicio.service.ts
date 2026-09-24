@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,6 +23,14 @@ import type {
  * modelo que se lía no mande una lista inventada y la aplique entera.
  */
 const SERVICIOS_MAXIMOS = 10;
+
+/**
+ * Tope de operadores por llamada.
+ *
+ * Para cambiar un servicio en **todos** los que lo tengan está el cambio en
+ * bloque, que busca por servicio. Esto es para nombrar unos pocos.
+ */
+const OPLS_MAXIMOS = 10;
 
 /**
  * Los días de la semana como los nombra una persona y como los numera Ripley.
@@ -90,8 +99,95 @@ export class EditarTipoServicioAgenteService {
     }
 
     const pedidos = this.serviciosPedidos(dto.servicio, corte);
+    const operadores = this.oplsPedidos(dto.opl, corte);
 
-    const { operador, zona, agenda } = await this.resolverAgenda(dto, pais);
+    this.logger.warn(
+      `EDICIÓN del agente — ${usuario.email} cambia ${pedidos.length} ` +
+        `servicio(s) en ${operadores.length} operador(es)`,
+    );
+
+    const servicios: ServicioEditado[] = [];
+    const opls: string[] = [];
+
+    for (const termino of operadores) {
+      const { filas, etiqueta } = await this.editarUnOpl(
+        termino,
+        dto,
+        pedidos,
+        cambio,
+        corte,
+        pais,
+      );
+
+      opls.push(etiqueta);
+      servicios.push(...filas);
+    }
+
+    const cambiados = servicios.filter((s) => !s.error).length;
+
+    this.exigirAlgunResultado(servicios, cambiados);
+
+    this.auditoria.registrarCambio(
+      { opls, servicios: servicios.map((s) => ({ ...s, despues: undefined })) },
+      { opls, servicios: servicios.map((s) => ({ ...s, antes: undefined })) },
+    );
+
+    return {
+      contexto,
+      opls,
+      servicios,
+      resumen: {
+        pedidos: servicios.length,
+        cambiados,
+        sinCambiar: servicios.length - cambiados,
+      },
+    };
+  }
+
+  /**
+   * Un operador, con todos los servicios que se le pidieron.
+   *
+   * Un operador que no se puede resolver —no existe, o tiene varias zonas sin
+   * desempatar— se anota y **no arrastra a los demás**: pedir el cambio en
+   * cinco operadores y que el tercero esté mal no puede dejar los otros cuatro
+   * sin tocar.
+   */
+  private async editarUnOpl(
+    termino: string,
+    dto: EditarTipoServicioDto,
+    pedidos: string[],
+    cambio: { activo?: boolean; enCheckout?: boolean },
+    corte: { id: number; value: string } | undefined,
+    pais: string,
+  ): Promise<{ filas: ServicioEditado[]; etiqueta: string }> {
+    let resuelto;
+
+    try {
+      resuelto = await this.resolverAgenda({ ...dto, opl: termino }, pais);
+    } catch (e) {
+      return {
+        etiqueta: termino,
+        filas: pedidos.map((codigo) => ({
+          opl: termino,
+          zona: '',
+          agenda: '',
+          servicio: codigo,
+          antes: null,
+          despues: null,
+          error: this.motivo(e),
+        })),
+      };
+    }
+
+    const { operador, zona, agenda } = resuelto;
+
+    const etiqueta = `${operador.code} - ${operador.nombre ?? ''}`.trim();
+    const base = {
+      opl: etiqueta,
+      zona: zona.nombre ?? '',
+      agenda: agenda.nombre ?? '',
+    };
+
     const consulta = {
       courier: operador.id,
       mainZone: zona.mainZone,
@@ -111,7 +207,7 @@ export class EditarTipoServicioAgenteService {
       if (!servicio) {
         return {
           codigo,
-          error: `La agenda "${agenda.nombre}" no tiene este servicio. Los que tiene: ${
+          error: `La agenda "${agenda.nombre}" no tiene el servicio ${codigo}. Los que tiene: ${
             servicios.map((s) => s.code).join(', ') || 'ninguno'
           }`,
         };
@@ -133,13 +229,6 @@ export class EditarTipoServicioAgenteService {
 
     const porEscribir = resueltos.filter((r) => r.servicio && r.cambia);
 
-    this.exigirAlgunCambio(resueltos, porEscribir);
-
-    this.logger.warn(
-      `EDICIÓN del agente — ${usuario.email} cambia ${porEscribir.length} ` +
-        `servicio(s) del OPL ${operador.code}, agenda "${agenda.nombre}"`,
-    );
-
     for (const r of porEscribir) {
       await this.opl.actualizarServicio(r.servicio!.idServicio, {
         ...consulta,
@@ -149,12 +238,16 @@ export class EditarTipoServicioAgenteService {
       });
     }
 
-    // Se relee UNA vez para contar lo que quedó, no lo que se pidió
-    const { servicios: despues } = await this.opl.listarServicios(consulta);
+    // Se relee una vez por operador, y solo si se escribió: contar lo que
+    // quedó es releer, pero releer sin haber tocado nada es una llamada de más
+    const despues = porEscribir.length
+      ? (await this.opl.listarServicios(consulta)).servicios
+      : servicios;
 
-    const resultado: ServicioEditado[] = resueltos.map((r) => {
+    const filas: ServicioEditado[] = resueltos.map((r) => {
       if (!r.servicio) {
         return {
+          ...base,
           servicio: r.codigo,
           antes: null,
           despues: null,
@@ -167,6 +260,7 @@ export class EditarTipoServicioAgenteService {
       );
 
       return {
+        ...base,
         servicio: r.codigo,
         antes: r.antes!,
         despues: {
@@ -180,25 +274,90 @@ export class EditarTipoServicioAgenteService {
       };
     });
 
-    const cambiados = resultado.filter((s) => !s.error).length;
+    return { filas, etiqueta };
+  }
 
-    this.auditoria.registrarCambio(
-      { agenda: agenda.nombre, servicios: resultado.map((s) => s.antes) },
-      { agenda: agenda.nombre, servicios: resultado.map((s) => s.despues) },
+  /**
+   * Los operadores de una petición, que pueden ser uno o varios.
+   *
+   * Con hora de corte solo se admite uno: la hora suele ser propia de cada
+   * operador, y aplicar la misma a varios de golpe es un cambio que nadie pidió
+   * con ese detalle.
+   */
+  private oplsPedidos(
+    opl: string,
+    corte?: { id: number; value: string },
+  ): string[] {
+    const lista = opl
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+
+    if (!lista.length) {
+      throw new BadRequestException('Indica al menos un operador logístico.');
+    }
+
+    const unicos = lista.filter(
+      (o, i) =>
+        lista.findIndex((x) => x.toLowerCase() === o.toLowerCase()) === i,
     );
 
-    return {
-      contexto,
-      opl: `${operador.code} - ${operador.nombre}`,
-      zona: zona.nombre,
-      agenda: agenda.nombre,
-      servicios: resultado,
-      resumen: {
-        pedidos: resultado.length,
-        cambiados,
-        sinCambiar: resultado.length - cambiados,
-      },
-    };
+    if (corte && unicos.length > 1) {
+      throw new BadRequestException(
+        `Una hora de corte se cambia en un operador por vez, y aquí vienen ${unicos.length}.`,
+      );
+    }
+
+    if (unicos.length > OPLS_MAXIMOS) {
+      throw new BadRequestException(
+        `Son ${unicos.length} operadores y el máximo por vez es ${OPLS_MAXIMOS}. ` +
+          `Si lo que quieres es cambiar un servicio en TODOS los que lo tengan, ` +
+          `usa el cambio en bloque, que busca por servicio.`,
+      );
+    }
+
+    return unicos;
+  }
+
+  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
+  private motivo(error: unknown): string {
+    return error instanceof HttpException
+      ? (error.getResponse() as { message?: string }).message || error.message
+      : 'No se pudo resolver este operador';
+  }
+
+  /**
+   * Si no cambió nada en ninguno, es un error.
+   *
+   * El motivo viaja **literal**, no resumido: "la agenda no tiene ese servicio"
+   * y "ya estaba así" llevan al agente a cosas distintas —preguntar por el
+   * código correcto o dejarlo estar—, y un mensaje genérico le quita la
+   * información con la que decide.
+   */
+  private exigirAlgunResultado(
+    servicios: ServicioEditado[],
+    cambiados: number,
+  ): void {
+    if (cambiados) return;
+
+    const motivos = [...new Set(servicios.map((s) => s.error))].filter(Boolean);
+
+    // Nada existía: es un 404, y le dice al agente que no insista igual
+    const nadaExiste = servicios.every((s) => s.antes === null);
+
+    const texto =
+      motivos.length === 1
+        ? motivos[0]!
+        : `Ninguno de los ${servicios.length} cambios se pudo aplicar. ` +
+          servicios
+            .map(
+              (s) => `${s.servicio}${s.opl ? ` (${s.opl})` : ''}: ${s.error}`,
+            )
+            .join('; ');
+
+    throw nadaExiste
+      ? new NotFoundException(texto)
+      : new BadRequestException(texto);
   }
 
   /**
@@ -407,36 +566,5 @@ export class EditarTipoServicioAgenteService {
     const cambiaCorte = !!corte && actual?.value?.trim() !== corte.value;
 
     return cambiaActivo || cambiaCheckout || cambiaCorte;
-  }
-
-  /**
-   * Uno que falla no arrastra a los demás; que fallen todos sí es un error.
-   *
-   * Mismo criterio que el rango de días en capacidad y que los destinos de una
-   * transferencia: responder "listo" cuando no se cambió nada es la única forma
-   * de que alguien se quede pensando que sí.
-   */
-  private exigirAlgunCambio(
-    resueltos: Array<{ codigo: string; error?: string; cambia?: boolean }>,
-    porEscribir: unknown[],
-  ): void {
-    if (porEscribir.length) return;
-
-    const fallidos = resueltos.filter((r) => r.error);
-
-    if (fallidos.length === resueltos.length) {
-      throw new NotFoundException(
-        fallidos.length === 1
-          ? `La agenda no tiene el servicio ${fallidos[0].codigo}. ${fallidos[0].error}`
-          : `Ninguno de los ${fallidos.length} servicios existe en esta agenda: ` +
-              fallidos.map((f) => f.codigo).join(', '),
-      );
-    }
-
-    throw new BadRequestException(
-      resueltos.length === 1
-        ? 'El servicio ya está así. No he cambiado nada.'
-        : `Los ${resueltos.length} servicios ya estaban así. No he cambiado nada.`,
-    );
   }
 }

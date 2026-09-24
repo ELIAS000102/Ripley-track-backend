@@ -33,12 +33,18 @@ const CATALOGO = [
  */
 const agendas = (n: number, activa = true, checkout = activa) =>
   Array.from({ length: n }, (_, i) => ({
-    mainRouteId: `r-${i}`,
+    // Las filas van como las devuelve la API, sin compactar: es lo que se lee
+    // una sola vez y lo que se reusa para escribir
+    id: `r-${i}`,
     opl: i % 2 === 0 ? 'Olva' : 'Urbano',
-    agenda: `Agenda ${i}`,
-    zona: 'Lima',
+    scheduleName: `Agenda ${i}`,
+    zone: 'Lima',
     typeOfService: 'SE',
-    isActive: activa,
+    idService: `s-${i}`,
+    mainSchedule: `ms-${i}`,
+    mainZone: `mz-${i}`,
+    courier: `c-${i}`,
+    active: activa,
     enabledForCheckout: checkout,
   }));
 
@@ -50,7 +56,7 @@ function armar(lista = agendas(3)) {
     listarOrigenes: vi
       .fn()
       .mockResolvedValue([{ code: 'warehouse', nombre: 'Bodega' }]),
-    consultar: vi.fn().mockResolvedValue({ agendas: lista }),
+    consultarEstado: vi.fn().mockResolvedValue(lista),
     actualizar,
   } as unknown as OplMasivoService;
 
@@ -64,6 +70,9 @@ function armar(lista = agendas(3)) {
     servicio: new EditarMasivoAgenteService(masivo, contexto, {
       registrarCambio,
     } as unknown as ContextoAuditoria),
+    masivo: masivo as unknown as {
+      consultarEstado: ReturnType<typeof vi.fn>;
+    },
     actualizar,
     registrarCambio,
   };
@@ -111,7 +120,7 @@ describe('Cambio en bloque: lo que sí hace', () => {
     // "Activa el SE en Olva y Urbano" es una confirmación, no dos
     const { servicio, actualizar } = armar([
       ...agendas(2),
-      { ...agendas(1)[0], mainRouteId: 'r-otro', opl: 'Shalom' },
+      { ...agendas(1)[0], id: 'r-otro', opl: 'Shalom' },
     ]);
 
     const r = await servicio.editar(
@@ -137,7 +146,7 @@ describe('Cambio en bloque: lo que sí hace', () => {
     // Dos ya inactivas y una activa: solo se escribe una
     const { servicio, actualizar } = armar([
       ...agendas(2, false),
-      { ...agendas(1)[0], mainRouteId: 'r-activa' },
+      { ...agendas(1)[0], id: 'r-activa' },
     ]);
 
     const r = await servicio.editar(USUARIO, editar({ activo: false }));
@@ -279,6 +288,44 @@ describe('Cambio en bloque: cuándo se niega', () => {
     ).rejects.toThrow(/Ningún método de entrega tiene el servicio/);
 
     expect(actualizar).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * El 404 que mataba la petición entera.
+ *
+ * La operación leía las agendas para elegir cuáles cambiar y **volvía a
+ * leerlas** para escribir. Cuando la segunda lectura no traía alguna de la
+ * primera, la petición moría con "la agenda X no está en el resultado de la
+ * consulta" y no se cambiaba ninguna.
+ */
+describe('Cambio en bloque: una sola lectura', () => {
+  it('no vuelve a consultar para escribir', async () => {
+    const { servicio, masivo, actualizar } = armar();
+
+    await servicio.editar(USUARIO, editar({ activo: false }));
+
+    expect(masivo.consultarEstado).toHaveBeenCalledOnce();
+
+    // El estado leído viaja a la escritura, que ya no relee
+    expect(actualizar.mock.calls[0][1]).toHaveLength(3);
+  });
+
+  it('escribe con los mismos ids que leyó', async () => {
+    const { servicio, actualizar } = armar();
+
+    await servicio.editar(USUARIO, editar({ activo: false }));
+
+    const [payload, estado] = actualizar.mock.calls[0] as [
+      { cambios: Array<{ mainRouteId: string }> },
+      Array<{ id: string }>,
+    ];
+
+    const leidos = new Set(estado.map((a) => a.id));
+
+    for (const c of payload.cambios) {
+      expect(leidos.has(c.mainRouteId)).toBe(true);
+    }
   });
 });
 

@@ -277,13 +277,26 @@ export interface DiaEditado {
  * Siempre es una lista, aunque se haya pedido un solo día: así el agente no
  * tiene dos formas que interpretar según cuántos días vinieran.
  */
+/** Una agenda con lo que le pasó a cada día pedido */
+export interface AgendaEditada {
+  agenda: string;
+  zona?: string;
+  dias: DiaEditado[];
+  /** Por qué esta agenda no se tocó, cuando las demás sí */
+  error?: string;
+}
+
 export interface EdicionRespuesta {
   contexto: ContextoAgente;
   tipo: 'picking' | 'despacho';
   oficina: string;
-  zona?: string;
-  agenda: string;
-  dias: DiaEditado[];
+  /**
+   * Una entrada por agenda pedida.
+   *
+   * Viene siempre, aunque se haya pedido una sola: dos formas que interpretar
+   * según cuántas vinieran es una de más.
+   */
+  agendas: AgendaEditada[];
   resumen: {
     pedidos: number;
     cambiados: number;

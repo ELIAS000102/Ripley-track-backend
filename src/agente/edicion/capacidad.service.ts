@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -19,6 +20,7 @@ import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { EditarCapacidadDto } from '../dto/edicion.dto.js';
 import type {
+  AgendaEditada,
   DiaEditado,
   EdicionRespuesta,
   EstadoDia,
@@ -45,6 +47,14 @@ const SIN_CONFIGURAR =
  * aplicar el cambio es preguntar por algo que solo tiene una respuesta posible.
  */
 const NO_FUNCIONAL = /no\s*funcional/i;
+
+/**
+ * Tope de jornadas por llamada.
+ *
+ * Un almacén no tiene muchas más; el tope está para que una lista inventada no
+ * se aplique entera. Para cerrar un CD completo está su propia herramienta.
+ */
+const JORNADAS_MAXIMAS = 10;
 
 /**
  * La única escritura que el agente puede hacer: días de una agenda.
@@ -117,23 +127,101 @@ export class EditarCapacidadAgenteService {
         `(asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
     );
 
-    const resultado =
-      dto.tipo === 'picking'
-        ? await this.editarPicking(dto, pais, fechas)
-        : await this.editarDespacho(dto, pais, fechas);
+    // En picking el servicio identifica la jornada y puede venir más de una:
+    // "cierra la ST y la RC del 20026" es una decisión, no dos
+    const jornadas = this.jornadasPedidas(dto);
 
-    this.exigirAlgunCambio(resultado.dias);
-    this.registrarEnAuditoria(resultado);
+    const agendas: AgendaEditada[] = [];
+    // Se guardan los errores tal cual: un servicio que no existe es un 404 y
+    // uno mal pedido es un 400, y esa diferencia le dice al agente si tiene
+    // que preguntar el código o rendirse
+    const fallos: unknown[] = [];
+
+    for (const jornada of jornadas) {
+      const uno = { ...dto, servicio: jornada };
+
+      try {
+        const parcial =
+          dto.tipo === 'picking'
+            ? await this.editarPicking(uno, pais, fechas)
+            : await this.editarDespacho(uno, pais, fechas);
+
+        const zona = 'zona' in parcial ? parcial.zona : undefined;
+
+        agendas.push({
+          agenda: parcial.agenda,
+          ...(zona ? { zona } : {}),
+          dias: parcial.dias,
+        });
+      } catch (e) {
+        // Una jornada que no se puede resolver se anota y no arrastra a las
+        // demás: cerrar tres y que la segunda esté mal nombrada no puede
+        // dejar las otras dos sin tocar y sin explicación
+        fallos.push(e);
+        agendas.push({
+          agenda: jornada ?? '(sin indicar)',
+          dias: [],
+          error: this.motivo(e),
+        });
+      }
+    }
+
+    const dias = agendas.flatMap((a) => a.dias);
+
+    this.exigirAlgunCambio(dias, agendas, fallos);
+    this.registrarEnAuditoria({ tipo: dto.tipo, oficina: dto.codigo, agendas });
+
+    const cambiados = dias.filter((d) => !d.error).length;
+    const fallidas = agendas.filter((a) => a.error).length;
 
     return {
       contexto,
-      ...resultado,
+      tipo: dto.tipo,
+      oficina: dto.codigo,
+      agendas,
       resumen: {
-        pedidos: resultado.dias.length,
-        cambiados: resultado.dias.filter((d) => !d.error).length,
-        sinCambiar: resultado.dias.filter((d) => d.error).length,
+        pedidos: dias.length + fallidas,
+        cambiados,
+        sinCambiar: dias.length - cambiados + fallidas,
       },
     };
+  }
+
+  /**
+   * Las jornadas de una petición.
+   *
+   * Llegan por coma en `servicio`, que es donde el picking identifica la
+   * agenda. En despacho la agenda se nombra con `zona` y `agenda`, así que ahí
+   * es siempre una: no hay lista que partir.
+   */
+  private jornadasPedidas(dto: EditarCapacidadDto): Array<string | undefined> {
+    if (dto.tipo !== 'picking' || !dto.servicio?.trim()) return [dto.servicio];
+
+    const lista = dto.servicio
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const unicas = lista.filter(
+      (s, i) =>
+        lista.findIndex((x) => x.toUpperCase() === s.toUpperCase()) === i,
+    );
+
+    if (unicas.length > JORNADAS_MAXIMAS) {
+      throw new BadRequestException(
+        `Son ${unicas.length} jornadas y el máximo por vez es ${JORNADAS_MAXIMAS}. ` +
+          `Si lo que quieres es cerrar el CD entero, usa la herramienta del CD.`,
+      );
+    }
+
+    return unicas;
+  }
+
+  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
+  private motivo(error: unknown): string {
+    return error instanceof HttpException
+      ? (error.getResponse() as { message?: string }).message || error.message
+      : 'No se pudo resolver esta jornada';
   }
 
   // ---------- Picking: almacén → agenda → días ----------
@@ -411,9 +499,16 @@ export class EditarCapacidadAgenteService {
       const termino = buscado?.trim().toLowerCase();
       if (!termino) return quedan;
 
-      return quedan.filter((item) =>
-        (de(item) ?? '').toLowerCase().includes(termino),
-      );
+      const valor = (item: T) => (de(item) ?? '').toLowerCase();
+
+      // **Lo exacto gana sobre lo parecido.** Con `includes` a secas, la
+      // jornada "S" no se podía apuntar en un almacén que también tuviera "ST"
+      // o "SD": el término casaba con las tres y la petición se quedaba
+      // pidiendo que se desempatara algo que ya venía sin ambigüedad.
+      const exactas = quedan.filter((item) => valor(item) === termino);
+      if (exactas.length) return exactas;
+
+      return quedan.filter((item) => valor(item).includes(termino));
     }, lista);
   }
 
@@ -494,19 +589,37 @@ export class EditarCapacidadAgenteService {
    * Devolver un 200 con todos los días fallidos deja al agente decidiendo si
    * eso fue un éxito, y decide que sí más veces de las que debería.
    */
-  private exigirAlgunCambio(dias: DiaEditado[]): void {
+  private exigirAlgunCambio(
+    dias: DiaEditado[],
+    agendas: AgendaEditada[],
+    fallos: unknown[],
+  ): void {
     if (dias.some((d) => !d.error)) return;
 
-    const motivos = [...new Set(dias.map((d) => d.error))];
+    // Con un solo fallo se relanza su error tal cual, para no perder ni el
+    // estado ni el texto que ya explicaba qué faltaba
+    if (fallos.length === 1 && !dias.length) throw fallos[0];
+
+    // Una agenda que ni se pudo resolver también es un motivo, y suele ser el
+    // más útil: dice que el nombre estaba mal, no que el día no existiera
+    const motivos = [
+      ...new Set([
+        ...agendas.filter((a) => a.error).map((a) => a.error!),
+        ...dias.map((d) => d.error!),
+      ]),
+    ];
+
+    const total = dias.length + agendas.filter((a) => a.error).length;
+
     const mensaje =
-      dias.length === 1
+      total === 1
         ? motivos[0]!
-        : `No se cambió ningún día de los ${dias.length} pedidos. Motivos: ${motivos.join(' · ')}`;
+        : `No se cambió nada de lo ${total} pedido. Motivos: ${motivos.join(' · ')}`;
 
     // Si lo único que pasó es que esos días no existen en la agenda, es un
     // "no encontrado" y no una petición mal formada: el agente los traduce
     // distinto al contárselo al usuario.
-    throw dias.every((d) => d.error === SIN_CONFIGURAR)
+    throw dias.length && dias.every((d) => d.error === SIN_CONFIGURAR)
       ? new NotFoundException(mensaje)
       : new BadRequestException(mensaje);
   }
@@ -519,20 +632,27 @@ export class EditarCapacidadAgenteService {
    * tocó un solo día.
    */
   private registrarEnAuditoria(resultado: {
-    agenda: string;
-    dias: DiaEditado[];
+    tipo: string;
+    oficina: string;
+    agendas: AgendaEditada[];
   }): void {
-    const cambiados = resultado.dias.filter((d) => !d.error);
     const resumir = (lado: 'antes' | 'despues') =>
-      cambiados.map((d) => ({
-        fecha: d.fecha,
-        asignado: d[lado]?.asignado,
-        activo: d[lado]?.activo,
-      }));
+      resultado.agendas.flatMap((a) =>
+        a.dias
+          .filter((d) => !d.error)
+          .map((d) => ({
+            agenda: a.agenda,
+            fecha: d.fecha,
+            asignado: d[lado]?.asignado,
+            activo: d[lado]?.activo,
+          })),
+      );
+
+    const base = { tipo: resultado.tipo, oficina: resultado.oficina };
 
     this.auditoria.registrarCambio(
-      { agenda: resultado.agenda, dias: resumir('antes') },
-      { agenda: resultado.agenda, dias: resumir('despues') },
+      { ...base, dias: resumir('antes') },
+      { ...base, dias: resumir('despues') },
     );
   }
 
