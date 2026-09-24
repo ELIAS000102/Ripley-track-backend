@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
+import { CacheCatalogosService } from './cache-catalogos.service.js';
 import { CatalogosRipleyService } from './catalogos.service.js';
 import { RipleyHttpService } from './ripley-http.service.js';
 
 @Module({
   imports: [HttpModule],
-  providers: [RipleyHttpService, CatalogosRipleyService],
+  providers: [RipleyHttpService, CatalogosRipleyService, CacheCatalogosService],
   exports: [RipleyHttpService, CatalogosRipleyService],
 })
 /**

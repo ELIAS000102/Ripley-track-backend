@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import type { CacheCatalogosService } from './cache-catalogos.service.js';
 import { CatalogosRipleyService } from './catalogos.service.js';
 import type { RipleyHttpService } from './ripley-http.service.js';
 
@@ -21,7 +22,12 @@ function armar(respuesta: unknown = { count: 0, rows: [] }) {
     endpoint: (nombre: string) => `/api/${nombre}`,
   } as unknown as RipleyHttpService;
 
-  return { servicio: new CatalogosRipleyService(ripley), get };
+  // Sin caché de por medio: lo que se vigila aquí es qué se le pide a Ripley
+  const cache = {
+    recordar: (_clave: string, _pais: string, traer: () => unknown) => traer(),
+  } as unknown as CacheCatalogosService;
+
+  return { servicio: new CatalogosRipleyService(ripley, cache), get };
 }
 
 /** [path, pais, params] de la única llamada que se hizo */

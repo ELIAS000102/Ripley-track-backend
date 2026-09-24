@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { CacheCatalogosService } from './cache-catalogos.service.js';
 import { RipleyHttpService } from './ripley-http.service.js';
 import type {
   CapacitiesResponse,
@@ -33,7 +34,10 @@ interface FiltroOficinas {
  */
 @Injectable()
 export class CatalogosRipleyService {
-  constructor(private readonly ripley: RipleyHttpService) {}
+  constructor(
+    private readonly ripley: RipleyHttpService,
+    private readonly cache: CacheCatalogosService,
+  ) {}
 
   /**
    * Filas de /offices.
@@ -60,15 +64,22 @@ export class CatalogosRipleyService {
     pais: string,
     filtro: FiltroOficinas = {},
   ): Promise<{ total: number; filas: OfficeRow[] }> {
-    const data = await this.ripley.get<RipleyListResponse<OfficeRow>>(
-      this.ripley.endpoint('offices'),
+    const params = {
+      ...(filtro.q ? { q: filtro.q } : {}),
+      ...(filtro.id ? { id: filtro.id } : {}),
+      ...(filtro.tipo === 'opl' ? { isOPLOffice: true } : {}),
+      ...(filtro.tipo === 'almacen' ? { isStoreOffice: true } : {}),
+    };
+
+    const data = await this.cache.recordar(
+      `offices|${JSON.stringify(params)}`,
       pais,
-      {
-        ...(filtro.q ? { q: filtro.q } : {}),
-        ...(filtro.id ? { id: filtro.id } : {}),
-        ...(filtro.tipo === 'opl' ? { isOPLOffice: true } : {}),
-        ...(filtro.tipo === 'almacen' ? { isStoreOffice: true } : {}),
-      },
+      () =>
+        this.ripley.get<RipleyListResponse<OfficeRow>>(
+          this.ripley.endpoint('offices'),
+          pais,
+          params,
+        ),
     );
 
     return { total: data?.count ?? 0, filas: data?.rows ?? [] };
@@ -98,9 +109,11 @@ export class CatalogosRipleyService {
 
   /** El catálogo /services entero */
   async servicios(pais: string): Promise<ServiceRow[]> {
-    const data = await this.ripley.get<RipleyListResponse<ServiceRow>>(
-      this.ripley.endpoint('services'),
-      pais,
+    const data = await this.cache.recordar('services', pais, () =>
+      this.ripley.get<RipleyListResponse<ServiceRow>>(
+        this.ripley.endpoint('services'),
+        pais,
+      ),
     );
 
     return data?.rows ?? [];
@@ -117,10 +130,15 @@ export class CatalogosRipleyService {
     warehouseId: string,
     pais: string,
   ): Promise<ScheduleRow[]> {
-    const data = await this.ripley.get<RipleyListResponse<ScheduleRow>>(
-      this.ripley.endpoint('schedulesPicking'),
+    const data = await this.cache.recordar(
+      `schedulesPicking|${warehouseId}`,
       pais,
-      { warehouse: warehouseId },
+      () =>
+        this.ripley.get<RipleyListResponse<ScheduleRow>>(
+          this.ripley.endpoint('schedulesPicking'),
+          pais,
+          { warehouse: warehouseId },
+        ),
     );
 
     return data?.rows ?? [];

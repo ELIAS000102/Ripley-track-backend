@@ -1,10 +1,11 @@
 import { BadGatewayException } from '@nestjs/common';
 import type { HttpService } from '@nestjs/axios';
 import type { ConfigService } from '@nestjs/config';
-import { throwError } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { TokenRipleyService } from '../../configuracion/token-ripley/token-ripley.service.js';
+import type { CacheCatalogosService } from './cache-catalogos.service.js';
 import { RipleyApiError } from './ripley.errors.js';
 import { RipleyHttpService } from './ripley-http.service.js';
 
@@ -49,7 +50,9 @@ function armar(fallo: unknown) {
     obtenerParaUso: vi.fn().mockResolvedValue('token-corporativo'),
   } as unknown as TokenRipleyService;
 
-  const servicio = new RipleyHttpService(http, config, contexto, tokens);
+  const cache = { olvidar: vi.fn() } as unknown as CacheCatalogosService;
+
+  const servicio = new RipleyHttpService(http, config, contexto, tokens, cache);
 
   // El logger de la instancia, para vigilar qué se escribe
   const logger = (servicio as unknown as { logger: Record<string, unknown> })
@@ -62,7 +65,7 @@ function armar(fallo: unknown) {
     });
   }
 
-  return { servicio, escrito };
+  return { servicio, escrito, cache };
 }
 
 /**
@@ -158,5 +161,56 @@ describe('Cuando la API corporativa falla de verdad', () => {
     const error = await capturar(servicio);
 
     expect(error.message).toMatch(/No se pudo contactar/);
+  });
+});
+
+/**
+ * La caché de catálogos no puede sobrevivir a una escritura.
+ *
+ * Enseñar el catálogo de antes del cambio es exactamente lo que hace dudar de
+ * si el cambio se aplicó.
+ */
+describe('Escribir invalida la caché de catálogos', () => {
+  function conRespuesta() {
+    const http = {
+      get: vi.fn(() => of({ data: { rows: [] } })),
+      put: vi.fn(() => of({ data: { ok: true } })),
+    } as unknown as HttpService;
+
+    const config = {
+      get: (clave: string) =>
+        clave === 'ripley.urls' ? { PE: 'https://interno' } : '/api/x',
+    } as unknown as ConfigService;
+
+    const contexto = {
+      usuarioActual: () => ({ id: 'u1', email: 'ana@ripley.com.pe' }),
+    } as unknown as ContextoAuditoria;
+
+    const tokens = {
+      obtenerParaUso: vi.fn().mockResolvedValue('token'),
+    } as unknown as TokenRipleyService;
+
+    const cache = { olvidar: vi.fn() } as unknown as CacheCatalogosService;
+
+    return {
+      servicio: new RipleyHttpService(http, config, contexto, tokens, cache),
+      olvidar: cache.olvidar as ReturnType<typeof vi.fn>,
+    };
+  }
+
+  it('un PUT la olvida', async () => {
+    const { servicio, olvidar } = conRespuesta();
+
+    await servicio.put('/api/x', 'PE', { a: 1 });
+
+    expect(olvidar).toHaveBeenCalledWith('PE');
+  });
+
+  it('un GET no la toca', async () => {
+    const { servicio, olvidar } = conRespuesta();
+
+    await servicio.get('/api/x', 'PE');
+
+    expect(olvidar).not.toHaveBeenCalled();
   });
 });

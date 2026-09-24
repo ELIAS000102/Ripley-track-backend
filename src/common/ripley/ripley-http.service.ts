@@ -8,6 +8,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
+import { CacheCatalogosService } from './cache-catalogos.service.js';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { TokenRipleyService } from '../../configuracion/token-ripley/token-ripley.service.js';
 import { RipleyApiError } from './ripley.errors.js';
@@ -31,6 +32,7 @@ export class RipleyHttpService {
     private readonly configService: ConfigService,
     private readonly contexto: ContextoAuditoria,
     private readonly tokens: TokenRipleyService,
+    private readonly cache: CacheCatalogosService,
   ) {}
 
   /** Normaliza el país a mayúsculas sin espacios: "pe " -> "PE" */
@@ -178,6 +180,12 @@ export class RipleyHttpService {
           : this.httpService[metodo]<T>(url, body, config);
 
       const { data } = await firstValueFrom(respuesta);
+
+      // Después de escribir, la siguiente lectura tiene que ir a Ripley:
+      // enseñar el catálogo de antes del cambio es lo que hace dudar de si
+      // el cambio se aplicó
+      if (metodo !== 'get') this.cache.olvidar(pais);
+
       return data;
     } catch (error) {
       this.manejarError(error, accion);
