@@ -5,6 +5,7 @@ import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js
 import { ContextoAgenteService } from '../contexto.service.js';
 import { EditarMasivoDto } from '../dto/edicion.dto.js';
 import type { MasivoEditado } from '../interfaces/edicion.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /**
  * Activar o desactivar en bloque las agendas que tienen un tipo de servicio.
@@ -142,10 +143,7 @@ export class EditarMasivoAgenteService {
     agendas: T[],
     dto: EditarMasivoDto,
   ): T[] {
-    const pedidos = (dto.opls ?? '')
-      .split(',')
-      .map((o) => o.trim().toLowerCase())
-      .filter(Boolean);
+    const pedidos = partirLista(dto.opls).map((o) => o.toLowerCase());
 
     return agendas.filter((a) => {
       if (dto.soloActivas && a.isActive !== true) return false;
@@ -278,10 +276,7 @@ export class EditarMasivoAgenteService {
 
     if (!pedidos?.trim()) return disponibles.map((o) => o.code);
 
-    const buscados = pedidos
-      .split(',')
-      .map((o) => o.trim().toLowerCase())
-      .filter(Boolean);
+    const buscados = partirLista(pedidos).map((x) => x.trim().toLowerCase());
 
     const elegidos = disponibles
       .filter(

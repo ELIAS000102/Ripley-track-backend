@@ -18,6 +18,7 @@ import {
 } from '../../common/ripley/utils/date.util.js';
 import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
+import { partirListaUnica } from '../utils/lista.util.js';
 import { EditarCapacidadDto } from '../dto/edicion.dto.js';
 import type {
   AgendaEditada,
@@ -197,15 +198,7 @@ export class EditarCapacidadAgenteService {
   private jornadasPedidas(dto: EditarCapacidadDto): Array<string | undefined> {
     if (dto.tipo !== 'picking' || !dto.servicio?.trim()) return [dto.servicio];
 
-    const lista = dto.servicio
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const unicas = lista.filter(
-      (s, i) =>
-        lista.findIndex((x) => x.toUpperCase() === s.toUpperCase()) === i,
-    );
+    const unicas = partirListaUnica(dto.servicio);
 
     if (unicas.length > JORNADAS_MAXIMAS) {
       throw new BadRequestException(

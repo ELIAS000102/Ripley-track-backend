@@ -15,6 +15,7 @@ import type {
   DestinoEditado,
   TransferenciaEditada,
 } from '../interfaces/edicion.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /**
  * Tope de destinos por llamada.
@@ -183,10 +184,7 @@ export class EditarTransferenciaAgenteService {
    * conversación y el usuario abandona a mitad.
    */
   private destinosPedidos(destino: string): string[] {
-    const lista = destino
-      .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean);
+    const lista = partirLista(destino);
 
     if (!lista.length) {
       throw new BadRequestException('Indica al menos un destino.');
@@ -305,10 +303,7 @@ export class EditarTransferenciaAgenteService {
 
     const todos = semana(false);
 
-    const nombrados = pedido
-      .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean);
+    const nombrados = partirLista(pedido);
 
     const desconocidos: string[] = [];
 

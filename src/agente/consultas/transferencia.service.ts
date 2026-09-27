@@ -16,6 +16,7 @@ import type {
   Transferencia,
   TransferenciaRespuesta,
 } from '../interfaces/agente.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /** Orden en el que se nombran los días, y su traducción */
 const DIAS: ReadonlyArray<[clave: keyof DiasDisponibles, nombre: string]> = [
@@ -125,10 +126,7 @@ export class TransferenciaAgenteService {
   private destinosPedidos(destino?: string): string[] {
     if (!destino?.trim()) return [];
 
-    const lista = destino
-      .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean);
+    const lista = partirLista(destino);
 
     return lista.filter(
       (d, i) =>

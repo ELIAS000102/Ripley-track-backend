@@ -17,6 +17,7 @@ import type {
   ResultadoSimulacion,
   SimulacionRespuesta,
 } from '../interfaces/agente.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /** Un distrito ya aplanado con su provincia */
 interface Distrito {
@@ -196,11 +197,7 @@ export class SimulacionAgenteService {
 
     // Varios separados por coma: "la 1111, 1110 y 1112" es una sola consulta,
     // no tres. Sin esto el agente llamaba en bucle y agotaba las iteraciones.
-    return operador
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean)
-      .map((code) => this.destinoDe(code, dto));
+    return partirLista(operador).map((code) => this.destinoDe(code, dto));
   }
 
   /**

@@ -20,6 +20,7 @@ import type {
   CdEditado,
   JornadaCerrada,
 } from '../interfaces/edicion.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /** Las agendas fuera de uso no se editan, igual que en el resto de escrituras */
 const NO_FUNCIONAL = /no\s*funcional/i;
@@ -169,10 +170,7 @@ export class EditarCdAgenteService {
   private jornadasPedidas(jornadas?: string): string[] | undefined {
     if (!jornadas?.trim()) return undefined;
 
-    const lista = jornadas
-      .split(',')
-      .map((j) => j.trim().toUpperCase())
-      .filter(Boolean);
+    const lista = partirLista(jornadas).map((x) => x.trim().toUpperCase());
 
     return lista.length ? lista : undefined;
   }

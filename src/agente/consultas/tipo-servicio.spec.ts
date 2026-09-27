@@ -238,6 +238,56 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
     expect(buscarOpl).not.toHaveBeenCalled();
   });
 
+  /**
+   * En el chat se escriben los códigos seguidos, sin comas. Partir por
+   * espacios solo cuando TODO son cifras: un nombre de operador lleva espacios
+   * —"Plaza Lima Norte"— y partirlo sería buscar cuatro que no existen.
+   */
+  it('también los separa por espacios si todo son cifras', async () => {
+    const { servicio, buscarOpl } = armar();
+
+    const r = await servicio.consultar(
+      USUARIO,
+      consultar({ opl: '1110 1111' }),
+    );
+
+    expect(r.opls).toHaveLength(2);
+    expect(buscarOpl).toHaveBeenCalledWith('1110', 'CL');
+    expect(buscarOpl).toHaveBeenCalledWith('1111', 'CL');
+  });
+
+  it('pero un nombre con espacios NO se parte', async () => {
+    const { servicio, buscarOpl } = armar();
+
+    await servicio
+      .consultar(USUARIO, consultar({ opl: 'Plaza Lima Norte' }))
+      .catch(() => null);
+
+    expect(buscarOpl).toHaveBeenCalledOnce();
+    expect(buscarOpl).toHaveBeenCalledWith('Plaza Lima Norte', 'CL');
+  });
+
+  it('ni uno que mezcla cifras y letras', async () => {
+    const { servicio, buscarOpl } = armar();
+
+    await servicio
+      .consultar(USUARIO, consultar({ opl: 'Agencia 1110 Norte' }))
+      .catch(() => null);
+
+    expect(buscarOpl).toHaveBeenCalledOnce();
+  });
+
+  it('y las comas siguen mandando aunque haya espacios', async () => {
+    const { servicio, buscarOpl } = armar();
+
+    await servicio
+      .consultar(USUARIO, consultar({ opl: 'Plaza Lima Norte, 1110' }))
+      .catch(() => null);
+
+    expect(buscarOpl).toHaveBeenCalledWith('Plaza Lima Norte', 'CL');
+    expect(buscarOpl).toHaveBeenCalledWith('1110', 'CL');
+  });
+
   it('el alias sigue valiendo dentro de la lista', async () => {
     const { servicio, buscarOpl } = armar();
 

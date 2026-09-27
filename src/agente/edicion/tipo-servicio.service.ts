@@ -15,6 +15,7 @@ import type {
   ServicioEditado,
   TipoServicioEditado,
 } from '../interfaces/edicion.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /**
  * Tope de servicios por llamada.
@@ -288,10 +289,7 @@ export class EditarTipoServicioAgenteService {
     opl: string,
     corte?: { id: number; value: string },
   ): string[] {
-    const lista = opl
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean);
+    const lista = partirLista(opl);
 
     if (!lista.length) {
       throw new BadRequestException('Indica al menos un operador logístico.');
@@ -401,10 +399,7 @@ export class EditarTipoServicioAgenteService {
     servicio: string,
     corte?: { id: number; value: string },
   ): string[] {
-    const lista = servicio
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const lista = partirLista(servicio);
 
     if (!lista.length) {
       throw new BadRequestException('Indica al menos un servicio.');

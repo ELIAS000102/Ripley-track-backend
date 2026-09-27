@@ -8,6 +8,7 @@ import type {
   AgendaMasiva,
   BusquedaMasivaRespuesta,
 } from '../interfaces/agente.interface.js';
+import { partirLista } from '../utils/lista.util.js';
 
 /** Tope de agendas que se devuelven al modelo; el resumen cuenta todas */
 const MAXIMO = 40;
@@ -226,10 +227,9 @@ export class BusquedaMasivaAgenteService {
       return disponibles.map((o) => o.code);
     }
 
-    const pedidosLimpios = pedidos
-      .split(',')
-      .map((o) => o.trim().toLowerCase())
-      .filter(Boolean);
+    const pedidosLimpios = partirLista(pedidos).map((x) =>
+      x.trim().toLowerCase(),
+    );
 
     const elegidos = disponibles
       .filter(

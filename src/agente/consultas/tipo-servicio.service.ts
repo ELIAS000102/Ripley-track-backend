@@ -10,6 +10,7 @@ import type { HoraCorte } from '../../configuracion/tipo-servicio/opl/interfaces
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../contexto.service.js';
+import { partirListaUnica } from '../utils/lista.util.js';
 import { ConsultarTipoServicioDto } from '../dto/consultas.dto.js';
 import type {
   OplConServicios,
@@ -88,19 +89,11 @@ export class TipoServicioAgenteService {
    * servicios de todos" se convierte en una espera que nadie aguanta.
    */
   private oplsPedidos(opl: string): string[] {
-    const lista = opl
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean);
+    const unicos = partirListaUnica(opl);
 
-    if (!lista.length) {
+    if (!unicos.length) {
       throw new BadRequestException('Indica al menos un operador logístico.');
     }
-
-    const unicos = lista.filter(
-      (o, i) =>
-        lista.findIndex((x) => x.toLowerCase() === o.toLowerCase()) === i,
-    );
 
     if (unicos.length > OPLS_MAXIMOS) {
       throw new BadRequestException(
