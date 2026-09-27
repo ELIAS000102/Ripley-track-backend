@@ -353,9 +353,8 @@ export interface AgendaEditada {
   error?: string;
 }
 
-export interface EdicionRespuesta {
-  contexto: ContextoAgente;
-  tipo: 'picking' | 'despacho';
+/** Una oficina con las agendas que se le tocaron */
+export interface OficinaEditada {
   oficina: string;
   /**
    * Una entrada por agenda pedida.
@@ -364,6 +363,15 @@ export interface EdicionRespuesta {
    * según cuántas vinieran es una de más.
    */
   agendas: AgendaEditada[];
+  /** Por qué esta oficina no se pudo tocar, cuando las demás sí */
+  error?: string;
+}
+
+export interface EdicionRespuesta {
+  contexto: ContextoAgente;
+  tipo: 'picking' | 'despacho';
+  /** Un elemento por código pedido, igual que en la consulta */
+  oficinas: OficinaEditada[];
   resumen: {
     pedidos: number;
     cambiados: number;

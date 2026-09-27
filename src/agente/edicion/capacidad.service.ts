@@ -21,6 +21,7 @@ import { partirListaUnica } from '../utils/lista.util.js';
 import { EditarCapacidadDto } from '../dto/edicion.dto.js';
 import type {
   AgendaEditada,
+  OficinaEditada,
   DiaEditado,
   EdicionRespuesta,
   EstadoDia,
@@ -56,6 +57,19 @@ const NO_FUNCIONAL = /no\s*funcional/i;
  * se aplique entera. Para cerrar un CD completo está su propia herramienta.
  */
 const JORNADAS_MAXIMAS = 10;
+
+/** Tope de oficinas por llamada, el mismo que en la consulta */
+const OFICINAS_MAXIMAS = 5;
+
+/**
+ * Tope de días de agenda escritos en una sola petición.
+ *
+ * Es el que de verdad acota: oficinas × jornadas × días crece muy rápido, y un
+ * cambio que nadie puede revisar entero no se hace desde el chat. Está por
+ * encima de lo que hoy cabe en una oficina sola (10 × 31 = 310), así que nada
+ * de lo que ya funciona deja de funcionar.
+ */
+const CAMBIOS_MAXIMOS = 400;
 
 /**
  * La única escritura que el agente puede hacer: días de una agenda.
@@ -114,32 +128,126 @@ export class EditarCapacidadAgenteService {
       );
     }
 
-    // En despacho el código es un operador, y "90 min" es el 1130. En picking
-    // es un almacén: otro catálogo, donde el alias no significa nada.
-    if (dto.tipo === 'despacho') {
-      dto = { ...dto, codigo: resolverAliasOpl(dto.codigo) };
-    }
-
     const fechas = this.diasDelRango(dto, pais);
-
-    this.logger.warn(
-      `EDICIÓN del agente — ${usuario.email} cambia ${dto.tipo} de ${dto.codigo} ` +
-        `en ${fechas.length} día(s) desde ${fechas[0]} ` +
-        `(asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
-    );
 
     // En picking el servicio identifica la jornada y puede venir más de una:
     // "cierra la ST y la RC del 20026" es una decisión, no dos
     const jornadas = this.jornadasPedidas(dto);
+    const codigos = this.oficinasPedidas(dto.codigo, jornadas, fechas);
 
-    const agendas: AgendaEditada[] = [];
+    this.logger.warn(
+      `EDICIÓN del agente — ${usuario.email} cambia ${dto.tipo} de ` +
+        `${codigos.length} oficina(s) [${codigos.join(', ')}] en ` +
+        `${fechas.length} día(s) desde ${fechas[0]} ` +
+        `(asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
+    );
+
+    const oficinas: OficinaEditada[] = [];
     // Se guardan los errores tal cual: un servicio que no existe es un 404 y
     // uno mal pedido es un 400, y esa diferencia le dice al agente si tiene
     // que preguntar el código o rendirse
     const fallos: unknown[] = [];
 
+    for (const codigo of codigos) {
+      oficinas.push(
+        await this.editarUnaOficina(
+          codigo,
+          dto,
+          jornadas,
+          fechas,
+          pais,
+          fallos,
+        ),
+      );
+    }
+
+    const dias = oficinas.flatMap((o) => o.agendas.flatMap((a) => a.dias));
+    const agendas = oficinas.flatMap((o) => o.agendas);
+
+    this.exigirAlgunCambio(dias, agendas, fallos);
+    this.registrarEnAuditoria({ tipo: dto.tipo, oficinas });
+
+    const cambiados = dias.filter((d) => !d.error).length;
+    const fallidas = agendas.filter((a) => a.error).length;
+
+    return {
+      contexto,
+      tipo: dto.tipo,
+      oficinas,
+      resumen: {
+        pedidos: dias.length + fallidas,
+        cambiados,
+        sinCambiar: dias.length - cambiados + fallidas,
+      },
+    };
+  }
+
+  /**
+   * Los códigos de una petición, con el tope que de verdad importa.
+   *
+   * No es el número de oficinas: es **cuántos días se van a escribir**, que es
+   * oficinas × jornadas × días y crece muy rápido. Tres CDs por siete jornadas
+   * por una semana ya son ciento cuarenta escrituras desde una sola frase.
+   *
+   * El tope está puesto por encima de lo que hoy cabe en una oficina sola
+   * (diez jornadas por treinta y un días), así que nada de lo que ya funciona
+   * deja de funcionar: lo que corta es la multiplicación al añadir oficinas.
+   */
+  private oficinasPedidas(
+    codigo: string,
+    jornadas: Array<string | undefined>,
+    fechas: string[],
+  ): string[] {
+    const unicas = partirListaUnica(codigo);
+
+    if (!unicas.length) {
+      throw new BadRequestException('Indica al menos un código.');
+    }
+
+    if (unicas.length > OFICINAS_MAXIMAS) {
+      throw new BadRequestException(
+        `Son ${unicas.length} oficinas y el máximo por vez es ${OFICINAS_MAXIMAS}.`,
+      );
+    }
+
+    const escrituras = unicas.length * jornadas.length * fechas.length;
+
+    if (escrituras > CAMBIOS_MAXIMOS) {
+      throw new BadRequestException(
+        `Eso son ${escrituras} días de agenda a la vez (${unicas.length} oficinas × ` +
+          `${jornadas.length} jornada(s) × ${fechas.length} día(s)) y el máximo es ` +
+          `${CAMBIOS_MAXIMOS}. Acota el rango de fechas o hazlo en tandas: un cambio ` +
+          `que nadie puede revisar entero no se hace desde el chat.`,
+      );
+    }
+
+    return unicas;
+  }
+
+  /**
+   * Una oficina con todas las jornadas que se le pidieron.
+   *
+   * Una que no se puede resolver se anota y **no arrastra a las demás**:
+   * cerrar tres almacenes y que el segundo esté mal escrito no puede dejar los
+   * otros dos sin tocar y sin explicación.
+   */
+  private async editarUnaOficina(
+    codigo: string,
+    dto: EditarCapacidadDto,
+    jornadas: Array<string | undefined>,
+    fechas: string[],
+    pais: string,
+    fallos: unknown[],
+  ): Promise<OficinaEditada> {
+    // En despacho el código es un operador, y "90 min" es el 1130. En picking
+    // es un almacén: otro catálogo, donde el alias no significa nada.
+    const resuelto =
+      dto.tipo === 'despacho' ? resolverAliasOpl(codigo) : codigo;
+
+    const agendas: AgendaEditada[] = [];
+
     for (const jornada of jornadas) {
-      const uno = { ...dto, servicio: jornada };
+      const uno = { ...dto, codigo: resuelto, servicio: jornada };
 
       try {
         const parcial =
@@ -155,9 +263,6 @@ export class EditarCapacidadAgenteService {
           dias: parcial.dias,
         });
       } catch (e) {
-        // Una jornada que no se puede resolver se anota y no arrastra a las
-        // demás: cerrar tres y que la segunda esté mal nombrada no puede
-        // dejar las otras dos sin tocar y sin explicación
         fallos.push(e);
         agendas.push({
           agenda: jornada ?? '(sin indicar)',
@@ -167,25 +272,7 @@ export class EditarCapacidadAgenteService {
       }
     }
 
-    const dias = agendas.flatMap((a) => a.dias);
-
-    this.exigirAlgunCambio(dias, agendas, fallos);
-    this.registrarEnAuditoria({ tipo: dto.tipo, oficina: dto.codigo, agendas });
-
-    const cambiados = dias.filter((d) => !d.error).length;
-    const fallidas = agendas.filter((a) => a.error).length;
-
-    return {
-      contexto,
-      tipo: dto.tipo,
-      oficina: dto.codigo,
-      agendas,
-      resumen: {
-        pedidos: dias.length + fallidas,
-        cambiados,
-        sinCambiar: dias.length - cambiados + fallidas,
-      },
-    };
+    return { oficina: resuelto, agendas };
   }
 
   /**
@@ -619,26 +706,28 @@ export class EditarCapacidadAgenteService {
    */
   private registrarEnAuditoria(resultado: {
     tipo: string;
-    oficina: string;
-    agendas: AgendaEditada[];
+    oficinas: OficinaEditada[];
   }): void {
+    // Cada fila lleva su oficina: con varias, "agenda RC del día 2" no dice
+    // de cuál almacén se está hablando, y deshacerlo exige saberlo
     const resumir = (lado: 'antes' | 'despues') =>
-      resultado.agendas.flatMap((a) =>
-        a.dias
-          .filter((d) => !d.error)
-          .map((d) => ({
-            agenda: a.agenda,
-            fecha: d.fecha,
-            asignado: d[lado]?.asignado,
-            activo: d[lado]?.activo,
-          })),
+      resultado.oficinas.flatMap((o) =>
+        o.agendas.flatMap((a) =>
+          a.dias
+            .filter((d) => !d.error)
+            .map((d) => ({
+              oficina: o.oficina,
+              agenda: a.agenda,
+              fecha: d.fecha,
+              asignado: d[lado]?.asignado,
+              activo: d[lado]?.activo,
+            })),
+        ),
       );
 
-    const base = { tipo: resultado.tipo, oficina: resultado.oficina };
-
     this.auditoria.registrarCambio(
-      { ...base, dias: resumir('antes') },
-      { ...base, dias: resumir('despues') },
+      { tipo: resultado.tipo, dias: resumir('antes') },
+      { tipo: resultado.tipo, dias: resumir('despues') },
     );
   }
 

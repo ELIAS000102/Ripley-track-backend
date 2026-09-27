@@ -86,7 +86,13 @@ export class EditarCapacidadDto extends PaisDto {
   })
   tipo: 'picking' | 'despacho';
 
-  /** Almacén en picking (20026), operador logístico en despacho (1130) */
+  /**
+   * Almacén en picking (20026), operador logístico en despacho (1130).
+   * **Admite varios por coma o por espacios.**
+   *
+   * El tope real no es el número de oficinas sino cuántos días de agenda se
+   * escriben —oficinas × jornadas × días—, que crece muy rápido.
+   */
   @IsString()
   @IsNotEmpty()
   codigo: string;
