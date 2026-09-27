@@ -196,12 +196,30 @@ export interface ServicioAgenda {
   cortes: string[];
 }
 
-export interface TipoServicioRespuesta {
-  contexto: ContextoAgente;
+/**
+ * Un operador con los servicios de su agenda.
+ *
+ * Anidado y no plano, al revés que la edición: allí la unidad es el cambio
+ * —un servicio de un operador— y aquí es el operador con su lista. Además es
+ * la forma que el prompt ya sabe presentar: una tabla por grupo, no una tabla
+ * gigante mezclándolos.
+ */
+export interface OplConServicios {
   opl: string;
   zona: string;
   agenda: string;
   servicios: ServicioAgenda[];
+  /** Por qué este operador no se pudo consultar, cuando los demás sí */
+  error?: string;
+}
+
+export interface TipoServicioRespuesta {
+  contexto: ContextoAgente;
+  /**
+   * Un elemento por operador pedido. Viene siempre, aunque se haya pedido uno
+   * solo: dos formas que interpretar según cuántos vinieran es una de más.
+   */
+  opls: OplConServicios[];
   sinDatos: string[];
 }
 

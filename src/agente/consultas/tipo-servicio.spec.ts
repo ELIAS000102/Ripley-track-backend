@@ -30,8 +30,21 @@ const SERVICIO = {
 };
 
 function armar(servicios: Array<Record<string, unknown>> = [SERVICIO]) {
-  const buscarOpl = vi.fn().mockResolvedValue({
-    opls: [{ id: 'o-1', code: '1088', nombre: 'Courier Paquetería' }],
+  /** Cada código devuelve su operador; lo que no está aquí, no existe */
+  const CONOCIDOS: Record<string, string> = {
+    '1088': 'Courier Paquetería',
+    '1110': 'Operador 1110',
+    '1111': 'Operador 1111',
+    '1130': 'Olva 90 min',
+  };
+
+  const buscarOpl = vi.fn((termino: string) => {
+    const code = termino.trim();
+    const nombre = CONOCIDOS[code];
+
+    return Promise.resolve({
+      opls: nombre ? [{ id: `o-${code}`, code, nombre }] : [],
+    });
   });
 
   const opl = {
@@ -64,8 +77,8 @@ describe('Consultar tipos de servicio: lo que devuelve', () => {
 
     const r = await servicio.consultar(USUARIO, consultar());
 
-    expect(r.servicios[0].maxOcurrencia).toBe(15);
-    expect(r.servicios[0].diasHolgura).toBe(1);
+    expect(r.opls[0].servicios[0].maxOcurrencia).toBe(15);
+    expect(r.opls[0].servicios[0].diasHolgura).toBe(1);
   });
 
   it('los admite como cadena, que es como los manda a veces la API', async () => {
@@ -75,8 +88,8 @@ describe('Consultar tipos de servicio: lo que devuelve', () => {
 
     const r = await servicio.consultar(USUARIO, consultar());
 
-    expect(r.servicios[0].maxOcurrencia).toBe(15);
-    expect(r.servicios[0].diasHolgura).toBe(1);
+    expect(r.opls[0].servicios[0].maxOcurrencia).toBe(15);
+    expect(r.opls[0].servicios[0].diasHolgura).toBe(1);
   });
 
   /**
@@ -90,8 +103,8 @@ describe('Consultar tipos de servicio: lo que devuelve', () => {
 
     const r = await servicio.consultar(USUARIO, consultar());
 
-    expect(r.servicios[0].maxOcurrencia).toBe(0);
-    expect(r.servicios[0].diasHolgura).toBeNull();
+    expect(r.opls[0].servicios[0].maxOcurrencia).toBe(0);
+    expect(r.opls[0].servicios[0].diasHolgura).toBeNull();
   });
 
   it('sigue trayendo el resto de la configuración', async () => {
@@ -99,13 +112,13 @@ describe('Consultar tipos de servicio: lo que devuelve', () => {
 
     const r = await servicio.consultar(USUARIO, consultar());
 
-    expect(r.servicios[0]).toMatchObject({
+    expect(r.opls[0].servicios[0]).toMatchObject({
       code: 'S',
       activo: false,
       enCheckout: false,
     });
     // El día va como lo manda Ripley en "label", sin reescribirlo
-    expect(r.servicios[0].cortes).toEqual(['Lu 21:00', 'Sa 17:00']);
+    expect(r.opls[0].servicios[0].cortes).toEqual(['Lu 21:00', 'Sa 17:00']);
   });
 });
 
@@ -132,5 +145,105 @@ describe('Consultar tipos de servicio: el alias del operador', () => {
     await servicio.consultar(USUARIO, consultar({ opl: '1088' }));
 
     expect(buscarOpl).toHaveBeenCalledWith('1088', 'CL');
+  });
+});
+
+/**
+ * Varios operadores en una sola llamada.
+ *
+ * La edición ya los aceptaba por coma y la consulta no, así que el agente
+ * respondía "haz las consultas de uno en uno" — obedeciendo a su herramienta,
+ * que se lo decía con todas las letras. La asimetría estaba en el backend.
+ */
+describe('Consultar tipos de servicio: varios operadores de una vez', () => {
+  it('devuelve un grupo por operador', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.consultar(
+      USUARIO,
+      consultar({ opl: '1110, 1111' }),
+    );
+
+    expect(r.opls).toHaveLength(2);
+    expect(r.opls.map((o) => o.opl)).toEqual([
+      '1110 - Operador 1110',
+      '1111 - Operador 1111',
+    ]);
+
+    // Anidado, no plano: cada grupo con su lista
+    expect(r.opls[0].servicios).toHaveLength(1);
+  });
+
+  it('la lista viene igual aunque se pida uno solo', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.consultar(USUARIO, consultar());
+
+    expect(r.opls).toHaveLength(1);
+    expect(r.opls[0].opl).toBe('1088 - Courier Paquetería');
+  });
+
+  it('uno que no existe no arrastra a los demás', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.consultar(
+      USUARIO,
+      consultar({ opl: '1110, 9999' }),
+    );
+
+    expect(r.opls).toHaveLength(2);
+    expect(r.opls[0].servicios).toHaveLength(1);
+    expect(r.opls[1].error).toMatch(/No se encontró ningún operador/);
+    expect(r.opls[1].servicios).toHaveLength(0);
+  });
+
+  it('si ninguno existe, es un 404 con los motivos', async () => {
+    const { servicio } = armar();
+
+    await expect(
+      servicio.consultar(USUARIO, consultar({ opl: '9998, 9999' })),
+    ).rejects.toThrow(/Ninguno de los 2 operadores se pudo consultar/);
+  });
+
+  it('con uno solo que falla, el error va tal cual', async () => {
+    const { servicio } = armar();
+
+    await expect(
+      servicio.consultar(USUARIO, consultar({ opl: '9999' })),
+    ).rejects.toThrow(/No se encontró ningún operador logístico/);
+  });
+
+  it('un operador repetido se consulta una sola vez', async () => {
+    const { servicio, buscarOpl } = armar();
+
+    const r = await servicio.consultar(
+      USUARIO,
+      consultar({ opl: '1110, 1110' }),
+    );
+
+    expect(r.opls).toHaveLength(1);
+    expect(buscarOpl).toHaveBeenCalledOnce();
+  });
+
+  it('hay tope, y remite a la búsqueda masiva', async () => {
+    // Cada operador son cuatro llamadas encadenadas a Ripley
+    const { servicio, buscarOpl } = armar();
+
+    const muchos = Array.from({ length: 11 }, (_, i) => `op${i}`).join(', ');
+
+    await expect(
+      servicio.consultar(USUARIO, consultar({ opl: muchos })),
+    ).rejects.toThrow(/máximo por vez es 10[\s\S]*búsqueda masiva/);
+
+    expect(buscarOpl).not.toHaveBeenCalled();
+  });
+
+  it('el alias sigue valiendo dentro de la lista', async () => {
+    const { servicio, buscarOpl } = armar();
+
+    await servicio.consultar(USUARIO, consultar({ opl: '1088, 90 min' }));
+
+    expect(buscarOpl).toHaveBeenCalledWith('1088', 'CL');
+    expect(buscarOpl).toHaveBeenCalledWith('1130', 'CL');
   });
 });

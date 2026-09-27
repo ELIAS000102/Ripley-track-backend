@@ -141,7 +141,13 @@ export class ConsultarTransferenciaDto extends PaisDto {
 // ───────────────────────── Tipos de servicio ─────────────────────────
 
 export class ConsultarTipoServicioDto extends PaisDto {
-  /** Código o nombre del operador logístico */
+  /**
+   * Código o nombre del operador logístico. **Admite varios por coma.**
+   *
+   * La edición ya los aceptaba y la consulta no, así que el agente respondía
+   * "haz las consultas de uno en uno" — obedeciendo a su herramienta, que se
+   * lo decía con todas las letras. La asimetría estaba aquí.
+   */
   @IsString()
   @IsNotEmpty()
   opl: string;
