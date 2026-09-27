@@ -89,12 +89,30 @@ export interface AgendaCapacidad {
   dias: DiaCapacidad[];
 }
 
+/**
+ * Un almacén u operador con sus agendas.
+ *
+ * Anidado, igual que la consulta de tipos de servicio: es la forma que el
+ * prompt ya sabe presentar —una tabla por grupo, nunca una tabla gigante
+ * mezclándolos— y evita repetir el código de la oficina en cada fila.
+ */
+export interface OficinaCapacidad {
+  /** El código, y entre paréntesis el alias si se preguntó por él */
+  oficina: string;
+  agendas: AgendaCapacidad[];
+  /** Por qué esta oficina no se pudo consultar, cuando las demás sí */
+  error?: string;
+}
+
 export interface CapacidadRespuesta {
   tipo: 'picking' | 'despacho';
   pais: string;
-  oficina: string;
+  /**
+   * Un elemento por código pedido. Viene siempre, aunque se haya pedido uno
+   * solo: dos formas que interpretar según cuántos vinieran es una de más.
+   */
+  oficinas: OficinaCapacidad[];
   desde: string;
-  agendas: AgendaCapacidad[];
   /** Agendas que no se pudieron consultar, para que el agente no invente */
   sinDatos: string[];
 }

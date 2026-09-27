@@ -41,8 +41,11 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
   tipo: 'picking' | 'despacho';
 
   /**
-   * Código visible de la oficina: el almacén en picking (20026),
-   * el operador logístico en despacho (1130).
+   * Código visible de la oficina: el almacén en picking (20026), el operador
+   * logístico en despacho (1130). **Admite varios por coma o por espacios.**
+   *
+   * El tope es más bajo que en otras consultas y con motivo: cada oficina son
+   * sus agendas, y cada agenda una llamada más a la API corporativa.
    */
   @IsString()
   @IsNotEmpty()

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,6 +15,7 @@ import type {
   TransferenciaEditada,
 } from '../interfaces/edicion.interface.js';
 import { partirLista } from '../utils/lista.util.js';
+import { motivoDelFallo } from '../utils/error.util.js';
 
 /**
  * Tope de destinos por llamada.
@@ -105,7 +105,11 @@ export class EditarTransferenciaAgenteService {
           cambia: this.hayCambio(dto, dias, antes, relacion.availableDays),
         };
       } catch (error) {
-        return { termino, error: this.motivo(error), original: error };
+        return {
+          termino,
+          error: motivoDelFallo(error, 'No se pudo resolver este destino'),
+          original: error,
+        };
       }
     });
 
@@ -204,13 +208,6 @@ export class EditarTransferenciaAgenteService {
       (d, i) =>
         lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i,
     );
-  }
-
-  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
-  private motivo(error: unknown): string {
-    return error instanceof HttpException
-      ? (error.getResponse() as { message?: string }).message || error.message
-      : 'No se pudo resolver este destino';
   }
 
   // ---------- Quién es quién ----------

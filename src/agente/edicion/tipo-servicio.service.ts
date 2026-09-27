@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,6 +15,7 @@ import type {
   TipoServicioEditado,
 } from '../interfaces/edicion.interface.js';
 import { partirLista } from '../utils/lista.util.js';
+import { motivoDelFallo } from '../utils/error.util.js';
 
 /**
  * Tope de servicios por llamada.
@@ -175,7 +175,7 @@ export class EditarTipoServicioAgenteService {
           servicio: codigo,
           antes: null,
           despues: null,
-          error: this.motivo(e),
+          error: motivoDelFallo(e, 'No se pudo resolver este operador'),
         })),
       };
     }
@@ -315,13 +315,6 @@ export class EditarTipoServicioAgenteService {
     }
 
     return unicos;
-  }
-
-  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
-  private motivo(error: unknown): string {
-    return error instanceof HttpException
-      ? (error.getResponse() as { message?: string }).message || error.message
-      : 'No se pudo resolver este operador';
   }
 
   /**

@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DespachoService } from '../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../agendas/picking/picking.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
@@ -13,11 +18,23 @@ import {
   resolverAliasOpl,
 } from '../constantes/alias-opl.constants.js';
 import { ConsultarCapacidadDto } from '../dto/consultas.dto.js';
+import { partirListaUnica } from '../utils/lista.util.js';
 import type {
   AgendaCapacidad,
+  OficinaCapacidad,
   CapacidadRespuesta,
   DiaCapacidad,
 } from '../interfaces/agente.interface.js';
+import { motivoDelFallo } from '../utils/error.util.js';
+
+/**
+ * Tope de oficinas por consulta.
+ *
+ * Más bajo que en otras: cada oficina son sus agendas y cada agenda una
+ * llamada más. Cinco operadores con ocho agendas cada uno son casi cincuenta
+ * llamadas a la API corporativa.
+ */
+const OFICINAS_MAXIMAS = 5;
 
 /**
  * Consultas consolidadas para el agente de IA.
@@ -47,35 +64,105 @@ export class CapacidadAgenteService {
     const desde = dto.desde ?? hoyEnPais(pais);
     const dias = dto.dias ?? 7;
 
-    // En despacho el código es un operador, y ahí "90 min" es el 1130. En
-    // picking es un almacén y el alias no aplica: son catálogos distintos.
-    const alias = dto.tipo === 'despacho' ? aliasUsado(dto.codigo) : undefined;
-
-    if (alias) {
-      dto = { ...dto, codigo: resolverAliasOpl(dto.codigo) };
-    }
+    const pedidos = this.oficinasPedidas(dto.codigo);
 
     this.logger.log(
-      `Agente consultando ${dto.tipo} de ${dto.codigo} desde ${desde} (${pais})`,
+      `Agente consultando ${dto.tipo} de ${pedidos.length} oficina(s): ` +
+        `${pedidos.join(', ')} desde ${desde} (${pais})`,
     );
 
     const sinDatos: string[] = [];
+    const oficinas: OficinaCapacidad[] = [];
 
-    const agendas =
-      dto.tipo === 'picking'
-        ? await this.capacidadPicking(dto, pais, desde, dias, sinDatos)
-        : await this.capacidadDespacho(dto, pais, desde, dias, sinDatos);
+    for (const codigo of pedidos) {
+      oficinas.push(
+        await this.capacidadDeUna(codigo, dto, pais, desde, dias, sinDatos),
+      );
+    }
 
-    return {
-      tipo: dto.tipo,
-      pais,
-      // Quien preguntó por "el 90 min" tiene que reconocer de qué operador se
-      // le habla, así que se devuelven los dos
-      oficina: alias ? `${dto.codigo} (${alias})` : dto.codigo,
-      desde,
-      agendas,
-      sinDatos,
-    };
+    // Que fallen todas sí es un error; que falle una, no
+    if (oficinas.every((o) => o.error)) {
+      throw new NotFoundException(
+        oficinas.length === 1
+          ? oficinas[0].error
+          : `Ninguna de las ${oficinas.length} oficinas se pudo consultar: ` +
+              oficinas.map((o) => `${o.oficina} (${o.error})`).join('; '),
+      );
+    }
+
+    return { tipo: dto.tipo, pais, oficinas, desde, sinDatos };
+  }
+
+  /**
+   * Los códigos de una petición, que pueden ser uno o varios.
+   *
+   * El tope es más bajo que en otras consultas y con motivo: **cada oficina son
+   * sus agendas, y cada agenda una llamada más**. Un operador con ocho agendas
+   * son nueve llamadas; cinco operadores, casi cincuenta. Por encima de eso la
+   * respuesta tarda más de lo que nadie espera delante de un chat.
+   */
+  private oficinasPedidas(codigo: string): string[] {
+    const unicas = partirListaUnica(codigo);
+
+    if (!unicas.length) {
+      throw new BadRequestException('Indica al menos un código.');
+    }
+
+    if (unicas.length > OFICINAS_MAXIMAS) {
+      throw new BadRequestException(
+        `Son ${unicas.length} códigos y el máximo por vez es ${OFICINAS_MAXIMAS}. ` +
+          `Cada uno son varias llamadas a la API corporativa. Si lo que quieres es ` +
+          `comparar la carga de los centros de distribución, usa el reporte de los CDs.`,
+      );
+    }
+
+    return unicas;
+  }
+
+  /**
+   * Una oficina con su cadena entera.
+   *
+   * Una que falla se anota y **no arrastra a las demás**: preguntar por tres y
+   * que la segunda no exista no puede dejar las otras dos sin respuesta.
+   */
+  private async capacidadDeUna(
+    codigo: string,
+    dto: ConsultarCapacidadDto,
+    pais: string,
+    desde: string,
+    dias: number,
+    sinDatos: string[],
+  ): Promise<OficinaCapacidad> {
+    // En despacho el código es un operador, y ahí "90 min" es el 1130. En
+    // picking es un almacén y el alias no aplica: son catálogos distintos.
+    const alias = dto.tipo === 'despacho' ? aliasUsado(codigo) : undefined;
+    const resuelto = alias ? resolverAliasOpl(codigo) : codigo;
+
+    // Quien preguntó por "el 90 min" tiene que reconocer de qué operador se le
+    // habla, así que se devuelven los dos
+    const etiqueta = alias ? `${resuelto} (${alias})` : resuelto;
+
+    const uno = { ...dto, codigo: resuelto };
+    const propios: string[] = [];
+
+    try {
+      const agendas =
+        dto.tipo === 'picking'
+          ? await this.capacidadPicking(uno, pais, desde, dias, propios)
+          : await this.capacidadDespacho(uno, pais, desde, dias, propios);
+
+      // Los avisos llevan la oficina delante: con varias, "no tiene agendas"
+      // a secas no dice de cuál se está hablando
+      sinDatos.push(...propios.map((m) => `${etiqueta}: ${m}`));
+
+      return { oficina: etiqueta, agendas };
+    } catch (e) {
+      return {
+        oficina: etiqueta,
+        agendas: [],
+        error: motivoDelFallo(e, 'No se pudo consultar esta oficina'),
+      };
+    }
   }
 
   // ---------- Picking: almacén → agendas → capacidades ----------

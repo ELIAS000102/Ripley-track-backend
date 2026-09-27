@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,6 +16,7 @@ import type {
   ServicioAgenda,
   TipoServicioRespuesta,
 } from '../interfaces/agente.interface.js';
+import { motivoDelFallo } from '../utils/error.util.js';
 
 /**
  * Tope de operadores por consulta.
@@ -187,16 +187,9 @@ export class TipoServicioAgenteService {
         zona: '',
         agenda: '',
         servicios: [],
-        error: this.motivo(e),
+        error: motivoDelFallo(e, 'No se pudo consultar este operador'),
       };
     }
-  }
-
-  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
-  private motivo(error: unknown): string {
-    return error instanceof HttpException
-      ? (error.getResponse() as { message?: string }).message || error.message
-      : 'No se pudo consultar este operador';
   }
 
   /** Coincidencia parcial por nombre; sin término, el primero de la lista */

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -26,6 +25,7 @@ import type {
   EdicionRespuesta,
   EstadoDia,
 } from '../interfaces/agente.interface.js';
+import { motivoDelFallo } from '../utils/error.util.js';
 
 /**
  * Tope de días por llamada.
@@ -162,7 +162,7 @@ export class EditarCapacidadAgenteService {
         agendas.push({
           agenda: jornada ?? '(sin indicar)',
           dias: [],
-          error: this.motivo(e),
+          error: motivoDelFallo(e, 'No se pudo resolver esta jornada'),
         });
       }
     }
@@ -208,13 +208,6 @@ export class EditarCapacidadAgenteService {
     }
 
     return unicas;
-  }
-
-  /** El texto de un error que ya viene explicado, sin envolverlo otra vez */
-  private motivo(error: unknown): string {
-    return error instanceof HttpException
-      ? (error.getResponse() as { message?: string }).message || error.message
-      : 'No se pudo resolver esta jornada';
   }
 
   // ---------- Picking: almacén → agenda → días ----------
