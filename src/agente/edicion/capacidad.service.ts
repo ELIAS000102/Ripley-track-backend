@@ -51,6 +51,26 @@ const SIN_CONFIGURAR =
 const NO_FUNCIONAL = /no\s*funcional/i;
 
 /**
+ * "todas" pedido a propósito.
+ *
+ * Omitir el campo y escribir "todas" NO son lo mismo, y esa diferencia es toda
+ * la seguridad de este endpoint: el silencio sigue provocando la pregunta —no
+ * se elige por nadie—, mientras que "todas" es una respuesta explícita a esa
+ * pregunta. La palabra tampoco viaja como filtro: si lo hiciera, buscaría una
+ * agenda que se llamara "todas".
+ */
+const TODAS = /^(todas?|todos)$/i;
+
+function esTodas(valor?: string): boolean {
+  return TODAS.test(valor?.trim() ?? '');
+}
+
+/** El valor como filtro: "todas" no filtra nada */
+function comoFiltro(valor?: string): string | undefined {
+  return esTodas(valor) ? undefined : valor;
+}
+
+/**
  * Tope de jornadas por llamada.
  *
  * Un almacén no tiene muchas más; el tope está para que una lista inventada no
@@ -250,18 +270,12 @@ export class EditarCapacidadAgenteService {
       const uno = { ...dto, codigo: resuelto, servicio: jornada };
 
       try {
-        const parcial =
-          dto.tipo === 'picking'
+        // Una jornada puede resolver a varias agendas cuando se pidió "todas"
+        agendas.push(
+          ...(dto.tipo === 'picking'
             ? await this.editarPicking(uno, pais, fechas)
-            : await this.editarDespacho(uno, pais, fechas);
-
-        const zona = 'zona' in parcial ? parcial.zona : undefined;
-
-        agendas.push({
-          agenda: parcial.agenda,
-          ...(zona ? { zona } : {}),
-          dias: parcial.dias,
-        });
+            : await this.editarDespacho(uno, pais, fechas)),
+        );
       } catch (e) {
         fallos.push(e);
         agendas.push({
@@ -303,11 +317,11 @@ export class EditarCapacidadAgenteService {
     dto: EditarCapacidadDto,
     pais: string,
     fechas: string[],
-  ) {
+  ): Promise<AgendaEditada[]> {
     const todas = await this.picking.listarAgendasPorOficina(dto.codigo, pais);
     const utilizables = this.soloUtilizables(
       todas,
-      dto.agenda,
+      comoFiltro(dto.agenda),
       (a) => a.nombre,
       hoyEnPais(pais),
       (a) => a.vigenteHasta,
@@ -318,44 +332,53 @@ export class EditarCapacidadAgenteService {
     // la petición se quedaba en bucle: el agente preguntaba cuál y no tenía
     // dónde mandar la respuesta.
     const candidatas = this.filtrar(utilizables, [
-      [dto.servicio, (a) => a.typeOfService],
-      [dto.agenda, (a) => a.nombre],
+      [comoFiltro(dto.servicio), (a) => a.typeOfService],
+      [comoFiltro(dto.agenda), (a) => a.nombre],
     ]);
 
-    const agenda = this.unica(
+    const elegidas = this.seleccionar(
       candidatas,
       utilizables,
       (a) => `${a.typeOfService} (${a.nombre})`,
       `el almacén ${dto.codigo}`,
       'el servicio',
+      'agenda',
+      esTodas(dto.agenda),
     );
 
-    const capacidades = await this.picking.obtener(
-      agenda.scheduleId,
-      isoToRipleyDate(fechas[0]),
-      pais,
-    );
+    const salida: AgendaEditada[] = [];
 
-    // Se lee una vez: Ripley devuelve la agenda entera desde esa fecha, y
-    // escribir un día no cambia el estado de los otros
-    const porFecha = new Map(
-      (capacidades?.capacityByDayArray ?? []).map((d) => [soloFecha(d.day), d]),
-    );
-
-    const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
-      this.picking.actualizar(
+    for (const agenda of elegidas) {
+      const capacidades = await this.picking.obtener(
         agenda.scheduleId,
-        { day: dia.day, assigned: cambio.asignado, active: cambio.activa },
+        isoToRipleyDate(fechas[0]),
         pais,
-      ),
-    );
+      );
 
-    return {
-      tipo: 'picking' as const,
-      oficina: dto.codigo,
-      agenda: `${agenda.typeOfService} - ${agenda.nombre}`,
-      dias,
-    };
+      // Se lee una vez por agenda: Ripley devuelve la agenda entera desde esa
+      // fecha, y escribir un día no cambia el estado de los otros
+      const porFecha = new Map(
+        (capacidades?.capacityByDayArray ?? []).map((x) => [
+          soloFecha(x.day),
+          x,
+        ]),
+      );
+
+      const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+        this.picking.actualizar(
+          agenda.scheduleId,
+          { day: dia.day, assigned: cambio.asignado, active: cambio.activa },
+          pais,
+        ),
+      );
+
+      salida.push({
+        agenda: `${agenda.typeOfService} - ${agenda.nombre}`,
+        dias,
+      });
+    }
+
+    return salida;
   }
 
   // ---------- Despacho: operador → zona → agenda → días ----------
@@ -364,57 +387,72 @@ export class EditarCapacidadAgenteService {
     dto: EditarCapacidadDto,
     pais: string,
     fechas: string[],
-  ) {
+  ): Promise<AgendaEditada[]> {
     const zonas = await this.despacho.listarZonas(dto.codigo, pais);
 
-    const zona = this.unica(
-      this.filtrar(zonas, [[dto.zona, (z) => z.nombre]]),
+    // Pedir "todas" las agendas de un operador que tiene varias zonas alcanza
+    // también a las zonas: es lo que significa "a todos" cuando lo dice quien
+    // acaba de ver la lista entera
+    const zonasElegidas = this.seleccionar(
+      this.filtrar(zonas, [[comoFiltro(dto.zona), (z) => z.nombre]]),
       zonas,
       (z) => z.nombre,
       `el operador ${dto.codigo}`,
       'la zona',
+      'zona',
+      esTodas(dto.zona) || esTodas(dto.agenda),
     );
 
-    const agendas = this.soloUtilizables(
-      await this.despacho.listarAgendas(zona.zoneId, pais),
-      dto.agenda,
-      (a) => a.nombre,
-      hoyEnPais(pais),
-    );
+    const salida: AgendaEditada[] = [];
 
-    const agenda = this.unica(
-      this.filtrar(agendas, [[dto.agenda, (a) => a.nombre]]),
-      agendas,
-      (a) => a.nombre,
-      `la zona ${zona.nombre}`,
-      'la agenda',
-    );
+    for (const zona of zonasElegidas) {
+      const agendas = this.soloUtilizables(
+        await this.despacho.listarAgendas(zona.zoneId, pais),
+        comoFiltro(dto.agenda),
+        (a) => a.nombre,
+        hoyEnPais(pais),
+      );
 
-    const { dias: detalle } = await this.despacho.buscarCapacidades(
-      agenda.mainScheduleId,
-      isoToRipleyDate(fechas[0]),
-      pais,
-    );
+      const elegidas = this.seleccionar(
+        this.filtrar(agendas, [[comoFiltro(dto.agenda), (a) => a.nombre]]),
+        agendas,
+        (a) => a.nombre,
+        `la zona ${zona.nombre}`,
+        'la agenda',
+        'agenda',
+        esTodas(dto.agenda),
+      );
 
-    const porFecha = new Map(detalle.map((d) => [ripleyDateToIso(d.date), d]));
+      for (const agenda of elegidas) {
+        const { dias: detalle } = await this.despacho.buscarCapacidades(
+          agenda.mainScheduleId,
+          isoToRipleyDate(fechas[0]),
+          pais,
+        );
 
-    const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
-      this.despacho.actualizar(
-        dto.codigo,
-        zona.zoneId,
-        agenda.mainScheduleId,
-        { date: dia.date, assigned: cambio.asignado, active: cambio.activa },
-        pais,
-      ),
-    );
+        const porFecha = new Map(
+          detalle.map((x) => [ripleyDateToIso(x.date), x]),
+        );
 
-    return {
-      tipo: 'despacho' as const,
-      oficina: dto.codigo,
-      zona: zona.nombre,
-      agenda: agenda.nombre,
-      dias,
-    };
+        const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+          this.despacho.actualizar(
+            dto.codigo,
+            zona.zoneId,
+            agenda.mainScheduleId,
+            {
+              date: dia.date,
+              assigned: cambio.asignado,
+              active: cambio.activa,
+            },
+            pais,
+          ),
+        );
+
+        salida.push({ agenda: agenda.nombre, zona: zona.nombre, dias });
+      }
+    }
+
+    return salida;
   }
 
   // ---------- El recorrido de los días ----------
@@ -592,14 +630,16 @@ export class EditarCapacidadAgenteService {
    * catálogo entero: listar las doce agendas del almacén cuando cinco encajan
    * no ayuda a elegir, confunde.
    */
-  private unica<T>(
+  private seleccionar<T>(
     candidatos: T[],
     todos: T[],
     etiqueta: (item: T) => string,
     donde: string,
     que: string,
-  ): T {
-    if (candidatos.length === 1) return candidatos[0];
+    campo: string,
+    quiereTodas: boolean,
+  ): T[] {
+    if (candidatos.length === 1) return candidatos;
 
     if (!candidatos.length) {
       throw new NotFoundException(
@@ -609,9 +649,17 @@ export class EditarCapacidadAgenteService {
       );
     }
 
+    // Varias, y lo pidieron a propósito
+    if (quiereTodas) return candidatos;
+
+    // **El campo va explícito.** Antes decía siempre "agenda", aunque lo
+    // ambiguo fuera la zona: el agente obedecía, mandaba el nombre de la zona
+    // en "agenda", el filtro de zona seguía vacío y la petición se quedaba en
+    // bucle pidiendo exactamente lo mismo una y otra vez.
     throw new BadRequestException(
       `Hay ${candidatos.length} opciones en ${donde} y no voy a elegir por ti. ` +
-        `Repite indicando el nombre exacto en "agenda". Las opciones son: ${candidatos
+        `Repite indicando el nombre exacto en "${campo}", o pon "${campo}": "todas" ` +
+        `para tocarlas todas. Las opciones son: ${candidatos
           .map(etiqueta)
           .join(', ')}`,
     );

@@ -963,3 +963,136 @@ describe('Edición del agente: el tope de escrituras', () => {
     expect(r.oficinas).toHaveLength(1);
   });
 });
+
+/**
+ * El bucle del operador 1100.
+ *
+ * Tenía cinco zonas. El backend decía "hay 5 opciones... repite indicando el
+ * nombre exacto en \"agenda\"" — pero lo ambiguo era la ZONA. El agente
+ * obedecía, mandaba el nombre de la zona en "agenda", el filtro de zona seguía
+ * vacío, y el backend respondía exactamente lo mismo. Una y otra vez.
+ */
+describe('Edición del agente: el mensaje dice en qué campo responder', () => {
+  const CINCO_ZONAS = [
+    { zoneId: 'z-1', nombre: 'CT Chorrillos - 99 Min' },
+    { zoneId: 'z-2', nombre: 'Flota Exclusiva' },
+    { zoneId: 'z-3', nombre: 'Centralizado HUB San Luis' },
+    { zoneId: 'z-4', nombre: 'Centralizado HUB Cedros' },
+    { zoneId: 'z-5', nombre: 'Centralizado HUB Surquillo' },
+  ];
+
+  function conZonas(zonas = CINCO_ZONAS) {
+    const base = armar();
+    const despacho = (
+      base.servicio as unknown as { despacho: { listarZonas: unknown } }
+    ).despacho;
+
+    (despacho as { listarZonas: unknown }).listarZonas = vi
+      .fn()
+      .mockResolvedValue(zonas);
+
+    return base;
+  }
+
+  it('si lo ambiguo es la zona, dice "zona" y no "agenda"', async () => {
+    const { servicio } = conZonas();
+
+    await expect(
+      servicio.editarCapacidad(
+        USUARIO,
+        editar({ tipo: 'despacho', codigo: '1100', activa: false }),
+      ),
+    ).rejects.toThrow(/nombre exacto en "zona"/);
+  });
+
+  it('y ofrece "todas" como salida', async () => {
+    const { servicio } = conZonas();
+
+    await expect(
+      servicio.editarCapacidad(
+        USUARIO,
+        editar({ tipo: 'despacho', codigo: '1100', activa: false }),
+      ),
+    ).rejects.toThrow(/"zona": "todas"/);
+  });
+
+  it('nombrar la zona desempata', async () => {
+    const { servicio, actualizarDespacho } = conZonas();
+
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({
+        tipo: 'despacho',
+        codigo: '1100',
+        zona: 'CT Chorrillos - 99 Min',
+        activa: false,
+      }),
+    );
+
+    expect(actualizarDespacho).toHaveBeenCalledOnce();
+    expect(actualizarDespacho.mock.calls[0][1]).toBe('z-1');
+  });
+});
+
+/**
+ * "A todos" es una respuesta explícita, y ahora se puede atender.
+ *
+ * Omitir el campo y escribir "todas" NO son lo mismo: el silencio sigue
+ * provocando la pregunta —no se elige por nadie— y "todas" la contesta.
+ */
+describe('Edición del agente: "todas" las agendas', () => {
+  const TRES = [
+    { scheduleId: 'c-1', nombre: 'Picking RC uno', typeOfService: 'RC' },
+    { scheduleId: 'c-2', nombre: 'Picking RC dos', typeOfService: 'RC' },
+    { scheduleId: 'c-3', nombre: 'Picking RC tres', typeOfService: 'RC' },
+  ];
+
+  it('sin decir nada, sigue preguntando', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: TRES });
+
+    await expect(
+      servicio.editarCapacidad(
+        USUARIO,
+        editar({ servicio: 'RC', activa: false }),
+      ),
+    ).rejects.toThrow(/no voy a elegir por ti/);
+
+    expect(actualizarPicking).not.toHaveBeenCalled();
+  });
+
+  it('con "todas", las toca todas', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: TRES });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'RC', agenda: 'todas', activa: false }),
+    );
+
+    expect(r.oficinas[0].agendas).toHaveLength(3);
+    expect(actualizarPicking).toHaveBeenCalledTimes(3);
+  });
+
+  it('"todas" no se usa como nombre a buscar', async () => {
+    // Si viajara como filtro, buscaría una agenda llamada "todas"
+    const { servicio } = armar({ agendas: TRES });
+
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'RC', agenda: 'todos', activa: false }),
+    );
+
+    expect(r.oficinas[0].agendas).toHaveLength(3);
+  });
+
+  it('y nombrar una sigue tocando solo esa', async () => {
+    const { servicio, actualizarPicking } = armar({ agendas: TRES });
+
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ servicio: 'RC', agenda: 'Picking RC dos', activa: false }),
+    );
+
+    expect(actualizarPicking).toHaveBeenCalledOnce();
+    expect(actualizarPicking.mock.calls[0][0]).toBe('c-2');
+  });
+});
