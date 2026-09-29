@@ -87,6 +87,59 @@ export class RipleyHttpService {
   }
 
   /**
+   * Los parámetros de la petición, por nombre y tamaño, **nunca por valor**.
+   *
+   * Existe por un `414 Request-URI Too Large` que no se pudo diagnosticar: el
+   * log decía el código y nada más, y con eso no hay forma de saber qué
+   * parámetro creció ni cuánto. El valor sigue sin aparecer —puede ser un
+   * identificador o un texto de búsqueda—, pero su longitud y su tipo sí, que
+   * es justo lo que hace falta para encontrar al culpable.
+   */
+  private describirParams(params?: Record<string, any>): string {
+    const entradas = Object.entries(params ?? {});
+    if (!entradas.length) return 'sin parámetros';
+
+    return entradas
+      .map(([nombre, valor]) => {
+        if (Array.isArray(valor))
+          return `${nombre}=[${valor.length} elementos]`;
+        if (valor && typeof valor === 'object') {
+          return `${nombre}={${Object.keys(valor).length} campos}`;
+        }
+        return `${nombre}: ${String(valor ?? '').length} car.`;
+      })
+      .join(', ');
+  }
+
+  /**
+   * Un parámetro que no es un dato suelto es un error de programación.
+   *
+   * Axios convierte un arreglo o un objeto en una ristra de pares repetidos, y
+   * con eso la URL se dispara: con dos mil elementos deja de ser una URL y pasa
+   * a ser un `414`. Antes eso salía como "la API respondió 414", que parece un
+   * problema de la API cuando el problema está aquí. Se corta antes de enviar y
+   * se dice qué parámetro es.
+   */
+  private comprobarParams(
+    params: Record<string, any> | undefined,
+    accion: string,
+  ): void {
+    const malos = Object.entries(params ?? {})
+      .filter(([, v]) => v !== null && v !== undefined && typeof v === 'object')
+      .map(
+        ([nombre, v]) =>
+          `${nombre} (${Array.isArray(v) ? `arreglo de ${v.length}` : 'objeto'})`,
+      );
+
+    if (malos.length) {
+      throw new BadGatewayException(
+        `No se puede ${accion}: ${malos.join(', ')} debería ser un solo valor. ` +
+          `Mandarlo así arma una URL que la API rechaza.`,
+      );
+    }
+  }
+
+  /**
    * Traduce el fallo a una excepción de Nest **sin nombrar la API corporativa**.
    *
    * Ni en la respuesta ni en el log: su host y sus rutas no aparecen en ningún
@@ -97,7 +150,12 @@ export class RipleyHttpService {
    * Para diagnosticar basta con lo que ya registra quien llama: cada service
    * anota qué estaba haciendo y sobre qué identificador antes de pedirlo.
    */
-  private manejarError(error: unknown, accion: string): never {
+  private manejarError(
+    error: unknown,
+    accion: string,
+    params?: Record<string, any>,
+    largoRuta = 0,
+  ): never {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
 
@@ -107,10 +165,20 @@ export class RipleyHttpService {
       throw new RipleyApiError('No hay datos para ese recurso');
     }
 
+    // La ruta va por su longitud y no por su texto: basta para ver si lo que
+    // creció fue la ruta o el query, y sigue sin decir a dónde se llamó
     this.logger.error(
-      `Error al ${accion} [${status ?? 'sin respuesta'}]`,
-      JSON.stringify(axiosError.response?.data ?? {}),
+      `Error al ${accion} [${status ?? 'sin respuesta'}] ` +
+        `— ruta de ${largoRuta} car., ${this.describirParams(params)}`,
+      JSON.stringify(axiosError.response?.data ?? {}).slice(0, 500),
     );
+
+    if (status === 414) {
+      throw new BadGatewayException(
+        `La petición salió demasiado larga al ${accion}. ` +
+          `Es un fallo de este backend armando la URL, no de la API corporativa.`,
+      );
+    }
 
     throw new BadGatewayException(
       status
@@ -168,6 +236,8 @@ export class RipleyHttpService {
   ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
+    this.comprobarParams(params, accion);
+
     // Fuera del try a propósito: si falta el token, el aviso debe llegar
     // íntegro al cliente en vez de convertirse en un 502 genérico.
     const headers = await this.getHeaders(pais);
@@ -188,7 +258,7 @@ export class RipleyHttpService {
 
       return data;
     } catch (error) {
-      this.manejarError(error, accion);
+      this.manejarError(error, accion, params, path.length);
     }
   }
 }

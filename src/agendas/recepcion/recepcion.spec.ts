@@ -540,3 +540,110 @@ describe('La búsqueda de la oficina', () => {
     ]);
   });
 });
+
+/**
+ * El `414 Request-URI Too Large` del apartado de recepción.
+ *
+ * Ripley devuelve `capacityId` a veces como una cadena y a veces como el
+ * documento entero ya expandido, con sus más de dos mil días dentro. Mandarlo
+ * tal cual a la query lo desplegaba en una ristra de pares y la URL crecía
+ * hasta que la API la rechazaba. Pasaba solo al consultar, porque es la única
+ * llamada que usa ese id.
+ */
+describe('El id de la capacidad, venga como venga', () => {
+  /** El documento entero, como lo devuelve Ripley cuando lo expande */
+  const EXPANDIDO = {
+    _id: 'a-se-cap',
+    schedule: 'a-se',
+    capacityByDayArray: Array.from({ length: 2132 }, (_, i) =>
+      dia(`2026-01-${(i % 28) + 1}`),
+    ),
+  };
+
+  it('una cadena se usa tal cual', async () => {
+    const { servicio, catalogos } = armar([agenda()]);
+
+    await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
+
+    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith(
+      'a-se-cap',
+      'PE',
+      '29-09-2026',
+    );
+  });
+
+  it('un documento expandido viaja como su _id, no entero', async () => {
+    const { servicio, catalogos } = armar([
+      agenda({ capacities: [{ capacityId: EXPANDIDO }] }),
+    ]);
+
+    await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
+
+    const [id] = vi.mocked(catalogos.capacidadesDeRecepcion).mock.calls[0];
+
+    expect(id).toBe('a-se-cap');
+    expect(typeof id).toBe('string');
+  });
+
+  it('y también cuando el campo se llama "id"', async () => {
+    const { servicio, catalogos } = armar([
+      agenda({ capacities: [{ capacityId: { id: 'a-se-cap' } }] }),
+    ]);
+
+    await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
+
+    expect(vi.mocked(catalogos.capacidadesDeRecepcion).mock.calls[0][0]).toBe(
+      'a-se-cap',
+    );
+  });
+
+  it('el listado tampoco devuelve el documento entero', async () => {
+    const { servicio } = armar([
+      agenda({ capacities: [{ capacityId: EXPANDIDO }] }),
+    ]);
+
+    const [primera] = await servicio.listarAgendasPorOficina('20021');
+
+    expect(primera.capacityId).toBe('a-se-cap');
+  });
+
+  it('guardar escribe sobre el id, no sobre el documento', async () => {
+    const { servicio, ripley } = armar([
+      agenda({ capacities: [{ capacityId: EXPANDIDO }] }),
+    ]);
+
+    await servicio.actualizar('20021', 'a-se', {
+      day: '2026-10-02T00:00:00.000Z',
+      assigned: 0,
+      active: false,
+    });
+
+    expect(ripley.put).toHaveBeenCalledWith(
+      '/capacities/a-se-cap',
+      'PE',
+      expect.anything(),
+    );
+  });
+
+  it('un objeto sin id es lo mismo que no tener capacidad', async () => {
+    const { servicio, catalogos } = armar([
+      agenda({ capacities: [{ capacityId: { capacityByDayArray: [] } }] }),
+    ]);
+
+    const { dias, aviso } = await servicio.buscarCapacidades('20021', 'SE');
+
+    expect(catalogos.capacidadesDeRecepcion).not.toHaveBeenCalled();
+    expect(dias).toEqual([]);
+    expect(aviso).toMatch(/no tiene capacidades/);
+  });
+
+  it('una cadena vacía tampoco vale: no se pide con un id en blanco', async () => {
+    const { servicio, catalogos } = armar([
+      agenda({ capacities: [{ capacityId: '   ' }] }),
+    ]);
+
+    await servicio.buscarCapacidades('20021', 'SE');
+
+    expect(catalogos.capacidadesDeRecepcion).not.toHaveBeenCalled();
+  });
+});

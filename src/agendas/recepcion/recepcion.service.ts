@@ -27,6 +27,31 @@ import type {
   ResultadoEscritura,
 } from './interfaces/recepcion.interface.js';
 
+/**
+ * El id de la capacidad de una agenda.
+ *
+ * Ripley lo devuelve **a veces como una cadena y a veces como el documento
+ * entero ya expandido**, con sus más de dos mil días dentro. Leerlo como si
+ * siempre fuera un id mandaba ese documento a la query, axios lo desplegaba en
+ * una ristra de pares y la URL crecía hasta que la API la rechazaba con un
+ * `414`. Pasaba solo al consultar, que es la única llamada que lo usa.
+ *
+ * Se lee en un solo sitio para que las tres que lo necesitan —listar, consultar
+ * y guardar— no puedan discrepar.
+ */
+function idDeCapacidad(fila: ReceptionScheduleRow): string | undefined {
+  const valor: unknown = fila.capacities?.[0]?.capacityId;
+
+  if (typeof valor === 'string') return valor.trim() || undefined;
+
+  if (valor && typeof valor === 'object') {
+    const doc = valor as { id?: string; _id?: string };
+    return doc.id ?? doc._id;
+  }
+
+  return undefined;
+}
+
 /** La agenda elegida, con su servicio ya traducido a código visible */
 interface AgendaElegida {
   fila: ReceptionScheduleRow;
@@ -184,7 +209,7 @@ export class RecepcionService {
        * solo para poder cruzarlo con lo que enseña el panel corporativo.
        */
       scheduleId: fila.id,
-      capacityId: fila.capacities?.[0]?.capacityId ?? null,
+      capacityId: idDeCapacidad(fila) ?? null,
       nombre: fila.name,
       typeOfService: typeOfService || null,
       unitMeasure: fila.unitMeasure,
@@ -260,7 +285,7 @@ export class RecepcionService {
     desde: string,
     pais: string,
   ): Promise<CapacityByDay[]> {
-    const capacityId = fila.capacities?.[0]?.capacityId;
+    const capacityId = idDeCapacidad(fila);
     if (!capacityId) return [];
 
     try {
@@ -347,7 +372,7 @@ export class RecepcionService {
       pais,
     );
 
-    const capacityId = fila.capacities?.[0]?.capacityId;
+    const capacityId = idDeCapacidad(fila);
 
     if (!capacityId) {
       throw new BadGatewayException(

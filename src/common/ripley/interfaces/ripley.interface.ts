@@ -170,7 +170,18 @@ export interface ReceptionScheduleRow {
   /** La oficina que recepciona, ya expandida */
   oplOffices?: OfficeRow[];
   warehouses?: string[];
-  capacities?: { capacityId: string; oplOfficeId?: string }[];
+  /**
+   * La capacidad de la agenda.
+   *
+   * `capacityId` llega **a veces como una cadena y a veces como el documento
+   * entero ya expandido**, con sus dos mil días dentro. Por eso se declara con
+   * las dos formas: leerlo como si siempre fuera un id es lo que mandaba el
+   * documento completo a la query y hacía que la API rechazara la URL.
+   */
+  capacities?: {
+    capacityId: string | { id?: string; _id?: string };
+    oplOfficeId?: string;
+  }[];
   /** Los días de la agenda: la misma forma que en picking */
   capacitiesSelected?: CapacityByDay[];
   weekBaseCapacity?: CapacidadSemanal;

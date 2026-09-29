@@ -214,3 +214,97 @@ describe('Escribir invalida la caché de catálogos', () => {
     expect(olvidar).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * El 414 que no se pudo diagnosticar.
+ *
+ * Cloudflare respondió "Request-URI Too Large" y el log solo decía el código:
+ * ni qué parámetro había crecido ni cuánto, así que no había por dónde
+ * empezar. Ahora el log dice nombre, tipo y **longitud** de cada parámetro
+ * —nunca su valor, que puede ser un identificador o un texto de búsqueda— y
+ * lo que no es un dato suelto se corta antes de salir.
+ */
+describe('Una URL que se dispara', () => {
+  it('un arreglo como parámetro no se envía: se dice cuál es', async () => {
+    const { servicio } = armar(falloAxios(414));
+
+    await expect(
+      servicio.get('/lo-que-sea', 'PE', {
+        id: Array.from({ length: 2132 }, () => 'x'),
+      }),
+    ).rejects.toThrow(/id \(arreglo de 2132\) debería ser un solo valor/);
+  });
+
+  it('y un objeto tampoco', async () => {
+    const { servicio } = armar(falloAxios(414));
+
+    await expect(
+      servicio.get('/lo-que-sea', 'PE', { id: { a: 1, b: 2 } }),
+    ).rejects.toThrow(/id \(objeto\) debería ser un solo valor/);
+  });
+
+  it('ni siquiera llega a pedirlo', async () => {
+    const { servicio, escrito } = armar(falloAxios(414));
+
+    await servicio.get('/lo-que-sea', 'PE', { id: [1, 2] }).catch(() => {});
+
+    expect(escrito).toEqual([]);
+  });
+
+  it('un valor suelto y largo sí sale: puede ser legítimo', async () => {
+    const { servicio } = armar(falloAxios(414));
+
+    // No se bloquea por longitud, pero si la API lo rechaza se dice de quién
+    // es el fallo
+    await expect(
+      servicio.get('/lo-que-sea', 'PE', { q: 'x'.repeat(9000) }),
+    ).rejects.toThrow(/salió demasiado larga/);
+  });
+
+  it('el 414 se señala como fallo propio, no de la API corporativa', async () => {
+    const { servicio } = armar(falloAxios(414));
+    const error = await capturar(servicio);
+
+    expect(error).toBeInstanceOf(BadGatewayException);
+    expect(error.message).toMatch(/fallo de este backend/);
+    expect(error.message).not.toMatch(/La API corporativa respondió/);
+  });
+
+  it('el log dice el tamaño de cada parámetro, no su valor', async () => {
+    const { servicio, escrito } = armar(falloAxios(414));
+
+    await servicio
+      .get('/lo-que-sea', 'PE', {
+        id: '6328cdfb8e6d030012418a23',
+        date: '29/09/2026',
+      })
+      .catch(() => {});
+
+    const todo = escrito.join('\n');
+
+    expect(todo).toMatch(/id: 24 car\./);
+    expect(todo).toMatch(/date: 10 car\./);
+    expect(todo).toMatch(/ruta de 11 car\./);
+    // El valor no aparece: un identificador es un dato de la operación
+    expect(todo).not.toMatch(/6328cdfb/);
+    expect(todo).not.toMatch(/29\/09\/2026/);
+  });
+
+  it('y lo dice también cuando no hay parámetros', async () => {
+    const { servicio, escrito } = armar(falloAxios(500));
+
+    await servicio.get('/lo-que-sea', 'PE').catch(() => {});
+
+    expect(escrito.join('\n')).toMatch(/sin parámetros/);
+  });
+
+  it('sin delatar la API corporativa, como todo lo demás', async () => {
+    const { servicio, escrito } = armar(falloAxios(414));
+
+    await servicio
+      .get('/lo-que-sea', 'PE', { q: 'x'.repeat(9000) })
+      .catch(() => {});
+
+    sinRastro(escrito);
+  });
+});
