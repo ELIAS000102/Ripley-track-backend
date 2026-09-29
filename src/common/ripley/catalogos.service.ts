@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CacheCatalogosService } from './cache-catalogos.service.js';
 import { RipleyHttpService } from './ripley-http.service.js';
+import { ripleyDateToBarras } from './utils/date.util.js';
 import type {
   CapacitiesResponse,
   OfficeRow,
+  ReceptionCapacitiesResponse,
+  ReceptionScheduleRow,
   RipleyListResponse,
   ScheduleRow,
   ServiceRow,
@@ -142,6 +145,50 @@ export class CatalogosRipleyService {
     );
 
     return data?.rows ?? [];
+  }
+
+  /**
+   * Agendas de recepción de una oficina.
+   *
+   * **Sin caché a propósito**, aunque el nombre del método se parezca al de
+   * arriba. Esta respuesta no es un catálogo: trae los días de cada agenda con
+   * sus unidades asignadas y ocupadas dentro, y servir capacidades de hace un
+   * minuto es enseñar un cupo que quizá ya se llenó.
+   */
+  async agendasDeRecepcion(
+    oplOfficeId: string,
+    pais: string,
+  ): Promise<ReceptionScheduleRow[]> {
+    const data = await this.ripley.get<
+      RipleyListResponse<ReceptionScheduleRow>
+    >(this.ripley.endpoint('schedulesReception'), pais, {
+      oplOffice: oplOfficeId,
+    });
+
+    return data?.rows ?? [];
+  }
+
+  /**
+   * Capacidades de una agenda de recepción, desde una fecha DD-MM-YYYY.
+   *
+   * Ojo con el identificador: **no es el de la agenda, sino el de su
+   * capacidad** —el `capacityId` que viene dentro de la agenda—. Son parecidos
+   * y solo se diferencian en los últimos caracteres, así que confundirlos
+   * devuelve "sin datos" y no un error que se note.
+   *
+   * La fecha viaja con barras. Es el único sitio del proyecto donde Ripley las
+   * pide, y por eso la conversión se hace aquí, en el borde.
+   */
+  async capacidadesDeRecepcion(
+    capacityId: string,
+    pais: string,
+    desde: string,
+  ): Promise<ReceptionCapacitiesResponse> {
+    return this.ripley.get<ReceptionCapacitiesResponse>(
+      this.ripley.endpoint('capacitiesReception'),
+      pais,
+      { id: capacityId, date: ripleyDateToBarras(desde) },
+    );
   }
 
   /** Capacidades de una agenda de picking, desde una fecha DD-MM-YYYY */

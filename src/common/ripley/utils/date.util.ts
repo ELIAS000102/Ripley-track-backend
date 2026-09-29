@@ -20,6 +20,31 @@ export function soloFecha(isoDate: string): string {
   return isoDate.split('T')[0];
 }
 
+/**
+ * "14-09-2026" -> "14/09/2026"
+ *
+ * Las capacidades de recepción se piden con barras y no con guiones, mientras
+ * que picking y despacho usan guiones. La conversión vive en el borde, justo
+ * antes de llamar: hacia fuera este backend habla en DD-MM-YYYY en las tres.
+ */
+export function ripleyDateToBarras(fecha: string): string {
+  return fecha.replace(/-/g, '/');
+}
+
+/**
+ * "2026-10-02T00:00:00.000Z" -> "Friday"
+ *
+ * El nombre del día en inglés, que es como lo manda el panel corporativo en el
+ * PUT de recepción. Se lee en UTC a propósito: la fecha llega a las 00:00Z y
+ * cualquier zona al oeste la correría al día anterior.
+ */
+export function nombreDelDia(isoDate: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(isoDate));
+}
+
 /** "14-09-2026" -> "2026-09-14". El inverso de isoToRipleyDate. */
 export function ripleyDateToIso(fecha: string): string {
   const [day, month, year] = fecha.split('-');

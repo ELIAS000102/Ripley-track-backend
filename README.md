@@ -5,8 +5,9 @@ Chile. Da servicio a un panel web y a una agente de IA que conversa por chat.
 
 Cubre cinco áreas de la operación logística:
 
-- **Agendas de picking y despacho** — la capacidad de cada día: cuánto hay asignado, cuánto
-  se lleva ocupado y si el día acepta pedidos.
+- **Agendas de picking, despacho y recepción** — la capacidad de cada día: cuánto hay
+  asignado, cuánto se lleva ocupado y si el día acepta pedidos. Lo que un almacén puede
+  preparar, lo que un operador puede repartir y lo que una oficina puede recibir.
 - **Reporte de centros de distribución** — el uso de capacidad de todos los CDs, por jornada
   y por día.
 - **Configuración de tipos de servicio** — qué servicios tiene cada operador logístico, con

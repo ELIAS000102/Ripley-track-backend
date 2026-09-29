@@ -5,7 +5,7 @@ import { ContextoAuditoria } from './contexto-auditoria.service.js';
 /**
  * Registro de cambios: quién modificó qué, con qué datos y cuándo.
  *
- * Global porque los cinco services que escriben en Ripley reportan su cambio
+ * Global porque todos los services que escriben en Ripley reportan su cambio
  * por ContextoAuditoria, y no tiene sentido importarlo en cada módulo.
  */
 @Global()

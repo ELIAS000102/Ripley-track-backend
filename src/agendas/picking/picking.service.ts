@@ -1,6 +1,5 @@
 import {
   BadGatewayException,
-  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,6 +12,10 @@ import {
   recortarDesde,
   soloFecha,
 } from '../../common/ripley/utils/date.util.js';
+import {
+  resolverTipoDeAgenda,
+  unicaPorServicio,
+} from '../../common/ripley/utils/agenda.util.js';
 import { ActualizarPickingBodyDto } from './dto/actualizar-picking.dto.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import {
@@ -20,7 +23,6 @@ import {
   CapacityByDay,
   ScheduleConfig,
   ScheduleRow,
-  ScheduleType,
 } from './interfaces/picking.interface.js';
 
 /**
@@ -32,16 +34,6 @@ import {
 @Injectable()
 export class PickingService {
   private readonly logger = new Logger(PickingService.name);
-
-  /** Cada bandera del objeto "type" corresponde a un valor de "type" en el PUT */
-  private readonly TIPOS_DE_AGENDA: Record<keyof ScheduleType, string> = {
-    isPickingSchedule: 'picking',
-    isPickingSupplierSchedule: 'pickingSupplier',
-    isDispatchSchedule: 'dispatch',
-    isReceptionSchedule: 'reception',
-    isStockSchedule: 'stock',
-    isTransferSchedule: 'transfer',
-  };
 
   constructor(
     private readonly catalogos: CatalogosRipleyService,
@@ -121,19 +113,6 @@ export class PickingService {
     return oficina.code;
   }
 
-  /** Traduce las banderas al string del PUT: { isPickingSchedule: true } -> "picking" */
-  private resolverTipo(type: ScheduleType): string {
-    const activa = (
-      Object.keys(this.TIPOS_DE_AGENDA) as (keyof ScheduleType)[]
-    ).find((flag) => type?.[flag] === true);
-
-    if (!activa) {
-      throw new BadGatewayException('La agenda no tiene un tipo definido');
-    }
-
-    return this.TIPOS_DE_AGENDA[activa];
-  }
-
   /** Arma el objeto "schedules" del PUT resolviendo todo contra la API */
   private async resolverConfig(
     scheduleId: string,
@@ -159,7 +138,7 @@ export class PickingService {
     const config: ScheduleConfig = {
       country: pais.toUpperCase().trim(),
       idOffice,
-      type: this.resolverTipo(agenda.type),
+      type: resolverTipoDeAgenda(agenda.type),
       typeOfService,
       unitMeasure: agenda.unitMeasure,
     };
@@ -325,7 +304,7 @@ export class PickingService {
 
     const agenda = scheduleId?.trim()
       ? agendas.find((a) => a.scheduleId === scheduleId.trim())
-      : this.unicaPorServicio(agendas, typeOfService, officeCode);
+      : unicaPorServicio(agendas, typeOfService, officeCode);
 
     if (!agenda) {
       throw new NotFoundException(
@@ -369,38 +348,5 @@ export class PickingService {
       if (e instanceof RipleyApiError && e.esNoEncontrado) return [];
       throw e;
     }
-  }
-
-  /**
-   * La agenda de un servicio, siempre que no haya más de una.
-   *
-   * Si el almacén tiene varias con ese servicio, quedarse con la primera es
-   * enseñar los datos de una agenda que nadie eligió. Se dice cuáles hay y que
-   * hace falta el identificador para desempatar.
-   */
-  private unicaPorServicio<T extends { typeOfService: string; nombre: string }>(
-    agendas: T[],
-    typeOfService: string | undefined,
-    officeCode: string,
-  ): T | undefined {
-    if (!typeOfService?.trim()) {
-      throw new BadRequestException(
-        'Indica el tipo de servicio o el identificador de la agenda',
-      );
-    }
-
-    const buscado = typeOfService.trim().toUpperCase();
-    const candidatas = agendas.filter(
-      (a) => a.typeOfService.toUpperCase() === buscado,
-    );
-
-    if (candidatas.length > 1) {
-      throw new BadRequestException(
-        `La oficina ${officeCode} tiene ${candidatas.length} agendas con servicio ${buscado}: ` +
-          `${candidatas.map((a) => a.nombre).join(', ')}. Indica cuál con su identificador.`,
-      );
-    }
-
-    return candidatas[0];
   }
 }

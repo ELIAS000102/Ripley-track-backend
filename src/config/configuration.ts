@@ -22,6 +22,9 @@ export default () => {
         // Picking
         capacitiesPicking: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_PICKING}`,
         schedulesPicking: `${prefijo}${process.env.RIPLEY_EP_SCHEDULES_PICKING}`,
+        // Recepción
+        schedulesReception: `${prefijo}${process.env.RIPLEY_EP_SCHEDULES_RECEPTION}`,
+        capacitiesReception: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_RECEPTION}`,
         // Despacho
         mainzones: `${prefijo}${process.env.RIPLEY_EP_MAINZONES}`,
         mainschedules: `${prefijo}${process.env.RIPLEY_EP_MAINSCHEDULES}`,
@@ -61,7 +64,7 @@ export default () => {
       anonKey: process.env.SUPABASE_ANON_KEY,
       /** Key privada: escribe el registro de uso saltándose las políticas RLS */
       serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      tablaAuditoria: process.env.SUPABASE_TABLA_AUDITORIA ?? 'registro_uso',
+      tablaAuditoria: process.env.SUPABASE_TABLA_AUDITORIA,
     },
   };
 };

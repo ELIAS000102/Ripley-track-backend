@@ -15,6 +15,7 @@ import { SupabaseModule } from './common/supabase/supabase.module.js';
 import { TokenRipleyModule } from './configuracion/token-ripley/token-ripley.module.js';
 import { PickingModule } from './agendas/picking/picking.module.js';
 import { DespachoModule } from './agendas/despacho/despacho.module.js';
+import { RecepcionModule } from './agendas/recepcion/recepcion.module.js';
 import { CdsModule } from './reportes/cds/cds.module.js';
 import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
@@ -40,6 +41,7 @@ import { SimulacionModule } from './simulacion/simulacion.module.js';
     TokenRipleyModule,
     PickingModule,
     DespachoModule,
+    RecepcionModule,
     CdsModule,
     OplMasivoModule,
     OplModule,
