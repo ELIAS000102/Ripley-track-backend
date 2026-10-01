@@ -225,8 +225,11 @@ export class PreconfiguracionesService {
 
     const cambios = {
       ...(dto.nombre !== undefined ? { nombre: dto.nombre.trim() } : {}),
+      // `?.` y no `.`: un `null` explícito es cómo se borra la descripción, y
+      // `@IsOptional()` lo deja pasar. Sin esto reventaba con un 500 por un
+      // `.trim()` sobre null, que es el camino que usa el panel al vaciarla.
       ...(dto.descripcion !== undefined
-        ? { descripcion: dto.descripcion.trim() || null }
+        ? { descripcion: dto.descripcion?.trim() || null }
         : {}),
       ...(dto.activa !== undefined ? { activa: dto.activa } : {}),
       actualizado_en: new Date().toISOString(),
