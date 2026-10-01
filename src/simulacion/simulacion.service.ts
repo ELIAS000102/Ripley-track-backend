@@ -290,7 +290,20 @@ export class SimulacionService {
 
       // Derivados del árbol geográfico
       commune: comuna.id,
-      localityCode: comuna.code,
+      /*
+       * El `identifier` y NO el `code`.
+       *
+       * Son el mismo número, pero el `identifier` lleva el cero de delante:
+       * Bellavista es `code: "70102"` e `identifier: "070102"`. Coinciden solo
+       * cuando el código de la región tiene dos cifras, y entonces esto parecía
+       * funcionar: Lima es la 15, y Breña sale igual de los dos campos.
+       *
+       * Con una región de una cifra —Callao es la 7, y no es la única—
+       * Ripley respondía "Comuna o distrito no existe en la base de datos",
+       * porque busca por este campo y el `70102` sin el cero no está. Su propio
+       * simulador manda el `identifier`.
+       */
+      localityCode: comuna.identifier || comuna.code,
       region,
 
       country: pais,
