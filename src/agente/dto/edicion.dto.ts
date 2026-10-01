@@ -80,14 +80,24 @@ const ASIGNADO_MAXIMO = 100_000;
  * llega quedan varias, el backend no elige: responde con las opciones.
  */
 export class EditarCapacidadDto extends PaisDto {
+  /**
+   * Qué clase de agenda. **Las tres se piden igual**: mismo campo `codigo`,
+   * mismos filtros, misma forma de respuesta.
+   *
+   * Recepción es un tercer valor y no una herramienta aparte a propósito: el
+   * esquema de cada herramienta se le cobra al modelo en cada petición, y una
+   * más costaría tokens en todas las conversaciones para decir lo que ya cabe
+   * en este campo.
+   */
   @IsString()
-  @IsIn(['picking', 'despacho'], {
-    message: 'tipo debe ser "picking" o "despacho"',
+  @IsIn(['picking', 'despacho', 'recepcion'], {
+    message: 'tipo debe ser "picking", "despacho" o "recepcion"',
   })
-  tipo: 'picking' | 'despacho';
+  tipo: 'picking' | 'despacho' | 'recepcion';
 
   /**
-   * Almacén en picking (20026), operador logístico en despacho (1130).
+   * Almacén en picking (20026), operador logístico en despacho (1130), tienda
+   * u operador que recibe en recepción (20021).
    * **Admite varios por coma o por espacios.**
    *
    * El tope real no es el número de oficinas sino cuántos días de agenda se
@@ -97,7 +107,7 @@ export class EditarCapacidadDto extends PaisDto {
   @IsNotEmpty()
   codigo: string;
 
-  /** Picking: tipo de servicio de la agenda ("S", "ST", "RC") */
+  /** Picking y recepción: tipo de servicio de la agenda ("S", "ST", "SE") */
   @IsOptional()
   @Transform(({ value }) => aTexto(value))
   @IsString()

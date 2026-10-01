@@ -34,15 +34,25 @@ class ConVentanaDto extends PaisDto {
 // ───────────────────────── Capacidad ─────────────────────────
 
 export class ConsultarCapacidadDto extends ConVentanaDto {
+  /**
+   * Qué clase de agenda. **Las tres se piden igual**: mismo campo `codigo`,
+   * mismos filtros, misma forma de respuesta.
+   *
+   * Recepción es un tercer valor y no una herramienta aparte a propósito: el
+   * esquema de cada herramienta se le cobra al modelo en cada petición, y una
+   * más costaría tokens en todas las conversaciones para decir lo que ya cabe
+   * en este campo.
+   */
   @IsString()
-  @IsIn(['picking', 'despacho'], {
-    message: 'tipo debe ser "picking" o "despacho"',
+  @IsIn(['picking', 'despacho', 'recepcion'], {
+    message: 'tipo debe ser "picking", "despacho" o "recepcion"',
   })
-  tipo: 'picking' | 'despacho';
+  tipo: 'picking' | 'despacho' | 'recepcion';
 
   /**
    * Código visible de la oficina: el almacén en picking (20026), el operador
-   * logístico en despacho (1130). **Admite varios por coma o por espacios.**
+   * logístico en despacho (1130), la tienda u operador que recibe en recepción
+   * (20021). **Admite varios por coma o por espacios.**
    *
    * El tope es más bajo que en otras consultas y con motivo: cada oficina son
    * sus agendas, y cada agenda una llamada más a la API corporativa.
@@ -51,7 +61,7 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
   @IsNotEmpty()
   codigo: string;
 
-  /** Filtra por tipo de servicio en picking ("S", "ST"…) */
+  /** Filtra por tipo de servicio en picking y recepción ("S", "ST", "SE"…) */
   @IsOptional()
   @IsString()
   servicio?: string;
@@ -172,9 +182,10 @@ export class SimularAgenteDto extends PaisDto {
   /**
    * Tipo de servicio: "SD", "SE", "DT", "ST"…
    *
-   * Por sí solo, con "SD" o "SE", dispara la simulación preconfigurada de la
-   * operación: sus OPL, sus destinos y el SKU de referencia. Vacío pide todos
-   * los tipos aplicables al destino.
+   * Vacío pide todos los tipos aplicables al destino. **Por sí solo no basta**:
+   * hace falta el operador. "SD" a secas disparaba una lista de OPL escrita en
+   * el código; esa lista está ahora en las preconfiguraciones, y la revisión de
+   * siempre se pide por su nombre.
    */
   @IsOptional()
   @IsString()
@@ -189,8 +200,10 @@ export class SimularAgenteDto extends PaisDto {
   metodo?: string;
 
   /**
-   * Código del operador, o varios separados por coma ("1111,1110"). Si se
-   * omite y se pidió una simulación preconfigurada, se usan los suyos.
+   * Código del operador, o varios separados por coma ("1111,1110").
+   *
+   * Es lo único que Ripley no puede suponer —es quién entrega—, así que sin él
+   * no hay nada que simular.
    */
   @IsOptional()
   @IsString()
@@ -201,7 +214,7 @@ export class SimularAgenteDto extends PaisDto {
   @IsString()
   almacen?: string;
 
-  // ── Punto de entrega. Obligatorio salvo en las preconfiguradas.
+  // ── Punto de entrega. Opcional: sin él se usa Lima - Lima - Lima.
 
   @IsOptional()
   @IsString()

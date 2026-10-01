@@ -52,6 +52,21 @@ function idDeCapacidad(fila: ReceptionScheduleRow): string | undefined {
   return undefined;
 }
 
+/**
+ * Una agenda lista para escribir.
+ *
+ * Resolverla cuesta dos llamadas —la oficina y sus agendas, que traen dos mil
+ * días cada una— y no cambia entre un día y el siguiente. Separarla de la
+ * escritura es lo que permite editar un rango sin repetir esas dos llamadas por
+ * cada día del rango.
+ */
+export interface AgendaPreparada {
+  fila: ReceptionScheduleRow;
+  oficina: OfficeRow;
+  capacityId: string;
+  typeOfService: string;
+}
+
 /** La agenda elegida, con su servicio ya traducido a código visible */
 interface AgendaElegida {
   fila: ReceptionScheduleRow;
@@ -223,6 +238,63 @@ export class RecepcionService {
   }
 
   /**
+   * Todas las agendas de la oficina **con sus días**, en una sola lectura.
+   *
+   * `buscarCapacidades` resuelve la oficina y relee sus agendas en cada
+   * llamada. Para el panel está bien —pide una agenda—, pero quien las quiere
+   * todas pagaría esa relectura por agenda, y la respuesta trae dos mil días
+   * cada una. Aquí la lista se lee una vez y después solo se piden los días.
+   *
+   * Una agenda que falla se anota y no arrastra a las demás: que la tercera no
+   * tenga capacidades no puede dejar sin respuesta a las otras.
+   */
+  async capacidadesDeLaOficina(
+    officeCode: string,
+    pais: string,
+    desde: string,
+    servicio?: string,
+  ) {
+    const [{ filas }, servicios] = await Promise.all([
+      this.traerFilas(officeCode, pais),
+      this.catalogos.mapaServicios(pais),
+    ]);
+
+    const buscado = servicio?.trim().toUpperCase();
+
+    const elegidas = filas
+      .map((fila) => ({
+        fila,
+        typeOfService: servicios.get(fila.services?.[0]) ?? '',
+      }))
+      .filter((a) => !!a.typeOfService)
+      .filter((a) => !buscado || a.typeOfService.toUpperCase() === buscado);
+
+    return Promise.all(
+      elegidas.map(async ({ fila, typeOfService }) => {
+        try {
+          return {
+            scheduleId: fila.id,
+            nombre: fila.name,
+            typeOfService,
+            unitMeasure: fila.unitMeasure,
+            dias: await this.diasDeLaAgenda(fila, desde, pais),
+            error: undefined as string | undefined,
+          };
+        } catch (e) {
+          return {
+            scheduleId: fila.id,
+            nombre: fila.name,
+            typeOfService,
+            unitMeasure: fila.unitMeasure,
+            dias: [] as CapacityByDay[],
+            error: (e as Error).message,
+          };
+        }
+      }),
+    );
+  }
+
+  /**
    * La agenda a la que se refiere la petición.
    *
    * `scheduleId` es lo que la identifica; `typeOfService` solo vale cuando la
@@ -363,8 +435,23 @@ export class RecepcionService {
     body: ActualizarRecepcionBodyDto,
     pais = 'PE',
   ) {
-    const { day, assigned, active } = body;
+    const agenda = await this.prepararAgenda(officeCode, scheduleId, pais);
+    return this.guardarDia(agenda, body, pais);
+  }
 
+  /**
+   * La agenda lista para escribir, resuelta una sola vez.
+   *
+   * Es pública porque quien edita un rango la necesita así: el agente cambia
+   * hasta treinta y un días de una vez, y resolverla dentro de cada escritura
+   * eran treinta y una relecturas de una respuesta que trae dos mil días por
+   * agenda.
+   */
+  async prepararAgenda(
+    officeCode: string,
+    scheduleId: string,
+    pais = 'PE',
+  ): Promise<AgendaPreparada> {
     const { oficina, fila, typeOfService } = await this.elegirAgenda(
       officeCode,
       undefined,
@@ -379,6 +466,26 @@ export class RecepcionService {
         `La agenda "${fila.name}" no tiene capacidad creada: no hay ningún día que guardar`,
       );
     }
+
+    return { fila, oficina, capacityId, typeOfService };
+  }
+
+  /**
+   * Cambia el asignado y el estado de un día de una agenda ya preparada.
+   *
+   * **Son los dos únicos campos editables.** `occupied` sale del estado actual
+   * —es lo que ya se recibió ese día, no lo decide nadie desde aquí— y el
+   * bloque `schedules` que exige el PUT se reconstruye desde la agenda: tipo,
+   * servicio, unidad de medida y el código de la oficina. Nada de eso viaja en
+   * la petición del cliente, porque escribirlo mal es escribir en otra agenda.
+   */
+  async guardarDia(
+    agenda: AgendaPreparada,
+    body: ActualizarRecepcionBodyDto,
+    pais = 'PE',
+  ) {
+    const { day, assigned, active } = body;
+    const { fila, oficina, capacityId, typeOfService } = agenda;
 
     // 1. Estado actual del día: de aquí sale "occupied" y el "day" exacto
     const dias = await this.diasDeLaAgenda(fila, isoToRipleyDate(day), pais);

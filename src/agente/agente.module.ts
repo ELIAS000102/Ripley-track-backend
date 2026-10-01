@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DespachoModule } from '../agendas/despacho/despacho.module.js';
 import { PickingModule } from '../agendas/picking/picking.module.js';
+import { RecepcionModule } from '../agendas/recepcion/recepcion.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { OplMasivoModule } from '../configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from '../configuracion/tipo-servicio/opl/opl.module.js';
@@ -56,6 +57,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
   imports: [
     PickingModule,
     DespachoModule,
+    RecepcionModule,
     CdsModule,
     TransfModule,
     OplModule,
@@ -91,6 +93,26 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
     // Seguridad
     ModoAgenteService,
   ],
-  exports: [ModoAgenteService],
+  /*
+   * Además del modo, se exportan los services que ejecutan una operación.
+   * Los usa el módulo de preconfiguraciones: son los únicos que reciben códigos
+   * visibles y resuelven la cadena de catálogos por dentro, que es lo que una
+   * preconfiguración guardada puede guardar.
+   */
+  exports: [
+    ModoAgenteService,
+
+    CapacidadAgenteService,
+    ReporteAgenteService,
+    TransferenciaAgenteService,
+    TipoServicioAgenteService,
+    BusquedaMasivaAgenteService,
+    SimulacionAgenteService,
+
+    EditarCapacidadAgenteService,
+    EditarTipoServicioAgenteService,
+    EditarMasivoAgenteService,
+    EditarTransferenciaAgenteService,
+  ],
 })
 export class AgenteModule {}

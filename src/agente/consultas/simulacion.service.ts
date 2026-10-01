@@ -7,9 +7,6 @@ import { metodoDeServicio } from '../constantes/servicios.constants.js';
 import {
   DESTINO_POR_DEFECTO,
   SKU_POR_DEFECTO,
-  metodoDeOpl,
-  oplConocido,
-  oplsDe,
   tipoParaRipley,
   type OplPorDefecto,
 } from '../constantes/simulacion.constants.js';
@@ -76,20 +73,26 @@ export class SimulacionAgenteService {
     const sku = dto.sku?.trim() || SKU_POR_DEFECTO;
     const cantidad = dto.cantidad ?? 1;
 
-    // Preconfigurada: llega el servicio a secas, sin destino ni operador. Es la
-    // consulta que la operación repite a diario y ya trae sus OPL y destinos.
-    const preconfigurada = this.esPreconfigurada(dto, servicio);
-    const destinos = preconfigurada
-      ? oplsDe(servicio ?? undefined)
-      : this.destinosPedidos(dto);
+    /*
+     * Los destinos salen de lo que llegue, siempre.
+     *
+     * Antes había un atajo: el servicio a secas —"simula SD"— disparaba una
+     * lista de OPL escrita en el código, con el destino de cada uno. Esa lista
+     * se fue a Supabase, a la tabla de preconfiguraciones, porque es un dato de
+     * la operación: una tienda nueva no puede necesitar un despliegue.
+     *
+     * Así que "simula SD" ya no adivina nada. Esa consulta se pide ahora por su
+     * nombre —"ejecuta la Simulación SD"— y el ejecutor de preconfiguraciones
+     * llama aquí una vez por tarea, con su operador y su distrito.
+     */
+    const destinos = this.destinosPedidos(dto);
 
-    const metodo = this.metodo(dto, servicio, destinos);
+    const metodo = this.metodo(dto, servicio);
     // Sin almacén la simulación se procesa igual: Ripley resuelve la fuente
     const codigoAlmacen = dto.almacen?.trim();
 
     this.logger.log(
-      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s)` +
-        `${preconfigurada ? ' (preconfigurada)' : ''} — ${pais}`,
+      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s) — ${pais}`,
     );
 
     const [almacen, producto] = await Promise.all([
@@ -132,28 +135,10 @@ export class SimulacionAgenteService {
           ? `${producto.sku} - ${producto.nombre}`
           : String(producto.sku),
         cantidad,
-        usoPredeterminados: preconfigurada,
       },
       resultados,
       aviso: conEntrega ? undefined : this.porQueNoHayFechas(resultados),
     };
-  }
-
-  /**
-   * ¿Es una de las simulaciones que la operación tiene preconfiguradas?
-   *
-   * Lo es cuando llega el tipo de servicio a secas —SD o SE— sin operador ni
-   * punto de entrega. En cuanto se concreta cualquiera de esos dos, deja de
-   * serlo: el usuario está pidiendo un destino suyo, no el de siempre.
-   */
-  private esPreconfigurada(
-    dto: SimularAgenteDto,
-    servicio: string | null,
-  ): boolean {
-    if (!servicio || !oplsDe(servicio).length) return false;
-    if (!['SD', 'SE'].includes(servicio)) return false;
-
-    return !dto.operador?.trim() && !dto.distrito?.trim();
   }
 
   /**
@@ -182,16 +167,18 @@ export class SimulacionAgenteService {
    * Los destinos de una simulación a medida.
    *
    * El operador es lo único que Ripley no puede suponer —es quién entrega—, así
-   * que sin él y sin una preconfigurada no hay nada que simular. El punto de
-   * entrega sí tiene valor por defecto: Lima - Lima - Lima, que es contra lo
-   * que se simula salvo que pidan otro sitio.
+   * que sin él no hay nada que simular. El punto de entrega sí tiene valor por
+   * defecto: Lima - Lima - Lima, que es contra lo que se simula salvo que pidan
+   * otro sitio.
    */
   private destinosPedidos(dto: SimularAgenteDto): OplPorDefecto[] {
     const operador = dto.operador?.trim();
 
     if (!operador) {
       throw new NotFoundException(
-        'Para simular necesito el operador logístico, o el tipo de servicio (SD o SE) a secas para usar la simulación preconfigurada.',
+        'Para simular necesito el operador logístico o la tienda. Si lo que ' +
+          'quieres es la revisión de siempre, pídela por su nombre: ' +
+          '"ejecuta la Simulación SD" o "la Simulación SE".',
       );
     }
 
@@ -203,15 +190,14 @@ export class SimulacionAgenteService {
   /**
    * El destino de un operador concreto.
    *
-   * Un OPL conocido impone el suyo aunque venga otro en la petición: en retiro
-   * en tienda el destino ES la tienda, y el agente mandaba "Lima" perdiendo el
-   * distrito real. Para uno desconocido se usa lo que llegue, y si no llega
-   * nada, el punto de entrega por defecto.
+   * Se usa lo que llegue y, si no llega nada, el punto de entrega por defecto.
+   *
+   * Antes una lista del código imponía el destino de los OPL conocidos —en
+   * retiro en tienda el destino ES la tienda—. Esa lista está ahora en las
+   * preconfiguraciones, donde cada tarea lleva el suyo escrito: el conocimiento
+   * sigue estando, pero en un sitio que se edita sin desplegar.
    */
   private destinoDe(code: string, dto: SimularAgenteDto): OplPorDefecto {
-    const conocido = oplConocido(code);
-    if (conocido) return conocido;
-
     return {
       code,
       nombre: code,
@@ -221,20 +207,20 @@ export class SimulacionAgenteService {
     };
   }
 
-  /** Explícito > el que corresponde al servicio > el de la lista del OPL */
-  private metodo(
-    dto: SimularAgenteDto,
-    servicio: string | null,
-    destinos: OplPorDefecto[],
-  ): string {
+  /**
+   * Explícito > el que corresponde al servicio > despacho.
+   *
+   * Había un cuarto paso: sin servicio, el OPL delataba el método por la lista
+   * del código en la que estuviera. Sin esas listas, el último recurso es
+   * despacho a domicilio, que es la inmensa mayoría de los casos. Quien simule
+   * un retiro sin decir el servicio tendrá que mandar el método, y eso es mejor
+   * que acertar una de cada dos veces sin avisar.
+   */
+  private metodo(dto: SimularAgenteDto, servicio: string | null): string {
     if (dto.metodo?.trim()) return dto.metodo.trim().toUpperCase();
 
     // La tabla de negocio manda: el servicio decide si se retira o se despacha
-    const porServicio = metodoDeServicio(servicio);
-    if (porServicio) return porServicio;
-
-    // Sin servicio, el OPL delata el tipo por la lista en la que está
-    return metodoDeOpl(destinos[0]?.code ?? '') ?? 'DP';
+    return metodoDeServicio(servicio) ?? 'DP';
   }
 
   // ---------- Una simulación ----------

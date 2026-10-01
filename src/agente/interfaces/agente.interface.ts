@@ -105,7 +105,7 @@ export interface OficinaCapacidad {
 }
 
 export interface CapacidadRespuesta {
-  tipo: 'picking' | 'despacho';
+  tipo: 'picking' | 'despacho' | 'recepcion';
   pais: string;
   /**
    * Un elemento por código pedido. Viene siempre, aunque se haya pedido uno
@@ -264,8 +264,6 @@ export interface SimulacionRespuesta {
     almacen: string | null;
     sku: string;
     cantidad: number;
-    /** true si se simularon los OPL predeterminados por no indicarse ninguno */
-    usoPredeterminados: boolean;
   };
   resultados: ResultadoSimulacion[];
   aviso?: string;
@@ -369,7 +367,7 @@ export interface OficinaEditada {
 
 export interface EdicionRespuesta {
   contexto: ContextoAgente;
-  tipo: 'picking' | 'despacho';
+  tipo: 'picking' | 'despacho' | 'recepcion';
   /** Un elemento por código pedido, igual que en la consulta */
   oficinas: OficinaEditada[];
   resumen: {

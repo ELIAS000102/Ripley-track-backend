@@ -6,6 +6,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { EditarCapacidadDto } from '../dto/edicion.dto.js';
 import type { DespachoService } from '../../agendas/despacho/despacho.service.js';
+import type { RecepcionService } from '../../agendas/recepcion/recepcion.service.js';
 import type { PickingService } from '../../agendas/picking/picking.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
@@ -99,6 +100,33 @@ function armar(
     actualizar: actualizarDespacho,
   } as unknown as DespachoService;
 
+  // Recepción resuelve la agenda una vez y después solo escribe días
+  const prepararAgenda = vi.fn().mockResolvedValue({ capacityId: 'r-se-cap' });
+  const guardarDia = vi.fn().mockResolvedValue({ dia: '27-09-2026' });
+
+  const recepcion = {
+    listarAgendasPorOficina: vi.fn().mockResolvedValue([
+      {
+        scheduleId: 'r-se',
+        nombre: 'Agenda de Recepción 20021 SE',
+        typeOfService: 'SE',
+        vigenteHasta: '2030-12-31',
+      },
+    ]),
+    prepararAgenda,
+    buscarCapacidades: vi.fn().mockResolvedValue({
+      dias: [
+        {
+          day: `${HOY}T00:00:00.000Z`,
+          assigned: 50,
+          occupied: 24,
+          active: true,
+        },
+      ],
+    }),
+    guardarDia,
+  } as unknown as RecepcionService;
+
   const contexto = {
     armar: vi.fn().mockResolvedValue({ pais: 'PE', hoy: HOY }),
   } as unknown as ContextoAgenteService;
@@ -110,12 +138,15 @@ function armar(
     servicio: new EditarCapacidadAgenteService(
       picking,
       despacho,
+      recepcion,
       contexto,
       auditoria,
     ),
     actualizarPicking,
     actualizarDespacho,
     registrarCambio,
+    prepararAgenda,
+    guardarDia,
     obtenerPicking,
     listarAgendasPorOficina,
   };
@@ -1094,5 +1125,62 @@ describe('Edición del agente: "todas" las agendas', () => {
 
     expect(actualizarPicking).toHaveBeenCalledOnce();
     expect(actualizarPicking.mock.calls[0][0]).toBe('c-2');
+  });
+});
+
+/**
+ * Editar recepción desde el chat.
+ *
+ * Lo que se vigila aquí es lo que cuesta caro: que la agenda se resuelva **una
+ * vez por agenda y no una por día**. Con un rango de treinta y un días la
+ * diferencia son treinta relecturas de una respuesta que trae dos mil días.
+ */
+describe('Editar recepción', () => {
+  const editar = (extra: Record<string, unknown> = {}) => ({
+    tipo: 'recepcion' as const,
+    codigo: '20021',
+    fecha: HOY,
+    activa: false,
+    ...extra,
+  });
+
+  it('va por su rama, no por la de despacho', async () => {
+    const { servicio, prepararAgenda, actualizarDespacho } = armar();
+
+    await servicio.editarCapacidad(USUARIO, editar() as never);
+
+    expect(prepararAgenda).toHaveBeenCalled();
+    expect(actualizarDespacho).not.toHaveBeenCalled();
+  });
+
+  it('resuelve la agenda una sola vez para todo el rango', async () => {
+    const { servicio, prepararAgenda } = armar();
+
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ hasta: sumarDias(HOY, 4) }) as never,
+    );
+
+    expect(prepararAgenda).toHaveBeenCalledTimes(1);
+  });
+
+  it('y escribe con la agenda ya preparada, no volviéndola a resolver', async () => {
+    const { servicio, guardarDia } = armar();
+
+    await servicio.editarCapacidad(USUARIO, editar() as never);
+
+    expect(guardarDia).toHaveBeenCalledWith(
+      { capacityId: 'r-se-cap' },
+      expect.objectContaining({ active: false }),
+      'PE',
+    );
+  });
+
+  it('deja el asignado como estaba si no se pide otro', async () => {
+    const { servicio, guardarDia } = armar();
+
+    await servicio.editarCapacidad(USUARIO, editar() as never);
+
+    expect(guardarDia.mock.calls[0][1]).toMatchObject({ assigned: 50 });
   });
 });

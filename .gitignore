@@ -61,3 +61,6 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 .prueba.html
+
+# Configuración local de Claude Code (el servidor que sirve prueba.html)
+/.claude

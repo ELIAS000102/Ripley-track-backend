@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DespachoService } from '../../agendas/despacho/despacho.service.js';
+import type { RecepcionService } from '../../agendas/recepcion/recepcion.service.js';
 import type { PickingService } from '../../agendas/picking/picking.service.js';
 import { CapacidadAgenteService } from './capacidad.service.js';
 
@@ -70,8 +71,29 @@ function armar({
     }),
   } as unknown as DespachoService;
 
+  // Recepción se lee entera de una vez: una llamada para todas las agendas
+  const capacidadesDeLaOficina = vi.fn().mockResolvedValue([
+    {
+      scheduleId: 'r-se',
+      nombre: 'Agenda de Recepción 20021 SE',
+      typeOfService: 'SE',
+      unitMeasure: 'Unidades',
+      dias: [
+        {
+          day: '2026-09-27T00:00:00.000Z',
+          assigned: 50,
+          occupied: 24,
+          active: true,
+        },
+      ],
+    },
+  ]);
+
+  const recepcion = { capacidadesDeLaOficina } as unknown as RecepcionService;
+
   return {
-    servicio: new CapacidadAgenteService(picking, despacho),
+    servicio: new CapacidadAgenteService(picking, despacho, recepcion),
+    capacidadesDeLaOficina,
     listarAgendasPorOficina,
     listarZonas,
   };
@@ -211,5 +233,115 @@ describe('Capacidad: el alias y los avisos', () => {
     );
 
     expect(r.sinDatos.join(' ')).toMatch(/20099:/);
+  });
+});
+
+/**
+ * Recepción es un tercer valor de `tipo`, no una herramienta aparte.
+ *
+ * El esquema de cada herramienta se le cobra al modelo en **cada** petición,
+ * así que una más costaría tokens en todas las conversaciones para decir lo
+ * que ya cabe en este campo.
+ *
+ * Y con tres tipos el despacho no puede seguir siendo un ternario: lo que no
+ * era picking se iba a despacho, así que un valor nuevo se colaba ahí sin que
+ * nada lo dijera.
+ */
+describe('Consultar recepción', () => {
+  it('va por su rama, no por la de despacho', async () => {
+    const { servicio, capacidadesDeLaOficina, listarZonas } = armar();
+
+    await servicio.consultar(consultar({ tipo: 'recepcion', codigo: '20021' }));
+
+    expect(capacidadesDeLaOficina).toHaveBeenCalled();
+    expect(listarZonas).not.toHaveBeenCalled();
+  });
+
+  it('lee las agendas de la oficina de una vez, no una por agenda', async () => {
+    const { servicio, capacidadesDeLaOficina } = armar();
+
+    await servicio.consultar(consultar({ tipo: 'recepcion', codigo: '20021' }));
+
+    expect(capacidadesDeLaOficina).toHaveBeenCalledTimes(1);
+  });
+
+  it('pasa el filtro de servicio tal cual', async () => {
+    const { servicio, capacidadesDeLaOficina } = armar();
+
+    await servicio.consultar(
+      consultar({ tipo: 'recepcion', codigo: '20021', servicio: 'SE' }),
+    );
+
+    expect(capacidadesDeLaOficina).toHaveBeenCalledWith(
+      '20021',
+      'PE',
+      expect.stringMatching(/^\d{2}-\d{2}-\d{4}$/),
+      'SE',
+    );
+  });
+
+  it('devuelve la agenda con sus días y su ocupación', async () => {
+    const { servicio } = armar();
+
+    const r = await servicio.consultar(
+      consultar({ tipo: 'recepcion', codigo: '20021', desde: '2026-09-27' }),
+    );
+
+    expect(r.tipo).toBe('recepcion');
+    expect(r.oficinas[0].agendas[0]).toMatchObject({
+      agenda: 'Agenda de Recepción 20021 SE',
+      servicio: 'SE',
+      unidad: 'Unidades',
+    });
+    expect(r.oficinas[0].agendas[0].dias).toHaveLength(1);
+  });
+
+  it('una agenda que falla se anota y no tumba la consulta', async () => {
+    const { servicio, capacidadesDeLaOficina } = armar();
+
+    capacidadesDeLaOficina.mockResolvedValue([
+      {
+        scheduleId: 'r-1',
+        nombre: 'Buena',
+        typeOfService: 'SE',
+        unitMeasure: 'Unidades',
+        dias: [
+          {
+            day: '2026-09-27T00:00:00.000Z',
+            assigned: 50,
+            occupied: 0,
+            active: true,
+          },
+        ],
+      },
+      {
+        scheduleId: 'r-2',
+        nombre: 'Rota',
+        typeOfService: 'RC',
+        unitMeasure: 'Unidades',
+        dias: [],
+        error: 'se cayó la red',
+      },
+    ]);
+
+    const r = await servicio.consultar(
+      consultar({ tipo: 'recepcion', codigo: '20021', desde: '2026-09-27' }),
+    );
+
+    expect(r.oficinas[0].agendas.map((a) => a.agenda)).toEqual(['Buena']);
+    expect(r.sinDatos.join(' ')).toMatch(/Rota.*se cayó la red/);
+  });
+
+  it('sin agendas lo dice nombrando la oficina', async () => {
+    const { servicio, capacidadesDeLaOficina } = armar();
+    capacidadesDeLaOficina.mockResolvedValue([]);
+
+    const r = await servicio.consultar(
+      consultar({ tipo: 'recepcion', codigo: '20021' }),
+    );
+
+    expect(r.sinDatos.join(' ')).toMatch(
+      /20021.*no tiene agendas de recepción/,
+    );
   });
 });

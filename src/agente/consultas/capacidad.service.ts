@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DespachoService } from '../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../agendas/picking/picking.service.js';
+import { RecepcionService } from '../../agendas/recepcion/recepcion.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import {
   hoyEnPais,
@@ -57,6 +58,7 @@ export class CapacidadAgenteService {
   constructor(
     private readonly picking: PickingService,
     private readonly despacho: DespachoService,
+    private readonly recepcion: RecepcionService,
   ) {}
 
   async consultar(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {
@@ -146,10 +148,17 @@ export class CapacidadAgenteService {
     const propios: string[] = [];
 
     try {
-      const agendas =
-        dto.tipo === 'picking'
-          ? await this.capacidadPicking(uno, pais, desde, dias, propios)
-          : await this.capacidadDespacho(uno, pais, desde, dias, propios);
+      // A tres bandas y no con un ternario: con dos tipos el "si no, despacho"
+      // era correcto; con tres, un valor nuevo se colaría en la rama de
+      // despacho sin que nada lo dijera
+      const porTipo = {
+        picking: () => this.capacidadPicking(uno, pais, desde, dias, propios),
+        despacho: () => this.capacidadDespacho(uno, pais, desde, dias, propios),
+        recepcion: () =>
+          this.capacidadRecepcion(uno, pais, desde, dias, propios),
+      };
+
+      const agendas = await porTipo[dto.tipo]();
 
       // Los avisos llevan la oficina delante: con varias, "no tiene agendas"
       // a secas no dice de cuál se está hablando
@@ -288,6 +297,59 @@ export class CapacidadAgenteService {
         return null;
       }
     });
+  }
+
+  // ---------- Recepción: oficina → agendas → capacidades ----------
+
+  /**
+   * Se parece a picking y se pide igual, pero por dentro es una lectura menos:
+   * las agendas de la oficina se leen una vez para todas, no una por agenda.
+   */
+  private async capacidadRecepcion(
+    dto: ConsultarCapacidadDto,
+    pais: string,
+    desde: string,
+    dias: number,
+    sinDatos: string[],
+  ): Promise<AgendaCapacidad[]> {
+    const agendas = await this.recepcion.capacidadesDeLaOficina(
+      dto.codigo,
+      pais,
+      isoToRipleyDate(desde),
+      dto.servicio,
+    );
+
+    if (!agendas.length) {
+      sinDatos.push(
+        dto.servicio
+          ? `La oficina ${dto.codigo} no tiene agenda de recepción con servicio ${dto.servicio}`
+          : `La oficina ${dto.codigo} no tiene agendas de recepción`,
+      );
+      return [];
+    }
+
+    return agendas
+      .filter((a) => {
+        if (a.error) sinDatos.push(`${a.nombre}: ${a.error}`);
+        return !a.error;
+      })
+      .map((a) => ({
+        agenda: a.nombre,
+        servicio: a.typeOfService,
+        unidad: a.unitMeasure ?? null,
+        dias: this.recortar(
+          a.dias.map((d) =>
+            this.normalizar(
+              soloFecha(d.day),
+              d.active,
+              Number(d.assigned),
+              Number(d.occupied),
+            ),
+          ),
+          desde,
+          dias,
+        ),
+      }));
   }
 
   // ---------- Utilidades ----------

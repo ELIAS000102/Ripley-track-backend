@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DespachoService } from '../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../agendas/picking/picking.service.js';
+import { RecepcionService } from '../../agendas/recepcion/recepcion.service.js';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import {
@@ -131,6 +132,7 @@ export class EditarCapacidadAgenteService {
   constructor(
     private readonly picking: PickingService,
     private readonly despacho: DespachoService,
+    private readonly recepcion: RecepcionService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
   ) {}
@@ -271,11 +273,16 @@ export class EditarCapacidadAgenteService {
 
       try {
         // Una jornada puede resolver a varias agendas cuando se pidió "todas"
-        agendas.push(
-          ...(dto.tipo === 'picking'
-            ? await this.editarPicking(uno, pais, fechas)
-            : await this.editarDespacho(uno, pais, fechas)),
-        );
+        // A tres bandas y no con un ternario: con dos tipos el "si no,
+        // despacho" era correcto; con tres, un valor nuevo se colaría en la
+        // rama de despacho sin que nada lo dijera
+        const porTipo = {
+          picking: () => this.editarPicking(uno, pais, fechas),
+          despacho: () => this.editarDespacho(uno, pais, fechas),
+          recepcion: () => this.editarRecepcion(uno, pais, fechas),
+        };
+
+        agendas.push(...(await porTipo[dto.tipo]()));
       } catch (e) {
         fallos.push(e);
         agendas.push({
@@ -450,6 +457,85 @@ export class EditarCapacidadAgenteService {
 
         salida.push({ agenda: agenda.nombre, zona: zona.nombre, dias });
       }
+    }
+
+    return salida;
+  }
+
+  // ---------- Recepción: oficina → agenda → días ----------
+
+  /**
+   * La misma forma que picking, con una diferencia que se nota en un rango: la
+   * agenda se resuelve **una vez** y después solo se escriben los días. Sin
+   * eso, treinta y un días eran treinta y una relecturas de una respuesta que
+   * trae dos mil días por agenda.
+   */
+  private async editarRecepcion(
+    dto: EditarCapacidadDto,
+    pais: string,
+    fechas: string[],
+  ): Promise<AgendaEditada[]> {
+    const todas = await this.recepcion.listarAgendasPorOficina(
+      dto.codigo,
+      pais,
+    );
+
+    const utilizables = this.soloUtilizables(
+      todas,
+      comoFiltro(dto.agenda),
+      (a) => a.nombre,
+      hoyEnPais(pais),
+      (a) => a.vigenteHasta,
+    );
+
+    const candidatas = this.filtrar(utilizables, [
+      [comoFiltro(dto.servicio), (a) => a.typeOfService],
+      [comoFiltro(dto.agenda), (a) => a.nombre],
+    ]);
+
+    const elegidas = this.seleccionar(
+      candidatas,
+      utilizables,
+      (a) => `${a.typeOfService} (${a.nombre})`,
+      `la oficina ${dto.codigo}`,
+      'el servicio',
+      'agenda',
+      esTodas(dto.agenda),
+    );
+
+    const salida: AgendaEditada[] = [];
+
+    for (const agenda of elegidas) {
+      // Una vez por agenda, no una por día
+      const preparada = await this.recepcion.prepararAgenda(
+        dto.codigo,
+        agenda.scheduleId,
+        pais,
+      );
+
+      const { dias: detalle } = await this.recepcion.buscarCapacidades(
+        dto.codigo,
+        undefined,
+        isoToRipleyDate(fechas[0]),
+        pais,
+        undefined,
+        agenda.scheduleId,
+      );
+
+      const porFecha = new Map(detalle.map((x) => [soloFecha(x.day), x]));
+
+      const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+        this.recepcion.guardarDia(
+          preparada,
+          { day: dia.day, assigned: cambio.asignado, active: cambio.activa },
+          pais,
+        ),
+      );
+
+      salida.push({
+        agenda: `${agenda.typeOfService} - ${agenda.nombre}`,
+        dias,
+      });
     }
 
     return salida;

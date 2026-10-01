@@ -20,6 +20,7 @@ import { CdsModule } from './reportes/cds/cds.module.js';
 import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from './configuracion/transf-suc/transf.module.js';
+import { PreconfiguracionesModule } from './configuracion/preconfiguraciones/preconfiguraciones.module.js';
 import { SimulacionModule } from './simulacion/simulacion.module.js';
 
 /**
@@ -46,6 +47,7 @@ import { SimulacionModule } from './simulacion/simulacion.module.js';
     OplMasivoModule,
     OplModule,
     TransfModule,
+    PreconfiguracionesModule,
     SimulacionModule,
     AgenteModule,
     ChatsModule,
