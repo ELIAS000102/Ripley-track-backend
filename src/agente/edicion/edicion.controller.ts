@@ -4,12 +4,12 @@ import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PermitidoAgenteEditor } from '../seguridad/permitido-agente.decorator.js';
 import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
-import { EditarCapacidadAgenteService } from './capacidad.service.js';
-import { EditarCdAgenteService } from './cd.service.js';
-import { ReasignarCapacidadAgenteService } from './reasignar.service.js';
-import { EditarMasivoAgenteService } from './masivo.service.js';
-import { EditarTipoServicioAgenteService } from './tipo-servicio.service.js';
-import { EditarTransferenciaAgenteService } from './transferencia.service.js';
+import { EditarCapacidadAgenteService } from './capacidad/capacidad.service.js';
+import { EditarCdAgenteService } from './cd/cd.service.js';
+import { ReasignarCapacidadAgenteService } from './reasignar/reasignar.service.js';
+import { EditarMasivoAgenteService } from './masivo/masivo.service.js';
+import { EditarTipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service.js';
+import { EditarTransferenciaAgenteService } from './transferencia/transferencia.service.js';
 import {
   EditarCapacidadDto,
   EditarCdDto,

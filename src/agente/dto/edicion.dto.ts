@@ -201,6 +201,17 @@ export class CambiarModoDto {
 // ───────────────────────── Tipo de servicio de un OPL ─────────────────────────
 
 /**
+ * Topes de los dos números de configuración de un servicio.
+ *
+ * No son límites de la operación —los valores reales son de un dígito— sino de
+ * lo que tiene sentido escribir desde un chat sin revisarlo: una holgura de
+ * novecientos días o diez mil ocurrencias es un dedazo, no una decisión.
+ */
+const DIAS_HOLGURA_MAXIMOS = 90;
+const OCURRENCIAS_MAXIMAS = 999;
+
+
+/**
  * Cambiar un servicio dentro de la agenda de un operador logístico.
  *
  * La agenda se identifica igual que al consultarla —operador, zona, agenda— y
@@ -261,6 +272,29 @@ export class EditarTipoServicioDto extends PaisDto {
     message: 'corte debe tener el formato HH:MM en 24 horas',
   })
   corte?: string;
+
+  /**
+   * Días de holgura. Omítelo para dejarlo como está.
+   *
+   * Es un dato de configuración y se consulta desde el chat, así que no poder
+   * cambiarlo ahí obligaba a abrir el panel para mover un número que ya se
+   * estaba mirando. El tope no es de la operación: es una red contra un dedazo
+   * en una escritura que nadie va a revisar fila por fila.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aNumero(value))
+  @IsInt()
+  @Min(0)
+  @Max(DIAS_HOLGURA_MAXIMOS)
+  diasHolgura?: number;
+
+  /** Máximo de ocurrencias. Omítelo para dejarlo como está. */
+  @IsOptional()
+  @Transform(({ value }) => aNumero(value))
+  @IsInt()
+  @Min(0)
+  @Max(OCURRENCIAS_MAXIMAS)
+  maxOcurrencia?: number;
 }
 
 // ───────────────────────── Activación masiva ─────────────────────────

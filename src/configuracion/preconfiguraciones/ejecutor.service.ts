@@ -2,15 +2,11 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { BusquedaMasivaAgenteService } from '../../agente/consultas/busqueda-masiva.service.js';
-import { CapacidadAgenteService } from '../../agente/consultas/capacidad.service.js';
-import { SimulacionAgenteService } from '../../agente/consultas/simulacion.service.js';
-import { TipoServicioAgenteService } from '../../agente/consultas/tipo-servicio.service.js';
-import { TransferenciaAgenteService } from '../../agente/consultas/transferencia.service.js';
-import { EditarCapacidadAgenteService } from '../../agente/edicion/capacidad.service.js';
-import { EditarMasivoAgenteService } from '../../agente/edicion/masivo.service.js';
-import { EditarTipoServicioAgenteService } from '../../agente/edicion/tipo-servicio.service.js';
-import { EditarTransferenciaAgenteService } from '../../agente/edicion/transferencia.service.js';
+import { BusquedaMasivaAgenteService } from '../../agente/consultas/busqueda-masiva/busqueda-masiva.service.js';
+import { CapacidadAgenteService } from '../../agente/consultas/capacidad/capacidad.service.js';
+import { SimulacionAgenteService } from '../../agente/consultas/simulacion/simulacion.service.js';
+import { TipoServicioAgenteService } from '../../agente/consultas/tipo-servicio/tipo-servicio.service.js';
+import { TransferenciaAgenteService } from '../../agente/consultas/transferencia/transferencia.service.js';
 import {
   BuscarMasivoDto,
   ConsultarCapacidadDto,
@@ -18,12 +14,6 @@ import {
   ConsultarTransferenciaDto,
   SimularAgenteDto,
 } from '../../agente/dto/consultas.dto.js';
-import {
-  EditarCapacidadDto,
-  EditarMasivoDto,
-  EditarTipoServicioDto,
-  EditarTransferenciaDto,
-} from '../../agente/dto/edicion.dto.js';
 import { motivoDelFallo } from '../../agente/utils/error.util.js';
 import type {
   Accion,
@@ -61,6 +51,12 @@ interface Receta {
  *
  * De paso, panel y chat ejecutan por el mismo camino: una preconfiguración no
  * puede comportarse distinto según quién la dispare.
+ *
+ * **Solo consulta.** Aquí solo entran los services que leen. Una
+ * preconfiguración es el vocabulario de la operación —"BT LIMA" son cinco OPL
+ * con sus zonas—, no una macro de cambios: un cambio en Ripley se pide por su
+ * herramienta, que lo enseña y espera un sí, y esconderlo detrás de un nombre
+ * guardado es justo lo contrario.
  */
 @Injectable()
 export class EjecutorPreconfiguracionService {
@@ -72,10 +68,6 @@ export class EjecutorPreconfiguracionService {
     private readonly masivo: BusquedaMasivaAgenteService,
     private readonly transferencia: TransferenciaAgenteService,
     private readonly simulacion: SimulacionAgenteService,
-    private readonly editarCapacidad: EditarCapacidadAgenteService,
-    private readonly editarTipoServicio: EditarTipoServicioAgenteService,
-    private readonly editarMasivo: EditarMasivoAgenteService,
-    private readonly editarTransferencia: EditarTransferenciaAgenteService,
   ) {}
 
   /** La receta de cada pareja tipo + acción */
@@ -83,18 +75,15 @@ export class EjecutorPreconfiguracionService {
     // Las tres clases de agenda se piden igual: solo cambia el "tipo"
     const esAgenda = ['picking', 'despacho', 'recepcion'].includes(tipo);
 
-    if (esAgenda) {
-      return accion === 'consultar'
-        ? {
-            dto: ConsultarCapacidadDto,
-            extra: { tipo },
-            correr: (_u, dto) => this.capacidad.consultar(dto),
-          }
-        : {
-            dto: EditarCapacidadDto,
-            extra: { tipo },
-            correr: (u, dto) => this.editarCapacidad.editarCapacidad(u, dto),
-          };
+    // El `accion === 'consultar'` no sobra: sin él, una fila guardada con
+    // "editar" caía aquí y se ejecutaba como una CONSULTA, devolviendo un
+    // resultado correcto para algo que no se pidió. Mejor que falle y lo diga.
+    if (esAgenda && accion === 'consultar') {
+      return {
+        dto: ConsultarCapacidadDto,
+        extra: { tipo },
+        correr: (_u, dto) => this.capacidad.consultar(dto),
+      };
     }
 
     const recetas: Record<string, Receta> = {
@@ -102,25 +91,13 @@ export class EjecutorPreconfiguracionService {
         dto: ConsultarTipoServicioDto,
         correr: (u, dto) => this.tipoServicio.consultar(u, dto),
       },
-      'opl:editar': {
-        dto: EditarTipoServicioDto,
-        correr: (u, dto) => this.editarTipoServicio.editar(u, dto),
-      },
       'masivo:consultar': {
         dto: BuscarMasivoDto,
         correr: (u, dto) => this.masivo.buscar(u, dto),
       },
-      'masivo:editar': {
-        dto: EditarMasivoDto,
-        correr: (u, dto) => this.editarMasivo.editar(u, dto),
-      },
       'transferencia:consultar': {
         dto: ConsultarTransferenciaDto,
         correr: (u, dto) => this.transferencia.consultar(u, dto),
-      },
-      'transferencia:editar': {
-        dto: EditarTransferenciaDto,
-        correr: (u, dto) => this.editarTransferencia.editar(u, dto),
       },
       'simulacion:consultar': {
         dto: SimularAgenteDto,
@@ -131,9 +108,13 @@ export class EjecutorPreconfiguracionService {
     const receta = recetas[`${tipo}:${accion}`];
 
     if (!receta) {
+      // Pasa con una fila guardada cuando esto admitía "editar": el DTO ya no
+      // la deja entrar, pero las que quedaran en la tabla fallan aquí, con su
+      // motivo, en vez de ejecutar algo que nadie puede revisar
       throw new BadRequestException(
-        `${tipo} no admite "${accion}". La simulación solo consulta; las demás ` +
-          `operaciones consultan y editan.`,
+        `No sé resolver "${tipo}" con acción "${accion}". Una preconfiguración ` +
+          `solo consulta: los cambios se piden por su herramienta, que los ` +
+          `enseña y espera confirmación.`,
       );
     }
 

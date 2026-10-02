@@ -16,6 +16,9 @@ export interface EstadoServicio {
   enCheckout: boolean;
   /** Las horas de corte como se leen: "lunes 23:30, martes 23:30" */
   cortes: string[];
+  /** Días de holgura y máximo de ocurrencias, que también se pueden cambiar */
+  diasHolgura: number | null;
+  maxOcurrencia: number | null;
 }
 
 /** Un servicio de los pedidos, con lo que le pasó */

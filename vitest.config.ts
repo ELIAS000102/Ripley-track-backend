@@ -2,12 +2,14 @@ import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
-  // Resolves the path aliases declared in tsconfig.json, including the ones
-  // added by `nest g library`.
+  // Resuelve los alias de rutas declarados en tsconfig.json
   plugins: [tsconfigPaths()],
   test: {
     globals: true,
     root: './',
-    include: ['**/*.spec.ts'],
+    // Los tests viven en `test/`, espejando la estructura de `src/`: hay cuatro
+    // nombres repetidos —capacidad, tipo-servicio, transferencia, simulacion—
+    // entre consulta y edición, así que una carpeta plana no valdría.
+    include: ['test/**/*.spec.ts'],
   },
 });

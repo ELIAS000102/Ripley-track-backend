@@ -5,12 +5,12 @@ import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js
 import { ContextoAgenteService } from '../contexto.service.js';
 import { PermitidoAgente } from '../seguridad/permitido-agente.decorator.js';
 import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
-import { BusquedaMasivaAgenteService } from './busqueda-masiva.service.js';
-import { CapacidadAgenteService } from './capacidad.service.js';
-import { ReporteAgenteService } from './reporte.service.js';
-import { SimulacionAgenteService } from './simulacion.service.js';
-import { TipoServicioAgenteService } from './tipo-servicio.service.js';
-import { TransferenciaAgenteService } from './transferencia.service.js';
+import { BusquedaMasivaAgenteService } from './busqueda-masiva/busqueda-masiva.service.js';
+import { CapacidadAgenteService } from './capacidad/capacidad.service.js';
+import { ReporteAgenteService } from './reporte/reporte.service.js';
+import { SimulacionAgenteService } from './simulacion/simulacion.service.js';
+import { TipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service.js';
+import { TransferenciaAgenteService } from './transferencia/transferencia.service.js';
 import {
   BuscarMasivoDto,
   ConsultarCapacidadDto,

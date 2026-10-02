@@ -11,20 +11,20 @@ import { SimulacionModule } from '../simulacion/simulacion.module.js';
 import { ContextoAgenteService } from './contexto.service.js';
 
 import { ConsultasAgenteController } from './consultas/consultas.controller.js';
-import { BusquedaMasivaAgenteService } from './consultas/busqueda-masiva.service.js';
-import { CapacidadAgenteService } from './consultas/capacidad.service.js';
-import { ReporteAgenteService } from './consultas/reporte.service.js';
-import { SimulacionAgenteService } from './consultas/simulacion.service.js';
-import { TipoServicioAgenteService } from './consultas/tipo-servicio.service.js';
-import { TransferenciaAgenteService } from './consultas/transferencia.service.js';
+import { BusquedaMasivaAgenteService } from './consultas/busqueda-masiva/busqueda-masiva.service.js';
+import { CapacidadAgenteService } from './consultas/capacidad/capacidad.service.js';
+import { ReporteAgenteService } from './consultas/reporte/reporte.service.js';
+import { SimulacionAgenteService } from './consultas/simulacion/simulacion.service.js';
+import { TipoServicioAgenteService } from './consultas/tipo-servicio/tipo-servicio.service.js';
+import { TransferenciaAgenteService } from './consultas/transferencia/transferencia.service.js';
 
 import { EdicionAgenteController } from './edicion/edicion.controller.js';
-import { EditarCapacidadAgenteService } from './edicion/capacidad.service.js';
-import { EditarCdAgenteService } from './edicion/cd.service.js';
-import { ReasignarCapacidadAgenteService } from './edicion/reasignar.service.js';
-import { EditarMasivoAgenteService } from './edicion/masivo.service.js';
-import { EditarTipoServicioAgenteService } from './edicion/tipo-servicio.service.js';
-import { EditarTransferenciaAgenteService } from './edicion/transferencia.service.js';
+import { EditarCapacidadAgenteService } from './edicion/capacidad/capacidad.service.js';
+import { EditarCdAgenteService } from './edicion/cd/cd.service.js';
+import { ReasignarCapacidadAgenteService } from './edicion/reasignar/reasignar.service.js';
+import { EditarMasivoAgenteService } from './edicion/masivo/masivo.service.js';
+import { EditarTipoServicioAgenteService } from './edicion/tipo-servicio/tipo-servicio.service.js';
+import { EditarTransferenciaAgenteService } from './edicion/transferencia/transferencia.service.js';
 
 import { ModoAgenteController } from './seguridad/modo.controller.js';
 import { ModoAgenteService } from './seguridad/modo.service.js';

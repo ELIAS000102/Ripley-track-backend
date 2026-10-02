@@ -71,6 +71,22 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
   @IsString()
   zona?: string;
 
+  /**
+   * Filtra por nombre de agenda, en los tres tipos. Admite parcial.
+   *
+   * Faltaba, y hacía falta: una zona puede tener varias agendas y un almacén
+   * varias del mismo servicio, así que sin este campo no había forma de pedir
+   * una concreta —solo todas las de la zona—. El apartado del panel sí la pide,
+   * y una preconfiguración que copia esos campos no podía reproducirla.
+   *
+   * **Lo exacto gana sobre lo parecido**, igual que al editar: pedir
+   * "Zona 1401 - Suc. Aldea 6 Lima/Metropolitana" no trae además la que termina
+   * en "BT".
+   */
+  @IsOptional()
+  @IsString()
+  agenda?: string;
+
   /** Cuántos días devolver. Se acota para no inundar el contexto del modelo. */
   @IsOptional()
   @Type(() => Number)

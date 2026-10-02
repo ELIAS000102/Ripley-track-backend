@@ -56,9 +56,18 @@ export class BloqueDto {
   @IsIn(TIPOS, { message: `tipo debe ser uno de: ${TIPOS.join(', ')}` })
   tipo: string;
 
+  /**
+   * Siempre "consultar".
+   *
+   * Es un campo y no una constante porque la tabla lo guarda, y porque un
+   * bloque que llegue con otra cosa tiene que fallar al validarse en vez de
+   * ejecutarse como si nada.
+   */
   @IsString()
-  @IsIn(['consultar', 'editar'], {
-    message: 'accion debe ser "consultar" o "editar"',
+  @IsIn(['consultar'], {
+    message:
+      'accion solo puede ser "consultar": una preconfiguración no ejecuta cambios. ' +
+      'Para eso están las herramientas de edición, que piden confirmación.',
   })
   accion: string;
 

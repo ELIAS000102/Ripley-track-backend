@@ -18,8 +18,20 @@ export const TIPOS = Object.keys(TABLA_POR_TIPO) as Tipo[];
 
 export type Tipo = keyof typeof TABLA_POR_TIPO;
 
-/** Qué hacen las tareas de un bloque */
-export type Accion = 'consultar' | 'editar';
+/**
+ * Qué hacen las tareas de un bloque. **Solo consultar.**
+ *
+ * Una preconfiguración no es una macro de cambios: es el vocabulario de la
+ * operación. "BT LIMA" son cinco OPL con sus zonas, y el backend solo entiende
+ * códigos, así que sin esto el agente pedía la capacidad de "BT LIMA" y recibía
+ * un "no encontrado". Guardado, el agente sabe a qué se refiere el usuario sin
+ * que nadie escriba esos cinco códigos en el prompt ni en el código.
+ *
+ * Eso es una ayuda para **leer**. Un cambio en Ripley se pide por su
+ * herramienta, con su confirmación y viendo lo que se va a tocar; esconderlo
+ * detrás de un nombre guardado es exactamente lo contrario.
+ */
+export type Accion = 'consultar';
 
 /**
  * Una tarea, tal como sale de su tabla.

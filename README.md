@@ -73,8 +73,7 @@ para usarlo.
 | `npm run start:prod` | Servidor con el código ya compilado |
 | `npm run lint` | Linter sobre el código |
 | `npm run format` | Formatea el código |
-| `npm run test` | Tests |
-| `npm run test:e2e` | Tests end-to-end |
+| `npm test` | Los tests, en `test/` |
 
 ## Documentación
 

@@ -15,6 +15,7 @@ import {
   ScheduleRow,
 } from './interfaces/reporte-cds.interface.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
+import { enLotes } from '../../common/utils/lotes.util.js';
 
 /** Una agenda lista para consultar */
 interface Tarea {
@@ -46,20 +47,6 @@ export class CdsService {
   }
 
   /** Ejecuta en lotes para no saturar la API corporativa */
-  private async enLotes<T, R>(
-    items: T[],
-    tamano: number,
-    fn: (item: T) => Promise<R>,
-  ): Promise<R[]> {
-    const salida: R[] = [];
-
-    for (let i = 0; i < items.length; i += tamano) {
-      const lote = items.slice(i, i + tamano);
-      salida.push(...(await Promise.all(lote.map(fn))));
-    }
-
-    return salida;
-  }
 
   // ---------- Catálogos ----------
 
@@ -67,7 +54,7 @@ export class CdsService {
 
   async reporte(
     pais = 'PE',
-    dias = 3,
+    dias = 5,
     desdeParam?: string,
   ): Promise<ReporteCds> {
     // La fecha mínima es hoy en la zona del país, no la del servidor
@@ -158,7 +145,7 @@ export class CdsService {
     // 4. Capacidades: una llamada por agenda cubre todos los días del rango
     const desdeRipley = isoToRipleyDate(desde);
 
-    const resultados = await this.enLotes(
+    const resultados = await enLotes(
       tareas,
       this.CONCURRENCIA,
       async (t) => {
