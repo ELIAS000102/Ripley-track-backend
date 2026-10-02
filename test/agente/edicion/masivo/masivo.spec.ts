@@ -210,14 +210,14 @@ describe('Cambio en bloque: desactivar apaga también el checkout', () => {
     expect(actualizar.mock.calls[0][0].cambios).toHaveLength(3);
   });
 
-  it('pero activar NO es simétrico: solo toca lo que se pide', async () => {
+  it('y activar enciende también el checkout: la regla es simétrica', async () => {
     const { servicio, actualizar } = armar(agendas(3, false, false));
 
     await servicio.editar(USUARIO, editar({ activo: true }));
 
     expect(actualizar.mock.calls[0][0].cambios[0]).toMatchObject({
       isActive: true,
-      enabledForCheckout: undefined,
+      enabledForCheckout: true,
     });
   });
 });

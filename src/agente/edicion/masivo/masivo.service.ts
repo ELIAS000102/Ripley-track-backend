@@ -168,12 +168,25 @@ export class EditarMasivoAgenteService {
     activo?: boolean;
     enCheckout?: boolean;
   } {
+    /*
+     * Estado y checkout van juntos, en los dos sentidos.
+     *
+     * Apagar siempre apagó los dos: un servicio inactivo que sigue en el
+     * checkout deja al cliente eligiendo algo que nadie puede despachar.
+     * Encender no lo hacía, y el resultado era igual de incoherente al revés —
+     * un servicio activo que no se ofrece no sirve para nada—: había que
+     * pedirlo dos veces, y la segunda es la que se olvida.
+     *
+     * Así que la regla es simétrica: se pida lo que se pida de los dos, los dos
+     * acaban igual.
+     */
     const apaga = dto.activo === false || dto.enCheckout === false;
     const enciende = dto.activo === true || dto.enCheckout === true;
 
-    if (apaga && !enciende) {
-      return { activo: false, enCheckout: false };
-    }
+    // Pedir encender y apagar a la vez no es una decisión: es un error, y lo
+    // que se respeta entonces es lo que se pidió campo por campo
+    if (apaga && !enciende) return { activo: false, enCheckout: false };
+    if (enciende && !apaga) return { activo: true, enCheckout: true };
 
     return { activo: dto.activo, enCheckout: dto.enCheckout };
   }

@@ -55,11 +55,20 @@ export class OplService {
    * Búsqueda incremental. El filtro lo hace Ripley, no el cliente:
    * el catálogo completo de OPL es demasiado grande para traerlo entero.
    */
+  /**
+   * Busca una oficina por código o nombre, **sin filtrar por tipo**.
+   *
+   * Los tipos de servicio no son cosa solo de los operadores logísticos: una
+   * tienda o un almacén también los tienen, con sus horas de corte. Filtrando
+   * por `isOPLOffice` la 20021 no aparecía, y el agente contestaba que ese
+   * código "es un almacén, no un OPL" y se negaba a mirar —cuando la 20021 sí
+   * tiene servicios y Ripley los devuelve sin problema—.
+   *
+   * El nombre se queda porque es el de la ruta y el del apartado; lo que cambia
+   * es que ya no se da por supuesto de qué catálogo sale el código.
+   */
   async buscarOpl(q: string, pais = 'PE') {
-    const { total, filas } = await this.catalogos.oficinasConTotal(pais, {
-      q,
-      tipo: 'opl',
-    });
+    const { total, filas } = await this.catalogos.oficinasConTotal(pais, { q });
 
     // Los datos del usuario que editó el registro no se reenvían
     return {

@@ -384,25 +384,36 @@ export class EditarTipoServicioAgenteService {
    */
   private resolverCambio(dto: EditarTipoServicioDto): Cambio {
     /*
-     * La holgura y las ocurrencias van aparte de la regla de apagar.
+     * La holgura y las ocurrencias van aparte de la regla de estado.
      *
-     * Desactivar un servicio apaga también su checkout —uno inactivo que sigue
-     * en el checkout deja al cliente eligiendo algo que nadie puede
-     * despachar—, pero eso no dice nada de estos dos números: son
-     * configuración, y quien desactiva un servicio no está pidiendo que se le
-     * cambie la holgura.
+     * Encender o apagar arrastra al checkout, pero no dice nada de estos dos
+     * números: son configuración, y quien activa un servicio no está pidiendo
+     * que se le cambie la holgura.
      */
     const numeros = {
       diasHolgura: dto.diasHolgura,
       maxOcurrencia: dto.maxOcurrencia,
     };
 
+    /*
+     * Estado y checkout van juntos, en los dos sentidos.
+     *
+     * Apagar siempre apagó los dos: un servicio inactivo que sigue en el
+     * checkout deja al cliente eligiendo algo que nadie puede despachar.
+     * Encender no lo hacía, y el resultado era igual de incoherente al revés —
+     * un servicio activo que no se ofrece no sirve para nada—: había que
+     * pedirlo dos veces, y la segunda es la que se olvida.
+     *
+     * Así que la regla es simétrica: se pida lo que se pida de los dos, los dos
+     * acaban igual.
+     */
     const apaga = dto.activo === false || dto.enCheckout === false;
     const enciende = dto.activo === true || dto.enCheckout === true;
 
-    if (apaga && !enciende) {
-      return { activo: false, enCheckout: false, ...numeros };
-    }
+    // Pedir encender y apagar a la vez no es una decisión: es un error, y lo
+    // que se respeta entonces es lo que se pidió campo por campo
+    if (apaga && !enciende) return { activo: false, enCheckout: false, ...numeros };
+    if (enciende && !apaga) return { activo: true, enCheckout: true, ...numeros };
 
     return { activo: dto.activo, enCheckout: dto.enCheckout, ...numeros };
   }

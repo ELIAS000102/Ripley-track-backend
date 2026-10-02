@@ -145,9 +145,10 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
     });
   });
 
-  it('pero activar NO es simétrico: solo toca lo que se pide', async () => {
-    // Activar un servicio para revisarlo antes de ofrecerlo es una operación
-    // real, así que encender el estado no lo mete en el checkout solo
+  it('y activar enciende también el checkout: la regla es simétrica', async () => {
+    // Un servicio activo que no se ofrece no sirve para nada, igual que uno
+    // inactivo que sigue en el checkout. Pedirlo en dos pasos hacía que el
+    // segundo se olvidara.
     const { servicio, actualizarServicio } = armar({
       servicios: [{ ...SERVICIOS[1], code: 'SD', idServicio: 's-sd' }],
     });
@@ -156,7 +157,20 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
 
     expect(actualizarServicio.mock.calls[0][1]).toMatchObject({
       isActive: true,
-      enabledForCheckout: undefined,
+      enabledForCheckout: true,
+    });
+  });
+
+  it('pedir solo el checkout también enciende el estado', async () => {
+    const { servicio, actualizarServicio } = armar({
+      servicios: [{ ...SERVICIOS[1], code: 'SD', idServicio: 's-sd' }],
+    });
+
+    await servicio.editar(USUARIO, editar({ enCheckout: true }));
+
+    expect(actualizarServicio.mock.calls[0][1]).toMatchObject({
+      isActive: true,
+      enabledForCheckout: true,
     });
   });
 
