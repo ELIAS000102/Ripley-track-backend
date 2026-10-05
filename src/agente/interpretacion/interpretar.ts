@@ -476,10 +476,25 @@ export function interpretar(
     }
   };
 
-  // Una preconfiguración nombrada tal cual, sin códigos ni cambio, es esa: "el
-  // despacho del BT Lima" suena también a capacidad, pero lo que nombra es la
-  // guardada
-  if (preconfiguraciones.length && !hayCodigos && !cambio && !listar) {
+  /*
+   * Una preconfiguración nombrada tal cual, sin códigos ni cambio, es esa: "el
+   * despacho del BT Lima" suena también a capacidad, pero lo que nombra es la
+   * guardada.
+   *
+   * Salvo que el mensaje pida servicios que ella no cubre. "De esos opls de la
+   * SE busca en los de la ST" lleva dentro el nombre "OPLS de la SE", pero pide
+   * cruzarla con la ST, y eso la guardada no lo hace: decidirlo por el nombre
+   * mandaba la petición al agente de preconfiguraciones, que se quedaba sin
+   * pasos intentándolo.
+   */
+  const cubiertos = new Set(
+    lista
+      .filter((p) => preconfiguraciones.includes(p.nombre))
+      .flatMap((p) => serviciosDelTexto(`${p.nombre} ${p.descripcion ?? ''}`)),
+  );
+  const pideMas = servicios.some((s) => !cubiertos.has(s));
+
+  if (preconfiguraciones.length && !hayCodigos && !cambio && !listar && !pideMas) {
     caso = 'preconfiguracion';
     certeza = 'alta';
   } else if (candidatos.length === 1 && fuerte(candidatos[0])) {

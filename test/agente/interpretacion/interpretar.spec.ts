@@ -95,6 +95,25 @@ describe('Las frases que fallaban en el chat', () => {
     expect(r).toMatchObject({ preconfiguraciones: ['Big Ticket Lima'], caso: 'preconfiguracion', certeza: 'alta' });
   });
 
+  it('nombrar una preconfiguración y pedir más de lo que hace no la ejecuta a ciegas', () => {
+    const conLaSE = [...PRECONFS, {
+      nombre: 'OPLS de la SE',
+      descripcion: 'es para consultar que opls cuentan el tipo de servicio SE de forma masiva',
+    }];
+    const r = interpretar(
+      'de esos opls de la SE busca en los opls de la ST y fijate que esten inactivos y el resto esten activos',
+      { hoy: HOY, preconfiguraciones: conLaSE },
+    );
+
+    // Pide cruzarla con la ST: lo decide la IA, entre la guardada y la búsqueda
+    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: null, certeza: 'media' });
+    expect(r.candidatos).toEqual(expect.arrayContaining(['preconfiguracion', 'busqueda_masiva']));
+
+    // Y pedir solo lo que ella hace sí la elige con certeza
+    expect(interpretar('dame los opls de la SE', { hoy: HOY, preconfiguraciones: conLaSE }))
+      .toMatchObject({ caso: 'preconfiguracion', certeza: 'alta', preconfiguraciones: ['OPLS de la SE'] });
+  });
+
   it('"dame la pqt lima" → no se adivina: decide la IA', () => {
     const r = leer('dame la pqt lima');
 
