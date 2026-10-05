@@ -18,6 +18,7 @@ import type {
 } from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
  * Tope de operadores por consulta.
@@ -26,7 +27,7 @@ import { numeroONulo } from '../../utils/numero.util.js';
  * no es una formalidad: sin tope, "dame los servicios de todos" es una espera
  * que nadie aguanta.
  */
-const OPLS_MAXIMOS = 10;
+const OPLS_MAXIMOS = POR_VEZ;
 
 /**
  * Servicios configurados en la agenda de un operador logístico.

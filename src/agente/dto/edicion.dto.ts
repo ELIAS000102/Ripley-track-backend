@@ -11,6 +11,7 @@ import {
   Min,
 } from 'class-validator';
 import { PaisDto } from '../../common/dto/pais.dto.js';
+import { POR_VEZ } from '../constantes/limites.constants.js';
 
 /**
  * Entradas de lo que el agente puede cambiar.
@@ -306,7 +307,7 @@ export class EditarTipoServicioDto extends PaisDto {
  * sola confirmación y sin ver la lista, no es una operación que nadie pueda
  * revisar: por encima de esto se hace desde el panel, que las enseña todas.
  */
-const AGENDAS_MAXIMAS = 25;
+const AGENDAS_MAXIMAS = POR_VEZ;
 
 /**
  * Activar o desactivar en bloque las agendas que tienen un tipo de servicio.

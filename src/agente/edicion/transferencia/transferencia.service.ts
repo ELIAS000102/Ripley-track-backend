@@ -17,6 +17,7 @@ import type {
 import { partirLista } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { DIAS } from '../../constantes/dias.constants.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
  * Tope de destinos por llamada.
@@ -24,7 +25,7 @@ import { DIAS } from '../../constantes/dias.constants.js';
  * No es un límite técnico: es hasta dónde llega una lista que alguien pueda
  * repasar en el chat antes de decir que sí. Por encima, se hace en tandas.
  */
-const DESTINOS_MAXIMOS = 15;
+const DESTINOS_MAXIMOS = POR_VEZ;
 
 /**
  * Cambiar la relación de transferencia entre dos almacenes.

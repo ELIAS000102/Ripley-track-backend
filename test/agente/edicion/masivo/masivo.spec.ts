@@ -228,7 +228,7 @@ describe('Cambio en bloque: cuándo se niega', () => {
 
     await expect(
       servicio.editar(USUARIO, editar({ activo: false })),
-    ).rejects.toThrow(/alcanza 40 agendas y el máximo por vez es 25/);
+    ).rejects.toThrow(/alcanza 40 agendas y el máximo por vez es 30/);
 
     expect(actualizar).not.toHaveBeenCalled();
   });

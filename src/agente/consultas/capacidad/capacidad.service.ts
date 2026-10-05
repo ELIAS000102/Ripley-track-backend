@@ -29,15 +29,25 @@ import type {
 } from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { enLotes } from '../../../common/utils/lotes.util.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
- * Tope de oficinas por consulta.
+ * El primer día en que esa agenda acepta pedidos: activa y con cupo.
  *
- * Más bajo que en otras: cada oficina son sus agendas y cada agenda una
- * llamada más. Cinco operadores con ocho agendas cada uno son casi cincuenta
- * llamadas a la API corporativa.
+ * "Dame el despacho del BT Lima y la primera fecha de despacho de cada uno" se
+ * contestaba mal: el modelo tenía que recorrer la tabla de cada zona y elegir,
+ * y se equivocaba o no lo hacía. Es una cuenta, así que se hace aquí. Un día
+ * inactivo no cuenta aunque le quede capacidad: no se puede vender.
  */
-const OFICINAS_MAXIMAS = 5;
+export function primerDiaDisponible(dias: DiaCapacidad[]): string | null {
+  return dias.find((d) => d.activo && d.disponible > 0)?.fecha ?? null;
+}
+
+/**
+ * Tope de oficinas por consulta: el común del agente. Cada oficina son sus
+ * agendas y cada agenda una llamada, que van en lotes.
+ */
+const OFICINAS_MAXIMAS = POR_VEZ;
 
 /**
  * Consultas consolidadas para el agente de IA.
@@ -166,7 +176,13 @@ export class CapacidadAgenteService {
       // a secas no dice de cuál se está hablando
       sinDatos.push(...propios.map((m) => `${etiqueta}: ${m}`));
 
-      return { oficina: etiqueta, agendas };
+      return {
+        oficina: etiqueta,
+        agendas: agendas.map((a) => ({
+          ...a,
+          primerDiaDisponible: primerDiaDisponible(a.dias),
+        })),
+      };
     } catch (e) {
       return {
         oficina: etiqueta,

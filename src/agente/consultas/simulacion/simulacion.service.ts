@@ -17,6 +17,23 @@ import type {
 import { partirLista } from '../../utils/lista.util.js';
 import { enLotes } from '../../../common/utils/lotes.util.js';
 
+/**
+ * "2026-10-03T00:46:00.000Z" → "03/10/2026 00:46".
+ *
+ * Se lee tal cual viene, sin convertir de zona horaria: es como lo enseña el
+ * panel en su apartado de simulación, y las dos vistas tienen que dar la misma
+ * fecha. Antes llegaba en ISO y el chat lo pintaba así, con la "T" y la "Z".
+ */
+export function fechaLegible(iso: string | null): string | null {
+  if (!iso) return null;
+
+  const [fecha, hora] = iso.split('T');
+  const [a, m, d] = fecha.split('-');
+  if (!a || !m || !d) return iso;
+
+  return `${d}/${m}/${a}${hora ? ' ' + hora.slice(0, 5) : ''}`;
+}
+
 /** Un distrito ya aplanado con su provincia */
 interface Distrito {
   id: string;
@@ -332,11 +349,12 @@ export class SimulacionAgenteService {
       opl,
       destino,
       servicio: r.typeOfService ?? '-',
-      entrega:
+      entrega: fechaLegible(
         (r.opciones ?? [])
           .map((o) => o.fechaEntrega)
           .filter((f): f is string => !!f)
           .sort()[0] ?? null,
+      ),
     }));
   }
 

@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -8,6 +9,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { PaisDto } from '../../common/dto/pais.dto.js';
@@ -54,8 +56,7 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
    * logístico en despacho (1130), la tienda u operador que recibe en recepción
    * (20021). **Admite varios por coma o por espacios.**
    *
-   * El tope es más bajo que en otras consultas y con motivo: cada oficina son
-   * sus agendas, y cada agenda una llamada más a la API corporativa.
+   * Hasta `POR_VEZ` (30), el tope común del agente.
    */
   @IsString()
   @IsNotEmpty()
@@ -307,4 +308,34 @@ export class BuscarMasivoDto extends PaisDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   soloActivas?: boolean = false;
+}
+
+// ───────────────────────── Interpretar un mensaje ─────────────────────────
+
+/**
+ * Lo que manda el flujo de n8n antes de clasificar un mensaje.
+ *
+ * El país NO tiene valor por defecto, a diferencia del resto de consultas: aquí
+ * importa distinguir "no lo dijo" de "dijo Perú", y es la interpretación quien
+ * lo decide.
+ */
+export class InterpretarDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  pregunta: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['PE', 'CL'])
+  pais?: string;
+
+  /**
+   * Las preconfiguraciones guardadas, con su descripción, para reconocerlas
+   * por su nombre o su apodo. Las manda el flujo, que ya las lee: así esta ruta
+   * no depende del módulo de preconfiguraciones, que depende de este.
+   */
+  @IsOptional()
+  @IsArray()
+  preconfiguraciones?: Array<{ nombre?: unknown; descripcion?: unknown }>;
 }

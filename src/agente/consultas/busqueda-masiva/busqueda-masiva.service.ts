@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { OplMasivoService } from '../../../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
@@ -7,11 +12,16 @@ import { BuscarMasivoDto } from '../../dto/consultas.dto.js';
 import type {
   AgendaMasiva,
   BusquedaMasivaRespuesta,
+  BusquedaMasivaVarias,
+  ContextoAgente,
 } from '../../interfaces/agente.interface.js';
-import { partirLista } from '../../utils/lista.util.js';
+import { partirLista, partirListaUnica } from '../../utils/lista.util.js';
+import { motivoDelFallo } from '../../utils/error.util.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
+import { enLotes } from '../../../common/utils/lotes.util.js';
 
-/** Tope de agendas que se devuelven al modelo; el resumen cuenta todas */
-const MAXIMO = 40;
+/** Cuántos servicios se consultan a la vez cuando piden varios */
+const SERVICIOS_A_LA_VEZ = 3;
 
 /** Se deriva del service para no repetir aquí la forma del catálogo */
 type MetodoConServicios = Awaited<
@@ -33,9 +43,15 @@ type MetodoConServicios = Awaited<
  *    sale: el agente manda "SE" y aquí se resuelve que va con RT. Además, si lo
  *    que llega es una descripción —"retiro en tienda"— y no un código, se busca
  *    por nombre.
- * 3. **El tamaño.** Una búsqueda amplia devuelve cientos de agendas. Se manda un
- *    resumen con los totales —que es lo que se suele querer— y como mucho 40
- *    filas, diciendo cuántas quedaron fuera.
+ * 3. **Varios servicios a la vez.** "Que los de la RE sigan inactivos y cómo
+ *    están los de la RT" son dos búsquedas, y la herramienta las acepta juntas
+ *    por coma. Antes solo admitía una, el agente tenía que llamarla dos veces,
+ *    y en la práctica se quedaba sin responder.
+ *
+ * **La lista va entera.** Hubo un tope de 40 filas, y la respuesta que llegaba
+ * al chat era una muestra presentada como si fuera el total. Ahora viajan
+ * todas —compactas, sin campos repetidos— y es el agente quien las ordena y
+ * resume al presentarlas.
  */
 @Injectable()
 export class BusquedaMasivaAgenteService {
@@ -49,17 +65,57 @@ export class BusquedaMasivaAgenteService {
   async buscar(
     usuario: UsuarioAutenticado,
     dto: BuscarMasivoDto,
-  ): Promise<BusquedaMasivaRespuesta> {
+  ): Promise<BusquedaMasivaRespuesta | BusquedaMasivaVarias> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
+    const servicios = partirListaUnica(dto.servicio);
+
+    // Uno solo: la respuesta de siempre, y sus errores son errores de verdad
+    if (servicios.length <= 1) {
+      return this.buscarUno(contexto, dto, servicios[0] ?? dto.servicio);
+    }
+
+    if (servicios.length > POR_VEZ) {
+      throw new BadRequestException(
+        `Son ${servicios.length} servicios y el máximo por vez es ${POR_VEZ}.`,
+      );
+    }
+
+    /*
+     * Varios: uno que no exista no tumba a los demás. Lleva su motivo en su
+     * sitio y el resto se enseña igual.
+     */
+    const busquedas = await enLotes(servicios, SERVICIOS_A_LA_VEZ, async (servicio) => {
+      try {
+        const r = await this.buscarUno(contexto, dto, servicio);
+        return {
+          metodo: r.metodo,
+          servicio: r.servicio,
+          origenes: r.origenes,
+          resumen: r.resumen,
+          agendas: r.agendas,
+        };
+      } catch (e) {
+        return { servicio, error: motivoDelFallo(e, 'No se pudo buscar este servicio') };
+      }
+    });
+
+    return { contexto, busquedas };
+  }
+
+  private async buscarUno(
+    contexto: ContextoAgente,
+    dto: BuscarMasivoDto,
+    servicioPedido: string,
+  ): Promise<BusquedaMasivaRespuesta> {
     const pais = contexto.pais;
 
     this.logger.log(
-      `Agente buscando agendas del servicio ${dto.servicio} en ${pais}`,
+      `Agente buscando agendas del servicio ${servicioPedido} en ${pais}`,
     );
 
     const { metodo, servicio } = await this.resolverCodigos(
       dto.metodo,
-      dto.servicio,
+      servicioPedido,
       pais,
     );
     const origenes = await this.resolverOrigenes(dto.origenes, pais);
@@ -75,7 +131,7 @@ export class BusquedaMasivaAgenteService {
       ? agendas.filter((a) => a.isActive === true)
       : agendas;
 
-    const compactas: AgendaMasiva[] = filtradas.slice(0, MAXIMO).map((a) => {
+    const compactas: AgendaMasiva[] = filtradas.map((a) => {
       const agenda = a.agenda ?? '';
       const zona = a.zona ?? '';
 
@@ -100,10 +156,6 @@ export class BusquedaMasivaAgenteService {
         enCheckout: agendas.filter((a) => a.enabledForCheckout === true).length,
       },
       agendas: compactas,
-      aviso:
-        filtradas.length > MAXIMO
-          ? `Se muestran ${MAXIMO} de ${filtradas.length} agendas. Los totales del resumen sí cuentan todas. Acota con soloActivas o con otro servicio si necesitas verlas completas.`
-          : undefined,
     };
   }
 

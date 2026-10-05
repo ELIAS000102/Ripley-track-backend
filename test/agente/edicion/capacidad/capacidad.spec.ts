@@ -792,14 +792,14 @@ describe('Edición del agente: varias jornadas de una vez', () => {
   it('hay tope, y remite a la herramienta del CD si son muchas', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: DOS });
 
-    const muchas = Array.from({ length: 11 }, (_, i) => `J${i}`).join(', ');
+    const muchas = Array.from({ length: 31 }, (_, i) => `J${i}`).join(', ');
 
     await expect(
       servicio.editarCapacidad(
         USUARIO,
         editar({ servicio: muchas, activa: false }),
       ),
-    ).rejects.toThrow(/máximo por vez es 10[\s\S]*herramienta del CD/);
+    ).rejects.toThrow(/máximo por vez es 30[\s\S]*herramienta del CD/);
 
     expect(actualizarPicking).not.toHaveBeenCalled();
   });
@@ -943,17 +943,34 @@ describe('Edición del agente: varias oficinas de una vez', () => {
  * agenda se escriben, que es oficinas × jornadas × días y crece muy rápido.
  */
 describe('Edición del agente: el tope de escrituras', () => {
-  it('más de cinco oficinas se rechaza', async () => {
+  it('más de treinta oficinas se rechaza', async () => {
     const { servicio, actualizarPicking } = armar();
+    const codigos = Array.from({ length: 31 }, (_, i) => String(4000 + i)).join(' ');
 
     await expect(
       servicio.editarCapacidad(
         USUARIO,
-        editar({ codigo: '1 2 3 4 5 6', servicio: 'S', activa: false }),
+        editar({ codigo: codigos, servicio: 'S', activa: false }),
       ),
-    ).rejects.toThrow(/máximo por vez es 5/);
+    ).rejects.toThrow(/máximo por vez es 30/);
 
     expect(actualizarPicking).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Lo que pidió la operación: "desactiva el despacho del 08-10 de estos
+   * operadores" con una lista larga. Treinta no los frena el tope; si algo
+   * falla después, es por otra cosa.
+   */
+  it('treinta oficinas no las frena el tope', async () => {
+    const { servicio } = armar();
+    const codigos = Array.from({ length: 30 }, (_, i) => String(4000 + i)).join(', ');
+
+    const error = await servicio
+      .editarCapacidad(USUARIO, editar({ codigo: codigos, servicio: 'S', activa: false }))
+      .then(() => null, (e: Error) => e);
+
+    expect(error?.message ?? '').not.toMatch(/máximo por vez/);
   });
 
   it('y la multiplicación también, diciendo de dónde sale', async () => {

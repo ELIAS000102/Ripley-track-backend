@@ -19,6 +19,7 @@ import { partirLista } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
  * Lo que una petición pide cambiar. Lo que no venga, no se toca.
@@ -40,7 +41,7 @@ interface Cambio {
  * Una agenda no suele tener más de media docena; el tope está para que un
  * modelo que se lía no mande una lista inventada y la aplique entera.
  */
-const SERVICIOS_MAXIMOS = 10;
+const SERVICIOS_MAXIMOS = POR_VEZ;
 
 /**
  * Tope de operadores por llamada.
@@ -48,7 +49,7 @@ const SERVICIOS_MAXIMOS = 10;
  * Para cambiar un servicio en **todos** los que lo tengan está el cambio en
  * bloque, que busca por servicio. Esto es para nombrar unos pocos.
  */
-const OPLS_MAXIMOS = 10;
+const OPLS_MAXIMOS = POR_VEZ;
 
 /**
  * Los días de la semana como los nombra una persona y como los numera Ripley.

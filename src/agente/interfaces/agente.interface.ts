@@ -87,6 +87,11 @@ export interface AgendaCapacidad {
   zona?: string;
   unidad: string | null;
   dias: DiaCapacidad[];
+  /**
+   * El primer día de la ventana con la agenda activa y cupo libre, o null si
+   * no hay ninguno. Calculado en el backend: es una cuenta, no un juicio.
+   */
+  primerDiaDisponible?: string | null;
 }
 
 /**
@@ -297,14 +302,25 @@ export interface BusquedaMasivaRespuesta {
   metodo: string;
   servicio: string;
   origenes: string[];
-  /** Cuenta TODAS las agendas, aunque la lista venga recortada */
+  /** Cuenta todas las agendas del servicio, también las desactivadas */
   resumen: {
     total: number;
     activas: number;
     enCheckout: number;
   };
+  /** Todas: ya no se recortan. Si se pidió soloActivas, solo esas */
   agendas: AgendaMasiva[];
-  aviso?: string;
+}
+
+/**
+ * Varios servicios en una llamada ("RE, RT"): una búsqueda por servicio, en el
+ * orden pedido. Una que falle lleva su motivo y no tumba a las demás.
+ */
+export interface BusquedaMasivaVarias {
+  contexto: ContextoAgente;
+  busquedas: Array<
+    Omit<BusquedaMasivaRespuesta, 'contexto'> | { servicio: string; error: string }
+  >;
 }
 
 // ───────────────────────── Edición ─────────────────────────

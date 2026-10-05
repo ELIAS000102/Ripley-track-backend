@@ -229,11 +229,11 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
     // Cada operador son cuatro llamadas encadenadas a Ripley
     const { servicio, buscarOpl } = armar();
 
-    const muchos = Array.from({ length: 11 }, (_, i) => `op${i}`).join(', ');
+    const muchos = Array.from({ length: 31 }, (_, i) => `op${i}`).join(', ');
 
     await expect(
       servicio.consultar(USUARIO, consultar({ opl: muchos })),
-    ).rejects.toThrow(/máximo por vez es 10[\s\S]*búsqueda masiva/);
+    ).rejects.toThrow(/máximo por vez es 30[\s\S]*búsqueda masiva/);
 
     expect(buscarOpl).not.toHaveBeenCalled();
   });

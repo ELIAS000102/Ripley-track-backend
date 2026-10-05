@@ -29,6 +29,7 @@ import type {
   EstadoDia,
 } from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
  * Tope de días por llamada.
@@ -78,10 +79,10 @@ function comoFiltro(valor?: string): string | undefined {
  * Un almacén no tiene muchas más; el tope está para que una lista inventada no
  * se aplique entera. Para cerrar un CD completo está su propia herramienta.
  */
-const JORNADAS_MAXIMAS = 10;
+const JORNADAS_MAXIMAS = POR_VEZ;
 
 /** Tope de oficinas por llamada, el mismo que en la consulta */
-const OFICINAS_MAXIMAS = 5;
+const OFICINAS_MAXIMAS = POR_VEZ;
 
 /**
  * Tope de días de agenda escritos en una sola petición.

@@ -357,11 +357,11 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
   it('hay tope de destinos por llamada', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    const muchos = Array.from({ length: 16 }, (_, i) => `d${i}`).join(', ');
+    const muchos = Array.from({ length: 31 }, (_, i) => `d${i}`).join(', ');
 
     await expect(
       servicio.editar(USUARIO, editar({ destino: muchos, transito: 7 })),
-    ).rejects.toThrow(/máximo por vez es 15/);
+    ).rejects.toThrow(/máximo por vez es 30/);
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });

@@ -1,4 +1,12 @@
-import { Controller, Get, Query, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
@@ -11,12 +19,14 @@ import { ReporteAgenteService } from './reporte/reporte.service.js';
 import { SimulacionAgenteService } from './simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia/transferencia.service.js';
+import { interpretar } from '../interpretacion/interpretar.js';
 import {
   BuscarMasivoDto,
   ConsultarCapacidadDto,
   ConsultarReporteDto,
   ConsultarTipoServicioDto,
   ConsultarTransferenciaDto,
+  InterpretarDto,
   SimularAgenteDto,
 } from '../dto/consultas.dto.js';
 
@@ -148,7 +158,7 @@ export class ConsultasAgenteController {
    *
    * La pregunta al revés que `/agente/tipo-servicio`: qué agendas tienen un
    * servicio, en vez de qué servicios tiene una agenda. Devuelve los totales
-   * siempre y como mucho 40 filas, porque una búsqueda amplia trae cientos.
+   * y la lista entera. Admite varios servicios por coma: una búsqueda por cada uno.
    */
   @PermitidoAgente()
   @Get('busqueda-masiva')
@@ -172,5 +182,29 @@ export class ConsultasAgenteController {
     @Query() query: SimularAgenteDto,
   ) {
     return this.simulacion.simular(usuario, query);
+  }
+
+  /**
+   * POST /agente/interpretar
+   *
+   * Lee un mensaje del chat **sin un modelo**: país, CDs, operadores, servicios,
+   * fechas, si pide un cambio y qué caso es. El flujo de n8n lo llama antes de
+   * clasificar, y con certeza alta el caso lo decide esto y no la IA.
+   *
+   * Es POST porque el mensaje puede ser largo, no porque escriba: no toca
+   * Ripley ni la base. Por eso es una consulta y no pide el modo editor.
+   */
+  @PermitidoAgente()
+  @Post('interpretar')
+  @HttpCode(200)
+  interpretar(@Body() body: InterpretarDto) {
+    const preconfiguraciones = (body.preconfiguraciones ?? [])
+      .filter((p) => typeof p?.nombre === 'string')
+      .map((p) => ({
+        nombre: p.nombre as string,
+        descripcion: typeof p.descripcion === 'string' ? p.descripcion : null,
+      }));
+
+    return interpretar(body.pregunta, { pais: body.pais, preconfiguraciones });
   }
 }

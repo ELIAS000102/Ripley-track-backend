@@ -4,6 +4,10 @@ import { BusquedaMasivaAgenteService } from '../../../../src/agente/consultas/bu
 import type { OplMasivoService } from '../../../../src/configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type {
+  BusquedaMasivaRespuesta,
+  BusquedaMasivaVarias,
+} from '../../../../src/agente/interfaces/agente.interface.js';
 
 /**
  * El agente manda el tipo de servicio y nada más: el método de entrega es una
@@ -92,7 +96,7 @@ async function metodoUsado(dto: Record<string, unknown>) {
 
   // El método resuelto viaja también en la respuesta, para que el agente
   // pueda mostrarlo sin deducirlo él
-  expect(respuesta.metodo).toBe(llamada.deliveryCode);
+  expect((respuesta as BusquedaMasivaRespuesta).metodo).toBe(llamada.deliveryCode);
   return llamada.deliveryCode;
 }
 
@@ -137,5 +141,67 @@ describe('Búsqueda masiva: el método se deduce del servicio', () => {
     await expect(
       servicio.buscar(USUARIO, { servicio: 'ZZ' } as never),
     ).rejects.toThrow(/SE\/ST/);
+  });
+});
+
+/**
+ * La lista va entera, y se pueden pedir varios servicios de una vez.
+ *
+ * Hubo un tope de 40 filas que presentaba una muestra como si fuera el total, y
+ * la herramienta solo admitía un servicio: "los de la RE y los de la RT" eran
+ * dos llamadas y el agente se quedaba sin responder.
+ */
+describe('Búsqueda masiva: lista entera y varios servicios', () => {
+  function conAgendas(n: number) {
+    const armado = armar();
+    const agendas = Array.from({ length: n }, (_, i) => ({
+      opl: `op${i}`,
+      agenda: `Agenda ${i}`,
+      zona: `Agenda ${i}`,
+      isActive: i % 2 === 0,
+      enabledForCheckout: false,
+    }));
+    armado.consultar.mockResolvedValue({ total: n, agendas });
+    return armado;
+  }
+
+  it('devuelve todas las agendas, sin recortar a 40', async () => {
+    const { servicio } = conAgendas(120);
+
+    const r = (await servicio.buscar(USUARIO, { servicio: 'SE' } as never)) as BusquedaMasivaRespuesta;
+
+    expect(r.agendas).toHaveLength(120);
+    expect(r.resumen).toEqual({ total: 120, activas: 60, enCheckout: 0 });
+    expect(r).not.toHaveProperty('aviso');
+  });
+
+  it('varios servicios por coma: una búsqueda por servicio, en el orden pedido', async () => {
+    const { servicio, consultar } = conAgendas(3);
+
+    const r = (await servicio.buscar(USUARIO, { servicio: 'SE, SD' } as never)) as BusquedaMasivaVarias;
+
+    expect(consultar).toHaveBeenCalledTimes(2);
+    expect(r.contexto).toEqual({ pais: 'PE' });
+    expect(r.busquedas.map((b) => b.servicio)).toEqual(['SE', 'SD']);
+    expect(r.busquedas.map((b) => ('metodo' in b ? b.metodo : null))).toEqual(['RT', 'DP']);
+    // El contexto va una vez arriba, no repetido en cada búsqueda
+    expect(r.busquedas[0]).not.toHaveProperty('contexto');
+  });
+
+  it('un servicio que no existe lleva su motivo y no tumba a los demás', async () => {
+    const { servicio } = conAgendas(2);
+
+    const r = (await servicio.buscar(USUARIO, { servicio: 'SE, ZZ' } as never)) as BusquedaMasivaVarias;
+
+    expect(r.busquedas[0]).toHaveProperty('agendas');
+    expect(r.busquedas[1]).toMatchObject({ servicio: 'ZZ', error: expect.stringMatching(/ZZ/) });
+  });
+
+  it('un servicio repetido se busca una vez', async () => {
+    const { servicio, consultar } = conAgendas(1);
+
+    await servicio.buscar(USUARIO, { servicio: 'SE, se' } as never);
+
+    expect(consultar).toHaveBeenCalledOnce();
   });
 });

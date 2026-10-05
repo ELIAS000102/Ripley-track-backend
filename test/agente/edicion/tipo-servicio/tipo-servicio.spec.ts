@@ -485,11 +485,11 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
   it('hay tope, y sugiere el cambio en bloque si son demasiados', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const muchos = Array.from({ length: 11 }, (_, i) => `op${i}`).join(', ');
+    const muchos = Array.from({ length: 31 }, (_, i) => `op${i}`).join(', ');
 
     await expect(
       servicio.editar(USUARIO, editar({ opl: muchos, activo: false })),
-    ).rejects.toThrow(/máximo por vez es 10.*cambio en bloque/s);
+    ).rejects.toThrow(/máximo por vez es 30.*cambio en bloque/s);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });

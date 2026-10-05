@@ -193,8 +193,10 @@ describe('Capacidad: varias oficinas de una vez', () => {
     const { servicio, listarAgendasPorOficina } = armar();
 
     await expect(
-      servicio.consultar(consultar({ codigo: '1 2 3 4 5 6' })),
-    ).rejects.toThrow(/máximo por vez es 5[\s\S]*reporte de los CDs/);
+      servicio.consultar(
+        consultar({ codigo: Array.from({ length: 31 }, (_, i) => String(1000 + i)).join(' ') }),
+      ),
+    ).rejects.toThrow(/máximo por vez es 30[\s\S]*reporte de los CDs/);
 
     expect(listarAgendasPorOficina).not.toHaveBeenCalled();
   });

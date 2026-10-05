@@ -6,6 +6,7 @@ import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarMasivoDto } from '../../dto/edicion.dto.js';
 import type { MasivoEditado } from '../../interfaces/edicion.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
+import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
  * Activar o desactivar en bloque las agendas que tienen un tipo de servicio.
@@ -216,7 +217,7 @@ export class EditarMasivoAgenteService {
     porCambiar: unknown[],
     dto: EditarMasivoDto,
   ): void {
-    const tope = dto.maximo ?? 25;
+    const tope = dto.maximo ?? POR_VEZ;
 
     if (alcanzadas.length > tope) {
       throw new BadRequestException(
