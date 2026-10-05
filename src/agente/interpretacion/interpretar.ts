@@ -446,6 +446,21 @@ export function interpretar(
     }
   }
 
+  /*
+   * Cruzar los operadores de varios servicios ("los de la SE con los de la
+   * ST") es del agente de búsqueda masiva: trae las listas de los servicios en
+   * una llamada y las cruza él. Sin esto, el nombre de una preconfiguración
+   * metido en la frase ("OPLS de la SE") se llevaba la petición.
+   *
+   * Lo que mezcla temas —"los servicios de la 20021 y su capacidad"— no tiene
+   * caso propio: va al agente del tema principal, que pide lo demás a los
+   * agentes de los otros temas.
+   */
+  const pideCruce = !cambio && /\b(cruce|cruza|cruzar|cruzalo|cruzalos|compara|comparar|comparalo|comparacion|coincid\w*|contrasta\w*|versus|vs)\b/.test(plano);
+  const cruceDeServicios = pideCruce && servicios.length >= 2 && !hayCodigos;
+
+  if (cruceDeServicios) agregar('busqueda_masiva', 'cruza los operadores de varios servicios');
+
   // ── La certeza ──
   let caso: Caso | null = null;
   let certeza: Interpretacion['certeza'] = candidatos.length ? 'media' : 'baja';
@@ -494,7 +509,10 @@ export function interpretar(
   );
   const pideMas = servicios.some((s) => !cubiertos.has(s));
 
-  if (preconfiguraciones.length && !hayCodigos && !cambio && !listar && !pideMas) {
+  if (cruceDeServicios) {
+    caso = 'busqueda_masiva';
+    certeza = 'alta';
+  } else if (preconfiguraciones.length && !hayCodigos && !cambio && !listar && !pideMas) {
     caso = 'preconfiguracion';
     certeza = 'alta';
   } else if (candidatos.length === 1 && fuerte(candidatos[0])) {

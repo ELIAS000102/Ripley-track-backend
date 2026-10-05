@@ -205,3 +205,20 @@ describe('Búsqueda masiva: lista entera y varios servicios', () => {
     expect(consultar).toHaveBeenCalledOnce();
   });
 });
+
+/**
+ * Varios servicios: se traen las listas, y NO se cruzan aquí.
+ *
+ * Cruzar —quién está en cuáles, y cómo— lo hace el agente con estas listas.
+ * Lo que se fija es que no vuelva a aparecer un campo calculado en el backend.
+ */
+describe('Búsqueda masiva: varios servicios sin cruce', () => {
+  it('devuelve una búsqueda por servicio y nada más', async () => {
+    const { servicio, consultar } = armar();
+    consultar.mockResolvedValue({ total: 1, agendas: [{ opl: '1130', agenda: 'A', zona: 'A', isActive: true, enabledForCheckout: true }] });
+
+    const r = (await servicio.buscar(USUARIO, { servicio: 'SE, SD' } as never)) as BusquedaMasivaVarias;
+
+    expect(Object.keys(r).sort()).toEqual(['busquedas', 'contexto']);
+  });
+});

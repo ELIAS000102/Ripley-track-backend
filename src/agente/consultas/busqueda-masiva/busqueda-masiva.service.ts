@@ -99,6 +99,8 @@ export class BusquedaMasivaAgenteService {
       }
     });
 
+    // Cruzarlas —quién está en cuáles, y cómo— es trabajo del agente: aquí
+    // solo se traen las listas, cada una entera
     return { contexto, busquedas };
   }
 

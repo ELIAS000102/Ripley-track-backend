@@ -114,6 +114,38 @@ describe('Las frases que fallaban en el chat', () => {
       .toMatchObject({ caso: 'preconfiguracion', certeza: 'alta', preconfiguraciones: ['OPLS de la SE'] });
   });
 
+  it('"has un cruce de los opls de la SE con los de la ST…" → al agente de búsqueda masiva, que trae las dos listas y las cruza', () => {
+    const conLaSE = [...PRECONFS, { nombre: 'OPLS de la SE', descripcion: 'opls que tienen el tipo de servicio SE' }];
+    const r = interpretar(
+      'has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas',
+      { hoy: HOY, preconfiguraciones: conLaSE },
+    );
+
+    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta' });
+  });
+
+  it('dos consultas de temas distintos no tienen caso propio: decide la IA el tema principal', () => {
+    // Ese agente pedirá lo demás a los agentes de los otros temas
+    const r = leer('qué servicios tiene la 20021 y cuánta capacidad de picking le queda');
+
+    expect(r.candidatos).toEqual(['tipo_servicio', 'capacidad']);
+    expect(r.certeza).toBe('media');
+  });
+
+  it('comparar temas distintos va al tema principal, que pide lo demás a su colega', () => {
+    // La capacidad del 1130 es lo concreto; sus servicios los pedirá el agente
+    // de capacidad al de servicios
+    expect(leer('compara la capacidad de despacho del 1130 con sus servicios'))
+      .toMatchObject({ caso: 'capacidad', certeza: 'alta' });
+  });
+
+  it('cruzar y CAMBIAR es un cambio, no una consulta', () => {
+    const r = leer('desactiva la ST de los opls que coincidan con la SE');
+
+    expect(r.accion).toBe('cambiar');
+    expect(r.candidatos).toEqual(['editar_servicio']);
+  });
+
   it('"dame la pqt lima" → no se adivina: decide la IA', () => {
     const r = leer('dame la pqt lima');
 
