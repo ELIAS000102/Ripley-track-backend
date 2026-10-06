@@ -147,6 +147,41 @@ export class ChatsService {
   }
 
   /**
+   * Cambia el texto de una respuesta del agente, la de un reintento.
+   *
+   * El filtro va por los tres: el mensaje, su chat —ya comprobado que es del
+   * usuario— y el rol. Así no se puede reescribir un mensaje de otro chat
+   * pasando su id, ni lo que escribió la persona.
+   */
+  async reemplazarMensaje(
+    usuarioId: string,
+    chatId: string,
+    mensajeId: string,
+    texto: string,
+  ): Promise<Mensaje> {
+    await this.exigirPropiedad(usuarioId, chatId);
+
+    const { data, error } = await this.supabase.admin
+      .from(TABLA_MENSAJES)
+      .update({ texto })
+      .eq('id', mensajeId)
+      .eq('chat_id', chatId)
+      .eq('rol', 'agente')
+      .select(CAMPOS_MENSAJE)
+      .maybeSingle();
+
+    if (error) this.reventar('reemplazar el mensaje', error.message);
+    if (!data) throw new NotFoundException('No existe esa respuesta en este chat');
+
+    await this.supabase.admin
+      .from(TABLA_CHATS)
+      .update({ actualizado_en: new Date().toISOString() })
+      .eq('id', chatId);
+
+    return data as Mensaje;
+  }
+
+  /**
    * Un chat que no es tuyo se trata como inexistente en la respuesta al
    * cliente, pero se distingue en el log: así no se filtra qué ids existen.
    */

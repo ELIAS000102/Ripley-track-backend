@@ -3,6 +3,10 @@ import {
   interpretar,
   rangoDeFechas,
 } from '../../../src/agente/interpretacion/interpretar.js';
+// Arriba y no dentro del test: importar el controlador arrastra medio Nest, y
+// bajo la carga de toda la batería pasaba del tiempo de un test
+import { ConsultasAgenteController } from '../../../src/agente/consultas/consultas.controller.js';
+import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
 
 /**
  * Lo que se lee de un mensaje sin un modelo.
@@ -248,8 +252,6 @@ describe('Fechas', () => {
 
 describe('La ruta', () => {
   it('POST /agente/interpretar es una consulta del agente: no pide el modo editor', async () => {
-    const { ConsultasAgenteController } = await import('../../../src/agente/consultas/consultas.controller.js');
-    const { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } = await import('../../../src/agente/seguridad/permitido-agente.decorator.js');
     const metodo = ConsultasAgenteController.prototype.interpretar;
 
     expect(Reflect.getMetadata(PERMITIDO_AGENTE, metodo)).toBe(true);
@@ -258,7 +260,6 @@ describe('La ruta', () => {
   });
 
   it('las preconfiguraciones mal formadas se ignoran en vez de romper', async () => {
-    const { ConsultasAgenteController } = await import('../../../src/agente/consultas/consultas.controller.js');
 
     // interpretar no usa ningún service del controlador: se llama sin instancia
     const r = ConsultasAgenteController.prototype.interpretar.call(null, {

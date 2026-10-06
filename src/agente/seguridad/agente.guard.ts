@@ -1,5 +1,6 @@
 import {
   CanActivate,
+  ConflictException,
   ExecutionContext,
   ForbiddenException,
   Injectable,
@@ -11,6 +12,7 @@ import {
   PERMITIDO_AGENTE_EDITOR,
 } from './permitido-agente.decorator.js';
 import { ModoAgenteService } from './modo.service.js';
+import { InterrupcionAgenteService } from './interrupcion.service.js';
 
 /**
  * Rutas que el agente no puede tocar bajo ningún concepto.
@@ -32,10 +34,13 @@ const PROHIBIDO_SIEMPRE = ['/configuracion/token-ripley', '/agente/modo'];
 /**
  * Restringe lo que puede hacer el agente de IA.
  *
- * Las peticiones que llegan con "X-Origen: agente" pasan por tres filtros, en
+ * Las peticiones que llegan con "X-Origen: agente" pasan por cuatro filtros, en
  * este orden:
  *
  * 1. **Lista negra.** No hay marca que la levante.
+ * 1b. **¿La persona la detuvo?** Si la petición del chat de la que viene
+ *    (`X-Peticion`) se detuvo con el botón "Detener", 409: el agente ya no
+ *    lee ni escribe nada más para ella, aunque n8n no haya podido parar.
  * 2. **¿Escribe?** Las rutas con @PermitidoAgenteEditor() exigen además que el
  *    usuario tenga el modo editor activo. Sin él, 403 —y el mensaje dice cómo
  *    activarlo, porque si no el agente se inventa por qué falló—.
@@ -57,6 +62,7 @@ export class AgenteGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly modo: ModoAgenteService,
+    private readonly interrupcion: InterrupcionAgenteService,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -71,6 +77,13 @@ export class AgenteGuard implements CanActivate {
         ruta.startsWith('/agente/modo')
           ? 'El modo del agente solo lo cambia una persona desde el panel.'
           : 'El agente no tiene acceso a la gestión del token de Ripley.',
+      );
+    }
+
+    // 1b. Detenida desde el panel
+    if (this.interrupcion.estaInterrumpida(request.get('x-peticion'))) {
+      throw new ConflictException(
+        'La persona detuvo esta petición desde el chat. No llames a ninguna herramienta más: termina en una frase diciendo que se detuvo.',
       );
     }
 

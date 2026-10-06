@@ -20,6 +20,7 @@ import { SimulacionAgenteService } from './simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia/transferencia.service.js';
 import { interpretar } from '../interpretacion/interpretar.js';
+import { InterrupcionAgenteService } from '../seguridad/interrupcion.service.js';
 import {
   BuscarMasivoDto,
   ConsultarCapacidadDto,
@@ -63,6 +64,7 @@ export class ConsultasAgenteController {
     private readonly simulacion: SimulacionAgenteService,
     private readonly contexto: ContextoAgenteService,
     private readonly config: ConfigService,
+    private readonly interrupcion: InterrupcionAgenteService,
   ) {}
 
   /**
@@ -193,11 +195,21 @@ export class ConsultasAgenteController {
    *
    * Es POST porque el mensaje puede ser largo, no porque escriba: no toca
    * Ripley ni la base. Por eso es una consulta y no pide el modo editor.
+   *
+   * Es también la primera llamada de cada ejecución, así que de paso apunta qué
+   * ejecución de n8n atiende la petición: es la que para el botón "Detener".
    */
   @PermitidoAgente()
   @Post('interpretar')
   @HttpCode(200)
-  interpretar(@Body() body: InterpretarDto) {
+  interpretar(
+    @Body() body: InterpretarDto,
+    @Usuario() usuario?: UsuarioAutenticado,
+  ) {
+    if (body.peticion && usuario?.id) {
+      this.interrupcion.registrar(body.peticion, usuario.id, body.ejecucion);
+    }
+
     const preconfiguraciones = (body.preconfiguraciones ?? [])
       .filter((p) => typeof p?.nombre === 'string')
       .map((p) => ({

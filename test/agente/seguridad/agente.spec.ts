@@ -20,6 +20,8 @@ import {
 } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
 import { AgenteGuard } from '../../../src/agente/seguridad/agente.guard.js';
 import { ModoAgenteService } from '../../../src/agente/seguridad/modo.service.js';
+import { InterrupcionAgenteService } from '../../../src/agente/seguridad/interrupcion.service.js';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * Fija las garantías que sostienen al agente de IA:
@@ -124,6 +126,8 @@ describe('AgenteGuard', () => {
       ],
       providers: [
         ModoAgenteService,
+        InterrupcionAgenteService,
+        { provide: ConfigService, useValue: { get: () => '' } },
         // El orden importa: la sesión resuelve el usuario que el otro lee
         { provide: APP_GUARD, useClass: SesionFalsa },
         { provide: APP_GUARD, useClass: AgenteGuard },

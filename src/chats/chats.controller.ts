@@ -13,6 +13,7 @@ import { ChatsService } from './chats.service.js';
 import {
   AgregarMensajeDto,
   CrearChatDto,
+  ReemplazarMensajeDto,
   RenombrarChatDto,
 } from './dto/chats.dto.js';
 
@@ -69,6 +70,24 @@ export class ChatsController {
     @Body() body: AgregarMensajeDto,
   ) {
     return this.chats.agregarMensaje(usuario.id, id, body.rol, body.texto);
+  }
+
+  /**
+   * PUT /chats/:id/mensajes/:mensajeId — cambia el texto de una respuesta.
+   *
+   * Es el botón "Reintentar" del chat: la respuesta nueva ocupa el sitio de la
+   * que falló —un token caducado, el modo consultor, un modelo saturado— en vez
+   * de quedar las dos. Solo vale para respuestas del agente: lo que escribió
+   * la persona no se reescribe.
+   */
+  @Put(':id/mensajes/:mensajeId')
+  async reemplazar(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id') id: string,
+    @Param('mensajeId') mensajeId: string,
+    @Body() body: ReemplazarMensajeDto,
+  ) {
+    return this.chats.reemplazarMensaje(usuario.id, id, mensajeId, body.texto);
   }
 
   /** PUT /chats/:id — cambia el título */

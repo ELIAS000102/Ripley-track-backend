@@ -34,3 +34,11 @@ export class AgregarMensajeDto {
   @MaxLength(MAXIMO_TEXTO)
   texto: string;
 }
+
+/** Lo que se cambia de una respuesta al reintentarla: el texto nuevo */
+export class ReemplazarMensajeDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(MAXIMO_TEXTO)
+  texto: string;
+}

@@ -28,6 +28,8 @@ import { EditarTransferenciaAgenteService } from './edicion/transferencia/transf
 
 import { ModoAgenteController } from './seguridad/modo.controller.js';
 import { ModoAgenteService } from './seguridad/modo.service.js';
+import { InterrupcionAgenteController } from './seguridad/interrupcion.controller.js';
+import { InterrupcionAgenteService } from './seguridad/interrupcion.service.js';
 import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
 
 /**
@@ -48,10 +50,11 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
  * AuthModule entra por PerfilService, que es de donde sale el nombre del usuario
  * que acompaña a cada respuesta.
  *
- * `ModoAgenteService` se exporta porque quien lo consulta es el AgenteGuard, que
- * se registra como guard global en AppModule y por tanto se resuelve fuera de
- * este módulo. Es la pieza que decide si una escritura pasa, así que hay un solo
- * ejemplar para toda la aplicación.
+ * `ModoAgenteService` e `InterrupcionAgenteService` se exportan porque quien
+ * los consulta es el AgenteGuard, que se registra como guard global en
+ * AppModule y por tanto se resuelve fuera de este módulo. Deciden si una
+ * petición del agente pasa, así que hay un solo ejemplar de cada uno para toda
+ * la aplicación.
  */
 @Module({
   imports: [
@@ -69,6 +72,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
     ConsultasAgenteController,
     EdicionAgenteController,
     ModoAgenteController,
+    InterrupcionAgenteController,
   ],
   providers: [
     ContextoAgenteService,
@@ -92,6 +96,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
 
     // Seguridad
     ModoAgenteService,
+    InterrupcionAgenteService,
   ],
   /*
    * Además del modo, se exportan los services que ejecutan una operación.
@@ -101,6 +106,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
    */
   exports: [
     ModoAgenteService,
+    InterrupcionAgenteService,
 
     CapacidadAgenteService,
     ReporteAgenteService,

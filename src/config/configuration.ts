@@ -57,6 +57,13 @@ export default () => {
        * por el código de cada cliente.
        */
       webhookUrl: process.env.N8N_WEBHOOK_URL ?? '',
+      /**
+       * API de n8n, para parar una ejecución cuando alguien pulsa "Detener"
+       * en el chat. Opcional: sin ella, detener corta igualmente las
+       * herramientas de esa petición. La clave no sale nunca del backend.
+       */
+      n8nApiUrl: process.env.N8N_API_URL ?? '',
+      n8nApiKey: process.env.N8N_API_KEY ?? '',
     },
     supabase: {
       url: process.env.SUPABASE_URL,

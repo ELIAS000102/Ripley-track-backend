@@ -338,4 +338,21 @@ export class InterpretarDto {
   @IsOptional()
   @IsArray()
   preconfiguraciones?: Array<{ nombre?: unknown; descripcion?: unknown }>;
+
+  /**
+   * El id que el panel le puso a este mensaje, y el de la ejecución de n8n que
+   * lo atiende. Con los dos, "Detener" sabe qué ejecución parar. Vacíos se
+   * ignoran: n8n manda la expresión aunque el panel sea antiguo y no lo envíe.
+   */
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  @IsString()
+  @Matches(/^[A-Za-z0-9-]{8,64}$/, { message: 'peticion no es un id de petición válido' })
+  peticion?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : String(value)))
+  @IsString()
+  @Matches(/^\d{1,20}$/, { message: 'ejecucion no es un id de ejecución de n8n' })
+  ejecucion?: string;
 }
