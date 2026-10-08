@@ -16,6 +16,7 @@ import { TokenRipleyModule } from './configuracion/token-ripley/token-ripley.mod
 import { PickingModule } from './agendas/picking/picking.module.js';
 import { DespachoModule } from './agendas/despacho/despacho.module.js';
 import { RecepcionModule } from './agendas/recepcion/recepcion.module.js';
+import { TransferenciaAgendasModule } from './agendas/transferencia/transferencia-agendas.module.js';
 import { CdsModule } from './reportes/cds/cds.module.js';
 import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
@@ -43,6 +44,7 @@ import { SimulacionModule } from './simulacion/simulacion.module.js';
     PickingModule,
     DespachoModule,
     RecepcionModule,
+    TransferenciaAgendasModule,
     CdsModule,
     OplMasivoModule,
     OplModule,

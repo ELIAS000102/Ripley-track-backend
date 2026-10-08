@@ -97,6 +97,48 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
   dias?: number = 7;
 }
 
+// ───────────────────────── Capacidad de transferencia ─────────────────────────
+
+/**
+ * Cuánto puede transferir al día una sucursal de stock a un clúster de destino.
+ *
+ * **Es otra cosa que la transferencia entre sucursales** (`/agente/transferencia`),
+ * que da la relación —habilitada, preparación, tránsito, desfase—. Aquí son
+ * unidades por día, y por eso es su propia herramienta: con dos ejes, origen
+ * y destino, meterla en el `codigo` de la capacidad obligaba a explicar que
+ * unas veces es el origen y otras no.
+ *
+ * Al menos uno de los dos lados. Los dos admiten varios por coma.
+ */
+export class ConsultarCapacidadTransferenciaDto extends ConVentanaDto {
+  /** Sucursal(es) de stock de donde SALE: "20026" */
+  @IsOptional()
+  @IsString()
+  origen?: string;
+
+  /** Clúster(es) de destino: el código de su almacén ("20021") o su nombre ("PICKIT") */
+  @IsOptional()
+  @IsString()
+  destino?: string;
+
+  /** Tipo de servicio de la agenda ("ST", "SG") */
+  @IsOptional()
+  @IsString()
+  servicio?: string;
+
+  /** Nombre de la agenda; admite parcial y lo exacto gana */
+  @IsOptional()
+  @IsString()
+  agenda?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  dias?: number = 7;
+}
+
 // ───────────────────────── Reporte ─────────────────────────
 
 export class ConsultarReporteDto extends ConVentanaDto {

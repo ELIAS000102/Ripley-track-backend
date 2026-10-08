@@ -2,8 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CacheCatalogosService } from './cache-catalogos.service.js';
 import { RipleyHttpService } from './ripley-http.service.js';
 import { ripleyDateToBarras } from './utils/date.util.js';
+import { idDePais } from './utils/pais.util.js';
 import type {
   CapacitiesResponse,
+  ClusterRow,
+  TransferScheduleRow,
   OfficeRow,
   ReceptionCapacitiesResponse,
   ReceptionScheduleRow,
@@ -202,5 +205,82 @@ export class CatalogosRipleyService {
       pais,
       from ? { from } : undefined,
     );
+  }
+
+  // ---------- Agendas de transferencia ----------
+
+  /** Los clústeres de destino del país. Es un catálogo: va con caché */
+  async clusters(pais: string): Promise<ClusterRow[]> {
+    const data = await this.cache.recordar('clusters', pais, () =>
+      this.ripley.get<ClusterRow[] | RipleyListResponse<ClusterRow>>(
+        this.ripley.endpoint('clusters'),
+        pais,
+        { country: idDePais(pais) },
+      ),
+    );
+
+    // Responde un array a secas; se acepta también la forma paginada de los
+    // demás catálogos, por si cambia
+    return Array.isArray(data) ? data : (data?.rows ?? []);
+  }
+
+  /**
+   * Las agendas de transferencia de un origen o de unos clústeres de destino.
+   *
+   * Es un POST aunque solo lee: así lo expone Ripley. **Sin caché**, como
+   * recepción: trae `lastDayOccupied`, que cambia con cada pedido.
+   */
+  async agendasDeTransferencia(
+    filtro: { warehouseId: string } | { clusters: string[] },
+    pais: string,
+  ): Promise<TransferScheduleRow[]> {
+    const data = await this.ripley.post<
+      TransferScheduleRow[] | RipleyListResponse<TransferScheduleRow>
+    >(this.ripley.endpoint('schedulesTransfer'), pais, {
+      ...filtro,
+      populateCapacity: true,
+    });
+
+    return Array.isArray(data) ? data : (data?.rows ?? []);
+  }
+
+  /**
+   * Los días de una agenda de transferencia, desde una fecha DD-MM-YYYY.
+   *
+   * El mismo endpoint y la misma forma que recepción, y con el mismo cuidado:
+   * el id es el de la **capacidad**, no el de la agenda, y la fecha va con
+   * barras.
+   */
+  async capacidadesDeTransferencia(
+    capacityId: string,
+    pais: string,
+    desde: string,
+  ): Promise<ReceptionCapacitiesResponse> {
+    return this.ripley.get<ReceptionCapacitiesResponse>(
+      this.ripley.endpoint('capacitiesTransfer'),
+      pais,
+      { id: capacityId, date: ripleyDateToBarras(desde) },
+    );
+  }
+
+  /**
+   * El catálogo de servicios que usa el panel corporativo en este apartado.
+   *
+   * Es opcional: solo se pide para un servicio que /services no traiga, y sin
+   * el endpoint configurado se sigue sin él.
+   */
+  async serviciosDeFechaDeDespacho(pais: string): Promise<ServiceRow[]> {
+    let path: string;
+    try {
+      path = this.ripley.endpoint('servicesDispatchDate');
+    } catch {
+      return [];
+    }
+
+    const data = await this.cache.recordar('servicesDispatchDate', pais, () =>
+      this.ripley.get<RipleyListResponse<ServiceRow>>(path, pais),
+    );
+
+    return data?.rows ?? [];
   }
 }

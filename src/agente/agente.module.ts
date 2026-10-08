@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DespachoModule } from '../agendas/despacho/despacho.module.js';
 import { PickingModule } from '../agendas/picking/picking.module.js';
 import { RecepcionModule } from '../agendas/recepcion/recepcion.module.js';
+import { TransferenciaAgendasModule } from '../agendas/transferencia/transferencia-agendas.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { OplMasivoModule } from '../configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from '../configuracion/tipo-servicio/opl/opl.module.js';
@@ -13,6 +14,7 @@ import { ContextoAgenteService } from './contexto.service.js';
 import { ConsultasAgenteController } from './consultas/consultas.controller.js';
 import { BusquedaMasivaAgenteService } from './consultas/busqueda-masiva/busqueda-masiva.service.js';
 import { CapacidadAgenteService } from './consultas/capacidad/capacidad.service.js';
+import { CapacidadTransferenciaAgenteService } from './consultas/capacidad-transferencia/capacidad-transferencia.service.js';
 import { ReporteAgenteService } from './consultas/reporte/reporte.service.js';
 import { SimulacionAgenteService } from './consultas/simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './consultas/tipo-servicio/tipo-servicio.service.js';
@@ -61,6 +63,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
     PickingModule,
     DespachoModule,
     RecepcionModule,
+    TransferenciaAgendasModule,
     CdsModule,
     TransfModule,
     OplModule,
@@ -80,6 +83,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
 
     // Consultas
     CapacidadAgenteService,
+    CapacidadTransferenciaAgenteService,
     ReporteAgenteService,
     TransferenciaAgenteService,
     TipoServicioAgenteService,
@@ -109,6 +113,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
     InterrupcionAgenteService,
 
     CapacidadAgenteService,
+    CapacidadTransferenciaAgenteService,
     ReporteAgenteService,
     TransferenciaAgenteService,
     TipoServicioAgenteService,

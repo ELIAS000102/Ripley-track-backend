@@ -44,6 +44,26 @@ export function primerDiaDisponible(dias: DiaCapacidad[]): string | null {
 }
 
 /**
+ * Un día con disponible y uso ya resueltos: el modelo no tiene que calcular
+ * nada. Lo comparten la capacidad de las agendas y la de transferencia.
+ */
+export function diaNormalizado(
+  fecha: string,
+  activo: boolean,
+  asignado: number,
+  ocupado: number,
+): DiaCapacidad {
+  return {
+    fecha,
+    activo,
+    asignado,
+    ocupado,
+    disponible: asignado - ocupado,
+    uso: asignado > 0 ? Math.round((ocupado / asignado) * 100) : 0,
+  };
+}
+
+/**
  * Tope de oficinas por consulta: el común del agente. Cada oficina son sus
  * agendas y cada agenda una llamada, que van en lotes.
  */
@@ -433,21 +453,13 @@ export class CapacidadAgenteService {
     sinDatos.push(`${nombre}: ${(e as Error).message}`);
   }
 
-  /** Deja resueltos disponible y uso: el modelo no tiene que calcular nada */
   private normalizar(
     fecha: string,
     activo: boolean,
     asignado: number,
     ocupado: number,
   ): DiaCapacidad {
-    return {
-      fecha,
-      activo,
-      asignado,
-      ocupado,
-      disponible: asignado - ocupado,
-      uso: asignado > 0 ? Math.round((ocupado / asignado) * 100) : 0,
-    };
+    return diaNormalizado(fecha, activo, asignado, ocupado);
   }
 
   /** Acota la ventana de días para no inundar el contexto del modelo */

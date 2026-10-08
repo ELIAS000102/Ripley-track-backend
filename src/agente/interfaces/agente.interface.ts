@@ -122,6 +122,34 @@ export interface CapacidadRespuesta {
   sinDatos: string[];
 }
 
+// ───────────────────────── Capacidad de transferencia ─────────────────────────
+
+/** Una agenda de transferencia con sus días: la de un origen hacia un destino */
+export interface AgendaTransferenciaCapacidad extends AgendaCapacidad {
+  /** El clúster de destino, con el código de su almacén delante: "20021 - Chorrillos" */
+  destino: string;
+}
+
+/**
+ * Las agendas que salen de una sucursal de stock.
+ *
+ * La clave es `origen` y no `oficina` a propósito: lo que se encadena a otro
+ * paso son los DESTINOS ("las sucursales de la SE con su capacidad de
+ * transferencia"), y el origen no se pasa.
+ */
+export interface OrigenCapacidad {
+  origen: string;
+  agendas: AgendaTransferenciaCapacidad[];
+  error?: string;
+}
+
+export interface CapacidadTransferenciaRespuesta {
+  pais: string;
+  desde: string;
+  origenes: OrigenCapacidad[];
+  sinDatos: string[];
+}
+
 // ───────────────────────── Reporte de CDs ─────────────────────────
 
 /**
@@ -383,7 +411,7 @@ export interface OficinaEditada {
 
 export interface EdicionRespuesta {
   contexto: ContextoAgente;
-  tipo: 'picking' | 'despacho' | 'recepcion';
+  tipo: 'picking' | 'despacho' | 'recepcion' | 'transferencia';
   /** Un elemento por código pedido, igual que en la consulta */
   oficinas: OficinaEditada[];
   resumen: {

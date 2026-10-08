@@ -247,3 +247,51 @@ export interface ReceptionScheduleConfig {
   typeOfService: string;
   unitMeasure: string;
 }
+
+/**
+ * Un clúster de destino de /cluster?country={id del país}.
+ *
+ * Es el destino de las agendas de transferencia. Casi siempre es una tienda
+ * —"20021 - Chorrillos", con su almacén dentro—, pero hay clústeres sin ningún
+ * almacén ("Asia", "Piura") o que no son una tienda ("PICKIT"). El `code` de
+ * cada almacén llega como **número**, no como texto.
+ */
+export interface ClusterRow {
+  _id: string;
+  name: string;
+  warehouses?: { code: number | string; name?: string; _id?: string }[];
+}
+
+/**
+ * Una agenda de POST /schedules/transfer/find.
+ *
+ * Cuánto puede transferir al día un origen (`warehouses`, el id interno de la
+ * sucursal de stock) a un clúster de destino (`cluster`). Se busca por
+ * cualquiera de los dos lados y la forma es la misma.
+ *
+ * Como en recepción, el id de la agenda (`_id`) y el de su capacidad
+ * (`capacities[].capacityId`) se parecen y solo cambian al final: los días se
+ * leen y se escriben con el segundo.
+ */
+export interface TransferScheduleRow {
+  _id: string;
+  name: string;
+  active: boolean;
+  autogenerate?: boolean;
+  unitMeasure: string;
+  type: ScheduleType;
+  services: string[];
+  /** El origen: id interno de la sucursal de stock */
+  warehouses: string[];
+  /** El destino: id del clúster */
+  cluster: string;
+  capacities?: {
+    capacityId: string | { id?: string; _id?: string };
+    warehouseId?: string;
+    lastDayOccupied?: string;
+  }[];
+  weekBaseCapacity?: CapacidadSemanal;
+  weekCutTime?: CortesSemanales;
+  validityStart?: string;
+  validityEnd?: string;
+}

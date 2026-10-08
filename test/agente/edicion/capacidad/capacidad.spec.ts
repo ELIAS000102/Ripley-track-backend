@@ -141,6 +141,8 @@ function armar(
       recepcion,
       contexto,
       auditoria,
+      // Las agendas de transferencia tienen su propia batería
+      undefined as never,
     ),
     actualizarPicking,
     actualizarDespacho,

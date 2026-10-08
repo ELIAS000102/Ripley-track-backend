@@ -15,6 +15,7 @@ import { PermitidoAgente } from '../seguridad/permitido-agente.decorator.js';
 import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva/busqueda-masiva.service.js';
 import { CapacidadAgenteService } from './capacidad/capacidad.service.js';
+import { CapacidadTransferenciaAgenteService } from './capacidad-transferencia/capacidad-transferencia.service.js';
 import { ReporteAgenteService } from './reporte/reporte.service.js';
 import { SimulacionAgenteService } from './simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service.js';
@@ -24,6 +25,7 @@ import { InterrupcionAgenteService } from '../seguridad/interrupcion.service.js'
 import {
   BuscarMasivoDto,
   ConsultarCapacidadDto,
+  ConsultarCapacidadTransferenciaDto,
   ConsultarReporteDto,
   ConsultarTipoServicioDto,
   ConsultarTransferenciaDto,
@@ -65,6 +67,7 @@ export class ConsultasAgenteController {
     private readonly contexto: ContextoAgenteService,
     private readonly config: ConfigService,
     private readonly interrupcion: InterrupcionAgenteService,
+    private readonly capacidadTransferencia: CapacidadTransferenciaAgenteService,
   ) {}
 
   /**
@@ -108,6 +111,18 @@ export class ConsultasAgenteController {
   @Get('capacidad')
   async consultarCapacidad(@Query() query: ConsultarCapacidadDto) {
     return this.capacidad.consultar(query);
+  }
+
+  /**
+   * GET /agente/capacidad-transferencia?origen=20026&destino=20021&desde=2026-10-08&dias=7
+   *
+   * Cuánto puede transferir al día una sucursal de stock a un clúster de
+   * destino. No es la transferencia de /agente/transferencia, que da el desfase.
+   */
+  @PermitidoAgente()
+  @Get('capacidad-transferencia')
+  async consultarCapacidadTransferencia(@Query() query: ConsultarCapacidadTransferenciaDto) {
+    return this.capacidadTransferencia.consultar(query);
   }
 
   /**

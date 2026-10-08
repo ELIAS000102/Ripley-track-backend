@@ -186,6 +186,62 @@ export class EditarCapacidadDto extends PaisDto {
 }
 
 /**
+ * Cambiar uno o varios días de una agenda de TRANSFERENCIA: cuánto puede
+ * transferir al día un origen a un destino. **Solo en modo editor.**
+ *
+ * Mismas reglas que la capacidad de una agenda —lo no indicado no se toca, una
+ * agenda ambigua no se elige, nada en el pasado, nunca por debajo de lo
+ * ocupado—, con la agenda identificada por su origen y su destino.
+ */
+export class EditarCapacidadTransferenciaDto extends PaisDto {
+  /** Sucursal(es) de stock de donde SALE, por coma */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  origen?: string;
+
+  /** Clúster(es) de destino: código de su almacén o nombre, por coma */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  destino?: string;
+
+  /** Tipo de servicio de la agenda ("ST", "SG"), para desempatar */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  servicio?: string;
+
+  /** Nombre de la agenda, o "todas" para todas las que encajen */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  agenda?: string;
+
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'fecha debe tener el formato YYYY-MM-DD' })
+  fecha: string;
+
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'hasta debe tener el formato YYYY-MM-DD' })
+  hasta?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => aNumero(value))
+  @IsInt()
+  @Min(0)
+  @Max(ASIGNADO_MAXIMO, { message: `asignado no puede pasar de ${ASIGNADO_MAXIMO}: revisa el número` })
+  asignado?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => aBooleano(value))
+  @IsBoolean()
+  activa?: boolean;
+}
+
+/**
  * El interruptor del chat.
  *
  * Solo dos valores, y ninguno por defecto: cambiar de modo es una decisión

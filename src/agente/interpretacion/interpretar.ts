@@ -289,6 +289,10 @@ const TEMAS: Record<string, RegExp> = {
   capacidad: /capacidad|ocupaci|disponib|\bcupos?\b|asignad|\bagendas?\b|jornadas?|picking|despacho|recepci|recib|\bzonas?\b|\bfechas?\b/,
 };
 
+/** Unidades al día que un origen puede transferir: una agenda, no el desfase */
+const CAPACIDAD_DE_TRANSFERENCIA =
+  /capacidad (de|para) (la |las )?transferenc|agendas? de transferenc|cuant[oa]s?( unidades)? (puede|pueden|se puede|se pueden) transferir|capacidad de transferir/;
+
 // ───────────────────────── Preconfiguraciones ─────────────────────────
 
 const COMUNES = new Set((
@@ -414,7 +418,17 @@ export function interpretar(
     : operadores.length && fechas && cambio ? 'despacho'
     : null;
 
-  const temas = Object.keys(TEMAS).filter((t) => TEMAS[t].test(plano));
+  /*
+   * "La capacidad de transferencia del 20026 a la 20021" —cuántas unidades al
+   * día se pueden transferir— es una AGENDA, del tema de capacidad, y no la
+   * transferencia de siempre (el desfase). Sin esto se la llevaba la palabra
+   * "transferencia" con certeza, y con ella el agente equivocado.
+   */
+  const capacidadDeTransferencia = CAPACIDAD_DE_TRANSFERENCIA.test(plano);
+  const temas = Object.keys(TEMAS)
+    .filter((t) => TEMAS[t].test(plano))
+    .filter((t) => !(capacidadDeTransferencia && t === 'transferencia'));
+  if (capacidadDeTransferencia && !temas.includes('capacidad')) temas.push('capacidad');
   const hayCodigos = cds.length + operadores.length + almacenes.length > 0;
 
   // ── Preconfiguraciones ──
@@ -437,7 +451,7 @@ export function interpretar(
     // abrir o cerrar: "habilita la transferencia de la 20026 a la 20021"
     agregar('editar_transferencia', 'verbo de cambio y transferencia');
   } else if (cambio) {
-    if (cds.length || agenda || fechas || /asignad|capacidad|cupo/.test(plano)) {
+    if (cds.length || agenda || fechas || capacidadDeTransferencia || /asignad|capacidad|cupo/.test(plano)) {
       agregar('editar_capacidad', cds.length ? 'cambio sobre un CD' : fechas ? 'cambio sobre días' : 'cambio de capacidad');
     }
     if (/checkout|hora de corte|\bcortes? de\b|holgura|ocurrenc/.test(plano)
@@ -455,7 +469,7 @@ export function interpretar(
         && (temas.includes('masiva') || /\b(opls?|operadores|agendas)\b/.test(plano))) {
       agregar('busqueda_masiva', 'pregunta qué operadores tienen un servicio');
     }
-    if (temas.includes('capacidad') && (hayCodigos || agenda) && !temas.includes('transferencia')) {
+    if (temas.includes('capacidad') && (hayCodigos || agenda || capacidadDeTransferencia) && !temas.includes('transferencia')) {
       agregar('capacidad', 'pregunta por la capacidad de un código');
     }
   }

@@ -12,6 +12,7 @@ import { EditarTipoServicioAgenteService } from './tipo-servicio/tipo-servicio.s
 import { EditarTransferenciaAgenteService } from './transferencia/transferencia.service.js';
 import {
   EditarCapacidadDto,
+  EditarCapacidadTransferenciaDto,
   EditarCdDto,
   EditarMasivoDto,
   EditarTipoServicioDto,
@@ -66,6 +67,22 @@ export class EdicionAgenteController {
     @Body() body: EditarCapacidadDto,
   ) {
     return this.capacidad.editarCapacidad(usuario, body);
+  }
+
+  /**
+   * PUT /agente/capacidad-transferencia
+   *
+   * Cambia el asignado o el estado de uno o varios días de las agendas de
+   * transferencia de un origen hacia un destino.
+   */
+  @PermitidoAgenteEditor()
+  @Auditar('agente.editarCapacidadTransferencia')
+  @Put('capacidad-transferencia')
+  async editarCapacidadTransferencia(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: EditarCapacidadTransferenciaDto,
+  ) {
+    return this.capacidad.editarTransferencia(usuario, body);
   }
 
   /**

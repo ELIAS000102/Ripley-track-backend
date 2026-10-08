@@ -20,7 +20,9 @@ import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
-import { EditarCapacidadDto } from '../../dto/edicion.dto.js';
+import { EditarCapacidadDto, EditarCapacidadTransferenciaDto } from '../../dto/edicion.dto.js';
+import { TransferenciaAgendasService } from '../../../agendas/transferencia/transferencia-agendas.service.js';
+import { etiquetaDeLado, rutaDe } from '../../consultas/capacidad-transferencia/capacidad-transferencia.service.js';
 import type {
   AgendaEditada,
   OficinaEditada,
@@ -39,6 +41,10 @@ import { POR_VEZ } from '../../constantes/limites.constants.js';
  * corte la conexión y nadie sepa cuántos días llegaron a cambiarse.
  */
 const MAXIMO_DIAS = 31;
+
+/** Lo único que las reglas del rango y del cambio leen de una petición */
+type RangoPedido = Pick<EditarCapacidadDto, 'fecha' | 'hasta'>;
+type CambioPedido = Pick<EditarCapacidadDto, 'asignado' | 'activa'>;
 
 /** Se compara para decidir si un fallo total es un 404 o un 400 */
 const SIN_CONFIGURAR =
@@ -137,7 +143,126 @@ export class EditarCapacidadAgenteService {
     private readonly recepcion: RecepcionService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
+    private readonly transferencias: TransferenciaAgendasService,
   ) {}
+
+  /**
+   * Los días de una agenda de TRANSFERENCIA: cuánto puede transferir al día un
+   * origen a un clúster de destino.
+   *
+   * Las mismas reglas que el resto de este archivo —una agenda o "todas" a
+   * propósito, nada en el pasado, nunca por debajo de lo ocupado, el antes y el
+   * después releídos—, con la agenda identificada por su origen y su destino.
+   */
+  async editarTransferencia(
+    usuario: UsuarioAutenticado,
+    dto: EditarCapacidadTransferenciaDto,
+  ): Promise<EdicionRespuesta> {
+    const contexto = await this.contexto.armar(usuario, dto.pais);
+    const pais = contexto.pais;
+
+    if (dto.asignado === undefined && dto.activa === undefined) {
+      throw new BadRequestException('No hay nada que cambiar: indica "asignado", "activa" o las dos.');
+    }
+
+    const origenes = partirListaUnica(dto.origen);
+    const destinos = partirListaUnica(dto.destino);
+    if (!origenes.length && !destinos.length) {
+      throw new BadRequestException('Indica la sucursal de stock (origen), el clúster de destino o los dos.');
+    }
+
+    const fechas = this.diasDelRango(dto, pais);
+    const { agendas: todas } = await this.transferencias.agendasDeVarios(origenes, destinos, pais);
+
+    const utilizables = this.soloUtilizables(
+      todas.filter((a) => a.agenda.activa !== false),
+      comoFiltro(dto.agenda),
+      (a) => a.agenda.nombre,
+      hoyEnPais(pais),
+      (a) => a.agenda.vigenteHasta,
+    );
+
+    const candidatas = this.filtrar(utilizables, [
+      [comoFiltro(dto.servicio), (a) => a.agenda.typeOfService],
+      [comoFiltro(dto.agenda), (a) => a.agenda.nombre],
+    ]);
+
+    const donde = [
+      origenes.length && `el origen ${origenes.join(', ')}`,
+      destinos.length && `el destino ${destinos.join(', ')}`,
+    ].filter(Boolean).join(' hacia ');
+
+    const elegidas = this.seleccionar(
+      candidatas,
+      utilizables,
+      (a) => rutaDe(a.agenda),
+      `las agendas de transferencia de ${donde}`,
+      'la agenda de transferencia',
+      'agenda',
+      esTodas(dto.agenda),
+    );
+
+    const escrituras = elegidas.length * fechas.length;
+    if (escrituras > CAMBIOS_MAXIMOS) {
+      throw new BadRequestException(
+        `Eso son ${escrituras} días de agenda a la vez y el máximo es ${CAMBIOS_MAXIMOS}. Acota el rango o hazlo en tandas.`,
+      );
+    }
+
+    this.logger.warn(
+      `EDICIÓN del agente — ${usuario.email} cambia la capacidad de transferencia de ` +
+        `${elegidas.length} agenda(s) en ${fechas.length} día(s) desde ${fechas[0]} ` +
+        `(asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
+    );
+
+    const oficinas: OficinaEditada[] = [];
+    const fallos: unknown[] = [];
+
+    for (const { fila, agenda } of elegidas) {
+      const etiqueta = etiquetaDeLado(agenda.origen);
+      let grupo = oficinas.find((o) => o.oficina === etiqueta);
+      if (!grupo) {
+        grupo = { oficina: etiqueta, agendas: [] };
+        oficinas.push(grupo);
+      }
+
+      try {
+        // Una vez por agenda, no una por día
+        const preparada = this.transferencias.preparada(fila, agenda);
+        const detalle = await this.transferencias.diasDeLaAgenda(fila, isoToRipleyDate(fechas[0]), pais);
+        const porFecha = new Map(detalle.map((x) => [soloFecha(x.day), x]));
+
+        const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+          this.transferencias.guardarDia(
+            preparada,
+            { day: dia.day, assigned: cambio.asignado, active: cambio.activa },
+            pais,
+          ),
+        );
+
+        grupo.agendas.push({ agenda: rutaDe(agenda), dias });
+      } catch (e) {
+        fallos.push(e);
+        grupo.agendas.push({ agenda: rutaDe(agenda), dias: [], error: motivoDelFallo(e, 'No se pudo preparar esta agenda') });
+      }
+    }
+
+    const dias = oficinas.flatMap((o) => o.agendas.flatMap((a) => a.dias));
+    const agendas = oficinas.flatMap((o) => o.agendas);
+
+    this.exigirAlgunCambio(dias, agendas, fallos);
+    this.registrarEnAuditoria({ tipo: 'transferencia', oficinas });
+
+    const cambiados = dias.filter((d) => !d.error).length;
+    const fallidas = agendas.filter((a) => a.error).length;
+
+    return {
+      contexto,
+      tipo: 'transferencia',
+      oficinas,
+      resumen: { pedidos: dias.length + fallidas, cambiados, sinCambiar: dias.length - cambiados + fallidas },
+    };
+  }
 
   async editarCapacidad(
     usuario: UsuarioAutenticado,
@@ -561,7 +686,7 @@ export class EditarCapacidadAgenteService {
   >(
     fechas: string[],
     porFecha: Map<string, T>,
-    dto: EditarCapacidadDto,
+    dto: CambioPedido,
     escribir: (
       dia: T,
       cambio: { asignado: number; activa: boolean },
@@ -614,7 +739,7 @@ export class EditarCapacidadAgenteService {
   // ---------- Reglas ----------
 
   /** Los días del rango, ya validados. Sin `hasta`, uno solo. */
-  private diasDelRango(dto: EditarCapacidadDto, pais: string): string[] {
+  private diasDelRango(dto: RangoPedido, pais: string): string[] {
     const desde = dto.fecha;
     const hasta = dto.hasta?.trim() || desde;
 
@@ -749,7 +874,7 @@ export class EditarCapacidadAgenteService {
   }
 
   /** Lo que no se indica se deja como estaba, no se inventa */
-  private resolverCambio(dto: EditarCapacidadDto, antes: EstadoDia) {
+  private resolverCambio(dto: CambioPedido, antes: EstadoDia) {
     const asignado = dto.asignado ?? antes.asignado;
     const activa = dto.activa ?? antes.activo;
 

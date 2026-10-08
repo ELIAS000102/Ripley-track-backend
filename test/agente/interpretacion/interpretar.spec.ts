@@ -222,6 +222,25 @@ describe('Un CD por su nombre, solo si se habla de un CD', () => {
   });
 });
 
+describe('Capacidad de transferencia no es la transferencia de siempre', () => {
+  it.each([
+    ['dame la capacidad de transferencia del 20026 a la 20021', 'capacidad'],
+    ['cuántas unidades puede transferir el 20026 a la 20021', 'capacidad'],
+    ['las agendas de transferencia del 20026', 'capacidad'],
+    ['desactiva la capacidad de transferencia del 12-10 del 20026 a la 20021', 'editar_capacidad'],
+  ])('"%s" → %s', (texto, caso) => {
+    const r = leer(texto);
+
+    expect(r.candidatos).toContain(caso);
+    expect(r.candidatos).not.toContain('transferencia');
+    expect(r.candidatos).not.toContain('editar_transferencia');
+  });
+
+  it('el desfase sigue siendo transferencia', () => {
+    expect(leer('dame el desfase de la 20021 con origen 20026')).toMatchObject({ caso: 'transferencia', certeza: 'alta' });
+  });
+});
+
 describe('Fechas', () => {
   it.each([
     ['hoy', '2026-10-05', '2026-10-05', 1],

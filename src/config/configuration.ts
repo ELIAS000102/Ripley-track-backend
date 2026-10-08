@@ -40,6 +40,17 @@ export default () => {
         saveOplService: `${prefijo}${process.env.RIPLEY_EP_SAVE_OPL_SERVICE}`,
         // Transferencia entre sucursales
         officeRelationship: `${prefijo}${process.env.RIPLEY_EP_OFFICE_RELATIONSHIP}`,
+        // Agendas de transferencia: cuánto puede transferir al día un origen a
+        // un clúster de destino. Sus días se leen y se escriben en el mismo
+        // /capacities que recepción, así que sin variable propia usan ese
+        clusters: `${prefijo}${process.env.RIPLEY_EP_CLUSTERS}`,
+        schedulesTransfer: `${prefijo}${process.env.RIPLEY_EP_SCHEDULES_TRANSFER}`,
+        capacitiesTransfer: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_TRANSFER ?? process.env.RIPLEY_EP_CAPACITIES_RECEPTION}`,
+        // Catálogo de servicios de las agendas de transferencia, si /services
+        // no tiene alguno (opcional)
+        servicesDispatchDate: process.env.RIPLEY_EP_SERVICES_DISPATCH_DATE
+          ? `${prefijo}${process.env.RIPLEY_EP_SERVICES_DISPATCH_DATE}`
+          : '',
         // Simulación
         regions: `${prefijo}${process.env.RIPLEY_EP_REGIONS}`,
         sku: `${prefijo}${process.env.RIPLEY_EP_SKU}`,
