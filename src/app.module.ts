@@ -18,6 +18,7 @@ import { DespachoModule } from './agendas/despacho/despacho.module.js';
 import { RecepcionModule } from './agendas/recepcion/recepcion.module.js';
 import { TransferenciaAgendasModule } from './agendas/transferencia/transferencia-agendas.module.js';
 import { CdsModule } from './reportes/cds/cds.module.js';
+import { ReporteStModule } from './reportes/st/reporte-st.module.js';
 import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from './configuracion/transf-suc/transf.module.js';
@@ -47,6 +48,7 @@ import { MallasLeadtimeModule } from './mallas_leadtime/mallas-leadtime.module.j
     RecepcionModule,
     TransferenciaAgendasModule,
     CdsModule,
+    ReporteStModule,
     OplMasivoModule,
     OplModule,
     TransfModule,

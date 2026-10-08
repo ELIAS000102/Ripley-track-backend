@@ -169,6 +169,19 @@ export class MallasLeadtimeService {
     return (data as FilaMalla[]).map((f) => this.datosDeCabecera(f));
   }
 
+  /**
+   * Las tiendas de la matriz vigente, ya interpretadas y por código, para
+   * quien la cruza con las agendas de Ripley (el reporte ST). Sin matriz, `null`.
+   */
+  async tiendasVigentes(pais: string) {
+    const vigente = await this.vigente(pais);
+    if (!vigente) return null;
+    return {
+      cabecera: this.datosDeCabecera(vigente.cabecera),
+      porCodigo: new Map(vigente.tiendas.map((t) => [t.codigo, interpretarTienda(t)])),
+    };
+  }
+
   // ---------- Lectura ----------
 
   private async cabecera(pais: string): Promise<FilaMalla | null> {

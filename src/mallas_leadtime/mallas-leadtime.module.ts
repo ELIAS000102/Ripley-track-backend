@@ -9,5 +9,7 @@ import { MallasLeadtimeService } from './mallas-leadtime.service.js';
 @Module({
   controllers: [MallasLeadtimeController],
   providers: [MallasLeadtimeService],
+  // El reporte ST cruza la matriz con las agendas de recepción y transferencia
+  exports: [MallasLeadtimeService],
 })
 export class MallasLeadtimeModule {}

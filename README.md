@@ -11,6 +11,8 @@ Cubre cinco áreas de la operación logística:
   que una sucursal de stock puede transferir a un clúster de destino.
 - **Reporte de centros de distribución** — el uso de capacidad de todos los CDs, por jornada
   y por día.
+- **Reporte ST** — las tiendas abastecidas desde un CD, por grupos: la capacidad de su
+  recepción y de la transferencia que llega a ellas, día por día, unidas por la malla valle.
 - **Configuración de tipos de servicio** — qué servicios tiene cada operador logístico, con
   sus horas de corte, y la activación o desactivación en bloque.
 - **Transferencias entre sucursales** — qué días se puede mover stock entre dos almacenes y
@@ -22,8 +24,9 @@ Cubre cinco áreas de la operación logística:
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
-cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado, y
-las matrices de valle, que no vienen de Ripley sino de un Excel.
+cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado,
+las matrices de valle, que no vienen de Ripley sino de un Excel, y los grupos de tiendas del
+reporte ST.
 
 ## Quién lo usa
 

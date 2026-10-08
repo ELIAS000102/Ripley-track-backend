@@ -158,7 +158,7 @@ describe('Guardar y leer la matriz', () => {
     const consulta = (tabla: string) => {
       const resultado = () => (tabla === 'mallas_leadtime' ? { data: cabecera, error: null } : { data: tiendasGuardadas, error: null });
       // Una promesa con los métodos del constructor de consultas: se puede encadenar y esperar
-      const q: Record<string, unknown> = Object.assign(Promise.resolve(resultado()), {});
+      const q = Promise.resolve(resultado()) as unknown as Record<string, unknown>;
       for (const m of ['select', 'eq', 'order', 'limit']) q[m] = () => q;
       q.maybeSingle = async () => resultado();
       q.single = async () => ({ data: { id: 'm-2', cargado_en: '2026-10-08T11:00:00Z' }, error: null });
