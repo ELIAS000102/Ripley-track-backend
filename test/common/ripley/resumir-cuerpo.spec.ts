@@ -12,6 +12,11 @@ describe('El cuerpo de un error, para el log', () => {
     expect(resumirCuerpo('<!DOCTYPE html>\n<html lang="en"><head><style>@font-face{…}</style>')).toMatch(/^\(página HTML de error, \d+ car\.\)$/);
   });
 
+  it('con su título, que dice qué es, y sin direcciones dentro', () => {
+    expect(resumirCuerpo('<!DOCTYPE html><html><head><title>Access Denied | api.ripley.com</title></head><body>…</body></html>'))
+      .toMatch(/^\(página HTML de error: "Access Denied \| \(dirección\)", \d+ car\.\)$/);
+  });
+
   it('un texto lleva el mensaje, sin direcciones', () => {
     expect(resumirCuerpo('upstream connect error at https://servidor.interno/ruta: 111'))
       .toBe('upstream connect error at (dirección) 111');

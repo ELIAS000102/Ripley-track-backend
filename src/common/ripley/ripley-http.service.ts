@@ -22,7 +22,17 @@ import { RipleyApiError } from './ripley.errors.js';
  */
 export function resumirCuerpo(data: unknown): string {
   if (typeof data === 'string' && /^\s*<(!doctype|html)/i.test(data)) {
-    return `(página HTML de error, ${data.length} car.)`;
+    // El título dice qué es —un "Bad Gateway", un "Access Denied" de un
+    // cortafuegos—, que es justo lo que hace falta para saber si el servicio
+    // está caído o si es a este servidor al que no se le deja pasar
+    const titulo = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(data)?.[1]
+      ?.replace(/<[^>]*>/g, ' ')
+      .replace(/https?:\/\/\S+/g, '(dirección)')
+      .replace(/\b[\w.-]+\.(?:com|net|io|app|cloud|cl|pe)\b/gi, '(dirección)')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+    return `(página HTML de error${titulo ? `: "${titulo}"` : ''}, ${data.length} car.)`;
   }
   const texto = typeof data === 'string' ? data : JSON.stringify(data ?? {});
   return texto.replace(/https?:\/\/\S+/g, '(dirección)').slice(0, 500);
