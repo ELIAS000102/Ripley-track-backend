@@ -140,6 +140,24 @@ describe('Primera forma: por sucursal de stock', () => {
   });
 });
 
+describe('Sin catálogo de clústeres', () => {
+  it('por origen se sigue: la agenda llega, con su destino sin nombre', async () => {
+    const { servicio, catalogos } = armar([agendaST]);
+    vi.mocked(catalogos.clusters).mockRejectedValue(new Error('Falta configurar el endpoint "clusters"'));
+
+    const [st] = await servicio.listarAgendas({ origen: '20026' });
+
+    expect(st).toMatchObject({ scheduleId: agendaST._id, origen: { code: '20026' }, destino: { code: null, nombre: '' } });
+  });
+
+  it('por destino no: sin el catálogo no se sabe qué clúster es, y se dice', async () => {
+    const { servicio, catalogos } = armar([agendaST]);
+    vi.mocked(catalogos.clusters).mockRejectedValue(new Error('Falta configurar el endpoint "clusters"'));
+
+    await expect(servicio.listarAgendas({ destinos: ['20021'] })).rejects.toThrow(/Falta configurar el endpoint "clusters"/);
+  });
+});
+
 describe('Segunda forma: por clúster de destino', () => {
   it('"20021" es el clúster que tiene ese almacén: se busca por su id', async () => {
     const { servicio, catalogos } = armar([agendaSG, agendaST]);

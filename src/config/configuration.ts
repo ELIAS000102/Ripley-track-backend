@@ -6,6 +6,15 @@
 export default () => {
   const prefijo = process.env.RIPLEY_PATH_PREFIX ?? '';
 
+  /*
+   * La ruta de un endpoint, o vacía si su variable no está puesta. Antes se
+   * armaba con la variable tal cual, y una que faltaba acababa en la URL como
+   * "…/v1undefined": Ripley respondía 404 y el panel decía "No hay datos para
+   * ese recurso", que no se parece en nada a lo que pasaba. Vacía, la lee
+   * RipleyHttpService.endpoint() y responde "Falta configurar el endpoint".
+   */
+  const ruta = (variable: string | undefined) => (variable?.trim() ? `${prefijo}${variable.trim()}` : '');
+
   return {
     port: parseInt(process.env.PORT ?? '', 10) || 3000,
     ripley: {
@@ -17,44 +26,43 @@ export default () => {
       // (ver src/configuracion/token-ripley).
       endpoints: {
         // Compartidos
-        offices: `${prefijo}${process.env.RIPLEY_EP_OFFICES}`,
-        services: `${prefijo}${process.env.RIPLEY_EP_SERVICES}`,
+        offices: ruta(process.env.RIPLEY_EP_OFFICES),
+        services: ruta(process.env.RIPLEY_EP_SERVICES),
         // Picking
-        capacitiesPicking: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_PICKING}`,
-        schedulesPicking: `${prefijo}${process.env.RIPLEY_EP_SCHEDULES_PICKING}`,
+        capacitiesPicking: ruta(process.env.RIPLEY_EP_CAPACITIES_PICKING),
+        schedulesPicking: ruta(process.env.RIPLEY_EP_SCHEDULES_PICKING),
         // Recepción
-        schedulesReception: `${prefijo}${process.env.RIPLEY_EP_SCHEDULES_RECEPTION}`,
-        capacitiesReception: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_RECEPTION}`,
+        schedulesReception: ruta(process.env.RIPLEY_EP_SCHEDULES_RECEPTION),
+        capacitiesReception: ruta(process.env.RIPLEY_EP_CAPACITIES_RECEPTION),
         // Despacho
-        mainzones: `${prefijo}${process.env.RIPLEY_EP_MAINZONES}`,
-        mainschedules: `${prefijo}${process.env.RIPLEY_EP_MAINSCHEDULES}`,
-        capacitiesBase: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_BASE}`,
-        capacitiesSchedule: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_SCHEDULE}`,
+        mainzones: ruta(process.env.RIPLEY_EP_MAINZONES),
+        mainschedules: ruta(process.env.RIPLEY_EP_MAINSCHEDULES),
+        capacitiesBase: ruta(process.env.RIPLEY_EP_CAPACITIES_BASE),
+        capacitiesSchedule: ruta(process.env.RIPLEY_EP_CAPACITIES_SCHEDULE),
         // Configuración masiva de tipos de servicio
-        delivery: `${prefijo}${process.env.RIPLEY_EP_DELIVERY}`,
-        catalogs: `${prefijo}${process.env.RIPLEY_EP_CATALOGS}`,
-        routesState: `${prefijo}${process.env.RIPLEY_EP_ROUTES_STATE}`,
-        routesUpdate: `${prefijo}${process.env.RIPLEY_EP_ROUTES_UPDATE}`,
+        delivery: ruta(process.env.RIPLEY_EP_DELIVERY),
+        catalogs: ruta(process.env.RIPLEY_EP_CATALOGS),
+        routesState: ruta(process.env.RIPLEY_EP_ROUTES_STATE),
+        routesUpdate: ruta(process.env.RIPLEY_EP_ROUTES_UPDATE),
         // Tipos de servicio por OPL
-        listTypeServices: `${prefijo}${process.env.RIPLEY_EP_LIST_TYPE_SERVICES}`,
-        saveOplService: `${prefijo}${process.env.RIPLEY_EP_SAVE_OPL_SERVICE}`,
+        listTypeServices: ruta(process.env.RIPLEY_EP_LIST_TYPE_SERVICES),
+        saveOplService: ruta(process.env.RIPLEY_EP_SAVE_OPL_SERVICE),
         // Transferencia entre sucursales
-        officeRelationship: `${prefijo}${process.env.RIPLEY_EP_OFFICE_RELATIONSHIP}`,
+        officeRelationship: ruta(process.env.RIPLEY_EP_OFFICE_RELATIONSHIP),
         // Agendas de transferencia: cuánto puede transferir al día un origen a
         // un clúster de destino. Sus días se leen y se escriben en el mismo
         // /capacities que recepción, así que sin variable propia usan ese
-        clusters: `${prefijo}${process.env.RIPLEY_EP_CLUSTERS}`,
-        schedulesTransfer: `${prefijo}${process.env.RIPLEY_EP_SCHEDULES_TRANSFER}`,
-        capacitiesTransfer: `${prefijo}${process.env.RIPLEY_EP_CAPACITIES_TRANSFER ?? process.env.RIPLEY_EP_CAPACITIES_RECEPTION}`,
+        clusters: ruta(process.env.RIPLEY_EP_CLUSTERS),
+        schedulesTransfer: ruta(process.env.RIPLEY_EP_SCHEDULES_TRANSFER),
+        // `||` y no `??`: una variable puesta pero vacía también cae en la de recepción
+        capacitiesTransfer: ruta(process.env.RIPLEY_EP_CAPACITIES_TRANSFER || process.env.RIPLEY_EP_CAPACITIES_RECEPTION),
         // Catálogo de servicios de las agendas de transferencia, si /services
         // no tiene alguno (opcional)
-        servicesDispatchDate: process.env.RIPLEY_EP_SERVICES_DISPATCH_DATE
-          ? `${prefijo}${process.env.RIPLEY_EP_SERVICES_DISPATCH_DATE}`
-          : '',
+        servicesDispatchDate: ruta(process.env.RIPLEY_EP_SERVICES_DISPATCH_DATE),
         // Simulación
-        regions: `${prefijo}${process.env.RIPLEY_EP_REGIONS}`,
-        sku: `${prefijo}${process.env.RIPLEY_EP_SKU}`,
-        simulator: `${prefijo}${process.env.RIPLEY_EP_SIMULATOR}`,
+        regions: ruta(process.env.RIPLEY_EP_REGIONS),
+        sku: ruta(process.env.RIPLEY_EP_SKU),
+        simulator: ruta(process.env.RIPLEY_EP_SIMULATOR),
       },
     },
     cifrado: {

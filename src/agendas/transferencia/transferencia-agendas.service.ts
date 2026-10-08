@@ -212,8 +212,18 @@ export class TransferenciaAgendasService {
       );
     }
 
+    /*
+     * El catálogo de clústeres solo es imprescindible buscando por destino. Por
+     * origen sirve para nombrar el destino de cada agenda, y si falla se sigue
+     * sin él: la agenda llega igual, con su destino sin nombre.
+     */
     const [clusters, origen] = await Promise.all([
-      this.catalogos.clusters(pais),
+      destinosPedidos.length
+        ? this.catalogos.clusters(pais)
+        : this.catalogos.clusters(pais).catch((e: unknown) => {
+            this.logger.warn(`Sin catálogo de clústeres: ${(e as Error).message}`);
+            return [] as ClusterRow[];
+          }),
       origenPedido
         ? this.catalogos.oficinaPorCodigo(origenPedido, pais, 'almacen', 'la sucursal de stock')
         : Promise.resolve(undefined),
