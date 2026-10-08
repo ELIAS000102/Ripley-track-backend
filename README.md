@@ -16,10 +16,14 @@ Cubre cinco áreas de la operación logística:
 - **Transferencias entre sucursales** — qué días se puede mover stock entre dos almacenes y
   cuántos días tarda.
 - **Simulación de entregas** — cuándo llegaría un pedido, antes de venderlo.
+- **Mallas lead time** — la matriz de valle que pasa la operación en Excel: se carga con una
+  plantilla, se guarda por versiones y da, por tienda, qué día se transfiere, recepciona y
+  despacha lo vendido cada día de la semana.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
-cambios, las conversaciones con la agente y el token corporativo de cada usuario, cifrado.
+cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado, y
+las matrices de valle, que no vienen de Ripley sino de un Excel.
 
 ## Quién lo usa
 
