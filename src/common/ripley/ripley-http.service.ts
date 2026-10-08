@@ -170,6 +170,7 @@ export class RipleyHttpService {
     accion: string,
     params?: Record<string, any>,
     largoRuta = 0,
+    pais?: string,
   ): never {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
@@ -195,10 +196,19 @@ export class RipleyHttpService {
       );
     }
 
+    // 502, 503 y 504 son la pasarela de Ripley sin poder llegar a su servicio:
+    // no es un dato mal pedido ni un token, es que ahora mismo no responde. Así
+    // se dijo de la caída de la API de Chile, que el panel contaba como un
+    // error cualquiera
+    const caida = status === 502 || status === 503 || status === 504;
+    const donde = pais ? ` de ${this.normalizarPais(pais)}` : '';
+
     throw new BadGatewayException(
-      status
-        ? `La API corporativa respondió ${status} al ${accion}`
-        : `No se pudo contactar con la API corporativa al ${accion}`,
+      !status
+        ? `No se pudo contactar con la API corporativa${donde} al ${accion}`
+        : caida
+          ? `La API corporativa respondió ${status} al ${accion}: la de ${this.normalizarPais(pais ?? 'PE')} no está respondiendo ahora mismo. Vuelve a intentarlo en unos minutos.`
+          : `La API corporativa respondió ${status} al ${accion}`,
     );
   }
 
@@ -285,7 +295,7 @@ export class RipleyHttpService {
 
       return data;
     } catch (error) {
-      this.manejarError(error, accion, params, path.length);
+      this.manejarError(error, accion, params, path.length, pais);
     }
   }
 }

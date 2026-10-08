@@ -138,6 +138,21 @@ describe('Cuando la API corporativa falla de verdad', () => {
     expect(error.message).toMatch(/respondió 500/);
   });
 
+  it.each([502, 503, 504])('un %i es la pasarela de Ripley caída: lo dice, con el país, y que se reintente', async (codigo) => {
+    const { servicio } = armar(falloAxios(codigo));
+
+    const error = await capturar(servicio);
+
+    expect(error.message).toMatch(new RegExp(`respondió ${codigo} al consultar: la de PE no está respondiendo ahora mismo`));
+    expect(error.message).toMatch(/Vuelve a intentarlo en unos minutos/);
+  });
+
+  it('un 500 sigue siendo un error a secas', async () => {
+    const { servicio } = armar(falloAxios(500));
+
+    expect((await capturar(servicio)).message).toBe('La API corporativa respondió 500 al consultar');
+  });
+
   it('eso sí se registra, pero sin la dirección', async () => {
     const { servicio, escrito } = armar(falloAxios(500));
 
