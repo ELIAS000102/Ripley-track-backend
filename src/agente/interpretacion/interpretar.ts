@@ -68,6 +68,13 @@ export interface Interpretacion {
   /** Códigos de servicio o de jornada: ST, SD, RE… */
   servicios: string[];
   fechas: RangoFechas | null;
+  /**
+   * Todas las fechas que se dijeron, en el orden del mensaje. El rango de
+   * `fechas` no basta: en "activa el 11-10 de las que consumieron el 10-10" el
+   * rango es solo el 11-10, porque el 10-10 va antes, y el flujo perdía el día
+   * de la condición (ejecución 1466).
+   */
+  fechasDichas: string[];
   /** Cifras sueltas que no son códigos ni fechas: 2000, 1500… */
   numeros: number[];
   /** "todas", "todos": aplica a todo lo que haya */
@@ -202,6 +209,13 @@ export function rangoDeFechas(original: string, hoy: string): RangoFechas | null
   const desde = fechas[0];
   const hasta = fechas.length > 1 && fechas[fechas.length - 1] > desde ? fechas[fechas.length - 1] : desde;
   return { desde, hasta, dias: diferencia(desde, hasta) + 1 };
+}
+
+/** Todas las fechas del mensaje, sin repetir: las sueltas en su orden y los extremos del rango */
+export function fechasDichas(original: string, hoy: string): string[] {
+  const sueltas = fechasDelTexto(original, normalizar(original), hoy);
+  const rango = rangoDeFechas(original, hoy);
+  return [...new Set([...sueltas, ...(rango ? [rango.desde, rango.hasta] : [])])];
 }
 
 // ───────────────────────── Códigos ─────────────────────────
@@ -537,6 +551,7 @@ export function interpretar(
     almacenes,
     servicios,
     fechas,
+    fechasDichas: fechasDichas(original, hoy),
     numeros,
     todas,
     preconfiguraciones,

@@ -241,6 +241,22 @@ describe('Fechas', () => {
     expect(rangoDeFechas(texto, HOY)).toEqual({ desde, hasta, dias });
   });
 
+  it('dos fechas sueltas con papeles distintos: el rango pierde una, fechasDichas las lleva las dos (1466)', () => {
+    const r = leer('de todas las tiendas RT de chile solo activa la fecha 11-10 de las tiendas que hallan consumido al 100% la fecha 10-10');
+
+    expect(r.fechas).toEqual({ desde: '2026-10-11', hasta: '2026-10-11', dias: 1 });
+    expect(r.fechasDichas).toEqual(['2026-10-11', '2026-10-10']);
+  });
+
+  it.each([
+    ['del 17 al 21', ['2026-10-17', '2026-10-21']],
+    ['la que pasó del 90 % el 09-10, activa el 10-10', ['2026-10-09', '2026-10-10']],
+    ['hoy', ['2026-10-05']],
+    ['dame la capacidad del 1130', []],
+  ])('fechasDichas de "%s" → %j', (texto, esperado) => {
+    expect(leer(texto).fechasDichas).toEqual(esperado);
+  });
+
   it('una fecha imposible no se inventa', () => {
     expect(rangoDeFechas('el 31-02', HOY)).toBeNull();
   });
