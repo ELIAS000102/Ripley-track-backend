@@ -140,6 +140,39 @@ describe('Primera forma: por sucursal de stock', () => {
   });
 });
 
+describe('Poner nombre a los orígenes sin bombardear la API', () => {
+  /** Veinticinco agendas hacia un destino, cada una de un origen distinto */
+  const deVariosOrigenes = Array.from({ length: 25 }, (_, i) => ({
+    ...agendaSG, _id: `a${i}`, warehouses: [`w${i}`], capacities: [{ capacityId: `c${i}`, warehouseId: `w${i}` }],
+  }));
+
+  it('primero el catálogo de sucursales, de una vez: si están ahí, ni una consulta más', async () => {
+    const { servicio, catalogos } = armar(deVariosOrigenes);
+    const todas = deVariosOrigenes.map((_, i) => ({ id: `w${i}`, code: String(10000 + i), name: `Tienda ${i}` }));
+    vi.mocked(catalogos.oficinas).mockImplementation(async (_p, f) => (f?.tipo === 'almacen' ? todas : []));
+
+    const agendas = await servicio.listarAgendas({ destinos: ['20021'] });
+
+    expect(agendas[24].origen).toEqual({ code: '10024', nombre: 'Tienda 24' });
+    expect(catalogos.oficinas).toHaveBeenCalledTimes(1);
+  });
+
+  it('con la API caída, al primer fallo deja de preguntar y las agendas llegan igual', async () => {
+    const { servicio, catalogos } = armar(deVariosOrigenes);
+    vi.mocked(catalogos.oficinas).mockImplementation(async (_p, f) => {
+      if (f?.tipo === 'almacen') return [];
+      throw new Error('La API corporativa respondió 503 al consultar');
+    });
+
+    const agendas = await servicio.listarAgendas({ destinos: ['20021'] });
+
+    expect(agendas).toHaveLength(25);
+    expect(agendas[0].origen).toBeNull();
+    // El catálogo, y como mucho una tanda de cuatro: no veinticinco
+    expect(vi.mocked(catalogos.oficinas).mock.calls.length).toBeLessThanOrEqual(5);
+  });
+});
+
 describe('Sin catálogo de clústeres', () => {
   it('por origen se sigue: la agenda llega, con su destino sin nombre', async () => {
     const { servicio, catalogos } = armar([agendaST]);

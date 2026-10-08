@@ -10,6 +10,7 @@ import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { resolverTipoDeAgenda } from '../../common/ripley/utils/agenda.util.js';
+import { enLotes } from '../../common/utils/lotes.util.js';
 import {
   hoyEnPais,
   isoToRipleyDate,
@@ -296,21 +297,41 @@ export class TransferenciaAgendasService {
   ): Promise<Map<string, Lado>> {
     const ids = [...new Set(filas.map((f) => f.warehouses?.[0]).filter(Boolean))] as string[];
     const mapa = new Map<string, Lado>();
+    const anotar = (o: OfficeRow) => mapa.set(o.id, { code: o.code, nombre: o.name ?? '' });
 
-    await Promise.all(
-      ids.map(async (id) => {
-        if (conocido?.id === id) {
-          mapa.set(id, { code: conocido.code, nombre: conocido.name ?? '' });
-          return;
-        }
-        try {
-          const oficina = (await this.catalogos.oficinas(pais, { id })).find((o) => o.id === id);
-          if (oficina) mapa.set(id, { code: oficina.code, nombre: oficina.name ?? '' });
-        } catch (e) {
-          this.logger.warn(`No se pudo resolver el origen ${id}: ${(e as Error).message}`);
-        }
-      }),
-    );
+    if (conocido) anotar(conocido);
+    let faltan = ids.filter((id) => !mapa.has(id));
+    if (!faltan.length) return mapa;
+
+    /*
+     * Primero, el catálogo de sucursales de stock de una vez (va con caché):
+     * hacia un destino de Chile llegan agendas de veinticinco orígenes, y una
+     * consulta por cada uno, todas a la vez, era lo que se veía en el log
+     * cuando la API corporativa estaba caída.
+     */
+    try {
+      for (const o of await this.catalogos.oficinas(pais, { tipo: 'almacen' })) {
+        if (faltan.includes(o.id)) anotar(o);
+      }
+    } catch (e) {
+      this.logger.warn(`Sin catálogo de sucursales para nombrar los orígenes: ${(e as Error).message}`);
+      return mapa;
+    }
+
+    // Los que no estaban, uno a uno y de cuatro en cuatro. Al primer fallo del
+    // servidor se deja de preguntar: si está caído, insistir solo llena el log
+    faltan = faltan.filter((id) => !mapa.has(id));
+    let caida = false;
+    await enLotes(faltan, 4, async (id) => {
+      if (caida) return;
+      try {
+        const oficina = (await this.catalogos.oficinas(pais, { id })).find((o) => o.id === id);
+        if (oficina) anotar(oficina);
+      } catch (e) {
+        caida = true;
+        this.logger.warn(`No se pudieron resolver más orígenes: ${(e as Error).message}`);
+      }
+    });
 
     return mapa;
   }

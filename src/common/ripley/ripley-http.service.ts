@@ -14,6 +14,21 @@ import { TokenRipleyService } from '../../configuracion/token-ripley/token-riple
 import { RipleyApiError } from './ripley.errors.js';
 
 /**
+ * El cuerpo de una respuesta fallida, para el log.
+ *
+ * Una pasarela caída responde a veces con su página de error en HTML —con sus
+ * fuentes en base64 y, a veces, direcciones dentro—: al log va solo su tamaño.
+ * Lo demás se recorta y se le quitan las URLs, que tampoco se enseñan.
+ */
+export function resumirCuerpo(data: unknown): string {
+  if (typeof data === 'string' && /^\s*<(!doctype|html)/i.test(data)) {
+    return `(página HTML de error, ${data.length} car.)`;
+  }
+  const texto = typeof data === 'string' ? data : JSON.stringify(data ?? {});
+  return texto.replace(/https?:\/\/\S+/g, '(dirección)').slice(0, 500);
+}
+
+/**
  * Cliente HTTP compartido para todas las APIs corporativas de Ripley.
  *
  * Resuelve la base URL por país y, sobre todo, el token: ya no sale del
@@ -170,7 +185,7 @@ export class RipleyHttpService {
     this.logger.error(
       `Error al ${accion} [${status ?? 'sin respuesta'}] ` +
         `— ruta de ${largoRuta} car., ${this.describirParams(params)}`,
-      JSON.stringify(axiosError.response?.data ?? {}).slice(0, 500),
+      resumirCuerpo(axiosError.response?.data),
     );
 
     if (status === 414) {
@@ -218,6 +233,17 @@ export class RipleyHttpService {
   }
 
   /**
+   * Un POST que **solo lee**, como la búsqueda de agendas de transferencia.
+   *
+   * Tras cualquier otro POST se olvida la caché de catálogos, porque suele
+   * escribir. Uno que solo lee no tiene por qué hacerlo: borrarla en cada
+   * búsqueda obligaba a repedir clústeres, oficinas y servicios cada vez.
+   */
+  async postDeLectura<T>(path: string, pais: string, body: any): Promise<T> {
+    return this.peticion<T>('post', 'consultar', path, pais, undefined, body, true);
+  }
+
+  /**
    * El cuerpo común de los tres verbos.
    *
    * Eran tres copias del mismo bloque —resolver URL, pedir cabeceras fuera del
@@ -233,6 +259,7 @@ export class RipleyHttpService {
     pais: string,
     params?: Record<string, any>,
     body?: any,
+    soloLee = false,
   ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
@@ -254,7 +281,7 @@ export class RipleyHttpService {
       // Después de escribir, la siguiente lectura tiene que ir a Ripley:
       // enseñar el catálogo de antes del cambio es lo que hace dudar de si
       // el cambio se aplicó
-      if (metodo !== 'get') this.cache.olvidar(pais);
+      if (metodo !== 'get' && !soloLee) this.cache.olvidar(pais);
 
       return data;
     } catch (error) {

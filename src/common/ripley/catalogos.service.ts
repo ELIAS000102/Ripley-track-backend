@@ -234,7 +234,7 @@ export class CatalogosRipleyService {
     filtro: { warehouseId: string } | { clusters: string[] },
     pais: string,
   ): Promise<TransferScheduleRow[]> {
-    const data = await this.ripley.post<
+    const data = await this.ripley.postDeLectura<
       TransferScheduleRow[] | RipleyListResponse<TransferScheduleRow>
     >(this.ripley.endpoint('schedulesTransfer'), pais, {
       ...filtro,
