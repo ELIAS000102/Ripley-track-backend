@@ -12,6 +12,7 @@ import {
 import {
   cdsDelPais,
   esTodoElPais,
+  paisDelCd,
   resolverCd,
 } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
@@ -55,7 +56,8 @@ export class EditarCdAgenteService {
     usuario: UsuarioAutenticado,
     dto: EditarCdDto,
   ): Promise<CdEditado> {
-    const contexto = await this.contexto.armar(usuario, dto.pais);
+    // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
+    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais));
     const pais = contexto.pais;
 
     const cds = this.cdsPedidos(dto.cd, pais);

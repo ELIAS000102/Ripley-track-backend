@@ -4,6 +4,7 @@ import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface
 import {
   cdsDelPais,
   esTodoElPais,
+  paisDelCd,
   resolverCd,
 } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
@@ -40,7 +41,8 @@ export class ReporteAgenteService {
     usuario: UsuarioAutenticado,
     dto: ConsultarReporteDto,
   ): Promise<ReporteRespuesta> {
-    const contexto = await this.contexto.armar(usuario, dto.pais);
+    // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
+    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais));
     const dias = dto.dias ?? 7;
 
     this.logger.log(

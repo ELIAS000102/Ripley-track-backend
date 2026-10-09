@@ -600,7 +600,22 @@ export class ReasignarCapacidadDto extends PaisDto {
   })
   unidades: number;
 
-  /** La fecha de la reasignación. Por defecto, hoy. */
+  /**
+   * El día de la jornada de ORIGEN, la que cede. Por defecto, hoy.
+   *
+   * Se llamaba solo `fecha`, y con "pasa 30 del DX de mañana al ND de hoy" el
+   * agente la leyó como "la fecha de la reasignación" —hoy— y puso mañana en
+   * `fechaDestino`: justo al revés. Con el nombre dice de qué jornada es.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fechaOrigen debe tener el formato YYYY-MM-DD',
+  })
+  fechaOrigen?: string;
+
+  /** Lo mismo que `fechaOrigen`, con su nombre de antes: si vienen los dos, manda `fechaOrigen` */
   @IsOptional()
   @Transform(({ value }) => aTexto(value))
   @IsString()

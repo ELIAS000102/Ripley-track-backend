@@ -24,6 +24,24 @@ const ALIAS: Record<string, RegExp> = {
 const ORDEN = ['20026', '20096', '10082', '10095'];
 
 /**
+ * El país de la petición, corregido por el código del CD.
+ *
+ * El código de un CD no se repite entre países: el 10095 solo puede ser de
+ * Chile. Si llega con el país equivocado —el agente se olvidó de mandar
+ * pais="CL" y valió el PE por defecto—, contestar "no encontré el 10095 en
+ * Perú" no ayuda a nadie: se usa el país del CD. Solo con el código exacto; un
+ * nombre o un alias no corrige nada.
+ */
+export function paisDelCd(termino: string | undefined, pais: string | undefined): string | undefined {
+  const codigo = termino?.trim();
+  if (!codigo || !/^\d+$/.test(codigo)) return pais;
+  const actual = (pais ?? 'PE').toUpperCase().trim();
+  if (CDS[actual]?.some((c) => c.code === codigo)) return pais;
+  const otro = Object.entries(CDS).find(([, lista]) => lista.some((c) => c.code === codigo));
+  return otro ? otro[0] : pais;
+}
+
+/**
  * El CD que nombra un término, o undefined si no nombra ninguno.
  *
  * Busca por código exacto primero y solo después por nombre o alias. Si el

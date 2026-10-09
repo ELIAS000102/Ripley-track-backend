@@ -263,6 +263,38 @@ describe('Reasignar capacidad: las fechas', () => {
     expect(actualizar).toHaveBeenCalledTimes(2);
   });
 
+  it('"pasa 30 del DX de mañana al ND de hoy": fechaOrigen es el día del DX, que es el que cede', async () => {
+    const { servicio, actualizar } = armar({
+      agendas: ['ST', 'S', 'RC', 'ND', 'DX'].map(agenda),
+      pais: 'CL',
+    });
+
+    const r = await servicio.reasignar(
+      USUARIO,
+      mover({
+        cd: '10095',
+        origen: 'DX',
+        destino: 'ND',
+        unidades: 30,
+        fecha: undefined,
+        fechaOrigen: '2026-09-24',
+        fechaDestino: '2026-09-23',
+        autorizado: true,
+      }),
+    );
+
+    expect([r.origen.jornada, r.origen.fecha, r.destino.jornada, r.destino.fecha]).toEqual(['DX', '2026-09-24', 'ND', '2026-09-23']);
+    // Primero se suma al ND de hoy, después se descuenta del DX de mañana
+    expect(actualizar.mock.calls.map(([id, body]) => `${id} ${(body as { day: string }).day.slice(0, 10)}`))
+      .toEqual(['s-ND 2026-09-23', 's-DX 2026-09-24']);
+  });
+
+  it('si llegan fecha y fechaOrigen, manda fechaOrigen', async () => {
+    const { servicio } = armar();
+    const r = await servicio.reasignar(USUARIO, mover({ fecha: '2026-09-23', fechaOrigen: '2026-09-24' }));
+    expect(r.origen.fecha).toBe('2026-09-24');
+  });
+
   it('y la excepción no se extiende a las demás jornadas chilenas', async () => {
     const { servicio } = armar({
       agendas: ['ST', 'S', 'RC', 'ND', 'DX'].map(agenda),
@@ -340,6 +372,28 @@ describe('Reasignar capacidad: cuándo se niega', () => {
     ).rejects.toThrow(/no tiene configurado el 2026-12-25/);
 
     expect(actualizar).not.toHaveBeenCalled();
+  });
+});
+
+describe('Reasignar capacidad: el país sale del código del CD', () => {
+  function conContexto() {
+    const montado = armar({ agendas: ['ST', 'S', 'RC', 'ND', 'DX'].map(agenda) });
+    const armarContexto = vi.fn(async (_u: unknown, pais?: string) => ({ pais: pais ?? 'PE' }));
+    (montado.servicio as unknown as { contexto: { armar: unknown } }).contexto.armar = armarContexto;
+    return { ...montado, armarContexto };
+  }
+
+  it('el 10095 con pais="PE" es de Chile: no se contesta "no lo encontré en Perú"', async () => {
+    const { servicio, armarContexto } = conContexto();
+    await servicio.reasignar(USUARIO, mover({ cd: '10095', origen: 'ND', destino: 'DX', pais: 'PE', autorizado: true }));
+    expect(armarContexto).toHaveBeenCalledWith(USUARIO, 'CL');
+  });
+
+  it('un CD que sí es del país pedido no cambia nada, y un nombre tampoco', async () => {
+    const { servicio, armarContexto } = conContexto();
+    await servicio.reasignar(USUARIO, mover({ cd: '20026', pais: 'PE' }));
+    await expect(servicio.reasignar(USUARIO, mover({ cd: 'fulfillment', pais: 'PE', origen: 'ND', destino: 'DX' }))).rejects.toThrow();
+    expect(armarContexto.mock.calls.map((c) => c[1])).toEqual(['PE', 'PE']);
   });
 });
 

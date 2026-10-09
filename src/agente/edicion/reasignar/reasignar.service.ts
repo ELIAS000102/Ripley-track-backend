@@ -18,6 +18,7 @@ import {
   cdsDelPais,
   jornadasLibres,
   necesitaAutorizacion,
+  paisDelCd,
   permiteOtraFecha,
   resolverCd,
 } from '../../constantes/cds.constants.js';
@@ -58,7 +59,8 @@ export class ReasignarCapacidadAgenteService {
     usuario: UsuarioAutenticado,
     dto: ReasignarCapacidadDto,
   ): Promise<CapacidadReasignada> {
-    const contexto = await this.contexto.armar(usuario, dto.pais);
+    // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
+    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais));
     const pais = contexto.pais;
 
     const cd = this.cdPedido(dto.cd, pais);
@@ -225,7 +227,7 @@ export class ReasignarCapacidadAgenteService {
     origen: string,
     destino: string,
   ): { fechaOrigen: string; fechaDestino: string } {
-    const fechaOrigen = dto.fecha ?? hoyEnPais(pais);
+    const fechaOrigen = dto.fechaOrigen ?? dto.fecha ?? hoyEnPais(pais);
     const fechaDestino = dto.fechaDestino ?? fechaOrigen;
 
     if (fechaDestino === fechaOrigen) return { fechaOrigen, fechaDestino };
