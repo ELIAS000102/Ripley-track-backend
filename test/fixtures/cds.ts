@@ -11,18 +11,18 @@ export const CDS_DE_PRUEBA: Record<string, Cd[]> = {
     {
       code: '20026', nombre: 'CD Villa El Salvador',
       jornadas: ['RC', 'ST', 'S', 'SE', 'SD', 'AT', 'OP'],
-      alias: ['villa el salvador', 'ves', 'villa'],
+      alias: ['Villa El Salvador', 'VES', 'Villa'],
       libres: ['ST', 'S', 'RC'], cruzanFecha: [],
     },
-    { code: '20096', nombre: 'CD Aldea 6', jornadas: ['SG', 'S'], alias: ['aldea', 'aldeas'], libres: ['S', 'SG'], cruzanFecha: [] },
+    { code: '20096', nombre: 'CD Aldea 6', jornadas: ['SG', 'S'], alias: ['Aldea 6', 'Aldea', 'Aldeas'], libres: ['S', 'SG'], cruzanFecha: [] },
   ],
   CL: [
     {
       code: '10095', nombre: 'CD Ripley Fulfillment',
       jornadas: ['ST', 'S', 'RC', 'ND', 'DX'],
-      alias: ['fulfillment'], libres: [], cruzanFecha: ['ND', 'DX'],
+      alias: ['Fulfillment'], libres: [], cruzanFecha: ['ND', 'DX'],
     },
-    { code: '10082', nombre: 'CD Ripley Fulfillment GV', jornadas: ['S', 'B'], alias: ['fulfillment gv', 'gv'], libres: [], cruzanFecha: [] },
+    { code: '10082', nombre: 'CD Ripley Fulfillment GV', jornadas: ['S', 'B'], alias: ['Fulfillment GV', 'GV'], libres: [], cruzanFecha: [] },
   ],
 };
 

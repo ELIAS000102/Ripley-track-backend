@@ -93,9 +93,11 @@ export class ConfiguracionCdsService {
       if (fuera(cd.libres).length) errores.push(`${cd.code}: ${fuera(cd.libres).join(', ')} no ${fuera(cd.libres).length > 1 ? 'son jornadas' : 'es una jornada'} del CD y no puede reasignarse sin permiso.`);
       if (fuera(cd.cruzanFecha).length) errores.push(`${cd.code}: ${fuera(cd.cruzanFecha).join(', ')} no ${fuera(cd.cruzanFecha).length > 1 ? 'son jornadas' : 'es una jornada'} del CD y no puede cruzar fechas.`);
       for (const a of cd.alias) {
-        const de = aliasDe.get(a);
+        // "Villa" y "villa" son el mismo alias para el chat
+        const clave = a.toLowerCase();
+        const de = aliasDe.get(clave);
         if (de && de !== cd.code) errores.push(`El alias "${a}" está en ${de} y en ${cd.code}: no se sabría a cuál se refiere.`);
-        aliasDe.set(a, cd.code);
+        aliasDe.set(clave, cd.code);
       }
     }
     if (errores.length) throw new BadRequestException(errores.join(' '));
@@ -116,14 +118,24 @@ export class ConfiguracionCdsService {
 
 /** Un CD con todos sus campos: lo guardado antes de un campo nuevo no lo trae */
 function completo(c: Partial<Cd> & { code: string }): Cd {
-  const limpias = (l: unknown, como: (x: string) => string) =>
-    (Array.isArray(l) ? [...new Set(l.map((x) => como(String(x).trim())).filter(Boolean))] : []);
+  /** Sin vacíos ni repetidos; "repetido" es igual sin distinguir mayúsculas */
+  const limpias = (l: unknown, como: (x: string) => string) => {
+    if (!Array.isArray(l)) return [];
+    const vistos = new Set<string>();
+    return l.map((x) => como(String(x).trim())).filter((x) => {
+      const clave = x.toLowerCase();
+      if (!x || vistos.has(clave)) return false;
+      vistos.add(clave);
+      return true;
+    });
+  };
   const mayus = (l: unknown) => limpias(l, (x) => x.toUpperCase());
   return {
     code: String(c.code).trim(),
     nombre: String(c.nombre ?? '').trim(),
     jornadas: mayus(c.jornadas),
-    alias: limpias(c.alias, (x) => x.toLowerCase()),
+    // Con su caja: el primero es el nombre del CD en el reporte
+    alias: limpias(c.alias, (x) => x),
     libres: mayus(c.libres),
     cruzanFecha: mayus(c.cruzanFecha),
   };

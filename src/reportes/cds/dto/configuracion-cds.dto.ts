@@ -18,9 +18,21 @@ export const CDS_MAXIMOS = 10;
 const jornadas = ({ value }: { value: unknown }) =>
   Array.isArray(value) ? [...new Set(value.map((v) => String(v ?? '').trim().toUpperCase()).filter(Boolean))] : value;
 
-/** Los alias en minúsculas y sin repetir: se comparan con el mensaje ya normalizado */
-const alias = ({ value }: { value: unknown }) =>
-  Array.isArray(value) ? [...new Set(value.map((v) => String(v ?? '').trim().toLowerCase()).filter(Boolean))] : value;
+/**
+ * Los alias tal como se escriben —el primero es el nombre que lleva el CD en el
+ * reporte—, sin repetir sin distinguir mayúsculas. Para reconocerlos en el chat
+ * se normalizan al comparar, así que guardarlos con su caja no cambia nada.
+ */
+const alias = ({ value }: { value: unknown }) => {
+  if (!Array.isArray(value)) return value;
+  const vistos = new Set<string>();
+  return value.map((v) => String(v ?? '').trim()).filter((v) => {
+    const clave = v.toLowerCase();
+    if (!v || vistos.has(clave)) return false;
+    vistos.add(clave);
+    return true;
+  });
+};
 
 export class CdDto {
   @IsString()

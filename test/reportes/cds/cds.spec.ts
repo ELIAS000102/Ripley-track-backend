@@ -65,11 +65,11 @@ function configuracion(inicial?: Parameters<typeof tablaFalsa>[0]) {
 }
 
 describe('La configuración de los CDs', () => {
-  it('se guarda por país en la tabla de los reportes, con las jornadas en mayúsculas y sin repetir', async () => {
+  it('se guarda por país en la tabla de los reportes, con las jornadas en mayúsculas y los alias como se escribieron, sin repetir', async () => {
     const { servicio, filas } = configuracion();
-    await servicio.guardar('PE', { cds: [{ code: '20026', nombre: ' CD Villa ', jornadas: ['st', 'S', 'ST'], alias: [' Villa ', 'ves'], libres: ['st'] }] } as never, USUARIO);
+    await servicio.guardar('PE', { cds: [{ code: '20026', nombre: ' CD Villa ', jornadas: ['st', 'S', 'ST'], alias: [' Villa El Salvador ', 'VES', 'villa el salvador'], libres: ['st'] }] } as never, USUARIO);
     expect(filas).toEqual([expect.objectContaining({ tipo: 'cd', pais: 'PE', configuracion: { cds: [
-      { code: '20026', nombre: 'CD Villa', jornadas: ['ST', 'S'], alias: ['villa', 'ves'], libres: ['ST'], cruzanFecha: [] },
+      { code: '20026', nombre: 'CD Villa', jornadas: ['ST', 'S'], alias: ['Villa El Salvador', 'VES'], libres: ['ST'], cruzanFecha: [] },
     ] } })]);
   });
 
@@ -79,9 +79,9 @@ describe('La configuración de los CDs', () => {
       cd('20026', ['ST', 'S'], { libres: ['RC'], alias: ['villa'] }),
       cd('20026', ['ST']),
       cd('10095', ['S'], { cruzanFecha: ['DX'] }),
-      cd('20096', ['S'], { alias: ['villa'] }),
+      cd('20096', ['S'], { alias: ['Villa'] }),
     ] } as never, USUARIO).catch((e: Error) => e.message);
-    for (const motivo of ['20026 está dos veces', '10095 ya está configurado en CL', 'RC no es una jornada', 'DX no es una jornada', '"villa" está en 20026 y en 20096']) {
+    for (const motivo of ['20026 está dos veces', '10095 ya está configurado en CL', 'RC no es una jornada', 'DX no es una jornada', '"Villa" está en 20026 y en 20096']) {
       expect(error).toContain(motivo);
     }
     expect(filas).toHaveLength(1);
