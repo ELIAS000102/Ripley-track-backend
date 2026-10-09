@@ -31,6 +31,22 @@ const PRECONFS = [
 const leer = (texto: string, pais?: string) =>
   interpretar(texto, { hoy: HOY, preconfiguraciones: PRECONFS, pais });
 
+describe('El 100 % dicho con palabras', () => {
+  it('"las tiendas que tienen consumida en su totalidad la fecha 11-10" es el 100 %', () => {
+    const r = leer('de las RT de chile dame las tiendas que tiene consumida en su totalidad la fecha 11-10');
+    expect([r.numeros, r.pais, r.servicios, r.fechas?.desde]).toEqual([[100], 'CL', ['RT'], '2026-10-11']);
+  });
+
+  it('"agotadas", "sin cupo", "al tope" también, y una cifra dicha no se duplica', () => {
+    expect(['las agotadas el 11-10', 'las que están sin cupo', 'las que llegaron al tope', 'las que llegaron al 100 % en su totalidad']
+      .map((t) => leer(t).numeros)).toEqual([[100], [100], [100], [100]]);
+  });
+
+  it('una frase sin nada de eso no inventa el 100', () => {
+    expect(leer('dame las tiendas RT de chile del 11-10').numeros).toEqual([]);
+  });
+});
+
 describe('Las frases que fallaban en el chat', () => {
   it('"apertura la jornada del CD VILLA para el día de hoy" → abrir el 20026 hoy', () => {
     const r = leer('apertura la jornada del CD VILLA para el dia de hoy');

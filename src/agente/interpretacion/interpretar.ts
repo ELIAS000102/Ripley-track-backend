@@ -289,6 +289,10 @@ const TEMAS: Record<string, RegExp> = {
   capacidad: /capacidad|ocupaci|disponib|\bcupos?\b|asignad|\bagendas?\b|jornadas?|picking|despacho|recepci|recib|\bzonas?\b|\bfechas?\b/,
 };
 
+/** El consumo al 100 % dicho sin la cifra */
+const DICHO_AL_100 =
+  /\b(en su totalidad|totalmente|por completo|completamente|agotad[oa]s?|sin cupos?|sin disponible|sin capacidad disponible|al tope)\b/;
+
 /** Unidades al día que un origen puede transferir: una agenda, no el desfase */
 const CAPACIDAD_DE_TRANSFERENCIA =
   /capacidad (de|para) (la |las )?transferenc|agendas? de transferenc|cuant[oa]s?( unidades)? (puede|pueden|se puede|se pueden) transferir|capacidad de transferir/;
@@ -393,6 +397,11 @@ export function interpretar(
       numeros.push(Number(t));
     }
   }
+
+  // "Consumida en su totalidad", "agotadas", "sin cupo": es el 100 % dicho con
+  // palabras. Sin la cifra, el flujo no aceptaba la condición "uso = 100" —nadie
+  // había dicho 100— y preguntaba lo que ya se había dicho.
+  if (DICHO_AL_100.test(plano) && !numeros.includes(100)) numeros.push(100);
 
   const alias = resolverAliasOpl(original);
   if (alias !== original && !operadores.includes(alias)) operadores.push(alias);
