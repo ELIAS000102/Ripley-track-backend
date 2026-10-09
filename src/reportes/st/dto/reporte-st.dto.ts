@@ -38,6 +38,16 @@ export class ReporteStDto extends PaisDto {
   @Min(1)
   @Max(8, { message: 'semanas puede ser como mucho 8: más es demasiado para leer de una vez' })
   semanas?: number = 4;
+
+  /**
+   * Con qué malla: "auto" (por defecto) usa la de un evento los días de su
+   * vigencia en cada tienda y la de valle el resto; "valle", siempre la de
+   * valle; el nombre de un evento, ese evento todos los días en sus tiendas.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  malla?: string;
 }
 
 /** GET /reportes/st/malla */

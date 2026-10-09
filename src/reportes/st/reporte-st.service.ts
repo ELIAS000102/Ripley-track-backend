@@ -16,17 +16,19 @@ import {
 } from '../../common/ripley/utils/date.util.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
-import { MallasLeadtimeService } from '../../mallas_leadtime/mallas-leadtime.service.js';
+import { MallasLeadtimeService, NOMBRE_VALLE, type VigenciaTienda } from '../../mallas_leadtime/mallas-leadtime.service.js';
 import { TIENDAS_MAXIMAS, type GuardarConfiguracionStDto } from './dto/reporte-st.dto.js';
 import type {
+  EventoDeTienda,
   GrupoSt,
   MallaDeTienda,
+  ModoMalla,
   ReporteSt,
   TiendaReporte,
   TiendaSt,
   Vista,
 } from './interfaces/reporte-st.interface.js';
-import { cruzarAgendas, mallaDeTienda, porFecha, totalizar } from './reporte-st.calculo.js';
+import { cruzarAgendas, dentroDe, mallaDeTienda, porFecha, totalizar, type MallaEn, type MallaUsada } from './reporte-st.calculo.js';
 
 /** Tiendas que se consultan a la vez: cada una son dos lecturas */
 const TIENDAS_A_LA_VEZ = 3;
@@ -48,10 +50,19 @@ interface ConfiguracionSt {
   grupos: GrupoSt[];
 }
 
-/** La matriz vigente, o por qué no la hay */
-interface MallaVigente {
+/** Un evento con su malla vigente y la vigencia de cada tienda */
+interface EventoVigente {
+  nombre: string;
+  cargadaEn: string;
   porCodigo: Map<string, MallaDeTienda>;
-  info: ReporteSt['malla'];
+  vigencias: Map<string, VigenciaTienda>;
+}
+
+/** Las mallas del país: la de valle y las de los eventos, o por qué no las hay */
+interface MallasDelPais {
+  valle: Map<string, MallaDeTienda>;
+  eventos: EventoVigente[];
+  info: Omit<ReporteSt['malla'], 'modo'>;
 }
 
 /**
@@ -78,15 +89,15 @@ export class ReporteStService {
 
   /** Los grupos del país, con lo que dice la matriz de cada tienda */
   async configuracion(pais: string) {
-    const [fila, malla] = await Promise.all([this.leerConfiguracion(pais), this.mallaVigente(pais)]);
+    const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais)]);
     return {
       pais,
-      malla: malla.info,
+      malla: mallas.info,
       actualizadoPor: fila.actualizadoPor,
       actualizadoEn: fila.actualizadoEn,
       grupos: (fila.configuracion?.grupos ?? []).map((g) => ({
         ...g,
-        tiendas: g.tiendas.map((t) => ({ ...t, malla: malla.porCodigo.get(t.codigo) ?? null })),
+        tiendas: g.tiendas.map((t) => ({ ...t, malla: mallas.valle.get(t.codigo) ?? null, eventos: eventosDe(t.codigo, mallas.eventos) })),
       })),
     };
   }
@@ -152,19 +163,27 @@ export class ReporteStService {
     return { pais, grupos: grupos.length, tiendas: tiendas.size, actualizadoEn };
   }
 
-  /** Si una tienda está en la matriz vigente, para avisarlo antes de guardarla */
+  /** Si una tienda está en la matriz de valle vigente —y en qué eventos—, para avisarlo antes de guardarla */
   async comprobarMalla(pais: string, codigo: string) {
-    const malla = await this.mallaVigente(pais);
-    const tienda = malla.porCodigo.get(codigo.trim()) ?? null;
-    return { codigo: codigo.trim(), malla: malla.info, incluida: !!tienda, tienda };
+    const mallas = await this.mallasDelPais(pais);
+    const tienda = mallas.valle.get(codigo.trim()) ?? null;
+    return { codigo: codigo.trim(), malla: mallas.info, incluida: !!tienda, tienda, eventos: eventosDe(codigo.trim(), mallas.eventos) };
   }
 
   // ---------- Reporte ----------
 
-  async reporte(pais: string, semanas = 4, desdeParam?: string): Promise<ReporteSt> {
+  /**
+   * El reporte, con la malla que toque a cada tienda cada día.
+   *
+   * `modoPedido` elige: "auto" (por defecto) usa la de un evento los días de su
+   * vigencia en cada tienda y la de valle el resto; "valle", la de valle siempre;
+   * el nombre de un evento, ese evento todos los días en sus tiendas.
+   */
+  async reporte(pais: string, semanas = 4, desdeParam?: string, modoPedido: ModoMalla = 'auto'): Promise<ReporteSt> {
     const desde = desdeParam ?? hoyEnPais(pais);
     const fechas = ventanaFechas(desde, semanas * 7);
-    const [fila, malla] = await Promise.all([this.leerConfiguracion(pais), this.mallaVigente(pais)]);
+    const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais)]);
+    const modo = modoDe(modoPedido, mallas.eventos);
     const grupos = fila.configuracion?.grupos ?? [];
     const todas = grupos.flatMap((g) => g.tiendas);
 
@@ -204,10 +223,12 @@ export class ReporteStService {
       if (typeof recepciones === 'string') fallidas.push({ codigo: t.codigo, agenda: 'recepcion', error: recepciones });
       if (typeof transferencias === 'string') fallidas.push({ codigo: t.codigo, agenda: 'transferencia', error: transferencias });
 
-      const mallaTienda = malla.porCodigo.get(t.codigo) ?? null;
+      const mallaTienda = mallas.valle.get(t.codigo) ?? null;
+      const { mallaEn, candidatas } = mallasDeTienda(t.codigo, mallaTienda, mallas.eventos, modo);
       const cruce = cruzarAgendas(
         fechas,
-        mallaTienda,
+        mallaEn,
+        candidatas,
         porFecha(typeof recepciones === 'string' ? [] : recepciones),
         porFecha(typeof transferencias === 'string' ? [] : transferencias),
       );
@@ -216,6 +237,7 @@ export class ReporteStService {
         codigo: t.codigo,
         nombre: t.nombre,
         malla: mallaTienda,
+        eventos: eventosDe(t.codigo, mallas.eventos),
         origen: t.transferencia.origen,
         destino: t.transferencia.destino,
         recepcion: {
@@ -245,7 +267,7 @@ export class ReporteStService {
 
     return {
       parametros: { pais, desde, semanas, fechas },
-      malla: malla.info,
+      malla: { ...mallas.info, modo },
       grupos: gruposReporte,
       totales: totales(gruposReporte.flatMap((g) => g.tiendas)),
       cobertura: { tiendas: todas.length, fallidas, caida },
@@ -259,27 +281,85 @@ export class ReporteStService {
   }
 
   /**
-   * La matriz de valle vigente.
+   * La matriz de valle vigente y las de los eventos, con su vigencia por tienda.
    *
-   * Que no la haya, o que falten sus tablas, no impide el reporte: se enseña
-   * sin vínculos y se dice por qué.
+   * Que no las haya, o que falten sus tablas, no impide el reporte: se enseña
+   * sin vínculos y se dice por qué. Un fallo leyendo los eventos tampoco: se
+   * sigue con la de valle.
    */
-  private async mallaVigente(pais: string): Promise<MallaVigente> {
+  private async mallasDelPais(pais: string): Promise<MallasDelPais> {
+    const aMalla = (m: Map<string, Parameters<typeof mallaDeTienda>[0]>) => new Map([...m].map(([c, t]) => [c, mallaDeTienda(t)]));
+    let eventos: EventoVigente[] = [];
+    try {
+      eventos = (await this.mallas.eventosVigentes(pais)).map((e) => ({ nombre: e.nombre, cargadaEn: e.cargadoEn, porCodigo: aMalla(e.porCodigo), vigencias: e.vigencias }));
+    } catch (e) {
+      this.logger.warn(`Reporte ST sin las mallas de eventos de ${pais}: ${(e as Error).message}`);
+    }
+    const listaEventos = eventos.map((e) => ({ nombre: e.nombre, cargadaEn: e.cargadaEn, tiendas: e.porCodigo.size }));
+
     try {
       const vigente = await this.mallas.tiendasVigentes(pais);
       if (!vigente) {
         return {
-          porCodigo: new Map(),
-          info: { cargada: false, aviso: `No hay ninguna matriz de valle cargada para ${pais}: el reporte sale sin vincular transferencia y recepción.` },
+          valle: new Map(),
+          eventos,
+          info: { cargada: false, eventos: listaEventos, aviso: `No hay ninguna matriz de valle cargada para ${pais}: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.` },
         };
       }
-      const porCodigo = new Map([...vigente.porCodigo].map(([codigo, t]) => [codigo, mallaDeTienda(t)]));
       return {
-        porCodigo,
-        info: { cargada: true, archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn },
+        valle: aMalla(vigente.porCodigo),
+        eventos,
+        info: { cargada: true, archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn, eventos: listaEventos },
       };
     } catch (e) {
-      return { porCodigo: new Map(), info: { cargada: false, aviso: (e as Error).message } };
+      return { valle: new Map(), eventos, info: { cargada: false, eventos: listaEventos, aviso: (e as Error).message } };
     }
   }
+}
+
+/** Los eventos de una tienda que tienen vigencia en ella */
+function eventosDe(codigo: string, eventos: EventoVigente[]): EventoDeTienda[] {
+  return eventos
+    .filter((e) => e.porCodigo.has(codigo) && e.vigencias.has(codigo))
+    .map((e) => ({ nombre: e.nombre, desde: e.vigencias.get(codigo)!.desde, hasta: e.vigencias.get(codigo)!.hasta }))
+    .sort((a, b) => a.desde.localeCompare(b.desde));
+}
+
+/** El modo pedido, comprobado: un evento tiene que existir, y se escribe como está guardado */
+function modoDe(pedido: ModoMalla, eventos: EventoVigente[]): ModoMalla {
+  const p = (pedido ?? 'auto').trim();
+  if (!p || p.toLowerCase() === 'auto') return 'auto';
+  if (p.toLowerCase() === 'valle' || p.toLowerCase() === NOMBRE_VALLE.toLowerCase()) return 'valle';
+  const evento = eventos.find((e) => e.nombre.toLowerCase() === p.toLowerCase());
+  if (!evento) {
+    throw new BadRequestException(
+      `No hay ningún evento "${p}" cargado. ${eventos.length ? `Los que hay: ${eventos.map((e) => e.nombre).join(', ')}.` : 'Cárgalo en Mallas Lead Time.'}`,
+    );
+  }
+  return evento.nombre;
+}
+
+/**
+ * Qué malla toca a una tienda cada día, y entre cuáles se busca qué
+ * transferencia alimenta una recepción.
+ */
+function mallasDeTienda(codigo: string, valle: MallaDeTienda | null, eventos: EventoVigente[], modo: ModoMalla) {
+  const deValle: MallaUsada | null = valle ? { nombre: NOMBRE_VALLE, tienda: valle } : null;
+  const suyos = eventos.filter((e) => e.porCodigo.has(codigo));
+  const usada = (e: EventoVigente): MallaUsada => ({ nombre: e.nombre, tienda: e.porCodigo.get(codigo)! });
+
+  const mallaEn: MallaEn = (fecha) => {
+    if (modo === 'valle') return deValle;
+    if (modo !== 'auto') {
+      const forzado = suyos.find((e) => e.nombre === modo);
+      return forzado ? usada(forzado) : deValle;
+    }
+    const enVigencia = suyos.find((e) => {
+      const v = e.vigencias.get(codigo);
+      return v ? dentroDe(fecha, v) : false;
+    });
+    return enVigencia ? usada(enVigencia) : deValle;
+  };
+
+  return { mallaEn, candidatas: [...(deValle ? [deValle] : []), ...suyos.map(usada)] };
 }

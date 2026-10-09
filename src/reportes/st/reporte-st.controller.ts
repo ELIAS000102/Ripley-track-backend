@@ -14,10 +14,10 @@ import { ReporteStService } from './reporte-st.service.js';
 export class ReporteStController {
   constructor(private readonly servicio: ReporteStService) {}
 
-  /** GET /reportes/st?pais=CL&semanas=4[&desde=2026-10-12] */
+  /** GET /reportes/st?pais=CL&semanas=4[&desde=2026-10-12][&malla=auto|valle|<evento>] */
   @Get()
   async reporte(@Query() query: ReporteStDto) {
-    return this.servicio.reporte(query.pais ?? 'PE', query.semanas ?? 4, query.desde);
+    return this.servicio.reporte(query.pais ?? 'PE', query.semanas ?? 4, query.desde, query.malla);
   }
 
   /** GET /reportes/st/configuracion?pais=CL → los grupos y sus tiendas */

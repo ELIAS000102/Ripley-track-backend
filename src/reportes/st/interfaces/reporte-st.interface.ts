@@ -63,23 +63,44 @@ export interface DiaSt {
   porcentaje: number | null;
 }
 
-/** El día de la otra agenda al que lleva la matriz */
+/** El día de la otra agenda al que lleva la malla */
 export interface VinculoSt {
   fecha: string;
   etiqueta: string;
+  /** Con qué malla se unió: "Valle" o el nombre del evento */
+  malla: string;
   /** `null` si la agenda no tiene ese día */
   dia: DiaSt | null;
 }
 
 /** Un día de recepción con las transferencias que lo alimentan */
 export interface DiaRecepcionSt extends DiaSt {
+  /** La malla que toca a la tienda ese día: "Valle", un evento, o null sin ninguna */
+  malla: string | null;
   transferencias: VinculoSt[];
 }
 
 /** Un día de transferencia con la recepción que le toca */
 export interface DiaTransferenciaSt extends DiaSt {
+  /** La malla con la que se cruza ese día */
+  malla: string | null;
   recepcion: VinculoSt | null;
 }
+
+/** Un evento que la tienda tiene, con su vigencia en ella */
+export interface EventoDeTienda {
+  nombre: string;
+  desde: string;
+  hasta: string;
+}
+
+/**
+ * Qué malla usa el reporte:
+ * - "auto": la de un evento los días de su vigencia en cada tienda, y la de valle el resto;
+ * - "valle": la de valle siempre, aunque haya eventos;
+ * - el nombre de un evento: ese evento todos los días en sus tiendas, y la de valle en las demás.
+ */
+export type ModoMalla = string;
 
 /** Una agenda dentro del reporte: alineada con las fechas, `null` donde no hay día */
 export interface AgendaReporte<D> {
@@ -92,8 +113,10 @@ export interface AgendaReporte<D> {
 export interface TiendaReporte {
   codigo: string;
   nombre: string;
-  /** `null` si la tienda no está en la matriz vigente */
+  /** La de valle; `null` si la tienda no está en la matriz de valle vigente */
   malla: MallaDeTienda | null;
+  /** Los eventos en los que está la tienda, con su vigencia en ella */
+  eventos: EventoDeTienda[];
   origen: LadoSt | null;
   destino: LadoSt;
   recepcion: AgendaReporte<DiaRecepcionSt>;
@@ -115,7 +138,16 @@ export type TotalesSt = Record<Vista, TotalDia[]>;
 
 export interface ReporteSt {
   parametros: { pais: string; desde: string; semanas: number; fechas: string[] };
-  malla: { cargada: boolean; archivo?: string | null; cargadaEn?: string; aviso?: string };
+  malla: {
+    cargada: boolean;
+    archivo?: string | null;
+    cargadaEn?: string;
+    aviso?: string;
+    /** Con qué se calculó: "auto", "valle" o el nombre de un evento */
+    modo: ModoMalla;
+    /** Los eventos del país, para poder elegir uno */
+    eventos: Array<{ nombre: string; cargadaEn: string; tiendas: number }>;
+  };
   grupos: Array<{ nombre: string; tiendas: TiendaReporte[]; totales: TotalesSt }>;
   totales: TotalesSt;
   cobertura: {

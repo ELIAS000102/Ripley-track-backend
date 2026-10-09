@@ -10,8 +10,18 @@ import type {
   VinculoSt,
 } from './interfaces/reporte-st.interface.js';
 
+/** Una malla con su nombre: "Valle" o el del evento */
+export interface MallaUsada {
+  nombre: string;
+  tienda: MallaDeTienda;
+}
+
+/** Qué malla toca a la tienda en una fecha, o ninguna */
+export type MallaEn = (fecha: string) => MallaUsada | null;
+
 /**
- * Cómo se cruzan las dos agendas de una tienda con la matriz de valle.
+ * Cómo se cruzan las dos agendas de una tienda con la malla que le toca cada
+ * día: la de valle, o la de un evento si ese día está dentro de su vigencia.
  *
  * - Un **día de transferencia** lleva a una recepción: la de la pareja de su
  *   día de la semana, tantos días después como diga la matriz ("+N" incluido).
@@ -61,53 +71,74 @@ export function porFecha(dias: CapacityByDay[]): Map<string, DiaSt> {
   }));
 }
 
-/** La recepción a la que lleva una transferencia de esa fecha, o `null` */
+/**
+ * La recepción a la que lleva una transferencia de esa fecha, o `null`.
+ *
+ * Con la malla que toca ese día de transferencia: la de un evento si la fecha
+ * está en su vigencia, y si no la de valle.
+ */
 export function recepcionDe(
   fecha: string,
-  malla: MallaDeTienda | null,
+  usada: MallaUsada | null,
   recepciones: Map<string, DiaSt>,
 ): VinculoSt | null {
-  const par = malla?.pares.find((p) => p.transfiere === diaDeLaSemana(fecha));
-  if (!par) return null;
+  const par = usada?.tienda.pares.find((p) => p.transfiere === diaDeLaSemana(fecha));
+  if (!usada || !par) return null;
   const destino = sumarDias(fecha, par.diasHastaRecepcion);
-  return { fecha: destino, etiqueta: par.etiqueta, dia: recepciones.get(destino) ?? null };
+  return { fecha: destino, etiqueta: par.etiqueta, malla: usada.nombre, dia: recepciones.get(destino) ?? null };
 }
 
-/** Las transferencias que alimentan una recepción de esa fecha */
+/**
+ * Las transferencias que alimentan una recepción de esa fecha.
+ *
+ * Una recepción la puede alimentar una transferencia hecha con otra malla: la
+ * del día de la transferencia. Se prueban todas las de la tienda y vale la
+ * pareja cuya malla es la que tocaba el día del que sale.
+ */
 export function transferenciasDe(
   fecha: string,
-  malla: MallaDeTienda | null,
+  candidatas: MallaUsada[],
+  mallaEn: MallaEn,
   transferencias: Map<string, DiaSt>,
 ): VinculoSt[] {
-  if (!malla) return [];
   const dia = diaDeLaSemana(fecha);
-  return malla.pares
-    .filter((p) => p.recepciona === dia)
-    .map((p) => {
+  const vinculos: VinculoSt[] = [];
+  for (const m of candidatas) {
+    for (const p of m.tienda.pares.filter((x) => x.recepciona === dia)) {
       const origen = sumarDias(fecha, -p.diasHastaRecepcion);
-      return { fecha: origen, etiqueta: p.etiqueta, dia: transferencias.get(origen) ?? null };
-    })
-    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+      if (mallaEn(origen)?.nombre !== m.nombre) continue;
+      vinculos.push({ fecha: origen, etiqueta: p.etiqueta, malla: m.nombre, dia: transferencias.get(origen) ?? null });
+    }
+  }
+  return vinculos.sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
-/** Las dos agendas de una tienda, alineadas con las fechas del reporte y vinculadas */
+/**
+ * Las dos agendas de una tienda, alineadas con las fechas del reporte y
+ * vinculadas. Cada día dice con qué malla se cruzó.
+ */
 export function cruzarAgendas(
   fechas: string[],
-  malla: MallaDeTienda | null,
+  mallaEn: MallaEn,
+  candidatas: MallaUsada[],
   recepciones: Map<string, DiaSt>,
   transferencias: Map<string, DiaSt>,
 ): { recepcion: (DiaRecepcionSt | null)[]; transferencia: (DiaTransferenciaSt | null)[] } {
   return {
     recepcion: fechas.map((f) => {
       const d = recepciones.get(f);
-      return d ? { ...d, transferencias: transferenciasDe(f, malla, transferencias) } : null;
+      return d ? { ...d, malla: mallaEn(f)?.nombre ?? null, transferencias: transferenciasDe(f, candidatas, mallaEn, transferencias) } : null;
     }),
     transferencia: fechas.map((f) => {
       const d = transferencias.get(f);
-      return d ? { ...d, recepcion: recepcionDe(f, malla, recepciones) } : null;
+      const usada = mallaEn(f);
+      return d ? { ...d, malla: usada?.nombre ?? null, recepcion: recepcionDe(f, usada, recepciones) } : null;
     }),
   };
 }
+
+/** Lo que va de un día a otro, ambos incluidos */
+export const dentroDe = (fecha: string, v: { desde: string; hasta: string }) => v.desde <= fecha && fecha <= v.hasta;
 
 /**
  * La suma de cada fecha entre varias filas.

@@ -12,15 +12,16 @@ Cubre cinco áreas de la operación logística:
 - **Reporte de centros de distribución** — el uso de capacidad de los CDs, por jornada y por
   día. Qué almacenes y qué jornadas lo forman se configura por país, sin tocar el código.
 - **Reporte ST** — las tiendas abastecidas desde un CD, por grupos: la capacidad de su
-  recepción y de la transferencia que llega a ellas, día por día, unidas por la malla valle.
+  recepción y de la transferencia que llega a ellas, día por día, unidas por la malla valle o,
+  los días de su vigencia en cada tienda, por la de un evento.
 - **Configuración de tipos de servicio** — qué servicios tiene cada operador logístico, con
   sus horas de corte, y la activación o desactivación en bloque.
 - **Transferencias entre sucursales** — qué días se puede mover stock entre dos almacenes y
   cuántos días tarda.
 - **Simulación de entregas** — cuándo llegaría un pedido, antes de venderlo.
-- **Mallas lead time** — la matriz de valle que pasa la operación en Excel: se carga con una
-  plantilla, se guarda por versiones y da, por tienda, qué día se transfiere, recepciona y
-  despacha lo vendido cada día de la semana.
+- **Mallas lead time** — la matriz de valle y las de eventos temporales (Cyber, Navidad…) que
+  pasa la operación en Excel: se cargan con una plantilla, se guardan por versiones y dan, por
+  tienda, qué día se transfiere, recepciona y despacha lo vendido cada día de la semana.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de

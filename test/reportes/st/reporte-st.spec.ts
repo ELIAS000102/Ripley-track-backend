@@ -9,7 +9,7 @@ import { ConfiguracionReportesService } from '../../../src/reportes/comun/config
 import { interpretarTienda } from '../../../src/mallas_leadtime/matriz.calculo.js';
 import type { MallasLeadtimeService } from '../../../src/mallas_leadtime/mallas-leadtime.service.js';
 import type { TiendaMalla } from '../../../src/mallas_leadtime/interfaces/malla.interface.js';
-import type { GrupoSt, TiendaSt } from '../../../src/reportes/st/interfaces/reporte-st.interface.js';
+import type { GrupoSt, MallaDeTienda, TiendaSt } from '../../../src/reportes/st/interfaces/reporte-st.interface.js';
 import {
   cruzarAgendas,
   diaDeLaSemana,
@@ -18,6 +18,7 @@ import {
   recepcionDe,
   totalizar,
   transferenciasDe,
+  type MallaUsada,
 } from '../../../src/reportes/st/reporte-st.calculo.js';
 import { ReporteStService } from '../../../src/reportes/st/reporte-st.service.js';
 
@@ -39,6 +40,9 @@ const MALL_CONCEPCION = mallaDeTienda(interpretarTienda(fila('10002', 'Mall Conc
   ['P-C-28', 'A', 'B', 'P-A-11', 'C', _, _])));
 const PUNTA_ARENAS = mallaDeTienda(interpretarTienda(fila('10096', 'Punta Arenas', [_, _, _, 'A', _, _, _], ['A+7', _, _, _, _, _, _])));
 
+/** La malla de valle de una tienda, con su nombre */
+const valle = (t: MallaDeTienda): MallaUsada => ({ nombre: 'Valle', tienda: t });
+
 /** Un día como lo devuelve Ripley: medianoche de Chile en UTC */
 const dia = (fecha: string, assigned: number, occupied: number, active = true): CapacityByDay =>
   ({ day: `${fecha}T03:00:00.000Z`, assigned, occupied, active });
@@ -50,43 +54,64 @@ describe('El cruce con la matriz de valle', () => {
 
   it('una transferencia lleva a la recepción de su pareja', () => {
     const recepciones = porFecha([dia('2026-10-14', 1120, 300)]);
-    expect(recepcionDe('2026-10-12', MALL_CONCEPCION, recepciones)).toEqual({
+    expect(recepcionDe('2026-10-12', valle(MALL_CONCEPCION), recepciones)).toEqual({
       fecha: '2026-10-14',
       etiqueta: 'B',
+      malla: 'Valle',
       dia: { fecha: '2026-10-14', activa: true, asignado: 1120, utilizado: 300, disponible: 820, porcentaje: 27 },
     });
   });
 
   it('el "+N" de la recepción se suma: Punta Arenas transfiere el jueves 15 y recepciona el lunes 26', () => {
     const recepciones = porFecha([dia('2026-10-26', 500, 0, false)]);
-    expect(recepcionDe('2026-10-15', PUNTA_ARENAS, recepciones)).toMatchObject({
+    expect(recepcionDe('2026-10-15', valle(PUNTA_ARENAS), recepciones)).toMatchObject({
       fecha: '2026-10-26', etiqueta: 'A', dia: { activa: false },
     });
   });
 
   it('un día que no transfiere según la matriz no lleva a ninguna recepción, y sin matriz tampoco', () => {
-    expect(recepcionDe('2026-10-12', PUNTA_ARENAS, new Map())).toBeNull();
+    expect(recepcionDe('2026-10-12', valle(PUNTA_ARENAS), new Map())).toBeNull();
     expect(recepcionDe('2026-10-12', null, new Map())).toBeNull();
   });
 
   it('la recepción que no está en la agenda se dice como día sin dato', () => {
-    expect(recepcionDe('2026-10-12', MALL_CONCEPCION, new Map())).toEqual({ fecha: '2026-10-14', etiqueta: 'B', dia: null });
+    expect(recepcionDe('2026-10-12', valle(MALL_CONCEPCION), new Map())).toEqual({ fecha: '2026-10-14', etiqueta: 'B', malla: 'Valle', dia: null });
   });
 
   it('al revés: qué transferencias alimentan una recepción', () => {
     const transferencias = porFecha([dia('2026-10-15', 80, 10)]);
-    expect(transferenciasDe('2026-10-26', PUNTA_ARENAS, transferencias)).toEqual([
-      { fecha: '2026-10-15', etiqueta: 'A', dia: expect.objectContaining({ disponible: 70 }) },
+    const soloValle = (t: MallaDeTienda): [MallaUsada[], () => MallaUsada] => [[valle(t)], () => valle(t)];
+    expect(transferenciasDe('2026-10-26', ...soloValle(PUNTA_ARENAS), transferencias)).toEqual([
+      { fecha: '2026-10-15', etiqueta: 'A', malla: 'Valle', dia: expect.objectContaining({ disponible: 70 }) },
     ]);
-    expect(transferenciasDe('2026-10-14', MALL_CONCEPCION, new Map()).map((v) => `${v.fecha} ${v.etiqueta}`)).toEqual(['2026-10-12 B']);
-    expect(transferenciasDe('2026-10-17', MALL_CONCEPCION, new Map())).toEqual([]);
+    expect(transferenciasDe('2026-10-14', ...soloValle(MALL_CONCEPCION), new Map()).map((v) => `${v.fecha} ${v.etiqueta}`)).toEqual(['2026-10-12 B']);
+    expect(transferenciasDe('2026-10-17', ...soloValle(MALL_CONCEPCION), new Map())).toEqual([]);
   });
 
   it('cruzar alinea los días con las fechas del reporte y deja null donde no hay día', () => {
-    const r = cruzarAgendas(['2026-10-12', '2026-10-13'], MALL_CONCEPCION, porFecha([dia('2026-10-14', 10, 0)]), porFecha([dia('2026-10-12', 5, 5)]));
+    const r = cruzarAgendas(['2026-10-12', '2026-10-13'], () => valle(MALL_CONCEPCION), [valle(MALL_CONCEPCION)], porFecha([dia('2026-10-14', 10, 0)]), porFecha([dia('2026-10-12', 5, 5)]));
     expect(r.recepcion).toEqual([null, null]);
-    expect(r.transferencia[0]).toMatchObject({ porcentaje: 100, disponible: 0, recepcion: { fecha: '2026-10-14', dia: { asignado: 10 } } });
+    expect(r.transferencia[0]).toMatchObject({ porcentaje: 100, disponible: 0, malla: 'Valle', recepcion: { fecha: '2026-10-14', malla: 'Valle', dia: { asignado: 10 } } });
     expect(r.transferencia[1]).toBeNull();
+  });
+
+  it('con un evento en vigencia, ese día se cruza con su malla y el resto con la de valle', () => {
+    // En el evento, Mall Concepción recepciona lo del lunes ("B") el jueves, no el miércoles
+    const CYBER = mallaDeTienda(interpretarTienda(fila('10002', 'Mall Concepcion', ['B', _, _, _, _, _, _], [_, _, _, 'B', _, _, _])));
+    const cyber: MallaUsada = { nombre: 'Cyber', tienda: CYBER };
+    const mallaEn = (f: string) => (f >= '2026-10-12' && f <= '2026-10-18' ? cyber : valle(MALL_CONCEPCION));
+    const candidatas = [valle(MALL_CONCEPCION), cyber];
+    const recepciones = porFecha([dia('2026-10-14', 100, 0), dia('2026-10-15', 100, 0), dia('2026-10-21', 100, 0)]);
+    const transferencias = porFecha([dia('2026-10-12', 50, 0), dia('2026-10-19', 50, 0)]);
+
+    const r = cruzarAgendas(['2026-10-12', '2026-10-19'], mallaEn, candidatas, recepciones, transferencias);
+    // El lunes 12 (Cyber) va al jueves 15; el lunes 19 (valle) al miércoles 21
+    expect(r.transferencia.map((d) => [d?.malla, d?.recepcion?.fecha, d?.recepcion?.malla])).toEqual([['Cyber', '2026-10-15', 'Cyber'], ['Valle', '2026-10-21', 'Valle']]);
+    // Y al revés: el jueves 15 lo alimenta el lunes 12 del evento; el miércoles 14 no lo alimenta
+    // nadie, porque el lunes 12 se cruzó con el evento y no con la de valle
+    expect(transferenciasDe('2026-10-15', candidatas, mallaEn, transferencias).map((v) => `${v.fecha} ${v.malla}`)).toEqual(['2026-10-12 Cyber']);
+    expect(transferenciasDe('2026-10-14', candidatas, mallaEn, transferencias)).toEqual([]);
+    expect(transferenciasDe('2026-10-21', candidatas, mallaEn, transferencias).map((v) => `${v.fecha} ${v.malla}`)).toEqual(['2026-10-19 Valle']);
   });
 
   it('sin asignado no hay porcentaje, y lo usado de más deja el disponible en negativo', () => {
@@ -115,7 +140,7 @@ describe('El servicio', () => {
     },
   });
 
-  function montar(grupos: GrupoSt[] | null, opciones: { recepcion?: (id: string) => Promise<unknown>; transferencia?: (id: string) => Promise<unknown> } = {}) {
+  function montar(grupos: GrupoSt[] | null, opciones: { recepcion?: (id: string) => Promise<unknown>; transferencia?: (id: string) => Promise<unknown>; eventos?: unknown[] } = {}) {
     const guardados: unknown[] = [];
     const consulta = {
       select: () => consulta,
@@ -134,6 +159,7 @@ describe('El servicio', () => {
         cabecera: { archivo: 'matriz.xlsx', cargadoEn: '2026-10-08T10:00:00Z' },
         porCodigo: new Map([['10096', interpretarTienda(fila('10096', 'Punta Arenas', [_, _, _, 'A', _, _, _], ['A+7', _, _, _, _, _, _]))]]),
       }),
+      eventosVigentes: async () => opciones.eventos ?? [],
     } as unknown as MallasLeadtimeService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
     const servicio = new ReporteStService(new ConfiguracionReportesService(supabase), catalogos as unknown as CatalogosRipleyService, mallas, auditoria);
@@ -187,6 +213,43 @@ describe('El servicio', () => {
     expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledTimes(3);
     expect(r.cobertura.fallidas).toHaveLength(14);
     expect(r.grupos[0].tiendas[6].recepcion.error).toMatch(/No se consultó/);
+  });
+
+  describe('con una malla de evento', () => {
+    // En el evento "Cyber", Punta Arenas transfiere el jueves y recepciona el viernes (sin el +7)
+    const cyber = {
+      nombre: 'Cyber', cargadoEn: '2026-10-09T10:00:00Z',
+      porCodigo: new Map([['10096', interpretarTienda(fila('10096', 'Punta Arenas', [_, _, _, 'A', _, _, _], [_, _, _, _, 'A', _, _]))]]),
+      vigencias: new Map([['10096', { codigo: '10096', desde: '2026-10-15', hasta: '2026-10-15' }]]),
+    };
+    const consultar = (malla?: string) => montar([{ nombre: 'Sur', tiendas: [tienda('10096', 'Punta Arenas')] }], {
+      eventos: [cyber],
+      transferencia: async () => ({ capacityByDayArray: [dia('2026-10-15', 200, 20), dia('2026-10-22', 200, 0)] }),
+      recepcion: async () => ({ capacityByDayArray: [dia('2026-10-16', 300, 0), dia('2026-10-26', 300, 0), dia('2026-11-02', 300, 0)] }),
+    }).servicio.reporte('CL', 2, '2026-10-15', malla);
+    const vinculos = (r: Awaited<ReturnType<typeof consultar>>) =>
+      r.grupos[0].tiendas[0].transferencia.dias.filter(Boolean).map((d) => `${d!.fecha} ${d!.malla} → ${d!.recepcion?.fecha}`);
+
+    it('en automático, los días de su vigencia van con el evento y el resto con la de valle', async () => {
+      const r = await consultar();
+      expect(vinculos(r)).toEqual(['2026-10-15 Cyber → 2026-10-16', '2026-10-22 Valle → 2026-11-02']);
+      expect([r.malla.modo, r.malla.eventos, r.grupos[0].tiendas[0].eventos]).toEqual([
+        'auto', [{ nombre: 'Cyber', cargadaEn: '2026-10-09T10:00:00Z', tiendas: 1 }], [{ nombre: 'Cyber', desde: '2026-10-15', hasta: '2026-10-15' }],
+      ]);
+    });
+
+    it('"valle" no usa el evento aunque esté en vigencia', async () => {
+      expect(vinculos(await consultar('valle'))).toEqual(['2026-10-15 Valle → 2026-10-26', '2026-10-22 Valle → 2026-11-02']);
+    });
+
+    it('un evento por su nombre se usa todos los días en sus tiendas, sin mirar la vigencia', async () => {
+      const r = await consultar('cyber');
+      expect([r.malla.modo, vinculos(r)]).toEqual(['Cyber', ['2026-10-15 Cyber → 2026-10-16', '2026-10-22 Cyber → 2026-10-23']]);
+    });
+
+    it('un evento que no existe se dice, con los que hay', async () => {
+      await expect(consultar('Navidad')).rejects.toThrow('No hay ningún evento "Navidad" cargado. Los que hay: Cyber.');
+    });
   });
 
   it('sin tiendas no hay reporte, y se dice cómo empezar', async () => {
