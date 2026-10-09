@@ -1,7 +1,6 @@
-import { CDS } from '../../reportes/cds/cds.constants.js';
 import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
 import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
-import { resolverCd } from '../constantes/cds.constants.js';
+import { resolverCd, type CdsPorPais } from '../constantes/cds.constants.js';
 
 /**
  * Lo que se puede saber de un mensaje del chat **sin un modelo**.
@@ -346,7 +345,13 @@ const EDICION_DE: Partial<Record<Caso, Caso>> = {
 
 export function interpretar(
   pregunta: string,
-  opciones: { pais?: string | null; preconfiguraciones?: PreconfiguracionConocida[]; hoy?: string } = {},
+  opciones: {
+    pais?: string | null;
+    preconfiguraciones?: PreconfiguracionConocida[];
+    hoy?: string;
+    /** Los CDs de cada país, de la configuración del panel: ninguno está escrito aquí */
+    cds?: CdsPorPais;
+  } = {},
 ): Interpretacion {
   const original = pregunta.trim();
   const plano = normalizar(original);
@@ -362,10 +367,10 @@ export function interpretar(
   const sinF = sinFechas(original);
   const hablaDeCd = /\bcds?\b|centro de distribuci|jornada|picking/.test(plano);
   const cds: CdMencionado[] = [];
-  for (const [p, lista] of Object.entries(CDS)) {
+  for (const [p, lista] of Object.entries(opciones.cds ?? {})) {
     for (const cd of lista) {
       const porCodigo = new RegExp(`(?<!\\d)${cd.code}(?!\\d)`).test(sinF);
-      const porNombre = hablaDeCd && resolverCd(original, p)?.code === cd.code;
+      const porNombre = hablaDeCd && resolverCd(original, lista)?.code === cd.code;
       if ((porCodigo || porNombre) && !cds.some((c) => c.code === cd.code)) {
         cds.push({ code: cd.code, nombre: cd.nombre, pais: p });
       }

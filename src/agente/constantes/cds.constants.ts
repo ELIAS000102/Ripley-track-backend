@@ -1,74 +1,70 @@
-import { CDS } from '../../reportes/cds/cds.constants.js';
 import type { Cd } from '../../reportes/cds/interfaces/reporte-cds.interface.js';
 
 /**
  * Cómo se nombra a los centros de distribución cuando se habla de ellos, y qué
  * se puede reasignar dentro de cada uno.
  *
- * Los CDs y sus jornadas viven en `reportes/cds/cds.constants.ts`, que es de
- * donde salen para el reporte. Aquí solo se añade lo que hace falta para
- * entender una frase —"el CD de Aldeas", "fulfillment GV"— y las reglas de a
- * qué jornada se puede mover capacidad sin pedir permiso.
+ * Ningún CD está escrito aquí. Los configura la operación en el panel —código,
+ * nombre, jornadas, alias, entre qué jornadas se reasigna sin permiso y cuáles
+ * cruzan fechas— y llegan de `ConfiguracionCdsService`. Estas funciones solo
+ * aplican las reglas sobre la lista que se les pasa: así se prueban sin base
+ * de datos y no hay dos sitios que puedan decir cosas distintas de un CD.
  */
 
-/** Los nombres por los que se pide un CD, además de su código y su nombre */
-const ALIAS: Record<string, RegExp> = {
-  '20026': /villa\s*el\s*salvador|\bves\b|\bvilla\b/i,
-  '20096': /\baldeas?\b/i,
-  // El GV va primero al resolver: "fulfillment gv" también contiene "fulfillment"
-  '10082': /fulfillment\s*gv|\bgv\b/i,
-  '10095': /fulfillment/i,
-};
+/** Los CDs de cada país, como los devuelve la configuración */
+export type CdsPorPais = Record<string, Cd[]>;
 
-/** Se prueban en este orden: el más específico gana */
-const ORDEN = ['20026', '20096', '10082', '10095'];
+const normalizar = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ]+/g, ' ').trim();
 
 /**
  * El país de la petición, corregido por el código del CD.
  *
- * El código de un CD no se repite entre países: el 10095 solo puede ser de
- * Chile. Si llega con el país equivocado —el agente se olvidó de mandar
- * pais="CL" y valió el PE por defecto—, contestar "no encontré el 10095 en
- * Perú" no ayuda a nadie: se usa el país del CD. Solo con el código exacto; un
- * nombre o un alias no corrige nada.
+ * El código de un CD no se repite entre países: la configuración no deja
+ * guardar el mismo en dos. Si llega con el país equivocado —el agente se olvidó
+ * de mandar pais="CL" y valió el PE por defecto—, contestar "no encontré el
+ * 10095 en Perú" no ayuda a nadie: se usa el país del CD. Solo con el código
+ * exacto; un nombre o un alias no corrige nada.
  */
-export function paisDelCd(termino: string | undefined, pais: string | undefined): string | undefined {
+export function paisDelCd(termino: string | undefined, pais: string | undefined, todos: CdsPorPais): string | undefined {
   const codigo = termino?.trim();
   if (!codigo || !/^\d+$/.test(codigo)) return pais;
   const actual = (pais ?? 'PE').toUpperCase().trim();
-  if (CDS[actual]?.some((c) => c.code === codigo)) return pais;
-  const otro = Object.entries(CDS).find(([, lista]) => lista.some((c) => c.code === codigo));
+  if (todos[actual]?.some((c) => c.code === codigo)) return pais;
+  const otro = Object.entries(todos).find(([, lista]) => lista.some((c) => c.code === codigo));
   return otro ? otro[0] : pais;
 }
 
 /**
  * El CD que nombra un término, o undefined si no nombra ninguno.
  *
- * Busca por código exacto primero y solo después por nombre o alias. Si el
- * término no nombra a ninguno **no se adivina**: quien llame decide qué hacer,
- * porque elegir un CD por parecido es cortar el picking del sitio equivocado.
+ * Busca por código exacto primero, después por alias —el más largo gana:
+ * "fulfillment gv" es más específico que "fulfillment"— y por último por
+ * nombre. Si el término no nombra a ninguno **no se adivina**: quien llame
+ * decide qué hacer, porque elegir un CD por parecido es cortar el picking del
+ * sitio equivocado.
  */
-export function resolverCd(termino: string, pais: string): Cd | undefined {
-  const cds = CDS[pais.toUpperCase().trim()] ?? [];
+export function resolverCd(termino: string, cds: Cd[]): Cd | undefined {
   const buscado = termino.trim();
 
   const porCodigo = cds.find((c) => c.code === buscado);
   if (porCodigo) return porCodigo;
 
-  for (const code of ORDEN) {
-    const cd = cds.find((c) => c.code === code);
-    if (cd && ALIAS[code].test(buscado)) return cd;
-  }
+  const texto = ` ${normalizar(buscado)} `;
+  const alias = cds
+    .flatMap((cd) => cd.alias.map((a) => ({ cd, a: normalizar(a) })))
+    .filter(({ a }) => a)
+    .sort((x, y) => y.a.length - x.a.length);
+  const porAlias = alias.find(({ a }) => texto.includes(` ${a} `));
+  if (porAlias) return porAlias.cd;
 
-  return cds.find((c) =>
-    c.nombre.toLowerCase().includes(buscado.toLowerCase()),
-  );
+  return cds.find((c) => c.nombre && normalizar(c.nombre).includes(normalizar(buscado)) && normalizar(buscado).length > 0);
 }
 
 /**
  * ¿El término se refiere al país entero en vez de a un CD?
  *
- * "Corta el CD de Perú" son los dos CDs; "corta Villa El Salvador" es uno. La
+ * "Corta el CD de Perú" son todos sus CDs; "corta Villa El Salvador" es uno. La
  * diferencia cambia cuántas agendas se tocan, así que se decide aquí y no por
  * omisión.
  */
@@ -83,81 +79,43 @@ export function esTodoElPais(termino: string, pais: string): boolean {
   return paises[pais.toUpperCase().trim()]?.test(limpio) ?? false;
 }
 
-/** Los CDs de un país */
-export function cdsDelPais(pais: string): Cd[] {
-  return CDS[pais.toUpperCase().trim()] ?? [];
+/** "20026 (CD Villa El Salvador), 20096 (CD Aldea 6)", para decir cuáles hay */
+export function listaDeCds(cds: Cd[], pais: string): string {
+  return cds.length
+    ? cds.map((c) => `${c.code} (${c.nombre})`).join(', ')
+    : `ninguno: configura los CDs de ${pais} en el apartado Reporte CDs del panel`;
 }
 
 // ───────────────────────── Reasignar capacidad ─────────────────────────
 
 /**
- * Entre qué jornadas se puede mover capacidad **sin pedir autorización**.
- *
- * Lo que no está aquí no está prohibido: está condicionado a que quien lo pide
- * diga que tiene permiso. La diferencia importa — bloquearlo del todo obligaría
- * a salir del chat para una operación legítima, y permitirlo sin más convierte
- * una frase mal entendida en capacidad movida a una jornada que nadie revisa.
- *
- * Un CD que no esté en la tabla exige autorización para todo, que es el lado
- * seguro en el que equivocarse.
- */
-const LIBRES: Record<string, string[]> = {
-  // Villa El Salvador: las tres de siempre. AT, OP, SD y SE piden permiso.
-  '20026': ['ST', 'S', 'RC'],
-  // Aldea 6 solo tiene estas dos, y entre ellas se mueve sin pedir nada
-  '20096': ['S', 'SG'],
-  // Chile no tiene pares libres: se puede mover entre todas sus jornadas, pero
-  // siempre preguntando primero
-};
-
-/**
  * ¿Mover capacidad entre estas dos jornadas necesita autorización?
  *
- * Solo si **las dos** están en la lista libre del CD se hace sin preguntar.
+ * Solo si **las dos** están entre las libres del CD se hace sin preguntar.
  * Basta que una sea de las condicionadas para que haga falta el permiso: lo que
- * se vigila es a dónde va a parar la capacidad tanto como de dónde sale.
+ * se vigila es a dónde va a parar la capacidad tanto como de dónde sale. Un CD
+ * sin jornadas libres exige autorización para todo, que es el lado seguro en el
+ * que equivocarse.
+ *
+ * Lo que no es libre no está prohibido: está condicionado a que quien lo pide
+ * diga que tiene permiso. Bloquearlo del todo obligaría a salir del chat para
+ * una operación legítima, y permitirlo sin más convierte una frase mal
+ * entendida en capacidad movida a una jornada que nadie revisa.
  */
-export function necesitaAutorizacion(
-  cd: string,
-  origen: string,
-  destino: string,
-): boolean {
-  const libres = LIBRES[cd.trim()];
-  if (!libres) return true;
-
-  const dentro = (j: string) => libres.includes(j.trim().toUpperCase());
-
+export function necesitaAutorizacion(cd: Cd, origen: string, destino: string): boolean {
+  const dentro = (j: string) => cd.libres.includes(j.trim().toUpperCase());
   return !(dentro(origen) && dentro(destino));
 }
 
 /**
- * Las jornadas que pueden mover capacidad entre sí sin permiso, para poder
- * decirlo en el mensaje cuando se pide autorización.
- */
-export function jornadasLibres(cd: string): string[] {
-  return LIBRES[cd.trim()] ?? [];
-}
-
-/**
- * Jornadas que pueden reasignarse **entre fechas distintas**.
+ * ¿Esta pareja puede cruzar fechas en este CD?
  *
  * La regla general es que una reasignación ocurre dentro del mismo día: mover
- * capacidad de mañana a hoy es otra operación y con otras consecuencias. En
- * Chile, ND y DX son la excepción acordada.
+ * capacidad de mañana a hoy es otra operación y con otras consecuencias. Las
+ * jornadas que "cruzan fecha" en la configuración son la excepción acordada
+ * (ND y DX en Chile).
  */
-const ENTRE_FECHAS: Record<string, string[]> = {
-  CL: ['ND', 'DX'],
-};
-
-/** ¿Esta pareja puede cruzar fechas en este país? */
-export function permiteOtraFecha(
-  pais: string,
-  origen: string,
-  destino: string,
-): boolean {
-  const permitidas = ENTRE_FECHAS[pais.toUpperCase().trim()] ?? [];
-
-  const dentro = (j: string) => permitidas.includes(j.trim().toUpperCase());
-
+export function permiteOtraFecha(cd: Cd, origen: string, destino: string): boolean {
+  const dentro = (j: string) => cd.cruzanFecha.includes(j.trim().toUpperCase());
   return dentro(origen) || dentro(destino);
 }

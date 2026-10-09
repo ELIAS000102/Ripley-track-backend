@@ -1,5 +1,4 @@
 import {
-  BadGatewayException,
   BadRequestException,
   Injectable,
   Logger,
@@ -15,8 +14,8 @@ import {
   sumarDias,
   ventanaFechas,
 } from '../../common/ripley/utils/date.util.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
+import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
 import { MallasLeadtimeService } from '../../mallas_leadtime/mallas-leadtime.service.js';
 import { TIENDAS_MAXIMAS, type GuardarConfiguracionStDto } from './dto/reporte-st.dto.js';
 import type {
@@ -28,8 +27,6 @@ import type {
   Vista,
 } from './interfaces/reporte-st.interface.js';
 import { cruzarAgendas, mallaDeTienda, porFecha, totalizar } from './reporte-st.calculo.js';
-
-const TABLA = 'reportes_st';
 
 /** Tiendas que se consultan a la vez: cada una son dos lecturas */
 const TIENDAS_A_LA_VEZ = 3;
@@ -46,11 +43,9 @@ const MARGEN_TRANSFERENCIAS = 40;
 /** La API corporativa no responde: insistir con el resto solo llena el log */
 const NO_RESPONDE = /no está respondiendo|No se pudo contactar/;
 
-interface FilaConfiguracion {
-  pais: string;
-  grupos: GrupoSt[] | null;
-  actualizado_por: string | null;
-  actualizado_en: string | null;
+/** Lo que el reporte ST guarda en la tabla de configuración de los reportes */
+interface ConfiguracionSt {
+  grupos: GrupoSt[];
 }
 
 /** La matriz vigente, o por qué no la hay */
@@ -73,7 +68,7 @@ export class ReporteStService {
   private readonly logger = new Logger(ReporteStService.name);
 
   constructor(
-    private readonly supabase: SupabaseService,
+    private readonly configuraciones: ConfiguracionReportesService,
     private readonly catalogos: CatalogosRipleyService,
     private readonly mallas: MallasLeadtimeService,
     private readonly auditoria: ContextoAuditoria,
@@ -87,9 +82,9 @@ export class ReporteStService {
     return {
       pais,
       malla: malla.info,
-      actualizadoPor: fila?.actualizado_por ?? null,
-      actualizadoEn: fila?.actualizado_en ?? null,
-      grupos: (fila?.grupos ?? []).map((g) => ({
+      actualizadoPor: fila.actualizadoPor,
+      actualizadoEn: fila.actualizadoEn,
+      grupos: (fila.configuracion?.grupos ?? []).map((g) => ({
         ...g,
         tiendas: g.tiendas.map((t) => ({ ...t, malla: malla.porCodigo.get(t.codigo) ?? null })),
       })),
@@ -145,27 +140,16 @@ export class ReporteStService {
     if (errores.length) throw new BadRequestException(errores.join(' '));
 
     const anterior = await this.leerConfiguracion(pais);
-    const { data, error } = await this.supabase.admin
-      .from(TABLA)
-      .upsert({
-        pais,
-        grupos,
-        actualizado_por: usuario.email ?? 'desconocido',
-        actualizado_por_id: usuario.id,
-        actualizado_en: new Date().toISOString(),
-      })
-      .select('actualizado_en')
-      .single();
-    if (error) this.fallo(error, 'guardar la configuración del reporte ST');
+    const actualizadoEn = await this.configuraciones.guardar<ConfiguracionSt>('st', pais, { grupos }, usuario);
 
     const resumen = (gs: GrupoSt[] | null | undefined) =>
       (gs ?? []).map((g) => `${g.nombre}: ${g.tiendas.map((t) => t.codigo).join(', ') || '—'}`);
     this.auditoria.registrarCambio(
-      anterior ? { pais, grupos: resumen(anterior.grupos) } : null,
+      anterior.configuracion ? { pais, grupos: resumen(anterior.configuracion.grupos) } : null,
       { pais, grupos: resumen(grupos) },
     );
 
-    return { pais, grupos: grupos.length, tiendas: tiendas.size, actualizadoEn: data!.actualizado_en };
+    return { pais, grupos: grupos.length, tiendas: tiendas.size, actualizadoEn };
   }
 
   /** Si una tienda está en la matriz vigente, para avisarlo antes de guardarla */
@@ -181,7 +165,7 @@ export class ReporteStService {
     const desde = desdeParam ?? hoyEnPais(pais);
     const fechas = ventanaFechas(desde, semanas * 7);
     const [fila, malla] = await Promise.all([this.leerConfiguracion(pais), this.mallaVigente(pais)]);
-    const grupos = fila?.grupos ?? [];
+    const grupos = fila.configuracion?.grupos ?? [];
     const todas = grupos.flatMap((g) => g.tiendas);
 
     if (!todas.length) {
@@ -270,14 +254,8 @@ export class ReporteStService {
 
   // ---------- Lectura ----------
 
-  private async leerConfiguracion(pais: string): Promise<FilaConfiguracion | null> {
-    const { data, error } = await this.supabase.admin
-      .from(TABLA)
-      .select('pais, grupos, actualizado_por, actualizado_en')
-      .eq('pais', pais)
-      .maybeSingle();
-    if (error) this.fallo(error, 'leer la configuración del reporte ST');
-    return (data as FilaConfiguracion | null) ?? null;
+  private leerConfiguracion(pais: string) {
+    return this.configuraciones.leer<ConfiguracionSt>('st', pais);
   }
 
   /**
@@ -303,16 +281,5 @@ export class ReporteStService {
     } catch (e) {
       return { porCodigo: new Map(), info: { cargada: false, aviso: (e as Error).message } };
     }
-  }
-
-  /** Un fallo de Supabase, contado para quien lo lee */
-  private fallo(error: { code?: string; message?: string }, accion: string): never {
-    if (error.code === '42P01' || error.code === 'PGRST205') {
-      throw new BadGatewayException(
-        'Falta la tabla del reporte ST en Supabase: ejecuta la sección "Reporte ST" del SQL de configuración.',
-      );
-    }
-    this.logger.error(`No se pudo ${accion}: ${error.message ?? 'error desconocido'}`);
-    throw new BadGatewayException(`No se pudo ${accion}.`);
   }
 }

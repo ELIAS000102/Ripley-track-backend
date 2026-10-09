@@ -158,25 +158,34 @@ export interface CapacidadTransferenciaRespuesta {
  * todas. Aquí va pivotado y en tuplas posicionales `[utilizado, asignado, uso]`,
  * alineadas con el array `fechas`. Una celda pasa de ~148 caracteres a ~15.
  */
-export type CeldaReporte = [utilizado: number, asignado: number, uso: number];
+/**
+ * Un día de una jornada: lo que se enseña en cada celda.
+ *
+ * Llevaba solo [utilizado, asignado, uso] y la agente pintaba "0 / 250 (0%)"
+ * igual para un día abierto sin pedidos que para uno cerrado. Ahora lleva el
+ * disponible y si el día está abierto.
+ */
+export type CeldaReporte = [asignado: number, ocupado: number, disponible: number, uso: number, abierta: 0 | 1];
 
 export interface JornadaReporte {
   jornada: string;
   /** Una celda por fecha, en el mismo orden que `fechas` */
   dias: CeldaReporte[];
-  /** true si la jornada estuvo inactiva todos los días del rango */
-  inactiva: boolean;
 }
 
 export interface CdReporte {
   cd: string;
   nombre: string;
-  /** Solo las jornadas propias del CD */
+  /** Las jornadas configuradas del CD que tienen capacidad en el rango */
   jornadas: JornadaReporte[];
-  /** Suma de las jornadas propias, por fecha */
+  /** Suma de esas jornadas, por fecha */
   total: CeldaReporte[];
-  /** Jornadas que Ripley devolvió y no cuentan para este CD */
+  /** Configuradas, pero sin capacidad asignada ningún día del rango: no van en la tabla */
+  sinCapacidad: string[];
+  /** Jornadas que el CD tiene en Ripley y no forman su reporte */
   excluidas: string[];
+  /** La jornada y el día con más uso del rango */
+  masCargada: { jornada: string; fecha: string; uso: number } | null;
 }
 
 export interface ReporteRespuesta {

@@ -9,9 +9,10 @@ import {
   soloFecha,
   sumarDias,
 } from '../../../common/ripley/utils/date.util.js';
+import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import {
-  cdsDelPais,
   esTodoElPais,
+  listaDeCds,
   paisDelCd,
   resolverCd,
 } from '../../constantes/cds.constants.js';
@@ -50,6 +51,7 @@ export class EditarCdAgenteService {
     private readonly picking: PickingService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
+    private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 
   async editar(
@@ -57,10 +59,12 @@ export class EditarCdAgenteService {
     dto: EditarCdDto,
   ): Promise<CdEditado> {
     // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
-    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais));
+    // Los CDs y sus jornadas: los de la configuración del panel
+    const todosLosCds = await this.configuracionCds.todos();
+    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais, todosLosCds));
     const pais = contexto.pais;
 
-    const cds = this.cdsPedidos(dto.cd, pais);
+    const cds = this.cdsPedidos(dto.cd, pais, todosLosCds[pais] ?? []);
     const fechas = this.fechas(dto, pais);
     const jornadas = this.jornadasPedidas(dto.jornadas);
 
@@ -119,23 +123,20 @@ export class EditarCdAgenteService {
    * diferencia son siete agendas o catorce, así que no se deja al azar: un
    * término que no nombra a ninguno se rechaza diciendo cuáles hay.
    */
-  private cdsPedidos(termino: string | undefined, pais: string): Cd[] {
-    const todos = cdsDelPais(pais);
-
+  private cdsPedidos(termino: string | undefined, pais: string, todos: Cd[]): Cd[] {
     if (!todos.length) {
       throw new BadRequestException(
-        `No hay centros de distribución configurados para ${pais}`,
+        `No hay centros de distribución configurados para ${pais}: agrégalos en el apartado Reporte CDs del panel.`,
       );
     }
 
     if (!termino?.trim() || esTodoElPais(termino, pais)) return todos;
 
-    const cd = resolverCd(termino, pais);
+    const cd = resolverCd(termino, todos);
 
     if (!cd) {
       throw new BadRequestException(
-        `No reconozco el centro de distribución "${termino}" en ${pais}. ` +
-          `Los que hay: ${todos.map((c) => `${c.code} (${c.nombre})`).join(', ')}`,
+        `No reconozco el centro de distribución "${termino}" en ${pais}. Los que hay: ${listaDeCds(todos, pais)}`,
       );
     }
 

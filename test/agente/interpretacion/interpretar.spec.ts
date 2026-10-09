@@ -7,6 +7,7 @@ import {
 // bajo la carga de toda la batería pasaba del tiempo de un test
 import { ConsultasAgenteController } from '../../../src/agente/consultas/consultas.controller.js';
 import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
+import { CDS_DE_PRUEBA, configuracionCdsFalsa } from '../../fixtures/cds.js';
 
 /**
  * Lo que se lee de un mensaje sin un modelo.
@@ -29,7 +30,7 @@ const PRECONFS = [
 ];
 
 const leer = (texto: string, pais?: string) =>
-  interpretar(texto, { hoy: HOY, preconfiguraciones: PRECONFS, pais });
+  interpretar(texto, { hoy: HOY, preconfiguraciones: PRECONFS, pais, cds: CDS_DE_PRUEBA });
 
 describe('El 100 % dicho con palabras', () => {
   it('"las tiendas que tienen consumida en su totalidad la fecha 11-10" es el 100 %', () => {
@@ -122,7 +123,7 @@ describe('Las frases que fallaban en el chat', () => {
     }];
     const r = interpretar(
       'de esos opls de la SE busca en los opls de la ST y fijate que esten inactivos y el resto esten activos',
-      { hoy: HOY, preconfiguraciones: conLaSE },
+      { hoy: HOY, preconfiguraciones: conLaSE, cds: CDS_DE_PRUEBA },
     );
 
     // Pide cruzarla con la ST: lo decide la IA, entre la guardada y la búsqueda
@@ -130,7 +131,7 @@ describe('Las frases que fallaban en el chat', () => {
     expect(r.candidatos).toEqual(expect.arrayContaining(['preconfiguracion', 'busqueda_masiva']));
 
     // Y pedir solo lo que ella hace sí la elige con certeza
-    expect(interpretar('dame los opls de la SE', { hoy: HOY, preconfiguraciones: conLaSE }))
+    expect(interpretar('dame los opls de la SE', { hoy: HOY, preconfiguraciones: conLaSE, cds: CDS_DE_PRUEBA }))
       .toMatchObject({ caso: 'preconfiguracion', certeza: 'alta', preconfiguraciones: ['OPLS de la SE'] });
   });
 
@@ -138,7 +139,7 @@ describe('Las frases que fallaban en el chat', () => {
     const conLaSE = [...PRECONFS, { nombre: 'OPLS de la SE', descripcion: 'opls que tienen el tipo de servicio SE' }];
     const r = interpretar(
       'has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas',
-      { hoy: HOY, preconfiguraciones: conLaSE },
+      { hoy: HOY, preconfiguraciones: conLaSE, cds: CDS_DE_PRUEBA },
     );
 
     expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta' });
@@ -312,12 +313,26 @@ describe('La ruta', () => {
 
   it('las preconfiguraciones mal formadas se ignoran en vez de romper', async () => {
 
-    // interpretar no usa ningún service del controlador: se llama sin instancia
-    const r = ConsultasAgenteController.prototype.interpretar.call(null, {
+    // Del controlador solo usa la configuración de los CDs: se le da la de prueba
+    const r = await ConsultasAgenteController.prototype.interpretar.call({ configuracionCds: configuracionCdsFalsa() }, {
       pregunta: 'ejecuta la Simulación SD',
       preconfiguraciones: [{ nombre: 'Simulación SD' }, { descripcion: 'sin nombre' }, null, { nombre: 42 }],
     } as never);
 
     expect(r).toMatchObject({ caso: 'preconfiguracion', preconfiguraciones: ['Simulación SD'] });
+  });
+
+  it('reconoce los CDs de la configuración, y si no se puede leer sigue sin ellos', async () => {
+    const llamar = (configuracionCds: unknown) => ConsultasAgenteController.prototype.interpretar.call({ configuracionCds }, {
+      pregunta: 'corta la ST del 10095',
+    } as never);
+
+    expect(await llamar(configuracionCdsFalsa())).toMatchObject({ pais: 'CL', cds: [{ code: '10095', pais: 'CL' }] });
+    expect(await llamar({ todos: async () => { throw new Error('supabase caído'); } })).toMatchObject({ pais: null, cds: [] });
+  });
+
+  it('un CD nuevo de la configuración se reconoce sin tocar el código', () => {
+    const conNuevo = { ...CDS_DE_PRUEBA, PE: [...CDS_DE_PRUEBA.PE, { code: '20199', nombre: 'CD Lurín', jornadas: ['ST'], alias: ['lurin'], libres: [], cruzanFecha: [] }] };
+    expect(interpretar('corta el picking del cd lurín', { hoy: HOY, cds: conNuevo }).cds).toEqual([{ code: '20199', nombre: 'CD Lurín', pais: 'PE' }]);
   });
 });

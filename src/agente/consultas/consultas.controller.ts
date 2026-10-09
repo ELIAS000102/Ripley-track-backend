@@ -21,6 +21,7 @@ import { SimulacionAgenteService } from './simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './transferencia/transferencia.service.js';
 import { interpretar } from '../interpretacion/interpretar.js';
+import { ConfiguracionCdsService } from '../../reportes/cds/configuracion-cds.service.js';
 import { InterrupcionAgenteService } from '../seguridad/interrupcion.service.js';
 import {
   BuscarMasivoDto,
@@ -68,6 +69,7 @@ export class ConsultasAgenteController {
     private readonly config: ConfigService,
     private readonly interrupcion: InterrupcionAgenteService,
     private readonly capacidadTransferencia: CapacidadTransferenciaAgenteService,
+    private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 
   /**
@@ -217,7 +219,7 @@ export class ConsultasAgenteController {
   @PermitidoAgente()
   @Post('interpretar')
   @HttpCode(200)
-  interpretar(
+  async interpretar(
     @Body() body: InterpretarDto,
     @Usuario() usuario?: UsuarioAutenticado,
   ) {
@@ -232,6 +234,10 @@ export class ConsultasAgenteController {
         descripcion: typeof p.descripcion === 'string' ? p.descripcion : null,
       }));
 
-    return interpretar(body.pregunta, { pais: body.pais, preconfiguraciones });
+    // Los CDs que reconoce son los configurados en el panel. Si no se pueden
+    // leer, se lee sin ellos: la IA decide igual, y el mensaje no se pierde
+    const cds = await this.configuracionCds.todos().catch(() => ({}));
+
+    return interpretar(body.pregunta, { pais: body.pais, preconfiguraciones, cds });
   }
 }

@@ -5,6 +5,7 @@ import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogo
 import type { CapacityByDay } from '../../../src/common/ripley/interfaces/ripley.interface.js';
 import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
 import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
+import { ConfiguracionReportesService } from '../../../src/reportes/comun/configuracion-reportes.service.js';
 import { interpretarTienda } from '../../../src/mallas_leadtime/matriz.calculo.js';
 import type { MallasLeadtimeService } from '../../../src/mallas_leadtime/mallas-leadtime.service.js';
 import type { TiendaMalla } from '../../../src/mallas_leadtime/interfaces/malla.interface.js';
@@ -119,7 +120,7 @@ describe('El servicio', () => {
     const consulta = {
       select: () => consulta,
       eq: () => consulta,
-      maybeSingle: async () => ({ data: grupos ? { pais: 'CL', grupos, actualizado_por: 'u@r.cl', actualizado_en: 'x' } : null, error: null }),
+      maybeSingle: async () => ({ data: grupos ? { configuracion: { grupos }, actualizado_por: 'u@r.cl', actualizado_en: 'x' } : null, error: null }),
       upsert: (fila: unknown) => { guardados.push(fila); return consulta; },
       single: async () => ({ data: { actualizado_en: '2026-10-08T12:00:00Z' }, error: null }),
     };
@@ -135,7 +136,7 @@ describe('El servicio', () => {
       }),
     } as unknown as MallasLeadtimeService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
-    const servicio = new ReporteStService(supabase, catalogos as unknown as CatalogosRipleyService, mallas, auditoria);
+    const servicio = new ReporteStService(new ConfiguracionReportesService(supabase), catalogos as unknown as CatalogosRipleyService, mallas, auditoria);
     return { servicio, catalogos, guardados, auditoria };
   }
   const USUARIO = { id: 'u-1', email: 'u@ripley.cl' };
@@ -215,7 +216,7 @@ describe('El servicio', () => {
     const { servicio, guardados, auditoria } = montar([{ nombre: 'Sur', tiendas: [] }]);
     const r = await servicio.guardar('CL', { grupos: [{ nombre: ' RM ', tiendas: [tienda('10002', 'Mall')] }] }, USUARIO);
     expect(r).toMatchObject({ grupos: 1, tiendas: 1 });
-    expect(guardados[0]).toMatchObject({ pais: 'CL', actualizado_por: 'u@ripley.cl', grupos: [{ nombre: 'RM', tiendas: [{ codigo: '10002' }] }] });
+    expect(guardados[0]).toMatchObject({ tipo: 'st', pais: 'CL', actualizado_por: 'u@ripley.cl', configuracion: { grupos: [{ nombre: 'RM', tiendas: [{ codigo: '10002' }] }] } });
     expect(auditoria.registrarCambio).toHaveBeenCalledWith({ pais: 'CL', grupos: ['Sur: —'] }, { pais: 'CL', grupos: ['RM: 10002'] });
   });
 });

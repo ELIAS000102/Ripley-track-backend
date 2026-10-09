@@ -4,6 +4,7 @@ import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-audit
 import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { ReasignarCapacidadAgenteService } from '../../../../src/agente/edicion/reasignar/reasignar.service.js';
+import { configuracionCdsFalsa } from '../../../fixtures/cds.js';
 
 /**
  * Mover capacidad de una jornada a otra.
@@ -71,7 +72,7 @@ function armar({
   return {
     servicio: new ReasignarCapacidadAgenteService(picking, contexto, {
       registrarCambio,
-    } as unknown as ContextoAuditoria),
+    } as unknown as ContextoAuditoria, configuracionCdsFalsa()),
     actualizar,
     registrarCambio,
   };

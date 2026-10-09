@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import {
   hoyEnPais,
@@ -6,7 +6,7 @@ import {
   soloFecha,
   ventanaFechas,
 } from '../../common/ripley/utils/date.util.js';
-import { CDS } from './cds.constants.js';
+import { ConfiguracionCdsService } from './configuracion-cds.service.js';
 import {
   Cd,
   FalloReporte,
@@ -40,11 +40,10 @@ export class CdsService {
   /** Llamadas simultáneas a la API corporativa */
   private readonly CONCURRENCIA = 6;
 
-  constructor(private readonly catalogos: CatalogosRipleyService) {}
-
-  private cdsDelPais(pais: string): Cd[] {
-    return CDS[pais.toUpperCase().trim()] ?? [];
-  }
+  constructor(
+    private readonly catalogos: CatalogosRipleyService,
+    private readonly configuracion: ConfiguracionCdsService,
+  ) {}
 
   /** Ejecuta en lotes para no saturar la API corporativa */
 
@@ -62,11 +61,12 @@ export class CdsService {
     const desde = desdeParam && desdeParam > hoy ? desdeParam : hoy;
     const fechas = ventanaFechas(desde, dias);
 
-    const cds = this.cdsDelPais(pais);
+    // Qué CDs y qué jornadas: lo que configuró la operación en el panel
+    const cds = await this.configuracion.cds(pais);
 
     if (!cds.length) {
-      throw new BadGatewayException(
-        `No hay centros de distribución configurados para ${pais}`,
+      throw new BadRequestException(
+        `No hay centros de distribución configurados para ${pais}: agrégalos en el apartado Reporte CDs, en "Configurar CDs".`,
       );
     }
 
@@ -106,8 +106,11 @@ export class CdsService {
       }),
     );
 
-    // 3. Lista plana de agendas a consultar (se incluyen activas e inactivas)
+    // 3. Lista plana de agendas a consultar (se incluyen activas e inactivas).
+    //    Solo las de las jornadas configuradas: las demás no se consultan y se
+    //    cuentan en "excluidas", para que se note si aparece una nueva
     const tareas: Tarea[] = [];
+    const excluidas: Record<string, string[]> = {};
 
     for (const { cd, warehouseId, agendas } of porCd) {
       for (const a of agendas) {
@@ -118,6 +121,12 @@ export class CdsService {
           a.capacities?.[0];
 
         const jornada = servicios.get(a.services?.[0]);
+
+        if (jornada && !cd.jornadas.includes(jornada.toUpperCase())) {
+          excluidas[cd.code] ??= [];
+          if (!excluidas[cd.code].includes(jornada)) excluidas[cd.code].push(jornada);
+          continue;
+        }
 
         if (!capacidad?.capacityId || !jornada) {
           fallidas.push({
@@ -235,6 +244,7 @@ export class CdsService {
       cds,
       jornadas: [...jornadas].sort().map((code) => ({ code })),
       registros,
+      excluidas,
       cobertura: { agendas: tareas.length, exitosas, vacias, fallidas },
     };
   }

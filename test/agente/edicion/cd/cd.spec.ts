@@ -4,6 +4,7 @@ import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-audit
 import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarCdAgenteService } from '../../../../src/agente/edicion/cd/cd.service.js';
+import { configuracionCdsFalsa } from '../../../fixtures/cds.js';
 
 /**
  * Cortar el picking de un CD entero.
@@ -79,7 +80,7 @@ function armar({
   return {
     servicio: new EditarCdAgenteService(picking, contexto, {
       registrarCambio,
-    } as unknown as ContextoAuditoria),
+    } as unknown as ContextoAuditoria, configuracionCdsFalsa()),
     actualizar,
     listar: picking.listarAgendasPorOficina as ReturnType<typeof vi.fn>,
     registrarCambio,

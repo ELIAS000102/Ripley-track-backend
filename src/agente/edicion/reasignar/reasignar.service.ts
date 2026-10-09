@@ -14,9 +14,9 @@ import {
   isoToRipleyDate,
   soloFecha,
 } from '../../../common/ripley/utils/date.util.js';
+import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import {
-  cdsDelPais,
-  jornadasLibres,
+  listaDeCds,
   necesitaAutorizacion,
   paisDelCd,
   permiteOtraFecha,
@@ -53,6 +53,7 @@ export class ReasignarCapacidadAgenteService {
     private readonly picking: PickingService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
+    private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 
   async reasignar(
@@ -60,10 +61,12 @@ export class ReasignarCapacidadAgenteService {
     dto: ReasignarCapacidadDto,
   ): Promise<CapacidadReasignada> {
     // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
-    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais));
+    // Los CDs, sus jornadas y sus reglas: los de la configuración del panel
+    const todos = await this.configuracionCds.todos();
+    const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais, todos));
     const pais = contexto.pais;
 
-    const cd = this.cdPedido(dto.cd, pais);
+    const cd = this.cdPedido(dto.cd, pais, todos[pais] ?? []);
     const origen = dto.origen.trim().toUpperCase();
     const destino = dto.destino.trim().toUpperCase();
 
@@ -78,6 +81,7 @@ export class ReasignarCapacidadAgenteService {
     const { fechaOrigen, fechaDestino } = this.fechas(
       dto,
       pais,
+      cd,
       origen,
       destino,
     );
@@ -172,7 +176,7 @@ export class ReasignarCapacidadAgenteService {
     return {
       contexto,
       ...resultado,
-      ...(necesitaAutorizacion(cd.code, origen, destino)
+      ...(necesitaAutorizacion(cd, origen, destino)
         ? { conAutorizacion: true }
         : {}),
     };
@@ -180,16 +184,12 @@ export class ReasignarCapacidadAgenteService {
 
   // ---------- Las reglas ----------
 
-  private cdPedido(termino: string, pais: string): Cd {
-    const cd = resolverCd(termino, pais);
+  private cdPedido(termino: string, pais: string, cds: Cd[]): Cd {
+    const cd = resolverCd(termino, cds);
 
     if (!cd) {
-      const hay = cdsDelPais(pais)
-        .map((c) => `${c.code} (${c.nombre})`)
-        .join(', ');
-
       throw new NotFoundException(
-        `No reconozco el centro de distribución "${termino}" en ${pais}. Los que hay: ${hay}`,
+        `No reconozco el centro de distribución "${termino}" en ${pais}. Los que hay: ${listaDeCds(cds, pais)}`,
       );
     }
 
@@ -224,6 +224,7 @@ export class ReasignarCapacidadAgenteService {
   private fechas(
     dto: ReasignarCapacidadDto,
     pais: string,
+    cd: Cd,
     origen: string,
     destino: string,
   ): { fechaOrigen: string; fechaDestino: string } {
@@ -232,10 +233,13 @@ export class ReasignarCapacidadAgenteService {
 
     if (fechaDestino === fechaOrigen) return { fechaOrigen, fechaDestino };
 
-    if (!permiteOtraFecha(pais, origen, destino)) {
+    if (!permiteOtraFecha(cd, origen, destino)) {
       throw new BadRequestException(
         `Una reasignación se hace dentro de la misma fecha, y aquí vienen dos ` +
-          `(${fechaOrigen} y ${fechaDestino}). Solo ND y DX en Chile pueden cruzar fechas.`,
+          `(${fechaOrigen} y ${fechaDestino}). ` +
+          (cd.cruzanFecha.length
+            ? `En ${cd.code} solo ${cd.cruzanFecha.join(' y ')} pueden cruzar fechas.`
+            : `En ${cd.code} ninguna jornada puede cruzar fechas.`),
       );
     }
 
@@ -255,10 +259,10 @@ export class ReasignarCapacidadAgenteService {
     destino: string,
     autorizado: boolean | undefined,
   ): void {
-    if (!necesitaAutorizacion(cd.code, origen, destino)) return;
+    if (!necesitaAutorizacion(cd, origen, destino)) return;
     if (autorizado === true) return;
 
-    const libres = jornadasLibres(cd.code);
+    const libres = cd.libres;
 
     throw new ForbiddenException(
       `Mover capacidad de ${origen} a ${destino} en ${cd.code} necesita autorización. ` +
