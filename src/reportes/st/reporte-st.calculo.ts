@@ -113,9 +113,20 @@ export function transferenciasDe(
   return vinculos.sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
+/** El día en que recepciona, según esa malla, lo que se transfiere en una fecha; o `null` si ese día no transfiere */
+export function recepcionSegun(fecha: string, tienda: MallaDeTienda): string | null {
+  const par = tienda.pares.find((p) => p.transfiere === diaDeLaSemana(fecha));
+  return par ? sumarDias(fecha, par.diasHastaRecepcion) : null;
+}
+
 /**
  * Las dos agendas de una tienda, alineadas con las fechas del reporte y
  * vinculadas. Cada día dice con qué malla se cruzó.
+ *
+ * `mallaEn` es la malla de cada día de TRANSFERENCIA; `mallaDeRecepcion`, la
+ * que se enseña en cada día de recepción. Con un evento son distintas: su
+ * vigencia es de recepción, y una transferencia es del evento si recepciona
+ * dentro de ella. Sin decirla, es la misma.
  */
 export function cruzarAgendas(
   fechas: string[],
@@ -123,11 +134,12 @@ export function cruzarAgendas(
   candidatas: MallaUsada[],
   recepciones: Map<string, DiaSt>,
   transferencias: Map<string, DiaSt>,
+  mallaDeRecepcion: MallaEn = mallaEn,
 ): { recepcion: (DiaRecepcionSt | null)[]; transferencia: (DiaTransferenciaSt | null)[] } {
   return {
     recepcion: fechas.map((f) => {
       const d = recepciones.get(f);
-      return d ? { ...d, malla: mallaEn(f)?.nombre ?? null, transferencias: transferenciasDe(f, candidatas, mallaEn, transferencias) } : null;
+      return d ? { ...d, malla: mallaDeRecepcion(f)?.nombre ?? null, transferencias: transferenciasDe(f, candidatas, mallaEn, transferencias) } : null;
     }),
     transferencia: fechas.map((f) => {
       const d = transferencias.get(f);

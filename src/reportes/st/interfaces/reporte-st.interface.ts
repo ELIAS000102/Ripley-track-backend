@@ -96,7 +96,7 @@ export interface EventoDeTienda {
 
 /**
  * Qué malla usa el reporte:
- * - "auto": la de un evento los días de su vigencia en cada tienda, y la de valle el resto;
+ * - "auto": la de un evento en las recepciones de su vigencia en cada tienda (y las transferencias que llegan a ellas), y la de valle el resto;
  * - "valle": la de valle siempre, aunque haya eventos;
  * - el nombre de un evento: ese evento todos los días en sus tiendas, y la de valle en las demás.
  */

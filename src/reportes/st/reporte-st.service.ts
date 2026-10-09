@@ -28,7 +28,7 @@ import type {
   TiendaSt,
   Vista,
 } from './interfaces/reporte-st.interface.js';
-import { cruzarAgendas, dentroDe, mallaDeTienda, porFecha, totalizar, type MallaEn, type MallaUsada } from './reporte-st.calculo.js';
+import { cruzarAgendas, dentroDe, mallaDeTienda, porFecha, recepcionSegun, totalizar, type MallaEn, type MallaUsada } from './reporte-st.calculo.js';
 
 /** Tiendas que se consultan a la vez: cada una son dos lecturas */
 const TIENDAS_A_LA_VEZ = 3;
@@ -224,13 +224,14 @@ export class ReporteStService {
       if (typeof transferencias === 'string') fallidas.push({ codigo: t.codigo, agenda: 'transferencia', error: transferencias });
 
       const mallaTienda = mallas.valle.get(t.codigo) ?? null;
-      const { mallaEn, candidatas } = mallasDeTienda(t.codigo, mallaTienda, mallas.eventos, modo);
+      const { mallaEn, mallaDeRecepcion, candidatas } = mallasDeTienda(t.codigo, mallaTienda, mallas.eventos, modo);
       const cruce = cruzarAgendas(
         fechas,
         mallaEn,
         candidatas,
         porFecha(typeof recepciones === 'string' ? [] : recepciones),
         porFecha(typeof transferencias === 'string' ? [] : transferencias),
+        mallaDeRecepcion,
       );
 
       porTienda.set(t.codigo, {
@@ -347,19 +348,39 @@ function mallasDeTienda(codigo: string, valle: MallaDeTienda | null, eventos: Ev
   const deValle: MallaUsada | null = valle ? { nombre: NOMBRE_VALLE, tienda: valle } : null;
   const suyos = eventos.filter((e) => e.porCodigo.has(codigo));
   const usada = (e: EventoVigente): MallaUsada => ({ nombre: e.nombre, tienda: e.porCodigo.get(codigo)! });
-
-  const mallaEn: MallaEn = (fecha) => {
+  const forzado = (): MallaUsada | null => {
     if (modo === 'valle') return deValle;
-    if (modo !== 'auto') {
-      const forzado = suyos.find((e) => e.nombre === modo);
-      return forzado ? usada(forzado) : deValle;
-    }
-    const enVigencia = suyos.find((e) => {
+    const e = suyos.find((x) => x.nombre === modo);
+    return e ? usada(e) : deValle;
+  };
+
+  /*
+   * La vigencia de un evento es de RECEPCIÓN: dice qué días recepciona la
+   * tienda con la malla del evento. Una transferencia va con el evento si su
+   * recepción según el evento cae dentro de la vigencia; la última es la que
+   * recepciona el último día. Las demás, con la de valle. Así las primeras
+   * transferencias del evento pueden salir antes del "desde", si recepcionan
+   * ya dentro.
+   */
+  const mallaDeTransferencia: MallaEn = (fecha) => {
+    if (modo !== 'auto') return forzado();
+    const delEvento = suyos.find((e) => {
+      const v = e.vigencias.get(codigo);
+      const recibe = v ? recepcionSegun(fecha, e.porCodigo.get(codigo)!) : null;
+      return recibe !== null && v !== undefined && dentroDe(recibe, v);
+    });
+    return delEvento ? usada(delEvento) : deValle;
+  };
+
+  /** Un día de recepción es del evento si está en su vigencia */
+  const mallaDeRecepcion: MallaEn = (fecha) => {
+    if (modo !== 'auto') return forzado();
+    const delEvento = suyos.find((e) => {
       const v = e.vigencias.get(codigo);
       return v ? dentroDe(fecha, v) : false;
     });
-    return enVigencia ? usada(enVigencia) : deValle;
+    return delEvento ? usada(delEvento) : deValle;
   };
 
-  return { mallaEn, candidatas: [...(deValle ? [deValle] : []), ...suyos.map(usada)] };
+  return { mallaEn: mallaDeTransferencia, mallaDeRecepcion, candidatas: [...(deValle ? [deValle] : []), ...suyos.map(usada)] };
 }

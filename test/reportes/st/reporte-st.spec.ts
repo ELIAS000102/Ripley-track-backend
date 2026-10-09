@@ -216,26 +216,47 @@ describe('El servicio', () => {
   });
 
   describe('con una malla de evento', () => {
-    // En el evento "Cyber", Punta Arenas transfiere el jueves y recepciona el viernes (sin el +7)
-    const cyber = {
+    // En el evento "Cyber", Punta Arenas transfiere el jueves y recepciona el viernes (sin el +7).
+    // La vigencia es de RECEPCIÓN: el viernes 16
+    const conVigencia = (desde: string, hasta: string) => ({
       nombre: 'Cyber', cargadoEn: '2026-10-09T10:00:00Z',
       porCodigo: new Map([['10096', interpretarTienda(fila('10096', 'Punta Arenas', [_, _, _, 'A', _, _, _], [_, _, _, _, 'A', _, _]))]]),
-      vigencias: new Map([['10096', { codigo: '10096', desde: '2026-10-15', hasta: '2026-10-15' }]]),
-    };
-    const consultar = (malla?: string) => montar([{ nombre: 'Sur', tiendas: [tienda('10096', 'Punta Arenas')] }], {
-      eventos: [cyber],
+      vigencias: new Map([['10096', { codigo: '10096', desde, hasta }]]),
+    });
+    const cyber = conVigencia('2026-10-16', '2026-10-16');
+    const consultar = (malla?: string, evento = cyber) => montar([{ nombre: 'Sur', tiendas: [tienda('10096', 'Punta Arenas')] }], {
+      eventos: [evento],
       transferencia: async () => ({ capacityByDayArray: [dia('2026-10-15', 200, 20), dia('2026-10-22', 200, 0)] }),
       recepcion: async () => ({ capacityByDayArray: [dia('2026-10-16', 300, 0), dia('2026-10-26', 300, 0), dia('2026-11-02', 300, 0)] }),
     }).servicio.reporte('CL', 2, '2026-10-15', malla);
     const vinculos = (r: Awaited<ReturnType<typeof consultar>>) =>
       r.grupos[0].tiendas[0].transferencia.dias.filter(Boolean).map((d) => `${d!.fecha} ${d!.malla} → ${d!.recepcion?.fecha}`);
 
-    it('en automático, los días de su vigencia van con el evento y el resto con la de valle', async () => {
+    it('en automático, va con el evento la transferencia que recepciona dentro de la vigencia; las demás, con la de valle', async () => {
       const r = await consultar();
+      // El jueves 15 recepciona según el evento el viernes 16, que está en la vigencia; el 22 recepcionaría el 23, que no
       expect(vinculos(r)).toEqual(['2026-10-15 Cyber → 2026-10-16', '2026-10-22 Valle → 2026-11-02']);
       expect([r.malla.modo, r.malla.eventos, r.grupos[0].tiendas[0].eventos]).toEqual([
-        'auto', [{ nombre: 'Cyber', cargadaEn: '2026-10-09T10:00:00Z', tiendas: 1 }], [{ nombre: 'Cyber', desde: '2026-10-15', hasta: '2026-10-15' }],
+        'auto', [{ nombre: 'Cyber', cargadaEn: '2026-10-09T10:00:00Z', tiendas: 1 }], [{ nombre: 'Cyber', desde: '2026-10-16', hasta: '2026-10-16' }],
       ]);
+    });
+
+    it('la vigencia es de recepción: ponerla en el día de la transferencia no la hace del evento', async () => {
+      // Del 15 al 15: el jueves 15 recepcionaría con el evento el 16, fuera de la vigencia
+      expect(vinculos(await consultar(undefined, conVigencia('2026-10-15', '2026-10-15')))).toEqual(['2026-10-15 Valle → 2026-10-26', '2026-10-22 Valle → 2026-11-02']);
+    });
+
+    it('la última transferencia del evento es la que recepciona el último día de la vigencia', async () => {
+      // Hasta el 23: el jueves 22 recepciona con el evento el viernes 23, dentro; es la última
+      expect(vinculos(await consultar(undefined, conVigencia('2026-10-16', '2026-10-23')))).toEqual(['2026-10-15 Cyber → 2026-10-16', '2026-10-22 Cyber → 2026-10-23']);
+      // Hasta el 22: el 23 ya queda fuera y el jueves 22 vuelve a la de valle
+      expect(vinculos(await consultar(undefined, conVigencia('2026-10-16', '2026-10-22')))).toEqual(['2026-10-15 Cyber → 2026-10-16', '2026-10-22 Valle → 2026-11-02']);
+    });
+
+    it('los días de recepción dentro de la vigencia se enseñan como del evento; los demás, de valle', async () => {
+      const r = await consultar();
+      const recepcion = r.grupos[0].tiendas[0].recepcion.dias.filter(Boolean).map((d) => `${d!.fecha} ${d!.malla}`);
+      expect(recepcion).toEqual(['2026-10-16 Cyber', '2026-10-26 Valle']);
     });
 
     it('"valle" no usa el evento aunque esté en vigencia', async () => {
