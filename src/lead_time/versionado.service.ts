@@ -83,6 +83,11 @@ export interface DefinicionVersionado<Item extends { codigo: string }, Interpret
   leer(contenido: Buffer): Promise<Lectura<Item>>;
   plantilla(items?: Item[]): Promise<Buffer>;
   interpretar(item: Item): Interpretado;
+  /**
+   * Cómo se encuentra un código pedido entre los de la versión. Por defecto,
+   * tal cual; las mallas aceptan también la OPL sola si tiene un solo flujo.
+   */
+  buscar?(items: Item[], codigo: string): Item | undefined;
 }
 
 /** Los datos de una carga, sin lo que trae dentro */
@@ -230,7 +235,7 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     const malla = await this.conNombreGuardado(grupo, pedida);
     const vigente = await this.vigente(grupo, malla);
     if (!vigente) throw new NotFoundException(`No hay ${this.llamada(malla, grupo.pais)} cargada en este grupo.`);
-    const item = vigente.items.find((t) => t.codigo === codigo.trim());
+    const item = this.def.buscar ? this.def.buscar(vigente.items, codigo.trim()) : vigente.items.find((t) => t.codigo === codigo.trim());
     if (!item) throw new NotFoundException(`La ${this.def.unidad} ${codigo} no está en ${this.llamada(malla, grupo.pais)}.`);
     return { item, malla, nombre: this.nombreParaVer(malla, grupo.pais) };
   }

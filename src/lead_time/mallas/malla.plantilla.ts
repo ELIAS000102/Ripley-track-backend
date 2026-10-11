@@ -2,13 +2,15 @@ import ExcelJS from 'exceljs';
 import type { OplMalla } from './interfaces/malla.interface.js';
 
 /**
- * La plantilla de las mallas, con el formato de la operación: una fila por OPL
- * y día de venta, y un calendario de lunes a domingo —tres semanas, o las que
- * hagan falta— donde se escribe "Venta", "Transito" y "Despacho" en su día.
+ * La plantilla de las mallas, con el formato de la operación: una fila por OPL,
+ * flujo y día de venta, y un calendario de lunes a domingo —tres semanas, o las
+ * que hagan falta— donde se escribe "Venta", "Transito", "Recojo" y
+ * "Despacho" en su día.
  *
  * Las celdas del calendario se colorean solas al escribir: amarillo la venta,
- * morado el tránsito y verde el despacho, como en la malla de la operación.
- * Caben todas las OPLs del grupo en una sola carga.
+ * morado el tránsito, rosa el recojo y verde el despacho, como en la malla de
+ * la operación. Caben todas las OPLs del grupo, con todos sus flujos, en una
+ * sola carga.
  *
  * Con `opls` sale rellena: son las mallas guardadas, listas para corregirlas y
  * volver a cargarlas.
@@ -16,7 +18,7 @@ import type { OplMalla } from './interfaces/malla.interface.js';
 
 const NOMBRES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-const COLOR = { cabecera: 'FFD9D9D9', semana: 'FF000000', venta: 'FFFFFF00', transito: 'FFDA70D6', despacho: 'FF92D050' };
+const COLOR = { cabecera: 'FFD9D9D9', semana: 'FF000000', venta: 'FFFFFF00', transito: 'FFDA70D6', recojo: 'FFF4B6E2', despacho: 'FF92D050' };
 
 const relleno = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 const borde: Partial<ExcelJS.Borders> = {
@@ -26,8 +28,8 @@ const borde: Partial<ExcelJS.Borders> = {
   right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
 };
 
-/** Columnas antes del calendario: OPL y T. de servicio */
-const FIJAS = 2;
+/** Columnas antes del calendario: OPL, Flujo y Día */
+const FIJAS = 3;
 const FILAS_EN_BLANCO = 140;
 
 function letra(n: number) {
@@ -58,7 +60,7 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
     c.alignment = { horizontal: 'center' };
     c.fill = relleno(COLOR.semana);
   }
-  hoja.getRow(2).values = ['OPL', 'T. de servicio', ...Array.from({ length: dias }, (_, i) => NOMBRES[i % 7])];
+  hoja.getRow(2).values = ['OPL', 'Flujo', 'Día', ...Array.from({ length: dias }, (_, i) => NOMBRES[i % 7])];
   hoja.getRow(2).eachCell((c) => {
     c.font = { bold: true };
     c.alignment = { horizontal: 'center' };
@@ -66,21 +68,24 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
     c.fill = relleno(COLOR.cabecera);
   });
   hoja.getColumn(1).width = 10;
-  hoja.getColumn(2).width = 15;
+  hoja.getColumn(2).width = 10;
+  hoja.getColumn(3).width = 12;
   for (let col = primera; col <= ultimaCol; col++) hoja.getColumn(col).width = 11;
 
-  // Las filas guardadas: siete por OPL, cada una con su venta en la primera semana
+  // Las filas guardadas: siete por OPL y flujo, cada una con su venta en la primera semana
   const guardadas = opls.flatMap((o) => o.dias.flatMap((d, i) => (d ? [{ o, i, d }] : [])));
   const filas = Math.max(guardadas.length + 21, FILAS_EN_BLANCO);
-  const lista = '"Venta,Transito,Despacho"';
+  const lista = '"Venta,Transito,Recojo,Despacho"';
   for (let k = 0; k < filas; k++) {
     const fila = hoja.getRow(k + 3);
     const g = guardadas[k];
     if (g) {
-      fila.getCell(1).value = g.o.codigo;
+      fila.getCell(1).value = g.o.opl;
       fila.getCell(2).value = g.o.servicio;
+      fila.getCell(3).value = NOMBRES[g.i];
       fila.getCell(primera + g.i).value = 'Venta';
       if (g.d.transito !== null) fila.getCell(primera + g.i + g.d.transito).value = 'Transito';
+      if (g.d.recojo !== null) fila.getCell(primera + g.i + g.d.recojo).value = 'Recojo';
       fila.getCell(primera + g.i + g.d.despacho).value = 'Despacho';
     }
     for (let col = 1; col <= ultimaCol; col++) {
@@ -91,7 +96,7 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
         c.alignment = { horizontal: 'center' };
         c.dataValidation = {
           type: 'list', allowBlank: true, formulae: [lista], showErrorMessage: true,
-          errorTitle: 'Malla', error: 'Escribe Venta, Transito o Despacho.',
+          errorTitle: 'Malla', error: 'Escribe Venta, Transito, Recojo o Despacho.',
         };
       }
     }
@@ -105,7 +110,7 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
   });
   hoja.addConditionalFormatting({
     ref: calendario,
-    rules: [regla('Venta', COLOR.venta, 1), regla('Transito', COLOR.transito, 2), regla('Despacho', COLOR.despacho, 3)],
+    rules: [regla('Venta', COLOR.venta, 1), regla('Transito', COLOR.transito, 2), regla('Recojo', COLOR.recojo, 3), regla('Despacho', COLOR.despacho, 4)],
   });
 
   const ayuda = libro.addWorksheet('Instrucciones');
@@ -113,21 +118,22 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
   const lineas = [
     ['Cómo rellenar las mallas de un grupo', true],
     ['', false],
-    ['Una fila por OPL y día de venta (siete por OPL). Caben todas las OPLs del grupo en un solo archivo.', false],
-    ['En cada fila, escribe en la columna de su día: "Venta", "Transito" (si pasa por tránsito) y "Despacho".', false],
-    ['La venta va en la primera semana; el tránsito y el despacho, en los días que tocan, aunque sean de la semana siguiente.', false],
+    ['Una fila por OPL, flujo y día de venta (siete por cada OPL y flujo). Caben todas las OPLs del grupo, con todos sus flujos, en un solo archivo.', false],
+    ['En cada fila, escribe en la columna de su día: "Venta", "Despacho" y, si los hay, "Transito" y "Recojo".', false],
+    ['La venta va en la primera semana; lo demás, en los días que tocan, aunque sean de la semana siguiente.', false],
     ['', false],
     ['Columnas (no las muevas; no cambies las filas 1 y 2):', true],
-    ['A OPL (código) · B T. de servicio · C en adelante: el calendario, de lunes a domingo, semana tras semana', false],
+    ['A OPL (código) · B Flujo (tipo de servicio: S, OP…) · C Día de venta · D en adelante: el calendario, de lunes a domingo, semana tras semana', false],
     ['También se puede cargar el Excel de la operación tal cual, con sus fechas encima: se lee el encabezado de los días.', false],
     ['', false],
     ['Reglas:', true],
-    ['· Cada fila lleva una Venta, una Despacho y como mucho una Transito, en ese orden y en días distintos.', false],
-    ['· Una OPL no puede tener dos ventas el mismo día de la semana, ni dos tipos de servicio en el mismo grupo.', false],
-    ['· Si a una OPL le falta un día de venta, lo vendido ese día va con el siguiente día que sí tenga.', false],
+    ['· Cada fila lleva una Venta al principio y una Despacho al final; Transito y Recojo, como mucho una de cada, entre las dos.', false],
+    ['· Cada OPL y flujo es una malla: la 4014 puede tener la del flujo S y la del flujo OP en el mismo archivo.', false],
+    ['· Una OPL no puede tener dos ventas el mismo día de la semana en el mismo flujo.', false],
+    ['· Si a una malla le falta un día de venta, lo vendido ese día va con el siguiente día que sí tenga.', false],
     ['', false],
-    ['Ejemplo (OPL 4014, servicio S): venta el lunes, tránsito el miércoles y despacho el jueves → 3 días;', false],
-    ['venta el viernes, tránsito el lunes y despacho el martes de la semana siguiente → 4 días.', false],
+    ['Ejemplo (OPL 4014): flujo S, venta el lunes, tránsito el miércoles y despacho el jueves → 3 días;', false],
+    ['flujo OP, venta el domingo, recojo el lunes y despacho el martes → 2 días.', false],
     ['', false],
     ['Si algo no cumple estas reglas, la carga se rechaza entera y el panel dice qué fila corregir.', false],
   ] as const;

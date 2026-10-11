@@ -35,10 +35,10 @@ function montar() {
       { id: 'dc', grupo_id: 'g-bt', pais: 'PE', tipo: 'evento', nombre: 'Cyber', archivo: 'c.xlsx', opls: 1, avisos: [], cargado_por: 'u', cargado_en: '2026-10-02T00:00:00Z' },
     ],
     malla_despacho_opls: [
-      { version_id: 'dv', codigo: '4014', nombre: '', servicio: 'S', dias: Array(7).fill({ transito: null, despacho: 3 }) },
-      { version_id: 'dc', codigo: '4014', nombre: '', servicio: 'S', dias: Array(7).fill({ transito: 2, despacho: 5 }) },
+      { version_id: 'dv', codigo: '4014/S', opl: '4014', nombre: '', servicio: 'S', dias: Array(7).fill({ transito: null, recojo: null, despacho: 3 }) },
+      { version_id: 'dc', codigo: '4014/S', opl: '4014', nombre: '', servicio: 'S', dias: Array(7).fill({ transito: 2, recojo: null, despacho: 5 }) },
     ],
-    malla_despacho_vigencias: [{ grupo_id: 'g-bt', evento: 'Cyber', codigo: '4014', desde: '2026-11-02', hasta: '2026-11-03' }],
+    malla_despacho_vigencias: [{ grupo_id: 'g-bt', evento: 'Cyber', codigo: '4014/S', desde: '2026-11-02', hasta: '2026-11-03' }],
   };
   const supabase = supabaseEnMemoria(tablas);
   const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
@@ -90,7 +90,7 @@ describe('Los grupos de lead time', () => {
     const { grupos } = montar();
     const cyber = await grupos.calcular('g-bt', '2026-11-02');
     const normal = await grupos.calcular('g-bt', '2026-11-09');
-    expect(cyber.filas.map((f) => [f.codigo, f.usada, f.transito, f.despacho, f.diasHastaDespacho])).toEqual([['4014', 'Cyber', '2026-11-04', '2026-11-07', 5]]);
+    expect(cyber.filas.map((f) => [f.codigo, f.opl, f.servicio, f.usada, f.transito, f.despacho, f.diasHastaDespacho])).toEqual([['4014/S', '4014', 'S', 'Cyber', '2026-11-04', '2026-11-07', 5]]);
     expect([normal.filas[0].usada, normal.filas[0].despacho, normal.resumen]).toEqual(['Regular', '2026-11-12', { calculados: 1, minimo: 3, maximo: 3 }]);
   });
 

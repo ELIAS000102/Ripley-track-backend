@@ -46,7 +46,11 @@ export interface FechasDeCodigo {
   venta?: string;
   transferencia?: string;
   recepcion?: string;
+  /** En las mallas: la OPL y el flujo de la malla ("4014" y "S" de "4014/S") */
+  opl?: string;
+  servicio?: string;
   transito?: string | null;
+  recojo?: string | null;
   despacho?: string;
   diasHastaDespacho?: number;
   error?: string;
@@ -212,14 +216,17 @@ export class GruposLeadtimeService {
 
   private async conMallas(grupo: GrupoLeadtime, fecha: string): Promise<FechasDeCodigo[]> {
     const [base, eventos] = await Promise.all([this.mallas.baseVigente(grupo), this.mallas.eventosConVigencia(grupo)]);
-    const codigos = [...new Set([...(base?.porCodigo.keys() ?? []), ...eventos.flatMap((e) => [...e.porCodigo.keys()])])].sort();
+    const codigos = [...new Set([...(base?.porCodigo.keys() ?? []), ...eventos.flatMap((e) => [...e.porCodigo.keys()])])]
+      .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
     return codigos.map((codigo) => {
+      const [deOpl, flujo] = codigo.split('/');
       const evento = eventos.find((e) => e.porCodigo.has(codigo) && e.vigencias.has(codigo) && dentroDe(fecha, e.vigencias.get(codigo)!));
       const opl = evento ? evento.porCodigo.get(codigo)! : base?.porCodigo.get(codigo);
-      if (!opl) return { codigo, nombre: null, error: `Solo está en un evento, y ese día no le toca: no hay malla ${nombreBase(grupo.pais)} para ella.` };
+      if (!opl) return { codigo, opl: deOpl, servicio: flujo, nombre: null, error: `Solo está en un evento, y ese día no le toca: no hay malla ${nombreBase(grupo.pais)} para ella.` };
       const f = fechasDeVentaOpl(opl, fecha);
-      if (!f) return { codigo, nombre: opl.nombre || null, error: 'No tiene ningún día de venta en la malla.' };
-      return { codigo, nombre: opl.nombre || null, usada: evento?.nombre ?? nombreBase(grupo.pais), ...f };
+      const datos = { codigo, opl: opl.opl, servicio: opl.servicio, nombre: opl.nombre || null };
+      if (!f) return { ...datos, error: 'No tiene ningún día de venta en la malla.' };
+      return { ...datos, usada: evento?.nombre ?? nombreBase(grupo.pais), ...f };
     });
   }
 

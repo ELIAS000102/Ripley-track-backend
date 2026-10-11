@@ -23,7 +23,8 @@ Cubre cinco áreas de la operación logística:
   nombre y descripción:
   - **de matrices**, por tienda: qué día se transfiere, recepciona y despacha lo vendido (el
     grupo "Matriz ST" es el que cruza el reporte ST);
-  - **de mallas**, una por operador logístico: qué día va en tránsito y qué día se despacha.
+  - **de mallas**, una por operador logístico y flujo (S, OP…): qué día va en tránsito, se
+    recoge y se despacha.
 
   Cada grupo tiene una base (Valle en Chile, Regular en Perú) y los eventos temporales que haga
   falta (Cyber, Navidad…) con su vigencia, y calcula cuándo se despacha lo vendido una fecha.
