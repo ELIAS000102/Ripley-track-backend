@@ -3,7 +3,7 @@ import { claveEtiqueta, leerCeldaRecepcion, paresDeTienda } from './matriz.calcu
 import { DIAS, NOMBRE_DIA, type LecturaMatriz, type TiendaMalla } from './interfaces/malla.interface.js';
 
 /**
- * Lee la matriz de valle de un Excel: la plantilla del backend o el Excel
+ * Lee una matriz de un Excel: la plantilla del backend o el Excel
  * original, que tienen las mismas columnas.
  *
  *   A Código · B Tienda · C Desfase · D–J Transferencia · K–Q Intermedio · R–X Recepción

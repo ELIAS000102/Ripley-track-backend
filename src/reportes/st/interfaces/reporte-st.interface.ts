@@ -28,7 +28,7 @@ export interface AgendaTransferenciaSt extends AgendaRecepcionSt {
 
 /** Una tienda del reporte, con sus dos agendas ya elegidas */
 export interface TiendaSt {
-  /** El código de la tienda: el de su oficina de recepción y el de la matriz de valle */
+  /** El código de la tienda: el de su oficina de recepción y el de la matriz base */
   codigo: string;
   nombre: string;
   recepcion: AgendaRecepcionSt;
@@ -40,7 +40,7 @@ export interface GrupoSt {
   tiendas: TiendaSt[];
 }
 
-/** Lo que dice la matriz de valle de una tienda */
+/** Lo que dice la matriz base de una tienda */
 export interface MallaDeTienda {
   tienda: string;
   desfase: number;
@@ -67,7 +67,7 @@ export interface DiaSt {
 export interface VinculoSt {
   fecha: string;
   etiqueta: string;
-  /** Con qué malla se unió: "Valle" o el nombre del evento */
+  /** Con qué matriz se unió: la base ("Valle" en CL, "Regular" en PE) o el nombre del evento */
   malla: string;
   /** `null` si la agenda no tiene ese día */
   dia: DiaSt | null;
@@ -75,7 +75,7 @@ export interface VinculoSt {
 
 /** Un día de recepción con las transferencias que lo alimentan */
 export interface DiaRecepcionSt extends DiaSt {
-  /** La malla que toca a la tienda ese día: "Valle", un evento, o null sin ninguna */
+  /** La matriz que toca a la tienda ese día: la base, un evento, o null sin ninguna */
   malla: string | null;
   transferencias: VinculoSt[];
 }
@@ -95,10 +95,10 @@ export interface EventoDeTienda {
 }
 
 /**
- * Qué malla usa el reporte:
- * - "auto": la de un evento en las recepciones de su vigencia en cada tienda (y las transferencias que llegan a ellas), y la de valle el resto;
- * - "valle": la de valle siempre, aunque haya eventos;
- * - el nombre de un evento: ese evento todos los días en sus tiendas, y la de valle en las demás.
+ * Qué matriz usa el reporte:
+ * - "auto": la de un evento en las recepciones de su vigencia en cada tienda (y las transferencias que llegan a ellas), y la base el resto;
+ * - "valle" (o "regular"): la base siempre, aunque haya eventos;
+ * - el nombre de un evento: ese evento todos los días en sus tiendas, y la base en las demás.
  */
 export type ModoMalla = string;
 
@@ -113,7 +113,7 @@ export interface AgendaReporte<D> {
 export interface TiendaReporte {
   codigo: string;
   nombre: string;
-  /** La de valle; `null` si la tienda no está en la matriz de valle vigente */
+  /** La base; `null` si la tienda no está en la matriz base vigente */
   malla: MallaDeTienda | null;
   /** Los eventos en los que está la tienda, con su vigencia en ella */
   eventos: EventoDeTienda[];
@@ -140,6 +140,8 @@ export interface ReporteSt {
   parametros: { pais: string; desde: string; semanas: number; fechas: string[] };
   malla: {
     cargada: boolean;
+    /** Cómo se llama la matriz base en el país: "Valle" en CL, "Regular" en PE */
+    base: string;
     archivo?: string | null;
     cargadaEn?: string;
     aviso?: string;

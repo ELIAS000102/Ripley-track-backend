@@ -40,9 +40,9 @@ export class ReporteStDto extends PaisDto {
   semanas?: number = 4;
 
   /**
-   * Con qué malla: "auto" (por defecto) usa la de un evento los días de su
-   * vigencia en cada tienda y la de valle el resto; "valle", siempre la de
-   * valle; el nombre de un evento, ese evento todos los días en sus tiendas.
+   * Con qué matriz: "auto" (por defecto) usa la de un evento en las recepciones
+   * de su vigencia en cada tienda y la base el resto; "valle" o "regular",
+   * siempre la base; el nombre de un evento, ese evento todos los días en sus tiendas.
    */
   @IsOptional()
   @IsString()

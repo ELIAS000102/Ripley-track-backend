@@ -7,7 +7,7 @@ import { ReporteStService } from './reporte-st.service.js';
 
 /**
  * Feature del reporte ST: la capacidad de recepción y de transferencia de las
- * tiendas abastecidas desde un CD, cruzadas con la matriz de valle.
+ * tiendas abastecidas desde un CD, cruzadas con la matriz base y las de eventos.
  */
 @Module({
   imports: [RipleyModule, MallasLeadtimeModule, ReportesComunModule],

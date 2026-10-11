@@ -16,7 +16,7 @@ import {
 } from '../../common/ripley/utils/date.util.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
-import { MallasLeadtimeService, NOMBRE_VALLE, type VigenciaTienda } from '../../mallas_leadtime/mallas-leadtime.service.js';
+import { MallasLeadtimeService, nombreBase, type VigenciaTienda } from '../../mallas_leadtime/mallas-leadtime.service.js';
 import { TIENDAS_MAXIMAS, type GuardarConfiguracionStDto } from './dto/reporte-st.dto.js';
 import type {
   EventoDeTienda,
@@ -58,7 +58,7 @@ interface EventoVigente {
   vigencias: Map<string, VigenciaTienda>;
 }
 
-/** Las mallas del país: la de valle y las de los eventos, o por qué no las hay */
+/** Las matrices del país: la base y las de los eventos, o por qué no las hay */
 interface MallasDelPais {
   valle: Map<string, MallaDeTienda>;
   eventos: EventoVigente[];
@@ -67,7 +67,7 @@ interface MallasDelPais {
 
 /**
  * El reporte ST (site to store): la capacidad de recepción de cada tienda y la
- * de la transferencia que la abastece, cruzadas con la matriz de valle.
+ * de la transferencia que la abastece, cruzadas con la matriz base y las de eventos.
  *
  * Las tiendas se agrupan a mano —RM, Norte, Sur…— y se guardan por país en
  * Supabase con sus dos agendas ya elegidas, `capacityId` incluido. Así el
@@ -163,7 +163,7 @@ export class ReporteStService {
     return { pais, grupos: grupos.length, tiendas: tiendas.size, actualizadoEn };
   }
 
-  /** Si una tienda está en la matriz de valle vigente —y en qué eventos—, para avisarlo antes de guardarla */
+  /** Si una tienda está en la matriz base vigente —y en qué eventos—, para avisarlo antes de guardarla */
   async comprobarMalla(pais: string, codigo: string) {
     const mallas = await this.mallasDelPais(pais);
     const tienda = mallas.valle.get(codigo.trim()) ?? null;
@@ -175,8 +175,9 @@ export class ReporteStService {
   /**
    * El reporte, con la malla que toque a cada tienda cada día.
    *
-   * `modoPedido` elige: "auto" (por defecto) usa la de un evento los días de su
-   * vigencia en cada tienda y la de valle el resto; "valle", la de valle siempre;
+   * `modoPedido` elige: "auto" (por defecto) usa la matriz de un evento en las
+   * recepciones de su vigencia en cada tienda (y en las transferencias que
+   * llegan a ellas) y la base el resto; "valle" o "regular", la base siempre;
    * el nombre de un evento, ese evento todos los días en sus tiendas.
    */
   async reporte(pais: string, semanas = 4, desdeParam?: string, modoPedido: ModoMalla = 'auto'): Promise<ReporteSt> {
@@ -224,7 +225,7 @@ export class ReporteStService {
       if (typeof transferencias === 'string') fallidas.push({ codigo: t.codigo, agenda: 'transferencia', error: transferencias });
 
       const mallaTienda = mallas.valle.get(t.codigo) ?? null;
-      const { mallaEn, mallaDeRecepcion, candidatas } = mallasDeTienda(t.codigo, mallaTienda, mallas.eventos, modo);
+      const { mallaEn, mallaDeRecepcion, candidatas } = mallasDeTienda(pais, t.codigo, mallaTienda, mallas.eventos, modo);
       const cruce = cruzarAgendas(
         fechas,
         mallaEn,
@@ -282,11 +283,11 @@ export class ReporteStService {
   }
 
   /**
-   * La matriz de valle vigente y las de los eventos, con su vigencia por tienda.
+   * La matriz base vigente y las de los eventos, con su vigencia por tienda.
    *
    * Que no las haya, o que falten sus tablas, no impide el reporte: se enseña
    * sin vínculos y se dice por qué. Un fallo leyendo los eventos tampoco: se
-   * sigue con la de valle.
+   * sigue con la base.
    */
   private async mallasDelPais(pais: string): Promise<MallasDelPais> {
     const aMalla = (m: Map<string, Parameters<typeof mallaDeTienda>[0]>) => new Map([...m].map(([c, t]) => [c, mallaDeTienda(t)]));
@@ -304,16 +305,16 @@ export class ReporteStService {
         return {
           valle: new Map(),
           eventos,
-          info: { cargada: false, eventos: listaEventos, aviso: `No hay ninguna matriz de valle cargada para ${pais}: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.` },
+          info: { cargada: false, base: nombreBase(pais), eventos: listaEventos, aviso: `No hay ninguna matriz ${nombreBase(pais)} cargada para ${pais}: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.` },
         };
       }
       return {
         valle: aMalla(vigente.porCodigo),
         eventos,
-        info: { cargada: true, archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn, eventos: listaEventos },
+        info: { cargada: true, base: nombreBase(pais), archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn, eventos: listaEventos },
       };
     } catch (e) {
-      return { valle: new Map(), eventos, info: { cargada: false, eventos: listaEventos, aviso: (e as Error).message } };
+      return { valle: new Map(), eventos, info: { cargada: false, base: nombreBase(pais), eventos: listaEventos, aviso: (e as Error).message } };
     }
   }
 }
@@ -330,11 +331,12 @@ function eventosDe(codigo: string, eventos: EventoVigente[]): EventoDeTienda[] {
 function modoDe(pedido: ModoMalla, eventos: EventoVigente[]): ModoMalla {
   const p = (pedido ?? 'auto').trim();
   if (!p || p.toLowerCase() === 'auto') return 'auto';
-  if (p.toLowerCase() === 'valle' || p.toLowerCase() === NOMBRE_VALLE.toLowerCase()) return 'valle';
+  // La base se pide igual con su nombre de Chile o con el de Perú
+  if (['valle', 'regular'].includes(p.toLowerCase())) return 'valle';
   const evento = eventos.find((e) => e.nombre.toLowerCase() === p.toLowerCase());
   if (!evento) {
     throw new BadRequestException(
-      `No hay ningún evento "${p}" cargado. ${eventos.length ? `Los que hay: ${eventos.map((e) => e.nombre).join(', ')}.` : 'Cárgalo en Mallas Lead Time.'}`,
+      `No hay ningún evento "${p}" cargado. ${eventos.length ? `Los que hay: ${eventos.map((e) => e.nombre).join(', ')}.` : 'Cárgalo en Matrices.'}`,
     );
   }
   return evento.nombre;
@@ -344,8 +346,8 @@ function modoDe(pedido: ModoMalla, eventos: EventoVigente[]): ModoMalla {
  * Qué malla toca a una tienda cada día, y entre cuáles se busca qué
  * transferencia alimenta una recepción.
  */
-function mallasDeTienda(codigo: string, valle: MallaDeTienda | null, eventos: EventoVigente[], modo: ModoMalla) {
-  const deValle: MallaUsada | null = valle ? { nombre: NOMBRE_VALLE, tienda: valle } : null;
+function mallasDeTienda(pais: string, codigo: string, valle: MallaDeTienda | null, eventos: EventoVigente[], modo: ModoMalla) {
+  const deValle: MallaUsada | null = valle ? { nombre: nombreBase(pais), tienda: valle } : null;
   const suyos = eventos.filter((e) => e.porCodigo.has(codigo));
   const usada = (e: EventoVigente): MallaUsada => ({ nombre: e.nombre, tienda: e.porCodigo.get(codigo)! });
   const forzado = (): MallaUsada | null => {
@@ -358,7 +360,7 @@ function mallasDeTienda(codigo: string, valle: MallaDeTienda | null, eventos: Ev
    * La vigencia de un evento es de RECEPCIÓN: dice qué días recepciona la
    * tienda con la malla del evento. Una transferencia va con el evento si su
    * recepción según el evento cae dentro de la vigencia; la última es la que
-   * recepciona el último día. Las demás, con la de valle. Así las primeras
+   * recepciona el último día. Las demás, con la base. Así las primeras
    * transferencias del evento pueden salir antes del "desde", si recepcionan
    * ya dentro.
    */

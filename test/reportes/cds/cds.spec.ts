@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
 import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
@@ -140,6 +140,10 @@ describe('El reporte de los CDs', () => {
 });
 
 describe('El reporte de los CDs para la agente', () => {
+  // El reporte sube un 'desde' pasado a hoy: se fija hoy en el día del ejemplo
+  beforeEach(() => { vi.useFakeTimers({ now: new Date('2026-10-09T15:00:00Z'), toFake: ['Date'] }); });
+  afterEach(() => { vi.useRealTimers(); });
+
   async function consultar(cds = { PE: [cd('20026', ['ST', 'S', 'AT'])] }) {
     const { catalogos } = ripley();
     const config = configuracionCdsFalsa(cds);

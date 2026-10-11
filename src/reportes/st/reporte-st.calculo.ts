@@ -10,7 +10,7 @@ import type {
   VinculoSt,
 } from './interfaces/reporte-st.interface.js';
 
-/** Una malla con su nombre: "Valle" o el del evento */
+/** Una matriz con su nombre: la base ("Valle" o "Regular") o el del evento */
 export interface MallaUsada {
   nombre: string;
   tienda: MallaDeTienda;
@@ -21,7 +21,7 @@ export type MallaEn = (fecha: string) => MallaUsada | null;
 
 /**
  * Cómo se cruzan las dos agendas de una tienda con la malla que le toca cada
- * día: la de valle, o la de un evento si ese día está dentro de su vigencia.
+ * día: la base, o la de un evento si ese día está dentro de su vigencia.
  *
  * - Un **día de transferencia** lleva a una recepción: la de la pareja de su
  *   día de la semana, tantos días después como diga la matriz ("+N" incluido).
@@ -75,7 +75,7 @@ export function porFecha(dias: CapacityByDay[]): Map<string, DiaSt> {
  * La recepción a la que lleva una transferencia de esa fecha, o `null`.
  *
  * Con la malla que toca ese día de transferencia: la de un evento si la fecha
- * está en su vigencia, y si no la de valle.
+ * está en su vigencia, y si no la base.
  */
 export function recepcionDe(
   fecha: string,

@@ -9,7 +9,7 @@ import {
 } from './interfaces/malla.interface.js';
 
 /**
- * Cómo se lee la matriz de valle (Regular), en reglas.
+ * Cómo se lee una matriz (la base —Valle en Chile, Regular en Perú— o la de un evento), en reglas.
  *
  * 1. **Día de transferencia**: el de la venta, si su celda de transferencia
  *    tiene una etiqueta que aparece en la recepción. Si no —vacía, o con una

@@ -25,7 +25,7 @@ import {
   PlantillaDto,
   mallaDe,
 } from './dto/mallas.dto.js';
-import { MallasLeadtimeService } from './mallas-leadtime.service.js';
+import { MallasLeadtimeService, nombreBase } from './mallas-leadtime.service.js';
 
 /** Lo que llega del archivo subido (multer) */
 interface ArchivoSubido {
@@ -35,36 +35,40 @@ interface ArchivoSubido {
   buffer: Buffer;
 }
 
-/** Más que esto no es una matriz de valle: la real ronda los 20 KB */
+/** Más que esto no es una matriz: la real ronda los 20 KB */
 const TAMANO_MAXIMO = 5 * 1024 * 1024;
 
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 /** Para el nombre de un archivo: "Cyber Day" → "cyber-day" */
-const paraArchivo = (t: string) =>
+export const paraArchivo = (t: string) =>
   t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'evento';
 
 /**
- * Mallas de lead time: la matriz de valle (Regular) y las de eventos temporales.
+ * Matrices de lead time: la base (Valle en Chile, Regular en Perú) y las de
+ * eventos temporales (Cyber…). Una matriz dice qué recepción le toca a cada
+ * día de transferencia de una tienda.
  *
  * El flujo del apartado: descargar la plantilla, pegar en ella la matriz que
  * pasa la operación, subirla y verla. Cada carga queda como una versión. Las
- * rutas sin `tipo` son las de la matriz de valle; con `tipo=evento&nombre=…`,
+ * rutas sin `tipo` son las de la matriz base; con `tipo=evento&nombre=…`,
  * las de ese evento.
+ *
+ * Responden en `/matrices` y, por lo que ya las llamaba, en `/mallas-leadtime`.
  */
-@Controller('mallas-leadtime')
+@Controller(['matrices', 'mallas-leadtime'])
 export class MallasLeadtimeController {
   constructor(private readonly servicio: MallasLeadtimeService) {}
 
-  /** GET /mallas-leadtime/plantilla?pais=CL[&conDatos=true][&tipo=evento&nombre=Cyber] → el .xlsx */
+  /** GET /matrices/plantilla?pais=CL[&conDatos=true][&tipo=evento&nombre=Cyber] → el .xlsx */
   @Get('plantilla')
   async plantilla(@Query() query: PlantillaDto, @Res() res: Response) {
     const pais = query.pais ?? 'PE';
     const malla = mallaDe(query);
     const contenido = await this.servicio.plantilla(pais, query.conDatos === true, malla);
-    const nombre = !query.conDatos ? 'plantilla-matriz-valle.xlsx'
-      : malla.tipo === 'evento' ? `malla-evento-${paraArchivo(malla.nombre)}-${pais}.xlsx`
-        : `matriz-valle-${pais}.xlsx`;
+    const nombre = !query.conDatos ? 'plantilla-matriz.xlsx'
+      : malla.tipo === 'evento' ? `matriz-evento-${paraArchivo(malla.nombre)}-${pais}.xlsx`
+        : `matriz-${paraArchivo(nombreBase(pais))}-${pais}.xlsx`;
 
     res.setHeader('Content-Type', TIPO_XLSX);
     res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
@@ -72,11 +76,11 @@ export class MallasLeadtimeController {
   }
 
   /**
-   * POST /mallas-leadtime?pais=CL[&tipo=evento&nombre=Cyber]  (multipart, campo "archivo")
+   * POST /matrices?pais=CL[&tipo=evento&nombre=Cyber]  (multipart, campo "archivo")
    *
-   * Lee la plantilla y, si no tiene errores, la guarda como la malla vigente.
+   * Lee la plantilla y, si no tiene errores, la guarda como la matriz vigente.
    */
-  @Auditar('mallas.cargar')
+  @Auditar('matrices.cargar')
   @Post()
   @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: TAMANO_MAXIMO } }))
   async cargar(
@@ -93,45 +97,45 @@ export class MallasLeadtimeController {
     return this.servicio.cargar(archivo.buffer, archivo.originalname, query.pais ?? 'PE', usuario, mallaDe(query));
   }
 
-  /** GET /mallas-leadtime?pais=CL[&tipo=evento&nombre=Cyber] → la malla vigente, con el lead time de cada día */
+  /** GET /matrices?pais=CL[&tipo=evento&nombre=Cyber] → la matriz vigente, con el lead time de cada día */
   @Get()
   async actual(@Query() query: MallaDto) {
     return this.servicio.actual(query.pais ?? 'PE', mallaDe(query));
   }
 
-  /** GET /mallas-leadtime/historial?pais=CL[&tipo=evento&nombre=Cyber] → las últimas cargas */
+  /** GET /matrices/historial?pais=CL[&tipo=evento&nombre=Cyber] → las últimas cargas */
   @Get('historial')
   async historial(@Query() query: MallaDto) {
     return this.servicio.historial(query.pais ?? 'PE', mallaDe(query));
   }
 
-  /** GET /mallas-leadtime/calcular?pais=CL&codigo=10002&fecha=2026-10-12[&tipo=evento&nombre=Cyber] */
+  /** GET /matrices/calcular?pais=CL&codigo=10002&fecha=2026-10-12[&tipo=evento&nombre=Cyber] */
   @Get('calcular')
   async calcular(@Query() query: CalcularDto) {
     return this.servicio.calcular(query.pais ?? 'PE', query.codigo, query.fecha, mallaDe(query));
   }
 
-  /** GET /mallas-leadtime/eventos?pais=CL → los eventos, con su última carga y su vigencia */
+  /** GET /matrices/eventos?pais=CL → los eventos, con su última carga y su vigencia */
   @Get('eventos')
   async eventos(@Query() query: PaisDto) {
     return this.servicio.eventos(query.pais ?? 'PE');
   }
 
-  /** DELETE /mallas-leadtime/eventos?pais=CL&nombre=Cyber → retira el evento entero */
-  @Auditar('mallas.retirar-evento')
+  /** DELETE /matrices/eventos?pais=CL&nombre=Cyber → retira el evento entero */
+  @Auditar('matrices.retirar-evento')
   @Delete('eventos')
   async retirarEvento(@Query() query: EventoDto) {
     return this.servicio.retirarEvento(query.pais ?? 'PE', query.nombre);
   }
 
-  /** GET /mallas-leadtime/vigencias?pais=CL&nombre=Cyber → desde y hasta de cada tienda */
+  /** GET /matrices/vigencias?pais=CL&nombre=Cyber → desde y hasta de cada tienda */
   @Get('vigencias')
   async vigencias(@Query() query: EventoDto) {
     return this.servicio.vigencias(query.pais ?? 'PE', query.nombre);
   }
 
-  /** PUT /mallas-leadtime/vigencias?pais=CL&nombre=Cyber → reemplaza la vigencia de sus tiendas */
-  @Auditar('mallas.vigencia')
+  /** PUT /matrices/vigencias?pais=CL&nombre=Cyber → reemplaza la vigencia de sus tiendas */
+  @Auditar('matrices.vigencia')
   @Put('vigencias')
   async guardarVigencias(
     @Query() query: EventoDto,

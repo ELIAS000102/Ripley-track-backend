@@ -8,7 +8,7 @@ import { ReporteStService } from './reporte-st.service.js';
 
 /**
  * Reporte ST (site to store): capacidad de recepción y de transferencia de las
- * tiendas, por grupos, cruzadas con la matriz de valle.
+ * tiendas, por grupos, cruzadas con la matriz base y las de eventos.
  */
 @Controller('reportes/st')
 export class ReporteStController {

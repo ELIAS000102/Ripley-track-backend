@@ -3,7 +3,7 @@ import { MallasLeadtimeController } from './mallas-leadtime.controller.js';
 import { MallasLeadtimeService } from './mallas-leadtime.service.js';
 
 /**
- * Feature de mallas de lead time: la matriz de valle que pasa la operación,
+ * Feature de matrices de lead time: la matriz base (Valle o Regular) y las de eventos que pasa la operación,
  * leída de un Excel, guardada por versiones y enseñada en el panel.
  */
 @Module({

@@ -12,22 +12,27 @@ Cubre cinco áreas de la operación logística:
 - **Reporte de centros de distribución** — el uso de capacidad de los CDs, por jornada y por
   día. Qué almacenes y qué jornadas lo forman se configura por país, sin tocar el código.
 - **Reporte ST** — las tiendas abastecidas desde un CD, por grupos: la capacidad de su
-  recepción y de la transferencia que llega a ellas, día por día, unidas por la malla valle o,
-  los días de su vigencia en cada tienda, por la de un evento.
+  recepción y de la transferencia que llega a ellas, día por día, unidas por la matriz base o,
+  en las recepciones de su vigencia en cada tienda, por la de un evento.
 - **Configuración de tipos de servicio** — qué servicios tiene cada operador logístico, con
   sus horas de corte, y la activación o desactivación en bloque.
 - **Transferencias entre sucursales** — qué días se puede mover stock entre dos almacenes y
   cuántos días tarda.
 - **Simulación de entregas** — cuándo llegaría un pedido, antes de venderlo.
-- **Mallas lead time** — la matriz de valle y las de eventos temporales (Cyber, Navidad…) que
-  pasa la operación en Excel: se cargan con una plantilla, se guardan por versiones y dan, por
-  tienda, qué día se transfiere, recepciona y despacha lo vendido cada día de la semana.
+- **Lead time** — lo que pasa la operación en Excel, en dos formas, con una base por país
+  (Valle en Chile, Regular en Perú) y versiones de eventos temporales (Cyber, Navidad…) con su
+  vigencia:
+  - **Matrices**: por tienda, qué día se transfiere, recepciona y despacha lo vendido.
+  - **Mallas de despacho**: por operador logístico, qué día va en tránsito y qué día se
+    despacha lo vendido.
+  - **Servicios**: cada tipo de servicio con sus tiendas (matrices) o sus operadores (mallas),
+    y cuándo se despacha lo vendido una fecha en cada uno.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
 cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado,
-las matrices de valle, que no vienen de Ripley sino de un Excel, y la configuración de los
-reportes: los grupos de tiendas del reporte ST y los CDs del reporte de los CDs.
+las matrices y mallas de despacho, que no vienen de Ripley sino de un Excel, los servicios de
+lead time y la configuración de los reportes: los grupos de tiendas del reporte ST y los CDs del reporte de los CDs.
 
 ## Quién lo usa
 

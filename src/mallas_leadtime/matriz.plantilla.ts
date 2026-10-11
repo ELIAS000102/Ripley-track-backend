@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { DIAS, type TiendaMalla } from './interfaces/malla.interface.js';
 
 /**
- * La plantilla de la matriz de valle.
+ * La plantilla de una matriz: la base (Valle o Regular) o la de un evento.
  *
  * Tiene **las mismas columnas que el Excel de la operación** (A–X), en el mismo
  * orden: se copia el rango entero del original —desde el primer código hasta
@@ -105,12 +105,12 @@ export async function crearPlantilla(tiendas: TiendaMalla[] = []): Promise<Buffe
   const ayuda = libro.addWorksheet('Instrucciones');
   ayuda.getColumn(1).width = 110;
   const lineas = [
-    ['Cómo rellenar la matriz de valle (Regular)', true],
+    ['Cómo rellenar una matriz: la base (Valle en Chile, Regular en Perú) o la de un evento', true],
     ['', false],
     ['1. Abre el Excel de la matriz que os pasan cada periodo.', false],
     ['2. Copia desde el primer código (columna A) hasta la última celda de la recepción (columna X), todas las tiendas.', false],
     ['3. En la hoja "Matriz" de esta plantilla, pégalo en la celda A3 (mejor como valores: Pegado especial → Valores).', false],
-    ['4. Guarda y súbela en el apartado "Mallas Lead Time" del panel.', false],
+    ['4. Guarda y súbela en el apartado "Matrices" del panel.', false],
     ['', false],
     ['Columnas (no las muevas ni borres; no cambies las filas 1 y 2):', true],
     ['A Código · B Tienda · C Desfase · D–J Transferencia (L M W J V S D) · K–Q Intermedio · R–X Recepción', false],
