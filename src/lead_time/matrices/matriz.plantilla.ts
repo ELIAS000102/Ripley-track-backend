@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { DIAS, type TiendaMalla } from './interfaces/malla.interface.js';
+import { DIAS, type TiendaMalla } from './interfaces/matriz.interface.js';
 
 /**
  * La plantilla de una matriz: la base (Valle o Regular) o la de un evento.

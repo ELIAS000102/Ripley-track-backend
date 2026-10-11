@@ -16,7 +16,9 @@ import {
 } from '../../common/ripley/utils/date.util.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
-import { MallasLeadtimeService, nombreBase, type VigenciaTienda } from '../../mallas_leadtime/mallas-leadtime.service.js';
+import { GruposLeadtimeService } from '../../lead_time/grupos.service.js';
+import { MatricesService } from '../../lead_time/matrices/matrices.service.js';
+import { nombreBase, type VigenciaTienda } from '../../lead_time/versionado.service.js';
 import { TIENDAS_MAXIMAS, type GuardarConfiguracionStDto } from './dto/reporte-st.dto.js';
 import type {
   EventoDeTienda,
@@ -81,15 +83,16 @@ export class ReporteStService {
   constructor(
     private readonly configuraciones: ConfiguracionReportesService,
     private readonly catalogos: CatalogosRipleyService,
-    private readonly mallas: MallasLeadtimeService,
+    private readonly matrices: MatricesService,
+    private readonly gruposLeadtime: GruposLeadtimeService,
     private readonly auditoria: ContextoAuditoria,
   ) {}
 
   // ---------- Configuración ----------
 
   /** Los grupos del país, con lo que dice la matriz de cada tienda */
-  async configuracion(pais: string) {
-    const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais)]);
+  async configuracion(pais: string, grupoId?: string) {
+    const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais, grupoId)]);
     return {
       pais,
       malla: mallas.info,
@@ -164,8 +167,8 @@ export class ReporteStService {
   }
 
   /** Si una tienda está en la matriz base vigente —y en qué eventos—, para avisarlo antes de guardarla */
-  async comprobarMalla(pais: string, codigo: string) {
-    const mallas = await this.mallasDelPais(pais);
+  async comprobarMalla(pais: string, codigo: string, grupoId?: string) {
+    const mallas = await this.mallasDelPais(pais, grupoId);
     const tienda = mallas.valle.get(codigo.trim()) ?? null;
     return { codigo: codigo.trim(), malla: mallas.info, incluida: !!tienda, tienda, eventos: eventosDe(codigo.trim(), mallas.eventos) };
   }
@@ -179,11 +182,14 @@ export class ReporteStService {
    * recepciones de su vigencia en cada tienda (y en las transferencias que
    * llegan a ellas) y la base el resto; "valle" o "regular", la base siempre;
    * el nombre de un evento, ese evento todos los días en sus tiendas.
+   *
+   * Las matrices son las de un grupo de lead time de tipo matriz: `grupoId`,
+   * o el primero que se creó en el país.
    */
-  async reporte(pais: string, semanas = 4, desdeParam?: string, modoPedido: ModoMalla = 'auto'): Promise<ReporteSt> {
+  async reporte(pais: string, semanas = 4, desdeParam?: string, modoPedido: ModoMalla = 'auto', grupoId?: string): Promise<ReporteSt> {
     const desde = desdeParam ?? hoyEnPais(pais);
     const fechas = ventanaFechas(desde, semanas * 7);
-    const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais)]);
+    const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais, grupoId)]);
     const modo = modoDe(modoPedido, mallas.eventos);
     const grupos = fila.configuracion?.grupos ?? [];
     const todas = grupos.flatMap((g) => g.tiendas);
@@ -283,38 +289,56 @@ export class ReporteStService {
   }
 
   /**
-   * La matriz base vigente y las de los eventos, con su vigencia por tienda.
+   * La matriz base vigente del grupo de matrices y las de sus eventos, con su
+   * vigencia por tienda.
    *
-   * Que no las haya, o que falten sus tablas, no impide el reporte: se enseña
-   * sin vínculos y se dice por qué. Un fallo leyendo los eventos tampoco: se
-   * sigue con la base.
+   * Que no las haya, que no haya grupo o que falten sus tablas no impide el
+   * reporte: se enseña sin vínculos y se dice por qué. Un fallo leyendo los
+   * eventos tampoco: se sigue con la base.
    */
-  private async mallasDelPais(pais: string): Promise<MallasDelPais> {
+  private async mallasDelPais(pais: string, grupoId?: string): Promise<MallasDelPais> {
     const aMalla = (m: Map<string, Parameters<typeof mallaDeTienda>[0]>) => new Map([...m].map(([c, t]) => [c, mallaDeTienda(t)]));
+    const base = nombreBase(pais);
+    let grupo: Awaited<ReturnType<GruposLeadtimeService['grupoDeMatrices']>> = null;
+    let grupos: Array<{ id: string; nombre: string }> = [];
+    try {
+      grupos = (await this.gruposLeadtime.gruposDeMatrices(pais)).map((g) => ({ id: g.id, nombre: g.nombre }));
+      grupo = await this.gruposLeadtime.grupoDeMatrices(pais, grupoId);
+    } catch (e) {
+      if (grupoId) throw e;
+      return { valle: new Map(), eventos: [], info: { cargada: false, base, grupo: null, grupos, eventos: [], aviso: (e as Error).message } };
+    }
+    if (!grupo) {
+      return {
+        valle: new Map(), eventos: [],
+        info: { cargada: false, base, grupo: null, grupos, eventos: [], aviso: `No hay ningún grupo de matrices en ${pais}: créalo en "Matrices y mallas" y carga su matriz ${base}. El reporte sale sin vincular transferencia y recepción.` },
+      };
+    }
+    const delGrupo = { id: grupo.id, nombre: grupo.nombre };
     let eventos: EventoVigente[] = [];
     try {
-      eventos = (await this.mallas.eventosVigentes(pais)).map((e) => ({ nombre: e.nombre, cargadaEn: e.cargadoEn, porCodigo: aMalla(e.porCodigo), vigencias: e.vigencias }));
+      eventos = (await this.matrices.eventosConVigencia(grupo)).map((e) => ({ nombre: e.nombre, cargadaEn: e.cargadoEn, porCodigo: aMalla(e.porCodigo), vigencias: e.vigencias }));
     } catch (e) {
       this.logger.warn(`Reporte ST sin las mallas de eventos de ${pais}: ${(e as Error).message}`);
     }
     const listaEventos = eventos.map((e) => ({ nombre: e.nombre, cargadaEn: e.cargadaEn, tiendas: e.porCodigo.size }));
 
     try {
-      const vigente = await this.mallas.tiendasVigentes(pais);
+      const vigente = await this.matrices.baseVigente(grupo);
       if (!vigente) {
         return {
           valle: new Map(),
           eventos,
-          info: { cargada: false, base: nombreBase(pais), eventos: listaEventos, aviso: `No hay ninguna matriz ${nombreBase(pais)} cargada para ${pais}: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.` },
+          info: { cargada: false, base, grupo: delGrupo, grupos, eventos: listaEventos, aviso: `El grupo "${grupo.nombre}" no tiene matriz ${base} cargada: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.` },
         };
       }
       return {
         valle: aMalla(vigente.porCodigo),
         eventos,
-        info: { cargada: true, base: nombreBase(pais), archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn, eventos: listaEventos },
+        info: { cargada: true, base, grupo: delGrupo, grupos, archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn, eventos: listaEventos },
       };
     } catch (e) {
-      return { valle: new Map(), eventos, info: { cargada: false, base: nombreBase(pais), eventos: listaEventos, aviso: (e as Error).message } };
+      return { valle: new Map(), eventos, info: { cargada: false, base, grupo: delGrupo, grupos, eventos: listaEventos, aviso: (e as Error).message } };
     }
   }
 }
@@ -336,7 +360,7 @@ function modoDe(pedido: ModoMalla, eventos: EventoVigente[]): ModoMalla {
   const evento = eventos.find((e) => e.nombre.toLowerCase() === p.toLowerCase());
   if (!evento) {
     throw new BadRequestException(
-      `No hay ningún evento "${p}" cargado. ${eventos.length ? `Los que hay: ${eventos.map((e) => e.nombre).join(', ')}.` : 'Cárgalo en Matrices.'}`,
+      `No hay ningún evento "${p}" cargado. ${eventos.length ? `Los que hay: ${eventos.map((e) => e.nombre).join(', ')}.` : 'Cárgalo en el grupo, en "Matrices y mallas".'}`,
     );
   }
   return evento.nombre;

@@ -3,7 +3,7 @@ import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PaisDto } from '../../common/dto/pais.dto.js';
-import { GuardarConfiguracionStDto, MallaStDto, ReporteStDto } from './dto/reporte-st.dto.js';
+import { ConfiguracionStDto, GuardarConfiguracionStDto, MallaStDto, ReporteStDto } from './dto/reporte-st.dto.js';
 import { ReporteStService } from './reporte-st.service.js';
 
 /**
@@ -14,16 +14,16 @@ import { ReporteStService } from './reporte-st.service.js';
 export class ReporteStController {
   constructor(private readonly servicio: ReporteStService) {}
 
-  /** GET /reportes/st?pais=CL&semanas=4[&desde=2026-10-12][&malla=auto|valle|<evento>] */
+  /** GET /reportes/st?pais=CL&semanas=4[&desde=2026-10-12][&malla=auto|valle|<evento>][&grupo=<id>] */
   @Get()
   async reporte(@Query() query: ReporteStDto) {
-    return this.servicio.reporte(query.pais ?? 'PE', query.semanas ?? 4, query.desde, query.malla);
+    return this.servicio.reporte(query.pais ?? 'PE', query.semanas ?? 4, query.desde, query.malla, query.grupo);
   }
 
-  /** GET /reportes/st/configuracion?pais=CL → los grupos y sus tiendas */
+  /** GET /reportes/st/configuracion?pais=CL[&grupo=<id>] → los grupos de tiendas y lo que dice la matriz de cada una */
   @Get('configuracion')
-  async configuracion(@Query() query: PaisDto) {
-    return this.servicio.configuracion(query.pais ?? 'PE');
+  async configuracion(@Query() query: ConfiguracionStDto) {
+    return this.servicio.configuracion(query.pais ?? 'PE', query.grupo);
   }
 
   /** PUT /reportes/st/configuracion?pais=CL → reemplaza los grupos enteros */
@@ -37,9 +37,9 @@ export class ReporteStController {
     return this.servicio.guardar(query.pais ?? 'PE', body, usuario);
   }
 
-  /** GET /reportes/st/malla?pais=CL&codigo=10002 → si la tienda está en la matriz vigente */
+  /** GET /reportes/st/malla?pais=CL&codigo=10002[&grupo=<id>] → si la tienda está en la matriz vigente */
   @Get('malla')
   async malla(@Query() query: MallaStDto) {
-    return this.servicio.comprobarMalla(query.pais ?? 'PE', query.codigo);
+    return this.servicio.comprobarMalla(query.pais ?? 'PE', query.codigo, query.grupo);
   }
 }

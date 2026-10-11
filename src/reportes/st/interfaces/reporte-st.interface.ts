@@ -1,4 +1,4 @@
-import type { Dia, ParMalla } from '../../../mallas_leadtime/interfaces/malla.interface.js';
+import type { Dia, ParMalla } from '../../../lead_time/matrices/interfaces/matriz.interface.js';
 
 /** Las dos agendas que se cruzan por cada tienda */
 export type Vista = 'recepcion' | 'transferencia';
@@ -142,6 +142,10 @@ export interface ReporteSt {
     cargada: boolean;
     /** Cómo se llama la matriz base en el país: "Valle" en CL, "Regular" en PE */
     base: string;
+    /** El grupo de lead time cuyas matrices se cruzan, o null si el país no tiene */
+    grupo: { id: string; nombre: string } | null;
+    /** Los grupos de matrices del país, para poder elegir otro */
+    grupos: Array<{ id: string; nombre: string }>;
     archivo?: string | null;
     cargadaEn?: string;
     aviso?: string;

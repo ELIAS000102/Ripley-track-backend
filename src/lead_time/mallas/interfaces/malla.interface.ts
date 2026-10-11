@@ -1,29 +1,30 @@
-import type { Dia } from '../../mallas_leadtime/interfaces/malla.interface.js';
+import type { Dia } from '../../matrices/interfaces/matriz.interface.js';
 
 /**
- * Lo que pasa con lo vendido un día de la semana en una OPL: qué día va en
- * tránsito y qué día se despacha.
- *
- * Se guarda como se escribió, ya normalizado: la letra del día ("W") y, si la
- * lleva, la suma ("J+7"). La interpretación —cuántos días son— se calcula al
- * leerla.
+ * Lo que pasa con lo vendido un día de la semana en una OPL, en días desde la
+ * venta: cuándo va en tránsito y cuándo se despacha. Es la distancia entre las
+ * celdas "Venta", "Transito" y "Despacho" de su fila en la malla.
  */
-export interface DiaDespacho {
-  /** El día en tránsito, o `null` si no pasa por tránsito */
-  transito: string | null;
-  despacho: string;
+export interface DiaMalla {
+  /** Días desde la venta hasta el tránsito, o `null` si no pasa por tránsito */
+  transito: number | null;
+  /** Días desde la venta hasta el despacho */
+  despacho: number;
 }
 
-/** Una fila de la malla: una OPL con lo que pasa según el día de venta */
+/** Una OPL de la malla: sus siete filas, una por día de venta */
 export interface OplMalla {
   codigo: string;
+  /** El nombre de la OPL, si el Excel trae la columna; si no, vacío */
   nombre: string;
+  /** El tipo de servicio de la columna "T. de servicio" ("S"…) */
+  servicio: string;
   /** Siete entradas, de lunes a domingo: `null` si ese día de venta no tiene fila */
-  dias: (DiaDespacho | null)[];
+  dias: (DiaMalla | null)[];
 }
 
 /** Lo que pasa con una venta según el día de la semana en que se hace */
-export interface VentaDespacho {
+export interface VentaMalla {
   venta: Dia;
   /** El día de venta con fila que se usa: el mismo, o el siguiente que la tenga */
   segun: Dia;
@@ -39,5 +40,5 @@ export interface VentaDespacho {
 
 /** Una OPL ya leída, con lo que se deduce de ella */
 export interface OplInterpretada extends OplMalla {
-  ventas: VentaDespacho[];
+  ventas: VentaMalla[];
 }

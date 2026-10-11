@@ -6,7 +6,7 @@ import {
   type TiendaMalla,
   type TransferenciaIgnorada,
   type VentaMalla,
-} from './interfaces/malla.interface.js';
+} from './interfaces/matriz.interface.js';
 
 /**
  * Cómo se lee una matriz (la base —Valle en Chile, Regular en Perú— o la de un evento), en reglas.

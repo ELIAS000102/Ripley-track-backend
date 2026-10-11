@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { claveEtiqueta, leerCeldaRecepcion, paresDeTienda } from './matriz.calculo.js';
-import { DIAS, NOMBRE_DIA, type LecturaMatriz, type TiendaMalla } from './interfaces/malla.interface.js';
+import { DIAS, NOMBRE_DIA, type LecturaMatriz, type TiendaMalla } from './interfaces/matriz.interface.js';
 
 /**
  * Lee una matriz de un Excel: la plantilla del backend o el Excel

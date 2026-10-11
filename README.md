@@ -19,20 +19,20 @@ Cubre cinco áreas de la operación logística:
 - **Transferencias entre sucursales** — qué días se puede mover stock entre dos almacenes y
   cuántos días tarda.
 - **Simulación de entregas** — cuándo llegaría un pedido, antes de venderlo.
-- **Lead time** — lo que pasa la operación en Excel, en dos formas, con una base por país
-  (Valle en Chile, Regular en Perú) y versiones de eventos temporales (Cyber, Navidad…) con su
-  vigencia:
-  - **Matrices**: por tienda, qué día se transfiere, recepciona y despacha lo vendido.
-  - **Mallas de despacho**: por operador logístico, qué día va en tránsito y qué día se
-    despacha lo vendido.
-  - **Servicios**: cada tipo de servicio con sus tiendas (matrices) o sus operadores (mallas),
-    y cuándo se despacha lo vendido una fecha en cada uno.
+- **Lead time** — lo que pasa la operación en Excel, en **grupos** por país, cada uno con
+  nombre y descripción:
+  - **de matrices**, por tienda: qué día se transfiere, recepciona y despacha lo vendido (el
+    grupo "Matriz ST" es el que cruza el reporte ST);
+  - **de mallas**, una por operador logístico: qué día va en tránsito y qué día se despacha.
+
+  Cada grupo tiene una base (Valle en Chile, Regular en Perú) y los eventos temporales que haga
+  falta (Cyber, Navidad…) con su vigencia, y calcula cuándo se despacha lo vendido una fecha.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
 cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado,
-las matrices y mallas de despacho, que no vienen de Ripley sino de un Excel, los servicios de
-lead time y la configuración de los reportes: los grupos de tiendas del reporte ST y los CDs del reporte de los CDs.
+los grupos de lead time con sus matrices y mallas, que no vienen de Ripley sino de un Excel,
+y la configuración de los reportes: los grupos de tiendas del reporte ST y los CDs del reporte de los CDs.
 
 ## Quién lo usa
 

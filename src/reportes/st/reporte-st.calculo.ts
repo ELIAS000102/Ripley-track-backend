@@ -1,6 +1,6 @@
 import type { CapacityByDay } from '../../common/ripley/interfaces/ripley.interface.js';
 import { soloFecha, sumarDias } from '../../common/ripley/utils/date.util.js';
-import { DIAS, type Dia, type TiendaInterpretada } from '../../mallas_leadtime/interfaces/malla.interface.js';
+import { DIAS, type Dia, type TiendaInterpretada } from '../../lead_time/matrices/interfaces/matriz.interface.js';
 import type {
   DiaRecepcionSt,
   DiaSt,

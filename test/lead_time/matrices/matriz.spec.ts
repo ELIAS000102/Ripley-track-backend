@@ -1,12 +1,12 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it, vi } from 'vitest';
-import { fechasDeVenta, interpretarTienda, leerCeldaRecepcion, paresDeTienda } from '../../src/mallas_leadtime/matriz.calculo.js';
-import { leerMatriz } from '../../src/mallas_leadtime/matriz.lector.js';
-import { crearPlantilla } from '../../src/mallas_leadtime/matriz.plantilla.js';
-import { MallasLeadtimeService } from '../../src/mallas_leadtime/mallas-leadtime.service.js';
-import type { TiendaMalla } from '../../src/mallas_leadtime/interfaces/malla.interface.js';
-import type { SupabaseService } from '../../src/common/supabase/supabase.service.js';
-import type { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
+import { fechasDeVenta, interpretarTienda, leerCeldaRecepcion, paresDeTienda } from '../../../src/lead_time/matrices/matriz.calculo.js';
+import { leerMatriz } from '../../../src/lead_time/matrices/matriz.lector.js';
+import { crearPlantilla } from '../../../src/lead_time/matrices/matriz.plantilla.js';
+import { MatricesService } from '../../../src/lead_time/matrices/matrices.service.js';
+import type { TiendaMalla } from '../../../src/lead_time/matrices/interfaces/matriz.interface.js';
+import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
+import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 
 /**
  * La matriz de valle (Regular): cómo se lee, cómo se valida y cómo se calcula.
@@ -156,31 +156,32 @@ describe('Guardar y leer la matriz', () => {
     const cabecera = { id: 'm-1', pais: 'CL', tipo: 'regular', archivo: 'a.xlsx', tiendas: 2, avisos: [], cargado_por: 'u@r.cl', cargado_en: '2026-10-08T10:00:00Z' };
 
     const consulta = (tabla: string) => {
-      const resultado = () => (tabla === 'mallas_leadtime' ? { data: cabecera, error: null } : { data: tiendasGuardadas, error: null });
+      const resultado = () => (tabla === 'matrices' ? { data: cabecera, error: null } : { data: tiendasGuardadas, error: null });
       // Una promesa con los métodos del constructor de consultas: se puede encadenar y esperar
       const q = Promise.resolve(resultado()) as unknown as Record<string, unknown>;
       for (const m of ['select', 'eq', 'order', 'limit']) q[m] = () => q;
       q.maybeSingle = async () => resultado();
       q.single = async () => ({ data: { id: 'm-2', cargado_en: '2026-10-08T11:00:00Z' }, error: null });
-      q.insert = (datos: unknown) => { insertados.push({ tabla, datos }); return tabla === 'mallas_leadtime' ? q : Promise.resolve({ error: null }); };
+      q.insert = (datos: unknown) => { insertados.push({ tabla, datos }); return tabla === 'matrices' ? q : Promise.resolve({ error: null }); };
       q.delete = () => ({ eq: async (_c: string, id: string) => { borrados.push(id); return { error: null }; } });
       return q;
     };
     const supabase = { admin: { from: vi.fn(consulta) } } as unknown as SupabaseService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
-    return { servicio: new MallasLeadtimeService(supabase, auditoria), insertados, borrados, auditoria };
+    return { servicio: new MatricesService(supabase, auditoria), insertados, borrados, auditoria };
   }
   const USUARIO = { id: 'u-1', email: 'u@ripley.cl' };
+  const GRUPO = { id: 'g-st', pais: 'CL' };
 
   it('una carga buena guarda la versión y sus tiendas, y queda en el historial de cambios', async () => {
     const { servicio, insertados, auditoria } = supabaseFalso();
 
-    const r = await servicio.cargar(await libroOriginal([filaExcel(MALL_CONCEPCION), filaExcel(ARICA)]), 'matriz.xlsx', 'CL', USUARIO);
+    const r = await servicio.cargar(await libroOriginal([filaExcel(MALL_CONCEPCION), filaExcel(ARICA)]), 'matriz.xlsx', GRUPO, USUARIO);
 
     expect(r).toMatchObject({ id: 'm-2', pais: 'CL', tiendas: 2 });
-    expect(insertados[0]).toMatchObject({ tabla: 'mallas_leadtime', datos: { pais: 'CL', tipo: 'regular', tiendas: 2, cargado_por: 'u@ripley.cl' } });
-    expect(insertados[1].tabla).toBe('malla_leadtime_tiendas');
-    expect((insertados[1].datos as unknown[])[1]).toMatchObject({ malla_id: 'm-2', codigo: '10021', desfase: 1, recepcion: [_, 'A', _, _, 'P-A-49', _, _] });
+    expect(insertados[0]).toMatchObject({ tabla: 'matrices', datos: { grupo_id: 'g-st', pais: 'CL', tipo: 'regular', tiendas: 2, cargado_por: 'u@ripley.cl' } });
+    expect(insertados[1].tabla).toBe('matriz_tiendas');
+    expect((insertados[1].datos as unknown[])[1]).toMatchObject({ version_id: 'm-2', codigo: '10021', desfase: 1, recepcion: [_, 'A', _, _, 'P-A-49', _, _] });
     expect(auditoria.registrarCambio).toHaveBeenCalled();
   });
 
@@ -189,7 +190,7 @@ describe('Guardar y leer la matriz', () => {
     const mala = filaExcel(ARICA);
     mala[2] = 'x';
 
-    await expect(servicio.cargar(await libroOriginal([mala]), 'm.xlsx', 'CL', USUARIO)).rejects.toMatchObject({
+    await expect(servicio.cargar(await libroOriginal([mala]), 'm.xlsx', GRUPO, USUARIO)).rejects.toMatchObject({
       response: { errores: [expect.stringMatching(/el desfase "x"/)] },
     });
     expect(insertados).toEqual([]);
@@ -199,7 +200,7 @@ describe('Guardar y leer la matriz', () => {
     const guardada = { ...MALL_CONCEPCION };
     const { servicio } = supabaseFalso([guardada]);
 
-    const { malla } = await servicio.actual('CL');
+    const { malla } = await servicio.actual(GRUPO);
 
     expect(malla!.tiendas[0].ventas.map((v) => v.diasHastaDespacho)).toEqual([2, 2, 2, 4, 4, 3, 2]);
     expect(malla).toMatchObject({ id: 'm-1', cargadoPor: 'u@r.cl' });
@@ -208,7 +209,7 @@ describe('Guardar y leer la matriz', () => {
   it('las fechas de una venta, con la matriz vigente', async () => {
     const { servicio } = supabaseFalso([NUEVA_VALDIVIA]);
 
-    expect(await servicio.calcular('CL', '10098', '2026-10-09')).toMatchObject({ despacho: '2026-10-13' });
-    await expect(servicio.calcular('CL', '99999', '2026-10-09')).rejects.toThrow(/no está en la matriz/);
+    expect(await servicio.calcular(GRUPO, '10098', '2026-10-09')).toMatchObject({ despacho: '2026-10-13' });
+    await expect(servicio.calcular(GRUPO, '99999', '2026-10-09')).rejects.toThrow(/no está en la matriz/);
   });
 });

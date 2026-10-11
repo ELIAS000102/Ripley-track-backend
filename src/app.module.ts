@@ -24,9 +24,7 @@ import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from './configuracion/transf-suc/transf.module.js';
 import { PreconfiguracionesModule } from './configuracion/preconfiguraciones/preconfiguraciones.module.js';
 import { SimulacionModule } from './simulacion/simulacion.module.js';
-import { MallasLeadtimeModule } from './mallas_leadtime/mallas-leadtime.module.js';
-import { MallasDespachoModule } from './mallas_despacho/mallas-despacho.module.js';
-import { ServiciosLeadtimeModule } from './servicios_leadtime/servicios-leadtime.module.js';
+import { LeadTimeModule } from './lead_time/lead-time.module.js';
 
 /**
  * Módulo raíz: registra la configuración global (variables de entorno),
@@ -56,9 +54,7 @@ import { ServiciosLeadtimeModule } from './servicios_leadtime/servicios-leadtime
     TransfModule,
     PreconfiguracionesModule,
     SimulacionModule,
-    MallasLeadtimeModule,
-    MallasDespachoModule,
-    ServiciosLeadtimeModule,
+    LeadTimeModule,
     AgenteModule,
     ChatsModule,
   ],

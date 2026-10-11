@@ -6,9 +6,10 @@ import type { CapacityByDay } from '../../../src/common/ripley/interfaces/ripley
 import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
 import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
 import { ConfiguracionReportesService } from '../../../src/reportes/comun/configuracion-reportes.service.js';
-import { interpretarTienda } from '../../../src/mallas_leadtime/matriz.calculo.js';
-import type { MallasLeadtimeService } from '../../../src/mallas_leadtime/mallas-leadtime.service.js';
-import type { TiendaMalla } from '../../../src/mallas_leadtime/interfaces/malla.interface.js';
+import { interpretarTienda } from '../../../src/lead_time/matrices/matriz.calculo.js';
+import type { MatricesService } from '../../../src/lead_time/matrices/matrices.service.js';
+import type { GruposLeadtimeService } from '../../../src/lead_time/grupos.service.js';
+import type { TiendaMalla } from '../../../src/lead_time/matrices/interfaces/matriz.interface.js';
 import type { GrupoSt, MallaDeTienda, TiendaSt } from '../../../src/reportes/st/interfaces/reporte-st.interface.js';
 import {
   cruzarAgendas,
@@ -140,7 +141,7 @@ describe('El servicio', () => {
     },
   });
 
-  function montar(grupos: GrupoSt[] | null, opciones: { recepcion?: (id: string) => Promise<unknown>; transferencia?: (id: string) => Promise<unknown>; eventos?: unknown[] } = {}) {
+  function montar(grupos: GrupoSt[] | null, opciones: { recepcion?: (id: string) => Promise<unknown>; transferencia?: (id: string) => Promise<unknown>; eventos?: unknown[]; sinGrupo?: boolean } = {}) {
     const guardados: unknown[] = [];
     const consulta = {
       select: () => consulta,
@@ -154,15 +155,21 @@ describe('El servicio', () => {
       capacidadesDeRecepcion: vi.fn(opciones.recepcion ?? (async () => ({ capacityByDayArray: [] }))),
       capacidadesDeTransferencia: vi.fn(opciones.transferencia ?? (async () => ({ capacityByDayArray: [] }))),
     };
-    const mallas = {
-      tiendasVigentes: async () => ({
+    const matrices = {
+      baseVigente: async () => ({
         cabecera: { archivo: 'matriz.xlsx', cargadoEn: '2026-10-08T10:00:00Z' },
         porCodigo: new Map([['10096', interpretarTienda(fila('10096', 'Punta Arenas', [_, _, _, 'A', _, _, _], ['A+7', _, _, _, _, _, _]))]]),
       }),
-      eventosVigentes: async () => opciones.eventos ?? [],
-    } as unknown as MallasLeadtimeService;
+      eventosConVigencia: async () => opciones.eventos ?? [],
+    } as unknown as MatricesService;
+    // El grupo de matrices del país: uno, o ninguno si se pide así
+    const grupoSt = { id: 'g-st', pais: 'CL', nombre: 'Matriz ST (Site to Store)', descripcion: '', tipo: 'matriz', creadoEn: '2026-10-01T00:00:00Z' };
+    const gruposLeadtime = {
+      gruposDeMatrices: async () => (opciones.sinGrupo ? [] : [grupoSt]),
+      grupoDeMatrices: async () => (opciones.sinGrupo ? null : grupoSt),
+    } as unknown as GruposLeadtimeService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
-    const servicio = new ReporteStService(new ConfiguracionReportesService(supabase), catalogos as unknown as CatalogosRipleyService, mallas, auditoria);
+    const servicio = new ReporteStService(new ConfiguracionReportesService(supabase), catalogos as unknown as CatalogosRipleyService, matrices, gruposLeadtime, auditoria);
     return { servicio, catalogos, guardados, auditoria };
   }
   const USUARIO = { id: 'u-1', email: 'u@ripley.cl' };
@@ -275,6 +282,15 @@ describe('El servicio', () => {
 
   it('sin tiendas no hay reporte, y se dice cómo empezar', async () => {
     await expect(montar(null).servicio.reporte('CL')).rejects.toThrow(/agrega un grupo/);
+  });
+
+  it('las matrices son las del grupo de matrices del país, y sin grupo se dice dónde crearlo', async () => {
+    const tiendas = [{ nombre: 'Sur', tiendas: [tienda('10096', 'Punta Arenas')] }];
+    const conGrupo = await montar(tiendas).servicio.configuracion('CL');
+    expect([conGrupo.malla.grupo, conGrupo.malla.grupos.length]).toEqual([{ id: 'g-st', nombre: 'Matriz ST (Site to Store)' }, 1]);
+    const sinGrupo = await montar(tiendas, { sinGrupo: true }).servicio.configuracion('CL');
+    expect([sinGrupo.malla.cargada, sinGrupo.malla.grupo]).toEqual([false, null]);
+    expect(sinGrupo.malla.aviso).toMatch(/No hay ningún grupo de matrices en CL: créalo en "Matrices y mallas"/);
   });
 
   it('la configuración dice qué tiendas están en la matriz', async () => {

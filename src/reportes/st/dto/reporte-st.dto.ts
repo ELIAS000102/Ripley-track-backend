@@ -7,6 +7,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -48,10 +49,22 @@ export class ReporteStDto extends PaisDto {
   @IsString()
   @MaxLength(60)
   malla?: string;
+
+  /** El grupo de matrices de lead time; por defecto, el primero que se creó en el país */
+  @IsOptional()
+  @IsUUID('all', { message: 'grupo es el id de un grupo de lead time' })
+  grupo?: string;
+}
+
+/** GET /reportes/st/configuracion */
+export class ConfiguracionStDto extends PaisDto {
+  @IsOptional()
+  @IsUUID('all', { message: 'grupo es el id de un grupo de lead time' })
+  grupo?: string;
 }
 
 /** GET /reportes/st/malla */
-export class MallaStDto extends PaisDto {
+export class MallaStDto extends ConfiguracionStDto {
   @IsString()
   @IsNotEmpty()
   codigo: string;
