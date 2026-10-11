@@ -143,11 +143,23 @@ describe('Leer mallas con el formato de la operación', () => {
     ]));
     const todo = lectura.errores.join(' | ');
     expect(lectura.items).toEqual([]);
-    expect(todo).toMatch(/Fila 3 \(OPL 4014 S\): tiene que llevar una "Venta", una "Despacho"/);
+    expect(lectura.errores).toContain('Fila 3 (OPL 4014 S): falta el "Despacho": escríbelo en la columna del día en que se despacha. En la fila hay: Venta el lunes (columna C), Transito el miércoles (columna E).');
     expect(todo).toMatch(/Fila 4 \(OPL 4014 S\): la "Venta" va primero y la "Despacho" al final/);
     expect(todo).toMatch(/Fila 6 \(OPL 4015 OP\): la OPL 4015 ya tiene una venta el lunes en el flujo OP, en la fila 5/);
     // El mismo día en otro flujo sí vale
     expect(todo).not.toMatch(/Fila 7/);
+  });
+
+  it('una fila sin la Venta dice qué falta y dónde está lo que sí hay, como el sábado de OP sin venta', async () => {
+    // Como la plantilla de la operación: OPL, T. de servicio y dos semanas; el sábado del flujo OP sin su "Venta"
+    const filas = FILAS_OP.map(([o, f, m], i): FilaMalla => [o, f, i === 5 ? { 8: 'Despacho' } : m]);
+    const lectura = await leerMalla(await excelComoElDeLaOperacion([...filas, ...FILAS_S], { encabezado: ['OPL', 'T. de servicio'] }));
+    expect(lectura.errores).toEqual(['Fila 8 (OPL 4014 OP): falta la "Venta": escríbela en la columna del día en que se vende. En la fila hay: Despacho el martes (columna K).']);
+  });
+
+  it('dos marcas iguales en una fila también se dicen', async () => {
+    const lectura = await leerMalla(await excelComoElDeLaOperacion([['4014', 'S', { 0: 'Venta', 1: 'Venta', 3: 'Despacho' }]]));
+    expect(lectura.errores[0]).toBe('Fila 3 (OPL 4014 S): hay 2 "Venta" y solo puede haber una. En la fila hay: Venta el lunes (columna C), Venta el martes (columna D), Despacho el jueves (columna F).');
   });
 
   it('pide los días del calendario seguidos y la columna del flujo', async () => {

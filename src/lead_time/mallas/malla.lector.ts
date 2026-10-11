@@ -35,6 +35,30 @@ const DIA_DE: Record<string, Dia> = {
 type Marca = 'venta' | 'transito' | 'recojo' | 'despacho';
 const MARCA: Record<string, Marca> = { venta: 'venta', transito: 'transito', recojo: 'recojo', despacho: 'despacho' };
 
+const NOMBRE_MARCA: Record<Marca, string> = { venta: 'Venta', transito: 'Transito', recojo: 'Recojo', despacho: 'Despacho' };
+
+/**
+ * Qué le sobra o le falta a una fila, dicho para corregirlo: "falta la
+ * "Venta": escríbela en la columna del día en que se vende".
+ */
+function queFalta(p: Record<Marca, number[]>) {
+  const partes: string[] = [];
+  if (!p.venta.length) partes.push('falta la "Venta": escríbela en la columna del día en que se vende');
+  if (!p.despacho.length) partes.push('falta el "Despacho": escríbelo en la columna del día en que se despacha');
+  for (const m of ['venta', 'transito', 'recojo', 'despacho'] as const) {
+    if (p[m].length > 1) partes.push(`hay ${p[m].length} "${NOMBRE_MARCA[m]}" y solo puede haber una`);
+  }
+  return partes.join('; ');
+}
+
+/** Lo que sí tiene la fila, con su día y su columna: "Despacho el martes (columna L)" */
+function queHay(p: Record<Marca, number[]>, calendario: Array<{ col: number; dia: Dia }>) {
+  const marcas = (['venta', 'transito', 'recojo', 'despacho'] as const)
+    .flatMap((m) => p[m].map((i) => ({ i, texto: `${NOMBRE_MARCA[m]} el ${NOMBRE_DIA[calendario[i].dia]} (columna ${letra(calendario[i].col)})` })))
+    .sort((a, b) => a.i - b.i);
+  return marcas.length ? marcas.map((m) => m.texto).join(', ') : 'nada';
+}
+
 function letra(n: number) {
   let s = '';
   for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) s = String.fromCharCode(65 + ((x - 1) % 26)) + s;
@@ -127,7 +151,7 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
     }
     const { venta, transito, recojo, despacho } = posiciones;
     if (venta.length !== 1 || despacho.length !== 1 || transito.length > 1 || recojo.length > 1) {
-      anotar(`${donde}: tiene que llevar una "Venta", una "Despacho" y como mucho una "Transito" y una "Recojo"; lleva ${venta.length}, ${despacho.length}, ${transito.length} y ${recojo.length}.`);
+      anotar(`${donde}: ${queFalta(posiciones)}. En la fila hay: ${queHay(posiciones, calendario)}.`);
       continue;
     }
     const [v, d, t, r] = [venta[0], despacho[0], transito[0] ?? null, recojo[0] ?? null];
