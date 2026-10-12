@@ -199,3 +199,58 @@ describe('La fuente de stock de la simulación', () => {
     expect([(simulacion.buscarAlmacenes as ReturnType<typeof vi.fn>).mock.calls[0][0], r.parametros.almacenPorDefecto]).toEqual(['20026', undefined]);
   });
 });
+
+describe('El cálculo de cada simulación, en una línea', () => {
+  /** La opción tal como la deja el apartado de simulación: ST de la 20026 a Trujillo */
+  const TRUJILLO = {
+    fechaEntrega: '2026-10-14T00:00:00.000Z',
+    diasTotales: 2,
+    pasos: [
+      { funcion: 'Horario de corte', activo: true, diasAgregados: 0 },
+      { funcion: 'Fecha excepción TRF', activo: false, diasAgregados: 0 },
+      { funcion: 'Plazo transferencia', activo: true, diasAgregados: 2 },
+      { funcion: 'Agenda de despacho', activo: true, diasAgregados: 0 },
+    ],
+    recorrido: [
+      { warehouse: '20026', destinationNode: '20040' },
+      { warehouse: '20040', destinationNode: '20040' },
+    ],
+  };
+
+  it('trae los días y solo las reglas que los suman, con la ruta de la transferencia', async () => {
+    const { servicio, simular } = armar();
+    simular.mockResolvedValue({ resultados: [{ typeOfService: 'ST', opciones: [TRUJILLO] }] });
+
+    const r = await servicio.simular(USUARIO, pedir({ servicio: 'ST', operador: '1111' }) as never);
+
+    expect([r.resultados[0].dias, r.resultados[0].calculo]).toEqual([2, 'Plazo transferencia +2 · 20026 → 20040']);
+  });
+
+  it('el de la opción más temprana, que es la entrega que se enseña', async () => {
+    const { servicio, simular } = armar();
+    const tarde = { ...TRUJILLO, fechaEntrega: '2026-10-16T00:00:00.000Z', diasTotales: 4, pasos: [{ funcion: 'Frecuencia Ruta', activo: true, diasAgregados: 4 }], recorrido: [] };
+    simular.mockResolvedValue({ resultados: [{ typeOfService: 'ST', opciones: [tarde, TRUJILLO] }] });
+
+    const r = await servicio.simular(USUARIO, pedir({ servicio: 'ST', operador: '1111' }) as never);
+
+    expect(r.resultados[0].calculo).toBe('Plazo transferencia +2 · 20026 → 20040');
+  });
+
+  it('sin reglas que sumen ni transferencia, lo dice corto', async () => {
+    const { servicio, simular } = armar();
+    simular.mockResolvedValue({ resultados: [{ typeOfService: 'SD', opciones: [{ fechaEntrega: '2026-10-12T00:00:00.000Z', diasTotales: 0, pasos: [{ funcion: 'Horario de corte', activo: true, diasAgregados: 0 }], recorrido: [{ warehouse: '20026', destinationNode: '20026' }] }] }] });
+
+    const r = await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
+
+    expect([r.resultados[0].dias, r.resultados[0].calculo]).toEqual([0, 'Sin días agregados']);
+  });
+
+  it('una regla inactiva no se cuenta aunque traiga días', async () => {
+    const { servicio, simular } = armar();
+    simular.mockResolvedValue({ resultados: [{ typeOfService: 'ST', opciones: [{ ...TRUJILLO, pasos: [...TRUJILLO.pasos, { funcion: 'Fecha excepción recepción', activo: false, diasAgregados: 3 }] }] }] });
+
+    const r = await servicio.simular(USUARIO, pedir({ servicio: 'ST', operador: '1111' }) as never);
+
+    expect(r.resultados[0].calculo).toBe('Plazo transferencia +2 · 20026 → 20040');
+  });
+});

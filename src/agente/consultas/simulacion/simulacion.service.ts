@@ -16,6 +16,7 @@ import type {
   SimulacionRespuesta,
 } from '../../interfaces/agente.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
+import { resumirCalculo, type OpcionCalculada } from '../../utils/calculo-simulacion.util.js';
 import { enLotes } from '../../../common/utils/lotes.util.js';
 
 /**
@@ -327,7 +328,7 @@ export class SimulacionAgenteService {
     const respuesta = cruda as {
       resultados?: Array<{
         typeOfService?: string;
-        opciones?: Array<{ fechaEntrega?: string }>;
+        opciones?: OpcionCalculada[];
       }>;
       errores?: unknown[];
       mensaje?: string;
@@ -349,18 +350,21 @@ export class SimulacionAgenteService {
     }
 
     // Un servicio como "S" trae una opción por día —más de diez— y el chat no
-    // necesita el calendario entero: la primera fecha posible es la respuesta.
-    return resultados.map((r) => ({
-      opl,
-      destino,
-      servicio: r.typeOfService ?? '-',
-      entrega: fechaLegible(
-        (r.opciones ?? [])
-          .map((o) => o.fechaEntrega)
-          .filter((f): f is string => !!f)
-          .sort()[0] ?? null,
-      ),
-    }));
+    // necesita el calendario entero: la primera fecha posible es la respuesta,
+    // con el resumen de cómo se calculó ESA opción.
+    return resultados.map((r) => {
+      const primera = (r.opciones ?? [])
+        .filter((o) => !!o.fechaEntrega)
+        .sort((a, b) => String(a.fechaEntrega).localeCompare(String(b.fechaEntrega)))[0];
+
+      return {
+        opl,
+        destino,
+        servicio: r.typeOfService ?? '-',
+        entrega: fechaLegible(primera?.fechaEntrega ?? null),
+        ...(primera ? resumirCalculo(primera) : {}),
+      };
+    });
   }
 
   // ---------- Resolución de datos ----------

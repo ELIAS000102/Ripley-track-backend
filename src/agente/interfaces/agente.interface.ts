@@ -297,6 +297,14 @@ export interface ResultadoSimulacion {
   /** Tipo de servicio que devolvió Ripley: con servicio vacío vienen varios */
   servicio: string;
   entrega: string | null;
+  /** Días de calendario de la venta a la entrega */
+  dias?: number;
+  /**
+   * Por qué tarda eso, en una línea: solo las reglas que suman días y, si hay
+   * transferencia, la ruta. "Plazo transferencia +2 · 20026 → 20040". El
+   * detalle entero (las 17 reglas) está en el apartado de simulación del panel.
+   */
+  calculo?: string;
   /** Solo si esa combinación falló; las demás siguen valiendo */
   error?: string;
 }
