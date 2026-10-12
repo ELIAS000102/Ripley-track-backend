@@ -481,14 +481,16 @@ export class EditarMasivoDto extends PaisDto {
  * Cambiar la relación de transferencia entre dos almacenes.
  *
  * `origen` es de donde SALE el stock y `destino` quien lo recibe; la relación
- * cuelga del origen. Es la confusión más repetida del agente, así que los dos
- * son obligatorios: sin destino no hay una relación concreta que cambiar.
+ * cuelga del origen. El destino es obligatorio: sin él no hay una relación
+ * concreta que cambiar. El origen, si no se dice, es el de por defecto del país
+ * (el 20026 en Perú), y la respuesta lo dice.
  */
 export class EditarTransferenciaDto extends PaisDto {
-  /** Código o nombre del almacén de donde SALE el stock */
+  /** Código, nombre o alias ("CD Villa") del almacén de donde SALE el stock. Vacío = el de por defecto */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
   @IsString()
-  @IsNotEmpty()
-  origen: string;
+  origen?: string;
 
   /**
    * Código o nombre del almacén que RECIBE. Admite varios por coma.

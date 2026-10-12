@@ -8,6 +8,7 @@ import { TransfService } from '../../../configuracion/transf-suc/transf.service.
 import type { DiasDisponibles } from '../../../configuracion/transf-suc/interfaces/transf.interface.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarTransferenciaDto } from '../../dto/edicion.dto.js';
 import type {
@@ -50,6 +51,7 @@ export class EditarTransferenciaAgenteService {
     private readonly transf: TransfService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
+    private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
   async editar(
@@ -74,7 +76,9 @@ export class EditarTransferenciaAgenteService {
 
     const pedidos = this.destinosPedidos(dto.destino);
 
-    const origen = await this.resolverOrigen(dto.origen, pais);
+    // El origen que se dijo —"CD Villa" es el 20026— o, si no, el de por defecto
+    const fuente = await this.almacenes.fuente(dto.origen, pais, 'el cambio de transferencia');
+    const origen = await this.resolverOrigen(fuente.codigo, pais);
     const { relaciones } = await this.transf.listarRelaciones(origen.id, pais);
 
     this.logger.warn(
@@ -161,6 +165,7 @@ export class EditarTransferenciaAgenteService {
     return {
       contexto,
       origen: `${origen.code} - ${origen.nombre}`,
+      ...(fuente.porDefecto ? { origenPorDefecto: true } : {}),
       destinos,
       resumen: {
         pedidos: destinos.length,

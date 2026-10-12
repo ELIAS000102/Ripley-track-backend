@@ -120,6 +120,8 @@ export interface TransferenciaEditada {
   contexto: ContextoAgente;
   /** De dónde SALE el stock */
   origen: string;
+  /** true si no se dijo y se usó el de por defecto del país: hay que decirlo */
+  origenPorDefecto?: boolean;
   /**
    * Un elemento por destino pedido, en el orden en que se pidieron.
    *

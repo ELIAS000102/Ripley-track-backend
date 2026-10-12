@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,10 +7,8 @@ import { TransfService } from '../../../configuracion/transf-suc/transf.service.
 import type { DiasDisponibles } from '../../../configuracion/transf-suc/interfaces/transf.interface.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
-import {
-  ConsultarTransferenciaDto,
-  ORIGEN_POR_DEFECTO,
-} from '../../dto/consultas.dto.js';
+import { AlmacenesAgenteService } from '../../almacenes.service.js';
+import { ConsultarTransferenciaDto } from '../../dto/consultas.dto.js';
 import type {
   Transferencia,
   TransferenciaRespuesta,
@@ -41,6 +38,7 @@ export class TransferenciaAgenteService {
   constructor(
     private readonly transf: TransfService,
     private readonly contexto: ContextoAgenteService,
+    private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
   async consultar(
@@ -49,8 +47,11 @@ export class TransferenciaAgenteService {
   ): Promise<TransferenciaRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
 
-    const pedido = this.resolverPedido(dto);
+    // El origen que se dijo —"CD Villa" es el 20026— o, si no, el de por defecto
+    const fuente = await this.almacenes.fuente(dto.origen, contexto.pais, 'la transferencia');
+    const pedido = fuente.codigo;
     const pedidos = this.destinosPedidos(dto.destino);
+    const porDefecto = fuente.porDefecto ? { origenPorDefecto: pedido } : {};
 
     this.logger.log(
       `Agente consultando transferencia ${pedido} → ${pedidos.length || 'todos'}`,
@@ -66,7 +67,7 @@ export class TransferenciaAgenteService {
     const todas = relaciones.map((r) => this.aTransferencia(etiquetaOrigen, r));
 
     if (!pedidos.length) {
-      return { contexto, destinos: todas };
+      return { contexto, ...porDefecto, destinos: todas };
     }
 
     const destinos: Transferencia[] = [];
@@ -92,6 +93,7 @@ export class TransferenciaAgenteService {
 
     return {
       contexto,
+      ...porDefecto,
       destinos,
       ...(noEncontrados.length ? { noEncontrados } : {}),
       // El aviso solo cuando NO hay nada que enseñar: si vinieron ocho de once,
@@ -122,30 +124,6 @@ export class TransferenciaAgenteService {
       (d, i) =>
         lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i,
     );
-  }
-
-  /**
-   * De dónde sale el stock, y cuándo se puede dar por supuesto.
-   *
-   * Sin origen ni destino, la pregunta es "¿qué transferencias hay?" y el 20026
-   * es la respuesta que se espera: es de donde se transfiere casi siempre.
-   *
-   * Con destino pero sin origen no se supone nada. "¿Cuál es el desfase a
-   * Chorrillos?" tiene una respuesta distinta por cada almacén del que pueda
-   * salir, y devolver la del 20026 como si fuera la única sería contestar otra
-   * pregunta sin decirlo.
-   */
-  private resolverPedido(dto: ConsultarTransferenciaDto): string {
-    if (dto.origen) return dto.origen;
-
-    if (dto.destino) {
-      throw new BadRequestException(
-        `Falta el origen: "${dto.destino}" es el destino, pero el desfase depende de ` +
-          `desde qué almacén sale el stock. Pregunta al usuario cuál es el origen.`,
-      );
-    }
-
-    return ORIGEN_POR_DEFECTO;
   }
 
   /** El origen es la fuente de stock: de aquí cuelgan todas las relaciones */

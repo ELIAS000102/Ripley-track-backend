@@ -10,6 +10,7 @@ import { TransfModule } from '../configuracion/transf-suc/transf.module.js';
 import { CdsModule } from '../reportes/cds/cds.module.js';
 import { SimulacionModule } from '../simulacion/simulacion.module.js';
 import { ContextoAgenteService } from './contexto.service.js';
+import { AlmacenesAgenteService } from './almacenes.service.js';
 
 import { ConsultasAgenteController } from './consultas/consultas.controller.js';
 import { BusquedaMasivaAgenteService } from './consultas/busqueda-masiva/busqueda-masiva.service.js';
@@ -80,6 +81,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
   ],
   providers: [
     ContextoAgenteService,
+    AlmacenesAgenteService,
     SinRastroInterceptor,
 
     // Consultas

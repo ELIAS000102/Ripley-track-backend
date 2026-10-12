@@ -3,6 +3,7 @@ import type { TransfService } from '../../../../src/configuracion/transf-suc/tra
 import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { TransferenciaAgenteService } from '../../../../src/agente/consultas/transferencia/transferencia.service.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * Consultar transferencias.
@@ -58,7 +59,7 @@ function armar(relaciones = RELACIONES) {
   } as unknown as ContextoAgenteService;
 
   return {
-    servicio: new TransferenciaAgenteService(transf, contexto),
+    servicio: new TransferenciaAgenteService(transf, contexto, almacenesDePrueba()),
     buscarAlmacen: transf.buscarAlmacen as ReturnType<typeof vi.fn>,
   };
 }
@@ -176,15 +177,32 @@ describe('Consultar transferencias: de dónde sale el stock', () => {
     expect(buscarAlmacen).toHaveBeenCalledWith('20026', 'PE');
   });
 
-  it('con destino y sin origen, se pregunta en vez de suponer', async () => {
-    // El desfase cambia entero según de dónde salga el stock: devolver el del
-    // 20026 como si fuera el único sería contestar otra pregunta sin decirlo
+  it('con destino y sin origen, se usa la 20026 y se dice que fue por defecto', async () => {
+    // Regla de la operación: sin fuente de stock, el CD Villa El Salvador
     const { servicio, buscarAlmacen } = armar();
 
-    await expect(
-      servicio.consultar(USUARIO, consultar({ destino: '20058' })),
-    ).rejects.toThrow(/Falta el origen/);
+    const r = await servicio.consultar(USUARIO, consultar({ destino: '20058' }));
 
+    expect(buscarAlmacen).toHaveBeenCalledWith('20026', 'PE');
+    expect([r.origenPorDefecto, r.destinos.map((d) => d.destino)]).toEqual(['20026', ['20058 - Chorrillos']]);
+  });
+
+  it('el origen por su alias: "CD Villa" es el 20026', async () => {
+    const { servicio, buscarAlmacen } = armar();
+
+    const r = await servicio.consultar(USUARIO, consultar({ origen: 'CD Villa', destino: '20058' }));
+
+    expect(buscarAlmacen).toHaveBeenCalledWith('20026', 'PE');
+    expect(r.origenPorDefecto).toBeUndefined();
+  });
+
+  it('en Chile no hay origen por defecto: se pide', async () => {
+    const { servicio, buscarAlmacen } = armar();
+    // El contexto del agente resuelve Chile
+    (servicio as unknown as { contexto: { armar: unknown } }).contexto.armar = vi.fn().mockResolvedValue({ pais: 'CL' });
+
+    await expect(servicio.consultar(USUARIO, consultar({ pais: 'CL', destino: '10021' })))
+      .rejects.toThrow(/Falta el almacén de origen .* en CL no hay uno por defecto/);
     expect(buscarAlmacen).not.toHaveBeenCalled();
   });
 

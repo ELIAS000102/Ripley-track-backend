@@ -217,6 +217,11 @@ export interface Transferencia {
 export interface TransferenciaRespuesta {
   contexto: ContextoAgente;
   /**
+   * El origen que se usó porque no se dijo ninguno (el 20026 en Perú). Viene
+   * para decirlo en la respuesta: "desde la 20026, el origen por defecto".
+   */
+  origenPorDefecto?: string;
+  /**
    * Las relaciones encontradas.
    *
    * Si no se pidió ningún destino, son todos los del origen. Si se pidieron
@@ -302,8 +307,10 @@ export interface SimulacionRespuesta {
     /** null significa que se pidieron todos los tipos aplicables */
     servicio: string | null;
     metodo: string;
-    /** null si no se fijó fuente de stock: la eligió Ripley */
+    /** La fuente de stock; null si no se fijó y el país no tiene una por defecto (la eligió Ripley) */
     almacen: string | null;
+    /** true si no se dijo y se usó la de por defecto del país: hay que decirlo */
+    almacenPorDefecto?: boolean;
     sku: string;
     cantidad: number;
   };

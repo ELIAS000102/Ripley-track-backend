@@ -13,6 +13,7 @@ import { hoyEnPais, sumarDias } from '../../../../src/common/ripley/utils/date.u
 import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarCapacidadAgenteService } from '../../../../src/agente/edicion/capacidad/capacidad.service.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * La escritura del agente, y sobre todo **cuándo se niega a escribir**.
@@ -146,6 +147,7 @@ function armar(
       // Las agendas de transferencia tienen su propia batería
       undefined as never,
       { leer: vi.fn().mockResolvedValue(opciones.preconfiguracion ?? { nombre: '?', agendas: [] }) } as never,
+      almacenesDePrueba(),
     ),
     actualizarPicking,
     actualizarDespacho,

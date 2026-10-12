@@ -3,6 +3,7 @@ import type { DespachoService } from '../../../../src/agendas/despacho/despacho.
 import type { PickingService } from '../../../../src/agendas/picking/picking.service.js';
 import type { RecepcionService } from '../../../../src/agendas/recepcion/recepcion.service.js';
 import { CapacidadAgenteService } from '../../../../src/agente/consultas/capacidad/capacidad.service.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * Pedir una zona o una agenda concretas, y que no vengan sus parecidas.
@@ -83,7 +84,7 @@ function armar() {
   } as unknown as RecepcionService;
 
   return {
-    servicio: new CapacidadAgenteService(picking, despacho, recepcion),
+    servicio: new CapacidadAgenteService(picking, despacho, recepcion, almacenesDePrueba()),
     listarAgendas,
   };
 }

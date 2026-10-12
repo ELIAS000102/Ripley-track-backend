@@ -3,6 +3,7 @@ import type { DespachoService } from '../../../../src/agendas/despacho/despacho.
 import type { RecepcionService } from '../../../../src/agendas/recepcion/recepcion.service.js';
 import type { PickingService } from '../../../../src/agendas/picking/picking.service.js';
 import { CapacidadAgenteService } from '../../../../src/agente/consultas/capacidad/capacidad.service.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * Consultar la capacidad de varias oficinas en una llamada.
@@ -92,7 +93,7 @@ function armar({
   const recepcion = { capacidadesDeLaOficina } as unknown as RecepcionService;
 
   return {
-    servicio: new CapacidadAgenteService(picking, despacho, recepcion),
+    servicio: new CapacidadAgenteService(picking, despacho, recepcion, almacenesDePrueba()),
     capacidadesDeLaOficina,
     listarAgendasPorOficina,
     listarZonas,

@@ -174,22 +174,13 @@ export class ConsultarReporteDto extends ConVentanaDto {
 
 // ───────────────────────── Transferencias ─────────────────────────
 
-/**
- * El almacén del que se transfiere casi siempre.
- *
- * Que sea el valor por defecto ahorra la pregunta más repetida del chat. Solo
- * se aplica cuando **tampoco** hay destino: "¿qué transferencias hay?" se
- * entiende sin más, pero "¿cuál es el desfase a Chorrillos?" no, porque la
- * respuesta cambia entera según de dónde salga el stock.
- */
-export const ORIGEN_POR_DEFECTO = '20026';
-
 export class ConsultarTransferenciaDto extends PaisDto {
   /**
    * Código o nombre del almacén de donde SALE el stock (la fuente).
    *
-   * Si se omite y tampoco hay destino, se usa el 20026. Si se omite habiendo
-   * destino, el backend pregunta: elegir uno cambiaría la respuesta sin avisar.
+   * Si se omite, se usa el de por defecto del país (el 20026, CD Villa El
+   * Salvador, en Perú) y la respuesta lo dice en "origenPorDefecto". Admite
+   * los alias de los CDs: "CD Villa" es el 20026.
    */
   @IsOptional()
   @IsString()

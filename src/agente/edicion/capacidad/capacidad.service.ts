@@ -19,6 +19,7 @@ import {
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { AgendasDePreconfiguracionService } from './agendas-de-preconfiguracion.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
+import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
 import { EditarCapacidadDto, EditarCapacidadTransferenciaDto } from '../../dto/edicion.dto.js';
@@ -159,6 +160,7 @@ export class EditarCapacidadAgenteService {
     private readonly auditoria: ContextoAuditoria,
     private readonly transferencias: TransferenciaAgendasService,
     private readonly agendasGuardadas: AgendasDePreconfiguracionService,
+    private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
   /**
@@ -307,7 +309,9 @@ export class EditarCapacidadAgenteService {
     // En picking el servicio identifica la jornada y puede venir más de una:
     // "cierra la ST y la RC del 20026" es una decisión, no dos
     const jornadas = this.jornadasPedidas(dto);
-    const codigos = this.oficinasPedidas(pedidoDeCodigos, jornadas, fechas);
+    // En picking el código es un almacén: "CD Villa" es el 20026, por los alias de los CDs
+    const pedidosPorCodigo = this.oficinasPedidas(pedidoDeCodigos, jornadas, fechas);
+    const codigos = dto.tipo === 'picking' ? await this.almacenes.codigos(pedidosPorCodigo, pais) : pedidosPorCodigo;
 
     this.logger.warn(
       `EDICIÓN del agente — ${usuario.email} cambia ${dto.tipo} de ` +

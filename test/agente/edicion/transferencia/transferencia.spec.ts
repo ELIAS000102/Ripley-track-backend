@@ -5,6 +5,7 @@ import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-audit
 import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarTransferenciaAgenteService } from '../../../../src/agente/edicion/transferencia/transferencia.service.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * La dirección y los días son lo que se equivoca aquí.
@@ -69,7 +70,7 @@ function armar(relaciones = RELACIONES) {
   return {
     servicio: new EditarTransferenciaAgenteService(transf, contexto, {
       registrarCambio,
-    } as unknown as ContextoAuditoria),
+    } as unknown as ContextoAuditoria, almacenesDePrueba()),
     actualizarRelacion,
     registrarCambio,
   };
@@ -364,5 +365,19 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
     ).rejects.toThrow(/máximo por vez es 30/);
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
+  });
+});
+
+describe('Editar una transferencia: de dónde sale el stock', () => {
+  it('sin origen, el 20026 (el de por defecto), y la respuesta lo dice', async () => {
+    const { servicio, actualizarRelacion } = armar();
+    const r = await servicio.editar(USUARIO, { destino: '20021', habilitada: false } as never);
+    expect([r.origen, r.origenPorDefecto, actualizarRelacion.mock.calls.length]).toEqual(['20026 - CD Villa El Salvador', true, 1]);
+  });
+
+  it('el origen por su alias: "CD Villa" es el 20026, y no se dice que fuera por defecto', async () => {
+    const { servicio } = armar();
+    const r = await servicio.editar(USUARIO, { origen: 'CD Villa', destino: '20021', habilitada: false } as never);
+    expect([r.origen, r.origenPorDefecto]).toEqual(['20026 - CD Villa El Salvador', undefined]);
   });
 });

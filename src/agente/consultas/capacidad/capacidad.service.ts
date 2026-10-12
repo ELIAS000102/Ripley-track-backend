@@ -19,6 +19,7 @@ import {
   resolverAliasOpl,
 } from '../../constantes/alias-opl.constants.js';
 import { ConsultarCapacidadDto } from '../../dto/consultas.dto.js';
+import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
 import type {
@@ -91,6 +92,7 @@ export class CapacidadAgenteService {
     private readonly picking: PickingService,
     private readonly despacho: DespachoService,
     private readonly recepcion: RecepcionService,
+    private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
   async consultar(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {
@@ -98,7 +100,10 @@ export class CapacidadAgenteService {
     const desde = dto.desde ?? hoyEnPais(pais);
     const dias = dto.dias ?? 7;
 
-    const pedidos = this.oficinasPedidas(dto.codigo);
+    // En picking el código es un almacén: "CD Villa" es el 20026, por los alias de los CDs
+    const pedidos = dto.tipo === 'picking'
+      ? await this.almacenes.codigos(this.oficinasPedidas(dto.codigo), pais)
+      : this.oficinasPedidas(dto.codigo);
 
     this.logger.log(
       `Agente consultando ${dto.tipo} de ${pedidos.length} oficina(s): ` +

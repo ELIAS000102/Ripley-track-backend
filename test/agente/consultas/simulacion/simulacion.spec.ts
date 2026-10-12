@@ -4,6 +4,7 @@ import type { SimulacionService } from '../../../../src/simulacion/simulacion.se
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { SimulacionAgenteService } from '../../../../src/agente/consultas/simulacion/simulacion.service.js';
 import { SKU_POR_DEFECTO } from '../../../../src/agente/constantes/simulacion.constants.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * La simulación del agente, después de sacarle las listas de OPL.
@@ -24,7 +25,7 @@ function armar() {
 
   const simulacion = {
     simular,
-    buscarAlmacenes: vi.fn().mockResolvedValue([]),
+    buscarAlmacenes: vi.fn().mockResolvedValue([{ id: 'w-1', code: '20026', nombre: 'Ripley Fulfillment' }]),
     buscarOpl: vi
       .fn()
       .mockResolvedValue([{ id: 'o1', code: '1111', nombre: 'San Borja' }]),
@@ -44,7 +45,7 @@ function armar() {
     armar: vi.fn().mockResolvedValue({ pais: 'PE' }),
   } as unknown as ContextoAgenteService;
 
-  const servicio = new SimulacionAgenteService(simulacion, contexto);
+  const servicio = new SimulacionAgenteService(simulacion, contexto, almacenesDePrueba());
 
   return { servicio, simular, simulacion };
 }
@@ -181,5 +182,20 @@ describe('El método de entrega', () => {
     );
 
     expect(simular.mock.calls[0][0].deliveryMethod).toBe('RT');
+  });
+});
+
+describe('La fuente de stock de la simulación', () => {
+  it('sin almacén, el 20026 de por defecto, y se dice', async () => {
+    const { servicio, simular, simulacion } = armar();
+    const r = await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
+    expect((simulacion.buscarAlmacenes as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe('20026');
+    expect([r.parametros.almacen, r.parametros.almacenPorDefecto, simular.mock.calls[0][0].warehouseId]).toEqual(['20026 - Ripley Fulfillment', true, 'w-1']);
+  });
+
+  it('"CD Villa" es el 20026, y no fue por defecto', async () => {
+    const { servicio, simulacion } = armar();
+    const r = await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111', almacen: 'CD Villa' }) as never);
+    expect([(simulacion.buscarAlmacenes as ReturnType<typeof vi.fn>).mock.calls[0][0], r.parametros.almacenPorDefecto]).toEqual(['20026', undefined]);
   });
 });

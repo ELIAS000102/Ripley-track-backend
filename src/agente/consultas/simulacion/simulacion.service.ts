@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SimulacionService } from '../../../simulacion/simulacion.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { SimularAgenteDto } from '../../dto/consultas.dto.js';
 import { metodoDeServicio } from '../../constantes/servicios.constants.js';
@@ -78,6 +79,7 @@ export class SimulacionAgenteService {
   constructor(
     private readonly simulacion: SimulacionService,
     private readonly contexto: ContextoAgenteService,
+    private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
   async simular(
@@ -106,8 +108,10 @@ export class SimulacionAgenteService {
     const destinos = this.destinosPedidos(dto);
 
     const metodo = this.metodo(dto, servicio);
-    // Sin almacén la simulación se procesa igual: Ripley resuelve la fuente
-    const codigoAlmacen = dto.almacen?.trim();
+    // La fuente de stock: la que se dijo ("CD Villa" es el 20026) o la de por defecto del país.
+    // Sin ninguna (Chile), Ripley la resuelve, como antes
+    const fuente = await this.almacenes.fuente(dto.almacen, pais, 'la simulación').catch(() => null);
+    const codigoAlmacen = fuente?.codigo;
 
     this.logger.log(
       `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s) — ${pais}`,
@@ -152,6 +156,7 @@ export class SimulacionAgenteService {
         servicio,
         metodo,
         almacen: almacen ? `${almacen.code} - ${almacen.nombre}` : null,
+        ...(fuente?.porDefecto ? { almacenPorDefecto: true } : {}),
         sku: producto.nombre
           ? `${producto.sku} - ${producto.nombre}`
           : String(producto.sku),

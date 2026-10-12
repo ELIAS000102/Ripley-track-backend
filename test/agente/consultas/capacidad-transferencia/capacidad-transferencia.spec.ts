@@ -5,6 +5,7 @@ import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-audit
 import { CapacidadTransferenciaAgenteService } from '../../../../src/agente/consultas/capacidad-transferencia/capacidad-transferencia.service.js';
 import { EditarCapacidadAgenteService } from '../../../../src/agente/edicion/capacidad/capacidad.service.js';
 import { hoyEnPais, sumarDias } from '../../../../src/common/ripley/utils/date.util.js';
+import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
  * La capacidad de transferencia vista por el agente: por origen, por destino o
@@ -103,7 +104,7 @@ describe('Editar la capacidad de transferencia', () => {
     const { transferencias } = armar(agendas);
     const contexto = { armar: vi.fn().mockResolvedValue({ pais: 'PE', hoy: HOY }) } as unknown as ContextoAgenteService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
-    const servicio = new EditarCapacidadAgenteService(undefined as never, undefined as never, undefined as never, contexto, auditoria, transferencias, undefined as never);
+    const servicio = new EditarCapacidadAgenteService(undefined as never, undefined as never, undefined as never, contexto, auditoria, transferencias, undefined as never, almacenesDePrueba());
     return { servicio, transferencias, auditoria };
   }
   const USUARIO = { id: 'u', email: 'u@ripley.com.pe' } as never;
