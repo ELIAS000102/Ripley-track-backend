@@ -17,6 +17,7 @@ import {
   SkuResponse,
   SkuRow,
 } from './interfaces/simulacion.interface.js';
+import { tiempoAgregado } from './utils/tiempo-agregado.util.js';
 
 /**
  * Simula la fecha/hora de entrega de una venta antes de concretarla. Resuelve los
@@ -345,23 +346,23 @@ export class SimulacionService {
         typeOfService: code,
         agenda: servicio.scheduleName?.trim() ?? null,
         zona: servicio.zoneName?.trim() ?? null,
-        opciones: (servicio.simulator ?? []).map((o) => ({
-          courier: o.courier,
-          almacen: o.warehouse,
-          horaCorte: o.cutTime,
-          fechaVenta: o.saleDate,
-          fechaEntrega: o.date,
-          tamano: o.sizeCargo,
-          bultos: o.countCargo,
+        opciones: (servicio.simulator ?? []).map((o) => {
           // Los pasos del cálculo, en orden, con la fecha que arrastra cada uno
-          pasos: (o.log ?? []).map((l) => ({
-            tipo: l.type,
-            funcion: l.functionName,
-            activo: l.isActive,
-            fecha: l.isoDate,
-          })),
-          recorrido: o.fulfillment ?? [],
-        })),
+          // y los días que suma a la entrega (Ripley no los manda: se calculan)
+          const { pasos, diasTotales } = tiempoAgregado(o.saleDate, o.log);
+          return {
+            courier: o.courier,
+            almacen: o.warehouse,
+            horaCorte: o.cutTime,
+            fechaVenta: o.saleDate,
+            fechaEntrega: o.date,
+            tamano: o.sizeCargo,
+            bultos: o.countCargo,
+            diasTotales,
+            pasos,
+            recorrido: o.fulfillment ?? [],
+          };
+        }),
       }),
     );
 
