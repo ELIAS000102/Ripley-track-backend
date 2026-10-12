@@ -135,14 +135,26 @@ describe('Las frases que fallaban en el chat', () => {
       .toMatchObject({ caso: 'preconfiguracion', certeza: 'alta', preconfiguraciones: ['OPLS de la SE'] });
   });
 
-  it('"has un cruce de los opls de la SE con los de la ST…" → al agente de búsqueda masiva, que trae las dos listas y las cruza', () => {
-    const conLaSE = [...PRECONFS, { nombre: 'OPLS de la SE', descripcion: 'opls que tienen el tipo de servicio SE' }];
+  it('"has un cruce de los opls de la SE con los de la ST…" sin preconfiguraciones de esos servicios → búsqueda masiva, con certeza', () => {
+    const r = leer('has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas');
+
+    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta', preconfiguracionesPosibles: [] });
+  });
+
+  it('el mismo cruce con las preconfiguraciones de la SE y la ST guardadas → las propone, y decide el modelo (1677)', () => {
+    const conLasDos = [...PRECONFS,
+      { nombre: 'OPLS de la SE', descripcion: 'es para consultar que opls - tiendas - sucursales que cuentan con el tipo de servicio SE de forma masiva', tipos: ['masivo'] },
+      { nombre: 'OPLS de la ST', descripcion: 'es para consultar - activar - desactivar los opls - tiendas - sucursales que cuentan con el tipo de servicio ST de forma masiva', tipos: ['masivo'] },
+    ];
     const r = interpretar(
-      'has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas',
-      { hoy: HOY, preconfiguraciones: conLaSE, cds: CDS_DE_PRUEBA },
+      'has un crece entre las sucurasles de la SE y de la ST, la misma sucursal no puede tener la SE y ST activos junto solo puede tener activo uno',
+      { hoy: HOY, preconfiguraciones: conLasDos, cds: CDS_DE_PRUEBA },
     );
 
-    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta' });
+    expect(r.preconfiguracionesPosibles.map((p) => p.nombre)).toEqual(['OPLS de la SE', 'OPLS de la ST']);
+    expect(r.preconfiguracionesPosibles[0].motivo).toContain('servicio SE');
+    expect(r).toMatchObject({ caso: null, certeza: 'media' });
+    expect(r.candidatos).toContain('preconfiguracion');
   });
 
   it('dos consultas de temas distintos no tienen caso propio: decide la IA el tema principal', () => {
@@ -185,7 +197,7 @@ describe('Casos de siempre', () => {
     ['qué servicios tiene el 1130', 'tipo_servicio'],
     ['cuál es el desfase de la 20021 con fuente de stock 20026', 'transferencia'],
     ['reporte de los CDs de esta semana', 'reporte'],
-    ['simula el 1111 a San Borja', 'simulacion'],
+    ['simula el 1112 a San Borja', 'simulacion'],
     ['ejecuta la Simulación SD', 'preconfiguracion'],
     ['qué preconfiguraciones hay', 'preconfiguraciones'],
     ['activa el SD del 1130', 'editar_servicio'],
@@ -334,5 +346,48 @@ describe('La ruta', () => {
   it('un CD nuevo de la configuración se reconoce sin tocar el código', () => {
     const conNuevo = { ...CDS_DE_PRUEBA, PE: [...CDS_DE_PRUEBA.PE, { code: '20199', nombre: 'CD Lurín', jornadas: ['ST'], alias: ['lurin'], libres: [], cruzanFecha: [] }] };
     expect(interpretar('corta el picking del cd lurín', { hoy: HOY, cds: conNuevo }).cds).toEqual([{ code: '20199', nombre: 'CD Lurín', pais: 'PE' }]);
+  });
+});
+
+describe('El filtro previo de preconfiguraciones: reduce las opciones, no decide', () => {
+  const GUARDADAS = [
+    ...PRECONFS,
+    { nombre: 'Simulación SE', descripcion: 'es para simular las sucursales de la SE', tipos: ['simulacion'] },
+    { nombre: 'Tiendas RT chile', descripcion: 'es para consultar, editar o activar capacidades de picking de las tiendas que cuentan con agendas RT (retiro en tienda) de picking chile', tipos: ['picking'] },
+    { nombre: 'OPLS de la ST', descripcion: 'opls - tiendas - sucursales con el tipo de servicio ST de forma masiva', tipos: ['masivo'] },
+  ];
+  const filtrar = (texto: string) => interpretar(texto, { hoy: HOY, preconfiguraciones: GUARDADAS, cds: CDS_DE_PRUEBA });
+  const nombres = (texto: string) => filtrar(texto).preconfiguracionesPosibles.map((p) => p.nombre);
+
+  it('una simulación: la del código que se dice, y la decide el modelo', () => {
+    const r = filtrar('simula el 1111 a San Borja');
+    expect(r.preconfiguracionesPosibles[0]).toMatchObject({ nombre: 'Simulación de la 1111' });
+    expect(r.preconfiguracionesPosibles[0].motivo).toContain('código 1111');
+    expect(r).toMatchObject({ caso: null, certeza: 'media' });
+    expect(r.candidatos).toEqual(expect.arrayContaining(['simulacion', 'preconfiguracion']));
+  });
+
+  it('una simulación de la SE no trae la de la SD: un servicio distinto resta', () => {
+    expect(nombres('simula las sucursales de la SE')).toEqual(['Simulación SE']);
+  });
+
+  it('la capacidad de las tiendas RT de Chile trae su preconfiguración de picking', () => {
+    expect(nombres('dame la capacidad de las tiendas RT de chile')).toEqual(['Tiendas RT chile']);
+  });
+
+  it('lo que no se parece a ninguna no trae ninguna, y las herramientas siguen con certeza', () => {
+    const r = filtrar('cuanta capacidad de despacho tiene el 1130 hoy');
+    expect([r.preconfiguracionesPosibles, r.caso, r.certeza]).toEqual([[], 'capacidad', 'alta']);
+  });
+
+  it('nombrada, va la primera y con certeza, como siempre', () => {
+    const r = filtrar('dame el despacho del bt lima');
+    expect([r.preconfiguracionesPosibles[0]?.nombre, r.preconfiguracionesPosibles[0]?.motivo.startsWith('nombrada'), r.caso, r.certeza])
+      .toEqual(['Big Ticket Lima', true, 'preconfiguracion', 'alta']);
+  });
+
+  it('un cambio no pierde la certeza por haber preconfiguraciones parecidas', () => {
+    expect(filtrar('activa la fecha 11-10 de las tiendas RT de chile')).not.toMatchObject({ certeza: 'baja' });
+    expect(filtrar('corta la ST del CD 10095 de chile')).toMatchObject({ caso: 'editar_capacidad', certeza: 'alta' });
   });
 });

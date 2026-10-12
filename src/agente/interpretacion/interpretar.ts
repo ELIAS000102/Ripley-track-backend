@@ -80,6 +80,14 @@ export interface Interpretacion {
   todas: boolean;
   /** Preconfiguraciones nombradas tal cual */
   preconfiguraciones: string[];
+  /**
+   * Las preconfiguraciones que PUEDEN servir para el mensaje, de más a menos:
+   * un filtro previo y grueso —nombre, apodo, servicios, tema, códigos y
+   * palabras propias de la descripción—, con el motivo de cada una. No decide:
+   * reduce las opciones, y el modelo que planifica elige entre ellas o, si
+   * ninguna hace lo que se pide, arma el plan con las herramientas.
+   */
+  preconfiguracionesPosibles: PreconfiguracionPosible[];
   candidatos: Caso[];
   caso: Caso | null;
   certeza: 'alta' | 'media' | 'baja';
@@ -89,6 +97,14 @@ export interface Interpretacion {
 export interface PreconfiguracionConocida {
   nombre: string;
   descripcion?: string | null;
+  /** Los tipos de sus bloques (picking, despacho, opl, masivo, simulacion…), si se conocen */
+  tipos?: string[];
+}
+
+export interface PreconfiguracionPosible {
+  nombre: string;
+  /** Por qué pasó el filtro: "nombrada", "servicio SE", "tema simulación", "código 1111"… */
+  motivo: string;
 }
 
 // ───────────────────────── Normalización ─────────────────────────
@@ -334,6 +350,84 @@ function tocaPreconfiguracion(plano: string, lista: PreconfiguracionConocida[]):
   return plano.split(' ').some((t) => propias.has(t));
 }
 
+/** El tema de cada tipo de bloque de una preconfiguración, en los términos de TEMAS */
+const TEMA_DEL_TIPO: Record<string, string> = {
+  picking: 'capacidad', despacho: 'capacidad', recepcion: 'capacidad',
+  opl: 'servicios', masivo: 'servicios', simulacion: 'simulacion', transferencia: 'transferencia',
+};
+/** "servicio" y "masiva" son el mismo tema visto desde dos lados: qué tiene uno, quién tiene uno */
+const temaDe = (t: string) => (t === 'servicio' || t === 'masiva' ? 'servicios' : t);
+
+/** Palabras que no distinguen una preconfiguración de otra, además de COMUNES */
+const GENERICAS = new Set((
+  'para forma tipo tipos cuentan cuenta tienen tiene editar masiva masivo respectivo respectivos ' +
+  'respectivas respectiva sobre entre hacia desde estado estados activo activos activa activas ' +
+  'inactivo inactivos dias fecha fechas'
+).split(' '));
+
+const palabrasPropias = (texto: string) => new Set(
+  normalizar(texto).split(' ').filter((t) => t.length >= 4 && !/^\d+$/.test(t) && !COMUNES.has(t) && !GENERICAS.has(t)),
+);
+
+/**
+ * El filtro previo: qué preconfiguraciones pueden servir para el mensaje.
+ *
+ * Es grueso a propósito. Antes solo contaba una preconfiguración NOMBRADA, y
+ * "haz un cruce entre las sucursales de la SE y de la ST" (ejecución 1677) se
+ * planificó con dos búsquedas masivas teniendo guardadas "OPLS de la SE" y
+ * "OPLS de la ST". Aquí se reduce la lista a las que encajan por algo —se
+ * nombran, comparten servicios, tema, códigos o palabras propias— y el modelo
+ * que planifica decide con ella: la usa, la combina, o arma el plan con las
+ * herramientas si ninguna hace lo que se pide.
+ *
+ * Un servicio dicho que la preconfiguración no tiene, o un tema distinto,
+ * restan: "Simulación SD" no sirve para una simulación de la SE.
+ */
+function preconfiguracionesPosibles(
+  plano: string,
+  lista: PreconfiguracionConocida[],
+  dicho: { nombradas: string[]; servicios: string[]; temas: string[]; codigos: string[] },
+): PreconfiguracionPosible[] {
+  const temasDichos = new Set(dicho.temas.map(temaDe));
+  const propiasDichas = palabrasPropias(plano);
+
+  const puntuadas = lista.map((p) => {
+    const texto = `${p.nombre} ${p.descripcion ?? ''}`;
+    const motivos: string[] = [];
+    let puntos = 0;
+
+    if (dicho.nombradas.includes(p.nombre)) { puntos += 10; motivos.push('nombrada'); }
+
+    const suyos = serviciosDelTexto(texto);
+    const comunes = dicho.servicios.filter((s) => suyos.includes(s));
+    if (comunes.length) { puntos += 3 * comunes.length; motivos.push(`servicio ${comunes.join(', ')}`); }
+    else if (dicho.servicios.length && suyos.length) puntos -= 4;
+
+    const suyosTemas = new Set([
+      ...(p.tipos ?? []).map((t) => TEMA_DEL_TIPO[t]).filter(Boolean),
+      ...Object.keys(TEMAS).filter((t) => TEMAS[t].test(normalizar(texto))).map(temaDe),
+    ]);
+    const temaComun = [...temasDichos].find((t) => suyosTemas.has(t));
+    if (temaComun) { puntos += 2; motivos.push(`tema ${temaComun}`); }
+    else if (temasDichos.size && suyosTemas.size) puntos -= 2;
+
+    const plano2 = ` ${normalizar(texto)} `;
+    const codigos = dicho.codigos.filter((c) => plano2.includes(` ${c} `));
+    if (codigos.length) { puntos += 4 * codigos.length; motivos.push(`código ${codigos.join(', ')}`); }
+
+    const propias = [...palabrasPropias(texto)].filter((t) => propiasDichas.has(t));
+    if (propias.length) { puntos += 2 * Math.min(2, propias.length); motivos.push(`dice "${propias.slice(0, 2).join('", "')}"`); }
+
+    return { nombre: p.nombre, motivo: motivos.join(' · '), puntos };
+  });
+
+  return puntuadas
+    .filter((p) => p.puntos >= 3)
+    .sort((a, b) => b.puntos - a.puntos)
+    .slice(0, 6)
+    .map(({ nombre, motivo }) => ({ nombre, motivo }));
+}
+
 // ───────────────────────── La interpretación ─────────────────────────
 
 const EDICION_DE: Partial<Record<Caso, Caso>> = {
@@ -451,6 +545,12 @@ export function interpretar(
     && !/\b(ejecuta|ejecutar|corre|correr|lanza|lanzar|haz)\b/.test(plano);
   const preconfiguraciones = preconfiguracionesNombradas(plano, lista);
   const tocaGuardada = tocaPreconfiguracion(plano, lista);
+  const posibles = listar ? [] : preconfiguracionesPosibles(plano, lista, {
+    nombradas: preconfiguraciones,
+    servicios,
+    temas,
+    codigos: [...cds.map((c) => c.code), ...operadores, ...almacenes],
+  });
 
   // ── Los candidatos ──
   const candidatos: Caso[] = [];
@@ -503,6 +603,11 @@ export function interpretar(
 
   if (cruceDeServicios) agregar('busqueda_masiva', 'cruza los operadores de varios servicios');
 
+  // Una consulta con preconfiguraciones que pueden servir: el modelo puede elegirlas
+  if (posibles.length && !cambio && !listar) {
+    agregar('preconfiguracion', `pueden servir: ${posibles.map((p) => p.nombre).join(', ')}`);
+  }
+
   // ── La certeza ──
   let caso: Caso | null = null;
   let certeza: Interpretacion['certeza'] = candidatos.length ? 'media' : 'baja';
@@ -510,8 +615,10 @@ export function interpretar(
   const fuerte = (c: Caso): boolean => {
     switch (c) {
       case 'preconfiguraciones':
-      case 'preconfiguracion':
         return true;
+      case 'preconfiguracion':
+        // Nombrada, sí; que solo pueda servir (el filtro previo) lo decide el modelo
+        return preconfiguraciones.length > 0;
       case 'editar_capacidad':
         return Boolean(cds.length || operadores.length || almacenes.length) && Boolean(fechas || cds.length || servicios.length);
       case 'editar_servicio':
@@ -551,7 +658,16 @@ export function interpretar(
   );
   const pideMas = servicios.some((s) => !cubiertos.has(s));
 
-  if (cruceDeServicios) {
+  /*
+   * Las herramientas se imponen solo si NINGUNA preconfiguración puede servir.
+   * Con alguna posible, una consulta la decide el modelo: elige entre ellas o,
+   * si ninguna hace lo que se pide, arma el plan con las herramientas. El
+   * cruce de la 1677 se decidía aquí, por regla, como búsqueda masiva, aunque
+   * estuvieran guardadas las de los dos servicios.
+   */
+  const hayPosibles = posibles.length > 0 && !cambio;
+
+  if (cruceDeServicios && !hayPosibles) {
     caso = 'busqueda_masiva';
     certeza = 'alta';
   } else if (preconfiguraciones.length && !hayCodigos && !cambio && !listar && !pideMas) {
@@ -560,8 +676,10 @@ export function interpretar(
   } else if (candidatos.length === 1 && fuerte(candidatos[0])) {
     // Algo que suena a una preconfiguración guardada lo decide la IA, salvo
     // que el mensaje lleve códigos: "la capacidad del big ticket" puede ser la
-    // guardada; "la capacidad del 1130" no
-    const dudaGuardada = tocaGuardada && !hayCodigos && !['preconfiguracion', 'preconfiguraciones'].includes(candidatos[0]);
+    // guardada; "la capacidad del 1130" no. Y también si el filtro previo
+    // encontró alguna que puede servir
+    const dudaGuardada = ((tocaGuardada && !hayCodigos) || hayPosibles)
+      && !['preconfiguracion', 'preconfiguraciones'].includes(candidatos[0]);
     if (!dudaGuardada) {
       caso = candidatos[0];
       certeza = 'alta';
@@ -583,6 +701,7 @@ export function interpretar(
     numeros,
     todas,
     preconfiguraciones,
+    preconfiguracionesPosibles: posibles,
     candidatos,
     caso,
     certeza,

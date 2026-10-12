@@ -232,6 +232,7 @@ export class ConsultasAgenteController {
       .map((p) => ({
         nombre: p.nombre as string,
         descripcion: typeof p.descripcion === 'string' ? p.descripcion : null,
+        tipos: Array.isArray(p.tipos) ? p.tipos.filter((t): t is string => typeof t === 'string') : [],
       }));
 
     // Los CDs que reconoce son los configurados en el panel. Si no se pueden

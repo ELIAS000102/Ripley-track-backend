@@ -365,12 +365,13 @@ export class InterpretarDto {
 
   /**
    * Las preconfiguraciones guardadas, con su descripción, para reconocerlas
-   * por su nombre o su apodo. Las manda el flujo, que ya las lee: así esta ruta
+   * por su nombre o su apodo, y con los tipos de sus bloques para saber de qué
+   * tema son (el filtro previo de las que pueden servir). Las manda el flujo, que ya las lee: así esta ruta
    * no depende del módulo de preconfiguraciones, que depende de este.
    */
   @IsOptional()
   @IsArray()
-  preconfiguraciones?: Array<{ nombre?: unknown; descripcion?: unknown }>;
+  preconfiguraciones?: Array<{ nombre?: unknown; descripcion?: unknown; tipos?: unknown }>;
 
   /**
    * El id que el panel le puso a este mensaje, y el de la ejecución de n8n que
