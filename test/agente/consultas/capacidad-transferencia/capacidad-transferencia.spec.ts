@@ -103,7 +103,7 @@ describe('Editar la capacidad de transferencia', () => {
     const { transferencias } = armar(agendas);
     const contexto = { armar: vi.fn().mockResolvedValue({ pais: 'PE', hoy: HOY }) } as unknown as ContextoAgenteService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
-    const servicio = new EditarCapacidadAgenteService(undefined as never, undefined as never, undefined as never, contexto, auditoria, transferencias);
+    const servicio = new EditarCapacidadAgenteService(undefined as never, undefined as never, undefined as never, contexto, auditoria, transferencias, undefined as never);
     return { servicio, transferencias, auditoria };
   }
   const USUARIO = { id: 'u', email: 'u@ripley.com.pe' } as never;

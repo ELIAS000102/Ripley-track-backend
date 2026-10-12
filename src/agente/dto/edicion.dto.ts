@@ -8,6 +8,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { PaisDto } from '../../common/dto/pais.dto.js';
@@ -178,11 +179,39 @@ export class EditarCapacidadDto extends PaisDto {
   })
   asignado?: number;
 
+  /**
+   * Lo que tiene que quedar DISPONIBLE, en vez del asignado: "pon la
+   * disponibilidad en 30" es asignado = ocupado + 30, calculado aquí día a día
+   * con lo ocupado de cada uno. Se pedía como asignado y el día con 94
+   * ocupados acababa en "no puedo dejarlo en 30". Va o esto o `asignado`.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aNumero(value))
+  @IsInt()
+  @Min(0)
+  @Max(ASIGNADO_MAXIMO, {
+    message: `disponible no puede pasar de ${ASIGNADO_MAXIMO}: revisa el número`,
+  })
+  disponible?: number;
+
   /** Si el día acepta pedidos. Si se omite, se deja como estaba. */
   @IsOptional()
   @Transform(({ value }) => aBooleano(value))
   @IsBoolean()
   activa?: boolean;
+
+  /**
+   * La preconfiguración de la que salió lo que se cambia ("BT LIMA"). Con
+   * ella, cada código se cambia en el servicio, la zona y la agenda que esa
+   * preconfiguración tiene guardados, sin volver a preguntar cuál: es lo que
+   * se enseñó. Un código que no está en ella se cambia como siempre. Con
+   * `codigo` = "todos", se cambian todos los suyos.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @MaxLength(80)
+  preconfiguracion?: string;
 }
 
 /**

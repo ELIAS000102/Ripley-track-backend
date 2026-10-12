@@ -1,0 +1,99 @@
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { SupabaseService } from '../../../common/supabase/supabase.service.js';
+
+/** Lo que una preconfiguración dice de un código: con qué servicio, zona y agenda se consulta */
+export interface AgendaGuardada {
+  codigo: string;
+  servicio: string | null;
+  zona: string | null;
+  agenda: string | null;
+}
+
+type TipoAgenda = 'picking' | 'despacho' | 'recepcion';
+
+const TABLA_TAREAS: Record<TipoAgenda, string> = {
+  picking: 'tarea_picking',
+  despacho: 'tarea_despacho',
+  recepcion: 'tarea_recepcion',
+};
+
+const comparable = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+/**
+ * Las agendas que una preconfiguración guarda para cada código.
+ *
+ * "BT LIMA" no son cinco operadores sueltos: son cinco operadores **con su
+ * zona y su agenda**. Al cambiar algo sobre lo que enseñó, hay que tocar esas
+ * agendas y no otras. Sin esto, la edición volvía a buscar entre todas las
+ * zonas del operador, encontraba dos para el 1401 y preguntaba cuál; con un
+ * "a todas" acababa cambiando también la que la preconfiguración no enseña.
+ *
+ * Se lee directo de las tablas de preconfiguraciones (sin pasar por su
+ * módulo, que ya importa este): solo hace falta saber, por código, el
+ * servicio, la zona y la agenda guardados.
+ */
+@Injectable()
+export class AgendasDePreconfiguracionService {
+  private readonly logger = new Logger(AgendasDePreconfiguracionService.name);
+
+  constructor(private readonly supabase: SupabaseService) {}
+
+  /** Las agendas guardadas de un tipo en la preconfiguración que se llama así (sin distinguir mayúsculas) */
+  async leer(nombrePedido: string, tipo: TipoAgenda): Promise<{ nombre: string; agendas: AgendaGuardada[] }> {
+    const { data: preconfs, error } = await this.supabase.admin
+      .from('preconfiguraciones')
+      .select('id, nombre')
+      .eq('activa', true);
+    if (error) this.fallo(error);
+
+    const lista = (preconfs ?? []) as Array<{ id: string; nombre: string }>;
+    const buscada = comparable(nombrePedido);
+    const preconf = lista.find((p) => comparable(p.nombre) === buscada);
+    if (!preconf) {
+      throw new NotFoundException(
+        `No hay ninguna preconfiguración "${nombrePedido}". Las que hay: ${lista.map((p) => p.nombre).join(', ') || 'ninguna'}.`,
+      );
+    }
+
+    const { data: bloques, error: errorBloques } = await this.supabase.admin
+      .from('preconfiguracion_bloques')
+      .select('id')
+      .eq('preconfiguracion_id', preconf.id)
+      .eq('tipo', tipo);
+    if (errorBloques) this.fallo(errorBloques);
+
+    const ids = ((bloques ?? []) as Array<{ id: string }>).map((b) => b.id);
+    if (!ids.length) {
+      throw new BadRequestException(`La preconfiguración "${preconf.nombre}" no tiene agendas de ${tipo}.`);
+    }
+
+    const { data: tareas, error: errorTareas } = await this.supabase.admin
+      .from(TABLA_TAREAS[tipo])
+      .select('codigo, servicio, zona, agenda')
+      .in('bloque_id', ids)
+      .order('orden', { ascending: true });
+    if (errorTareas) this.fallo(errorTareas);
+
+    return {
+      nombre: preconf.nombre,
+      agendas: ((tareas ?? []) as Array<Record<string, unknown>>).map((t) => ({
+        codigo: String(t.codigo ?? '').trim(),
+        servicio: texto(t.servicio),
+        zona: texto(t.zona),
+        agenda: texto(t.agenda),
+      })),
+    };
+  }
+
+  private fallo(error: { message?: string }): never {
+    this.logger.error(`No se pudo leer la preconfiguración: ${error.message ?? 'error desconocido'}`);
+    throw new BadGatewayException('No se pudo leer la preconfiguración.');
+  }
+}

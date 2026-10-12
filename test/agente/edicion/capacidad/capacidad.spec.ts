@@ -41,6 +41,8 @@ function armar(
     agendas?: Array<Record<string, unknown>>;
     dias?: Array<Record<string, unknown>>;
     porAlmacen?: Record<string, Array<Record<string, unknown>>>;
+    /** Lo que guarda la preconfiguración que se nombre, por código */
+    preconfiguracion?: { nombre: string; agendas: Array<{ codigo: string; servicio: string | null; zona: string | null; agenda: string | null }> };
   } = {},
 ) {
   const actualizarPicking = vi.fn().mockResolvedValue({ ok: true });
@@ -143,6 +145,7 @@ function armar(
       auditoria,
       // Las agendas de transferencia tienen su propia batería
       undefined as never,
+      { leer: vi.fn().mockResolvedValue(opciones.preconfiguracion ?? { nombre: '?', agendas: [] }) } as never,
     ),
     actualizarPicking,
     actualizarDespacho,
@@ -1201,5 +1204,86 @@ describe('Editar recepción', () => {
     await servicio.editarCapacidad(USUARIO, editar() as never);
 
     expect(guardarDia.mock.calls[0][1]).toMatchObject({ assigned: 50 });
+  });
+});
+
+/**
+ * "Pon la disponibilidad de la 1401 en 30": se pedía como asignado 30 y el
+ * día, con 94 ocupados, se negaba. Lo disponible fija el asignado con lo
+ * ocupado de ESE día.
+ */
+describe('Edición del agente: la disponibilidad', () => {
+  it('disponible 30 con 120 ocupados deja el asignado en 150', async () => {
+    const { servicio, actualizarDespacho } = armar();
+    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1130', disponible: 30 }));
+    expect(actualizarDespacho.mock.calls[0][3]).toMatchObject({ assigned: 150, active: true });
+  });
+
+  it('asignado y disponible a la vez no: el disponible ya fija el asignado', async () => {
+    const { servicio, actualizarDespacho } = armar();
+    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1130', asignado: 200, disponible: 30 })))
+      .rejects.toThrow(/"asignado" o "disponible", no los dos/);
+    expect(actualizarDespacho).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Cambiar algo sobre lo que enseñó una preconfiguración ("BT LIMA"): cada
+ * código va con la zona y la agenda que ella guarda. Antes se volvía a buscar
+ * entre todas las zonas del operador, se preguntaba cuál y, con un "a todas",
+ * se cambiaba también la que la preconfiguración no enseña.
+ */
+describe('Edición del agente: sobre una preconfiguración', () => {
+  const DOS_ZONAS = [
+    { zoneId: 'z-1', nombre: 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana' },
+    { zoneId: 'z-2', nombre: 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT' },
+  ];
+  const BT_LIMA = {
+    nombre: 'BT LIMA',
+    agendas: [
+      { codigo: '1401', servicio: null, zona: 'Agenda 1401', agenda: null },
+      { codigo: '1402', servicio: null, zona: 'Agenda 1402', agenda: null },
+    ],
+  };
+
+  function conPreconfiguracion() {
+    const base = armar({ preconfiguracion: BT_LIMA });
+    const despacho = (base.servicio as unknown as { despacho: { listarZonas: unknown } }).despacho;
+    (despacho as { listarZonas: unknown }).listarZonas = vi.fn((codigo: string) => Promise.resolve(
+      codigo === '1401' ? DOS_ZONAS : [{ zoneId: 'z-9', nombre: `Agenda ${codigo} - Suc. Aldea 6 Perif.` }, { zoneId: 'z-8', nombre: `Zona ${codigo} BT` }],
+    ));
+    return base;
+  }
+
+  it('sin la preconfiguración, el 1401 tiene dos zonas y pregunta cuál', async () => {
+    const { servicio } = conPreconfiguracion();
+    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', activa: false })))
+      .rejects.toThrow(/nombre exacto en "zona"/);
+  });
+
+  it('con ella, cambia solo la zona guardada, sin preguntar', async () => {
+    const { servicio, actualizarDespacho } = conPreconfiguracion();
+    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', disponible: 30, preconfiguracion: 'bt lima' }));
+    expect(actualizarDespacho).toHaveBeenCalledOnce();
+    expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
+  });
+
+  it('"todos" son todos los códigos de la preconfiguración, cada uno con su zona', async () => {
+    const { servicio, actualizarDespacho } = conPreconfiguracion();
+    const r = await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: 'todos', activa: false, preconfiguracion: 'BT LIMA' }));
+    expect(r.oficinas.map((o) => o.oficina)).toEqual(['1401', '1402']);
+    expect(actualizarDespacho.mock.calls.map((c) => c[1])).toEqual(['z-1', 'z-9']);
+  });
+
+  it('un código que no está en ella se cambia como siempre', async () => {
+    const { servicio } = conPreconfiguracion();
+    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1404', activa: false, preconfiguracion: 'BT LIMA' })))
+      .rejects.toThrow(/nombre exacto en "zona"/);
+  });
+
+  it('lo que se dice explícitamente manda sobre lo guardado', async () => {
+    const { servicio, actualizarDespacho } = conPreconfiguracion();
+    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', zona: 'BT', activa: false, preconfiguracion: 'BT LIMA' }));
+    expect(actualizarDespacho.mock.calls[0][1]).toBe('z-2');
   });
 });

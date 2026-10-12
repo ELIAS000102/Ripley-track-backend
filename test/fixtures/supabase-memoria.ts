@@ -4,7 +4,7 @@ export type Fila = Record<string, unknown>;
 
 /**
  * Unas tablas de Supabase en memoria, con lo que usan los servicios de
- * matrices, mallas de despacho y servicios de lead time: select, eq, order,
+ * matrices, mallas de despacho y preconfiguraciones: select, eq, in, order,
  * limit, maybeSingle, single, insert, update y delete.
  */
 export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
@@ -17,7 +17,8 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
     let cambios: Fila = {};
     let tocadas: Fila[] | null = null;
     const filtradas = () => {
-      let r = tablas[nombre].filter((f) => filtros.every(([c, v]) => f[c] === v));
+      // Un filtro es un valor (eq) o una función que dice si el valor vale (in)
+      let r = tablas[nombre].filter((f) => filtros.every(([c, v]) => (typeof v === 'function' ? v(f[c]) : f[c] === v)));
       if (orden) {
         const [c, asc] = orden;
         r = [...r].sort((a, b) => String(a[c]).localeCompare(String(b[c])) * (asc ? 1 : -1));
@@ -40,6 +41,7 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
     const metodos = {
       select: () => cadena(),
       eq: (c: string, v: unknown) => { filtros.push([c, v]); return cadena(); },
+      in: (c: string, vs: unknown[]) => { filtros.push([c, (x: unknown) => vs.includes(x)]); return cadena(); },
       order: (c: string, o?: { ascending?: boolean }) => { orden = [c, o?.ascending !== false]; return cadena(); },
       limit: (n: number) => { tope = n; return cadena(); },
       maybeSingle: async () => ({ data: filtradas()[0] ?? null, error: null }),

@@ -17,6 +17,7 @@ import {
   sumarDias,
 } from '../../../common/ripley/utils/date.util.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
+import { AgendasDePreconfiguracionService } from './agendas-de-preconfiguracion.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
@@ -44,7 +45,14 @@ const MAXIMO_DIAS = 31;
 
 /** Lo único que las reglas del rango y del cambio leen de una petición */
 type RangoPedido = Pick<EditarCapacidadDto, 'fecha' | 'hasta'>;
-type CambioPedido = Pick<EditarCapacidadDto, 'asignado' | 'activa'>;
+type CambioPedido = Pick<EditarCapacidadDto, 'asignado' | 'activa'> & { disponible?: number };
+
+/**
+ * Lo que se le pasa a cada tipo de agenda: lo pedido, más si sus filtros
+ * vienen de una preconfiguración. Entonces se cambian **todas** las agendas
+ * que encajen, sin preguntar: son las que la preconfiguración enseña.
+ */
+type Pedido = EditarCapacidadDto & { deLaPreconfiguracion?: boolean };
 
 /** Se compara para decidir si un fallo total es un 404 o un 400 */
 const SIN_CONFIGURAR =
@@ -72,6 +80,12 @@ const TODAS = /^(todas?|todos)$/i;
 
 function esTodas(valor?: string): boolean {
   return TODAS.test(valor?.trim() ?? '');
+}
+
+/** Si dos códigos son el mismo; en despacho, también por su alias ("90 min" es el 1130) */
+function mismoCodigo(a: string, b: string, tipo: string): boolean {
+  const comparable = (x: string) => (tipo === 'despacho' ? resolverAliasOpl(x.trim()) : x.trim()).toUpperCase();
+  return comparable(a) === comparable(b);
 }
 
 /** El valor como filtro: "todas" no filtra nada */
@@ -144,6 +158,7 @@ export class EditarCapacidadAgenteService {
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
     private readonly transferencias: TransferenciaAgendasService,
+    private readonly agendasGuardadas: AgendasDePreconfiguracionService,
   ) {}
 
   /**
@@ -271,24 +286,35 @@ export class EditarCapacidadAgenteService {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
-    if (dto.asignado === undefined && dto.activa === undefined) {
+    if (dto.asignado === undefined && dto.disponible === undefined && dto.activa === undefined) {
       throw new BadRequestException(
-        'No hay nada que cambiar: indica "asignado", "activa" o las dos.',
+        'No hay nada que cambiar: indica "asignado" (o "disponible"), "activa" o las dos.',
+      );
+    }
+    if (dto.asignado !== undefined && dto.disponible !== undefined) {
+      throw new BadRequestException(
+        'Indica "asignado" o "disponible", no los dos: el disponible ya fija el asignado (ocupado + disponible).',
       );
     }
 
     const fechas = this.diasDelRango(dto, pais);
 
+    // De una preconfiguración: cada código con el servicio, la zona y la agenda que tiene guardados
+    const guardadas = dto.preconfiguracion ? await this.agendasGuardadas.leer(dto.preconfiguracion, dto.tipo) : null;
+    const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.codigo);
+    const pedidoDeCodigos = todosLosSuyos ? [...new Set(guardadas.agendas.map((a) => a.codigo))].join(', ') : dto.codigo;
+
     // En picking el servicio identifica la jornada y puede venir más de una:
     // "cierra la ST y la RC del 20026" es una decisión, no dos
     const jornadas = this.jornadasPedidas(dto);
-    const codigos = this.oficinasPedidas(dto.codigo, jornadas, fechas);
+    const codigos = this.oficinasPedidas(pedidoDeCodigos, jornadas, fechas);
 
     this.logger.warn(
       `EDICIÓN del agente — ${usuario.email} cambia ${dto.tipo} de ` +
         `${codigos.length} oficina(s) [${codigos.join(', ')}] en ` +
         `${fechas.length} día(s) desde ${fechas[0]} ` +
-        `(asignado: ${dto.asignado ?? 'igual'}, activa: ${dto.activa ?? 'igual'})`,
+        `(asignado: ${dto.asignado ?? (dto.disponible !== undefined ? `ocupado + ${dto.disponible}` : 'igual')}, activa: ${dto.activa ?? 'igual'})` +
+        (guardadas ? ` según la preconfiguración "${guardadas.nombre}"` : ''),
     );
 
     const oficinas: OficinaEditada[] = [];
@@ -298,16 +324,29 @@ export class EditarCapacidadAgenteService {
     const fallos: unknown[] = [];
 
     for (const codigo of codigos) {
-      oficinas.push(
-        await this.editarUnaOficina(
-          codigo,
-          dto,
-          jornadas,
-          fechas,
-          pais,
-          fallos,
-        ),
-      );
+      const suyas = guardadas?.agendas.filter((a) => mismoCodigo(a.codigo, codigo, dto.tipo)) ?? [];
+
+      // Sin preconfiguración, o un código que no está en ella: como siempre
+      if (!suyas.length) {
+        oficinas.push(await this.editarUnaOficina(codigo, dto, jornadas, fechas, pais, fallos));
+        continue;
+      }
+
+      // Lo que se dijo explícitamente manda; lo demás, lo guardado
+      const oficina: OficinaEditada = { oficina: codigo, agendas: [] };
+      for (const guardada of suyas) {
+        const pedido: Pedido = {
+          ...dto,
+          servicio: dto.servicio || guardada.servicio || undefined,
+          zona: dto.zona || guardada.zona || undefined,
+          agenda: dto.agenda || guardada.agenda || undefined,
+          deLaPreconfiguracion: true,
+        };
+        const hecha = await this.editarUnaOficina(codigo, pedido, this.jornadasPedidas(pedido), fechas, pais, fallos);
+        oficina.oficina = hecha.oficina;
+        oficina.agendas.push(...hecha.agendas);
+      }
+      oficinas.push(oficina);
     }
 
     const dias = oficinas.flatMap((o) => o.agendas.flatMap((a) => a.dias));
@@ -382,7 +421,7 @@ export class EditarCapacidadAgenteService {
    */
   private async editarUnaOficina(
     codigo: string,
-    dto: EditarCapacidadDto,
+    dto: Pedido,
     jornadas: Array<string | undefined>,
     fechas: string[],
     pais: string,
@@ -448,7 +487,7 @@ export class EditarCapacidadAgenteService {
   // ---------- Picking: almacén → agenda → días ----------
 
   private async editarPicking(
-    dto: EditarCapacidadDto,
+    dto: Pedido,
     pais: string,
     fechas: string[],
   ): Promise<AgendaEditada[]> {
@@ -477,7 +516,7 @@ export class EditarCapacidadAgenteService {
       `el almacén ${dto.codigo}`,
       'el servicio',
       'agenda',
-      esTodas(dto.agenda),
+      esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
     );
 
     const salida: AgendaEditada[] = [];
@@ -518,7 +557,7 @@ export class EditarCapacidadAgenteService {
   // ---------- Despacho: operador → zona → agenda → días ----------
 
   private async editarDespacho(
-    dto: EditarCapacidadDto,
+    dto: Pedido,
     pais: string,
     fechas: string[],
   ): Promise<AgendaEditada[]> {
@@ -534,7 +573,7 @@ export class EditarCapacidadAgenteService {
       `el operador ${dto.codigo}`,
       'la zona',
       'zona',
-      esTodas(dto.zona) || esTodas(dto.agenda),
+      esTodas(dto.zona) || esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
     );
 
     const salida: AgendaEditada[] = [];
@@ -554,7 +593,7 @@ export class EditarCapacidadAgenteService {
         `la zona ${zona.nombre}`,
         'la agenda',
         'agenda',
-        esTodas(dto.agenda),
+        esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
       );
 
       for (const agenda of elegidas) {
@@ -598,7 +637,7 @@ export class EditarCapacidadAgenteService {
    * trae dos mil días por agenda.
    */
   private async editarRecepcion(
-    dto: EditarCapacidadDto,
+    dto: Pedido,
     pais: string,
     fechas: string[],
   ): Promise<AgendaEditada[]> {
@@ -627,7 +666,7 @@ export class EditarCapacidadAgenteService {
       `la oficina ${dto.codigo}`,
       'el servicio',
       'agenda',
-      esTodas(dto.agenda),
+      esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
     );
 
     const salida: AgendaEditada[] = [];
@@ -875,7 +914,8 @@ export class EditarCapacidadAgenteService {
 
   /** Lo que no se indica se deja como estaba, no se inventa */
   private resolverCambio(dto: CambioPedido, antes: EstadoDia) {
-    const asignado = dto.asignado ?? antes.asignado;
+    // "La disponibilidad en 30" es lo ocupado de ESE día más 30
+    const asignado = dto.disponible !== undefined ? antes.ocupado + dto.disponible : (dto.asignado ?? antes.asignado);
     const activa = dto.activa ?? antes.activo;
 
     if (asignado < antes.ocupado) {
