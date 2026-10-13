@@ -201,11 +201,22 @@ export class EditarCapacidadDto extends PaisDto {
   activa?: boolean;
 
   /**
-   * La preconfiguración de la que salió lo que se cambia ("BT LIMA"). Con
-   * ella, cada código se cambia en el servicio, la zona y la agenda que esa
-   * preconfiguración tiene guardados, sin volver a preguntar cuál: es lo que
-   * se enseñó. Un código que no está en ella se cambia como siempre. Con
-   * `codigo` = "todos", se cambian todos los suyos.
+   * El atajo del que salió lo que se cambia ("BT LIMA"). Con él, cada
+   * código se cambia en el servicio, la zona y la agenda que el atajo tiene
+   * guardados, sin volver a preguntar cuál: es lo que se enseñó. Un código
+   * que no está en él se cambia como siempre. Con `codigo` = "todos", se
+   * cambian todos los suyos.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @MaxLength(80)
+  atajo?: string;
+
+  /**
+   * El nombre de antes de `atajo`. Lo sigue mandando el flujo de n8n
+   * hasta que se reimporte; quitar cuando ya no llegue.
+   * @deprecated usa `atajo`
    */
   @IsOptional()
   @Transform(({ value }) => aTexto(value))
@@ -340,11 +351,22 @@ export class EditarTipoServicioDto extends PaisDto {
   agenda?: string;
 
   /**
-   * La preconfiguración de la que salieron los operadores ("Estado del Next
-   * Day y Same Day de chile"): cada uno se cambia en la zona y la agenda que
-   * ella tiene guardadas, sin preguntar cuál —el 1088 tiene cuatro zonas y la
-   * preconfiguración ya dice que es la Zona 4—. Lo que se diga en `zona` o
-   * `agenda` manda sobre lo guardado. Con `opl` = "todos", todos los suyos.
+   * El atajo del que salieron los operadores ("Estado del Next Day y Same
+   * Day de chile"): cada uno se cambia en la zona y la agenda que él tiene
+   * guardadas, sin preguntar cuál —el 1088 tiene cuatro zonas y el atajo ya
+   * dice que es la Zona 4—. Lo que se diga en `zona` o `agenda` manda
+   * sobre lo guardado. Con `opl` = "todos", todos los suyos.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @MaxLength(80)
+  atajo?: string;
+
+  /**
+   * El nombre de antes de `atajo`. Lo sigue mandando el flujo de n8n
+   * hasta que se reimporte; quitar cuando ya no llegue.
+   * @deprecated usa `atajo`
    */
   @IsOptional()
   @Transform(({ value }) => aTexto(value))

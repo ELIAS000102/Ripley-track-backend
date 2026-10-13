@@ -39,7 +39,7 @@ export class VaciosComoAusentesPipe implements PipeTransform {
     /*
      * Solo el primer nivel, a propósito.
      *
-     * El cuerpo de una preconfiguración lleva `bloques[].tareas[].campos`, que
+     * El cuerpo de un atajo lleva `bloques[].items[].campos`, que
      * es un objeto con lo que el usuario escribió para esa operación. Recorrer
      * ahí dentro sería decidir por él sobre datos que este pipe no entiende, y
      * quien los manda —el panel— ya descarta los vacíos antes de enviar.

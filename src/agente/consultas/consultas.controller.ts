@@ -227,7 +227,7 @@ export class ConsultasAgenteController {
       this.interrupcion.registrar(body.peticion, usuario.id, body.ejecucion);
     }
 
-    const preconfiguraciones = (body.preconfiguraciones ?? [])
+    const atajos = (body.atajos ?? body.preconfiguraciones ?? [])
       .filter((p) => typeof p?.nombre === 'string')
       .map((p) => ({
         nombre: p.nombre as string,
@@ -239,6 +239,6 @@ export class ConsultasAgenteController {
     // leer, se lee sin ellos: la IA decide igual, y el mensaje no se pierde
     const cds = await this.configuracionCds.todos().catch(() => ({}));
 
-    return interpretar(body.pregunta, { pais: body.pais, preconfiguraciones, cds });
+    return interpretar(body.pregunta, { pais: body.pais, atajos, cds });
   }
 }

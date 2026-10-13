@@ -21,7 +21,7 @@ import { CDS_DE_PRUEBA, configuracionCdsFalsa } from '../../fixtures/cds.js';
  */
 const HOY = '2026-10-05';
 
-const PRECONFS = [
+const ATAJOS = [
   { nombre: 'Big Ticket Lima', descripcion: 'es para solicitar capacidad de despacho del Big Ticket Lima (BT LIMA)' },
   { nombre: 'Paqueteria Lima', descripcion: 'es para solicitar capacidad de despacho de la paquetería lima' },
   { nombre: 'Estado del Next Day y Same Day de chile', descripcion: 'es para saber el estado del next day (ND) y el same day (DX) de chile' },
@@ -30,7 +30,7 @@ const PRECONFS = [
 ];
 
 const leer = (texto: string, pais?: string) =>
-  interpretar(texto, { hoy: HOY, preconfiguraciones: PRECONFS, pais, cds: CDS_DE_PRUEBA });
+  interpretar(texto, { hoy: HOY, atajos: ATAJOS, pais, cds: CDS_DE_PRUEBA });
 
 describe('El 100 % dicho con palabras', () => {
   it('"las tiendas que tienen consumida en su totalidad la fecha 11-10" es el 100 %', () => {
@@ -110,51 +110,51 @@ describe('Las frases que fallaban en el chat', () => {
     expect(r).toMatchObject({ accion: 'consultar', servicios: ['RE', 'RT'], caso: 'busqueda_masiva', certeza: 'alta' });
   });
 
-  it('"dame el despacho del bt lima" → la preconfiguración, por su apodo', () => {
+  it('"dame el despacho del bt lima" → el atajo, por su apodo', () => {
     const r = leer('dame el despacho del bt lima y la primera fecha de despacho para cada uno');
 
-    expect(r).toMatchObject({ preconfiguraciones: ['Big Ticket Lima'], caso: 'preconfiguracion', certeza: 'alta' });
+    expect(r).toMatchObject({ atajos: ['Big Ticket Lima'], caso: 'atajo', certeza: 'alta' });
   });
 
-  it('nombrar una preconfiguración y pedir más de lo que hace no la ejecuta a ciegas', () => {
-    const conLaSE = [...PRECONFS, {
+  it('nombrar un atajo y pedir más de lo que hace no lo ejecuta a ciegas', () => {
+    const conLaSE = [...ATAJOS, {
       nombre: 'OPLS de la SE',
       descripcion: 'es para consultar que opls cuentan el tipo de servicio SE de forma masiva',
     }];
     const r = interpretar(
       'de esos opls de la SE busca en los opls de la ST y fijate que esten inactivos y el resto esten activos',
-      { hoy: HOY, preconfiguraciones: conLaSE, cds: CDS_DE_PRUEBA },
+      { hoy: HOY, atajos: conLaSE, cds: CDS_DE_PRUEBA },
     );
 
     // Pide cruzarla con la ST: lo decide la IA, entre la guardada y la búsqueda
     expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: null, certeza: 'media' });
-    expect(r.candidatos).toEqual(expect.arrayContaining(['preconfiguracion', 'busqueda_masiva']));
+    expect(r.candidatos).toEqual(expect.arrayContaining(['atajo', 'busqueda_masiva']));
 
     // Y pedir solo lo que ella hace sí la elige con certeza
-    expect(interpretar('dame los opls de la SE', { hoy: HOY, preconfiguraciones: conLaSE, cds: CDS_DE_PRUEBA }))
-      .toMatchObject({ caso: 'preconfiguracion', certeza: 'alta', preconfiguraciones: ['OPLS de la SE'] });
+    expect(interpretar('dame los opls de la SE', { hoy: HOY, atajos: conLaSE, cds: CDS_DE_PRUEBA }))
+      .toMatchObject({ caso: 'atajo', certeza: 'alta', atajos: ['OPLS de la SE'] });
   });
 
-  it('"has un cruce de los opls de la SE con los de la ST…" sin preconfiguraciones de esos servicios → búsqueda masiva, con certeza', () => {
+  it('"has un cruce de los opls de la SE con los de la ST…" sin atajos de esos servicios → búsqueda masiva, con certeza', () => {
     const r = leer('has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas');
 
-    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta', preconfiguracionesPosibles: [] });
+    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta', atajosPosibles: [] });
   });
 
-  it('el mismo cruce con las preconfiguraciones de la SE y la ST guardadas → las propone, y decide el modelo (1677)', () => {
-    const conLasDos = [...PRECONFS,
+  it('el mismo cruce con los atajos de la SE y la ST guardados → los propone, y decide el modelo (1677)', () => {
+    const conLasDos = [...ATAJOS,
       { nombre: 'OPLS de la SE', descripcion: 'es para consultar que opls - tiendas - sucursales que cuentan con el tipo de servicio SE de forma masiva', tipos: ['masivo'] },
       { nombre: 'OPLS de la ST', descripcion: 'es para consultar - activar - desactivar los opls - tiendas - sucursales que cuentan con el tipo de servicio ST de forma masiva', tipos: ['masivo'] },
     ];
     const r = interpretar(
       'has un crece entre las sucurasles de la SE y de la ST, la misma sucursal no puede tener la SE y ST activos junto solo puede tener activo uno',
-      { hoy: HOY, preconfiguraciones: conLasDos, cds: CDS_DE_PRUEBA },
+      { hoy: HOY, atajos: conLasDos, cds: CDS_DE_PRUEBA },
     );
 
-    expect(r.preconfiguracionesPosibles.map((p) => p.nombre)).toEqual(['OPLS de la SE', 'OPLS de la ST']);
-    expect(r.preconfiguracionesPosibles[0].motivo).toContain('servicio SE');
+    expect(r.atajosPosibles.map((p) => p.nombre)).toEqual(['OPLS de la SE', 'OPLS de la ST']);
+    expect(r.atajosPosibles[0].motivo).toContain('servicio SE');
     expect(r).toMatchObject({ caso: null, certeza: 'media' });
-    expect(r.candidatos).toContain('preconfiguracion');
+    expect(r.candidatos).toContain('atajo');
   });
 
   it('dos consultas de temas distintos no tienen caso propio: decide la IA el tema principal', () => {
@@ -198,8 +198,8 @@ describe('Casos de siempre', () => {
     ['cuál es el desfase de la 20021 con fuente de stock 20026', 'transferencia'],
     ['reporte de los CDs de esta semana', 'reporte'],
     ['simula el 1112 a San Borja', 'simulacion'],
-    ['ejecuta la Simulación SD', 'preconfiguracion'],
-    ['qué preconfiguraciones hay', 'preconfiguraciones'],
+    ['ejecuta la Simulación SD', 'atajo'],
+    ['qué atajos hay', 'atajos'],
     ['activa el SD del 1130', 'editar_servicio'],
     ['habilita la transferencia de la 20026 a la 20021', 'editar_transferencia'],
   ])('"%s" → %s, con certeza', (texto, caso) => {
@@ -323,15 +323,27 @@ describe('La ruta', () => {
     expect(Reflect.getMetadata('path', metodo)).toBe('interpretar');
   });
 
-  it('las preconfiguraciones mal formadas se ignoran en vez de romper', async () => {
+  it('los atajos mal formados se ignoran en vez de romper', async () => {
 
     // Del controlador solo usa la configuración de los CDs: se le da la de prueba
     const r = await ConsultasAgenteController.prototype.interpretar.call({ configuracionCds: configuracionCdsFalsa() }, {
       pregunta: 'ejecuta la Simulación SD',
-      preconfiguraciones: [{ nombre: 'Simulación SD' }, { descripcion: 'sin nombre' }, null, { nombre: 42 }],
+      atajos: [{ nombre: 'Simulación SD' }, { descripcion: 'sin nombre' }, null, { nombre: 42 }],
     } as never);
 
-    expect(r).toMatchObject({ caso: 'preconfiguracion', preconfiguraciones: ['Simulación SD'] });
+    expect(r).toMatchObject({ caso: 'atajo', atajos: ['Simulación SD'] });
+  });
+
+  it('con el nombre de antes, "preconfiguraciones", también: el flujo viejo lo manda hasta que se reimporte', async () => {
+    const r = await ConsultasAgenteController.prototype.interpretar.call({ configuracionCds: configuracionCdsFalsa() }, {
+      pregunta: 'ejecuta la Simulación SD',
+      preconfiguraciones: [{ nombre: 'Simulación SD' }],
+    } as never);
+    expect(r).toMatchObject({ caso: 'atajo', atajos: ['Simulación SD'] });
+  });
+
+  it('"qué preconfiguraciones hay", con la palabra de antes, sigue pidiendo la lista de atajos', () => {
+    expect(leer('qué preconfiguraciones hay')).toMatchObject({ caso: 'atajos', certeza: 'alta' });
   });
 
   it('reconoce los CDs de la configuración, y si no se puede leer sigue sin ellos', async () => {
@@ -349,44 +361,44 @@ describe('La ruta', () => {
   });
 });
 
-describe('El filtro previo de preconfiguraciones: reduce las opciones, no decide', () => {
+describe('El filtro previo de atajos: reduce las opciones, no decide', () => {
   const GUARDADAS = [
-    ...PRECONFS,
+    ...ATAJOS,
     { nombre: 'Simulación SE', descripcion: 'es para simular las sucursales de la SE', tipos: ['simulacion'] },
     { nombre: 'Tiendas RT chile', descripcion: 'es para consultar, editar o activar capacidades de picking de las tiendas que cuentan con agendas RT (retiro en tienda) de picking chile', tipos: ['picking'] },
     { nombre: 'OPLS de la ST', descripcion: 'opls - tiendas - sucursales con el tipo de servicio ST de forma masiva', tipos: ['masivo'] },
   ];
-  const filtrar = (texto: string) => interpretar(texto, { hoy: HOY, preconfiguraciones: GUARDADAS, cds: CDS_DE_PRUEBA });
-  const nombres = (texto: string) => filtrar(texto).preconfiguracionesPosibles.map((p) => p.nombre);
+  const filtrar = (texto: string) => interpretar(texto, { hoy: HOY, atajos: GUARDADAS, cds: CDS_DE_PRUEBA });
+  const nombres = (texto: string) => filtrar(texto).atajosPosibles.map((p) => p.nombre);
 
   it('una simulación: la del código que se dice, y la decide el modelo', () => {
     const r = filtrar('simula el 1111 a San Borja');
-    expect(r.preconfiguracionesPosibles[0]).toMatchObject({ nombre: 'Simulación de la 1111' });
-    expect(r.preconfiguracionesPosibles[0].motivo).toContain('código 1111');
+    expect(r.atajosPosibles[0]).toMatchObject({ nombre: 'Simulación de la 1111' });
+    expect(r.atajosPosibles[0].motivo).toContain('código 1111');
     expect(r).toMatchObject({ caso: null, certeza: 'media' });
-    expect(r.candidatos).toEqual(expect.arrayContaining(['simulacion', 'preconfiguracion']));
+    expect(r.candidatos).toEqual(expect.arrayContaining(['simulacion', 'atajo']));
   });
 
   it('una simulación de la SE no trae la de la SD: un servicio distinto resta', () => {
     expect(nombres('simula las sucursales de la SE')).toEqual(['Simulación SE']);
   });
 
-  it('la capacidad de las tiendas RT de Chile trae su preconfiguración de picking', () => {
+  it('la capacidad de las tiendas RT de Chile trae su atajo de picking', () => {
     expect(nombres('dame la capacidad de las tiendas RT de chile')).toEqual(['Tiendas RT chile']);
   });
 
   it('lo que no se parece a ninguna no trae ninguna, y las herramientas siguen con certeza', () => {
     const r = filtrar('cuanta capacidad de despacho tiene el 1130 hoy');
-    expect([r.preconfiguracionesPosibles, r.caso, r.certeza]).toEqual([[], 'capacidad', 'alta']);
+    expect([r.atajosPosibles, r.caso, r.certeza]).toEqual([[], 'capacidad', 'alta']);
   });
 
   it('nombrada, va la primera y con certeza, como siempre', () => {
     const r = filtrar('dame el despacho del bt lima');
-    expect([r.preconfiguracionesPosibles[0]?.nombre, r.preconfiguracionesPosibles[0]?.motivo.startsWith('nombrada'), r.caso, r.certeza])
-      .toEqual(['Big Ticket Lima', true, 'preconfiguracion', 'alta']);
+    expect([r.atajosPosibles[0]?.nombre, r.atajosPosibles[0]?.motivo.startsWith('nombrada'), r.caso, r.certeza])
+      .toEqual(['Big Ticket Lima', true, 'atajo', 'alta']);
   });
 
-  it('un cambio no pierde la certeza por haber preconfiguraciones parecidas', () => {
+  it('un cambio no pierde la certeza por haber atajos parecidos', () => {
     expect(filtrar('activa la fecha 11-10 de las tiendas RT de chile')).not.toMatchObject({ certeza: 'baja' });
     expect(filtrar('corta la ST del CD 10095 de chile')).toMatchObject({ caso: 'editar_capacidad', certeza: 'alta' });
   });

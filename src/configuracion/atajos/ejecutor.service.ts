@@ -20,16 +20,16 @@ import type {
   Bloque,
   BloqueEjecutado,
   Ejecucion,
-  Preconfiguracion,
-  Tarea,
-  TareaEjecutada,
+  Atajo,
+  Item,
+  ItemEjecutada,
   Tipo,
-} from './interfaces/preconfiguraciones.interface.js';
+} from './interfaces/atajos.interface.js';
 
 /** Columnas que pone la base de datos y no son campos de la operación */
 const PROPIAS = new Set(['id', 'bloque_id', 'orden', 'nota', 'creado_en']);
 
-/** Qué DTO valida una tarea y qué la ejecuta */
+/** Qué DTO valida un ítem y qué lo ejecuta */
 interface Receta {
   dto: new () => object;
   /** Lo que se añade a los campos guardados antes de validar */
@@ -38,29 +38,29 @@ interface Receta {
 }
 
 /**
- * Ejecuta una preconfiguración recorriendo sus tres niveles.
+ * Ejecuta un atajo recorriendo sus tres niveles.
  *
- *   la preconfiguración → sus bloques, en orden → las tareas de cada bloque,
+ *   el atajo → sus bloques, en orden → los ítems de cada bloque,
  *   en la tabla de su tipo, en orden
  *
  * **Se apoya en los services del agente y no en los de cada feature**, y eso es
  * lo que hace que esto quepa en un archivo. Los del agente ya reciben códigos
  * visibles —el almacén 20026, el operador 1130— y resuelven por dentro la
  * cadena de catálogos; los de cada feature esperan identificadores internos que
- * una tarea guardada no puede conocer, porque se resuelven en el momento.
+ * un ítem guardado no puede conocer, porque se resuelven en el momento.
  *
- * De paso, panel y chat ejecutan por el mismo camino: una preconfiguración no
+ * De paso, panel y chat ejecutan por el mismo camino: un atajo no
  * puede comportarse distinto según quién la dispare.
  *
  * **Solo consulta.** Aquí solo entran los services que leen. Una
- * preconfiguración es el vocabulario de la operación —"BT LIMA" son cinco OPL
+ * atajo es el vocabulario de la operación —"BT LIMA" son cinco OPL
  * con sus zonas—, no una macro de cambios: un cambio en Ripley se pide por su
  * herramienta, que lo enseña y espera un sí, y esconderlo detrás de un nombre
  * guardado es justo lo contrario.
  */
 @Injectable()
-export class EjecutorPreconfiguracionService {
-  private readonly logger = new Logger(EjecutorPreconfiguracionService.name);
+export class EjecutorAtajoService {
+  private readonly logger = new Logger(EjecutorAtajoService.name);
 
   constructor(
     private readonly capacidad: CapacidadAgenteService,
@@ -112,7 +112,7 @@ export class EjecutorPreconfiguracionService {
       // la deja entrar, pero las que quedaran en la tabla fallan aquí, con su
       // motivo, en vez de ejecutar algo que nadie puede revisar
       throw new BadRequestException(
-        `No sé resolver "${tipo}" con acción "${accion}". Una preconfiguración ` +
+        `No sé resolver "${tipo}" con acción "${accion}". Un atajo ` +
           `solo consulta: los cambios se piden por su herramienta, que los ` +
           `enseña y espera confirmación.`,
       );
@@ -122,19 +122,19 @@ export class EjecutorPreconfiguracionService {
   }
 
   /**
-   * La tarea guardada, convertida al DTO de la operación y validada.
+   * El ítem guardado, convertido al DTO de la operación y validado.
    *
    * Se valida **aquí y no al guardar**: es el mismo DTO que usa el endpoint de
-   * verdad, así que una tarea no puede pedir algo que la operación no acepte. Y
+   * verdad, así que un ítem no puede pedir algo que la operación no acepte. Y
    * guardarla a medias sigue siendo posible, que es lo que se quiere.
    *
    * Las columnas llegan en `snake_case` y los campos del endpoint van en
    * `camelCase`. La conversión se hace aquí, en un sitio.
    */
-  private async comoDto(tarea: Tarea, receta: Receta, tipo: Tipo) {
+  private async comoDto(item: Item, receta: Receta, tipo: Tipo) {
     const plano: Record<string, unknown> = { ...receta.extra };
 
-    for (const [columna, valor] of Object.entries(tarea)) {
+    for (const [columna, valor] of Object.entries(item)) {
       if (PROPIAS.has(columna) || valor === null || valor === undefined) continue;
 
       const campo = columna.replace(/_([a-z])/g, (_, l: string) =>
@@ -158,7 +158,7 @@ export class EjecutorPreconfiguracionService {
         .join('; ');
 
       throw new BadRequestException(
-        `Los datos de la tarea no valen para ${tipo}: ${detalle}`,
+        `Los datos del ítem no valen para ${tipo}: ${detalle}`,
       );
     }
 
@@ -166,11 +166,11 @@ export class EjecutorPreconfiguracionService {
   }
 
   /**
-   * Ejecuta la preconfiguración entera.
+   * Ejecuta el atajo entero.
    *
    * **Nada se detiene por un fallo.** Un bloque de once simulaciones no puede
    * quedarse sin responder porque la tercera tienda ya no exista, y un bloque
-   * roto no puede llevarse por delante a los siguientes: cada tarea lleva su
+   * roto no puede llevarse por delante a los siguientes: cada ítem lleva su
    * error y el resumen cuenta todas.
    *
    * Va en serie y no en paralelo a propósito: el orden es parte de lo que se
@@ -179,18 +179,18 @@ export class EjecutorPreconfiguracionService {
    */
   async ejecutar(
     usuario: UsuarioAutenticado,
-    preconfiguracion: Preconfiguracion,
+    atajo: Atajo,
     soloPrimeras?: number,
   ): Promise<Ejecucion> {
-    const bloques = preconfiguracion.bloques ?? [];
-    const tareasTotales = bloques.reduce(
-      (n, b) => n + (b.tareas?.length ?? 0),
+    const bloques = atajo.bloques ?? [];
+    const itemsTotales = bloques.reduce(
+      (n, b) => n + (b.items?.length ?? 0),
       0,
     );
 
     this.logger.log(
-      `Ejecutando "${preconfiguracion.nombre}" — ${bloques.length} bloque(s), ` +
-        `${tareasTotales} tarea(s) — ${usuario.email}`,
+      `Ejecutando "${atajo.nombre}" — ${bloques.length} bloque(s), ` +
+        `${itemsTotales} ítem(s) — ${usuario.email}`,
     );
 
     const salida: BloqueEjecutado[] = [];
@@ -199,21 +199,21 @@ export class EjecutorPreconfiguracionService {
       salida.push(await this.ejecutarBloque(usuario, bloque, soloPrimeras));
     }
 
-    const todas = salida.flatMap((b) => b.tareas);
+    const todas = salida.flatMap((b) => b.items);
     const fallidas = todas.filter((t) => t.error).length;
 
     return {
-      preconfiguracion: preconfiguracion.nombre,
+      atajo: atajo.nombre,
       bloques: salida,
       resumen: {
-        tareas: todas.length,
+        items: todas.length,
         correctas: todas.length - fallidas,
         fallidas,
       },
     };
   }
 
-  /** Un bloque: sus tareas, en orden, por el camino de su tipo */
+  /** Un bloque: sus ítems, en orden, por el camino de su tipo */
   private async ejecutarBloque(
     usuario: UsuarioAutenticado,
     bloque: Bloque,
@@ -226,10 +226,10 @@ export class EjecutorPreconfiguracionService {
       nota: bloque.nota,
     };
 
-    const todas = bloque.tareas ?? [];
-    const tareas = soloPrimeras ? todas.slice(0, soloPrimeras) : todas;
+    const todas = bloque.items ?? [];
+    const items = soloPrimeras ? todas.slice(0, soloPrimeras) : todas;
 
-    // El tipo o la acción del bloque no encajan: no es culpa de una tarea, así
+    // El tipo o la acción del bloque no encajan: no es culpa de un ítem, así
     // que el motivo va en todas y no se intenta ninguna
     let receta: Receta;
     try {
@@ -238,30 +238,30 @@ export class EjecutorPreconfiguracionService {
       const error = motivoDelFallo(e, 'Este bloque no se puede ejecutar');
       return {
         ...base,
-        tareas: tareas.map((t) => ({ orden: t.orden, nota: t.nota, error })),
+        items: items.map((t) => ({ orden: t.orden, nota: t.nota, error })),
       };
     }
 
-    const hechas: TareaEjecutada[] = [];
+    const hechas: ItemEjecutada[] = [];
 
-    for (const tarea of tareas) {
+    for (const item of items) {
       try {
-        const dto = await this.comoDto(tarea, receta, bloque.tipo);
+        const dto = await this.comoDto(item, receta, bloque.tipo);
 
         hechas.push({
-          orden: tarea.orden,
-          nota: tarea.nota,
+          orden: item.orden,
+          nota: item.nota,
           resultado: await receta.correr(usuario, dto),
         });
       } catch (e) {
         hechas.push({
-          orden: tarea.orden,
-          nota: tarea.nota,
-          error: motivoDelFallo(e, 'No se pudo ejecutar esta tarea'),
+          orden: item.orden,
+          nota: item.nota,
+          error: motivoDelFallo(e, 'No se pudo ejecutar este ítem'),
         });
       }
     }
 
-    return { ...base, tareas: hechas };
+    return { ...base, items: hechas };
   }
 }

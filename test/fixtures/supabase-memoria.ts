@@ -4,7 +4,7 @@ export type Fila = Record<string, unknown>;
 
 /**
  * Unas tablas de Supabase en memoria, con lo que usan los servicios de
- * matrices, mallas de despacho y preconfiguraciones: select, eq, in, order,
+ * matrices, mallas de despacho y atajos: select, eq, in, order,
  * limit, maybeSingle, single, insert, update y delete.
  */
 export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {

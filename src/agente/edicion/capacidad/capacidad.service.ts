@@ -17,7 +17,7 @@ import {
   sumarDias,
 } from '../../../common/ripley/utils/date.util.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
-import { AgendasDePreconfiguracionService } from './agendas-de-preconfiguracion.service.js';
+import { AgendasDeAtajoService } from './agendas-de-atajo.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
@@ -50,10 +50,10 @@ type CambioPedido = Pick<EditarCapacidadDto, 'asignado' | 'activa'> & { disponib
 
 /**
  * Lo que se le pasa a cada tipo de agenda: lo pedido, más si sus filtros
- * vienen de una preconfiguración. Entonces se cambian **todas** las agendas
- * que encajen, sin preguntar: son las que la preconfiguración enseña.
+ * vienen de un atajo. Entonces se cambian **todas** las agendas
+ * que encajen, sin preguntar: son las que el atajo enseña.
  */
-type Pedido = EditarCapacidadDto & { deLaPreconfiguracion?: boolean };
+type Pedido = EditarCapacidadDto & { delAtajo?: boolean };
 
 /** Se compara para decidir si un fallo total es un 404 o un 400 */
 const SIN_CONFIGURAR =
@@ -159,7 +159,7 @@ export class EditarCapacidadAgenteService {
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
     private readonly transferencias: TransferenciaAgendasService,
-    private readonly agendasGuardadas: AgendasDePreconfiguracionService,
+    private readonly agendasGuardadas: AgendasDeAtajoService,
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
@@ -301,8 +301,10 @@ export class EditarCapacidadAgenteService {
 
     const fechas = this.diasDelRango(dto, pais);
 
-    // De una preconfiguración: cada código con el servicio, la zona y la agenda que tiene guardados
-    const guardadas = dto.preconfiguracion ? await this.agendasGuardadas.leer(dto.preconfiguracion, dto.tipo) : null;
+    // De un atajo: cada código con el servicio, la zona y la agenda que tiene guardados
+    // `preconfiguracion` es el nombre de antes: lo manda el flujo hasta que se reimporte
+    const atajo = dto.atajo ?? dto.preconfiguracion;
+    const guardadas = atajo ? await this.agendasGuardadas.leer(atajo, dto.tipo) : null;
     const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.codigo);
     const pedidoDeCodigos = todosLosSuyos ? [...new Set(guardadas.agendas.map((a) => a.codigo))].join(', ') : dto.codigo;
 
@@ -318,7 +320,7 @@ export class EditarCapacidadAgenteService {
         `${codigos.length} oficina(s) [${codigos.join(', ')}] en ` +
         `${fechas.length} día(s) desde ${fechas[0]} ` +
         `(asignado: ${dto.asignado ?? (dto.disponible !== undefined ? `ocupado + ${dto.disponible}` : 'igual')}, activa: ${dto.activa ?? 'igual'})` +
-        (guardadas ? ` según la preconfiguración "${guardadas.nombre}"` : ''),
+        (guardadas ? ` según el atajo "${guardadas.nombre}"` : ''),
     );
 
     const oficinas: OficinaEditada[] = [];
@@ -330,7 +332,7 @@ export class EditarCapacidadAgenteService {
     for (const codigo of codigos) {
       const suyas = guardadas?.agendas.filter((a) => mismoCodigo(a.codigo, codigo, dto.tipo)) ?? [];
 
-      // Sin preconfiguración, o un código que no está en ella: como siempre
+      // Sin atajo, o un código que no está en él: como siempre
       if (!suyas.length) {
         oficinas.push(await this.editarUnaOficina(codigo, dto, jornadas, fechas, pais, fallos));
         continue;
@@ -344,7 +346,7 @@ export class EditarCapacidadAgenteService {
           servicio: dto.servicio || guardada.servicio || undefined,
           zona: dto.zona || guardada.zona || undefined,
           agenda: dto.agenda || guardada.agenda || undefined,
-          deLaPreconfiguracion: true,
+          delAtajo: true,
         };
         const hecha = await this.editarUnaOficina(codigo, pedido, this.jornadasPedidas(pedido), fechas, pais, fallos);
         oficina.oficina = hecha.oficina;
@@ -520,7 +522,7 @@ export class EditarCapacidadAgenteService {
       `el almacén ${dto.codigo}`,
       'el servicio',
       'agenda',
-      esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
+      esTodas(dto.agenda) || !!dto.delAtajo,
     );
 
     const salida: AgendaEditada[] = [];
@@ -577,7 +579,7 @@ export class EditarCapacidadAgenteService {
       `el operador ${dto.codigo}`,
       'la zona',
       'zona',
-      esTodas(dto.zona) || esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
+      esTodas(dto.zona) || esTodas(dto.agenda) || !!dto.delAtajo,
     );
 
     const salida: AgendaEditada[] = [];
@@ -597,7 +599,7 @@ export class EditarCapacidadAgenteService {
         `la zona ${zona.nombre}`,
         'la agenda',
         'agenda',
-        esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
+        esTodas(dto.agenda) || !!dto.delAtajo,
       );
 
       for (const agenda of elegidas) {
@@ -670,7 +672,7 @@ export class EditarCapacidadAgenteService {
       `la oficina ${dto.codigo}`,
       'el servicio',
       'agenda',
-      esTodas(dto.agenda) || !!dto.deLaPreconfiguracion,
+      esTodas(dto.agenda) || !!dto.delAtajo,
     );
 
     const salida: AgendaEditada[] = [];

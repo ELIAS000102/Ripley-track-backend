@@ -22,7 +22,7 @@ import { ReporteStModule } from './reportes/st/reporte-st.module.js';
 import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from './configuracion/transf-suc/transf.module.js';
-import { PreconfiguracionesModule } from './configuracion/preconfiguraciones/preconfiguraciones.module.js';
+import { AtajosModule } from './configuracion/atajos/atajos.module.js';
 import { SimulacionModule } from './simulacion/simulacion.module.js';
 import { LeadTimeModule } from './lead_time/lead-time.module.js';
 
@@ -52,7 +52,7 @@ import { LeadTimeModule } from './lead_time/lead-time.module.js';
     OplMasivoModule,
     OplModule,
     TransfModule,
-    PreconfiguracionesModule,
+    AtajosModule,
     SimulacionModule,
     LeadTimeModule,
     AgenteModule,

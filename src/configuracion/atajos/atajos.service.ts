@@ -11,40 +11,40 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import {
   BloqueDto,
-  CrearPreconfiguracionDto,
-  EditarPreconfiguracionDto,
-  ListarPreconfiguracionesDto,
-} from './dto/preconfiguraciones.dto.js';
+  CrearAtajoDto,
+  EditarAtajoDto,
+  ListarAtajosDto,
+} from './dto/atajos.dto.js';
 import {
   TABLA_POR_TIPO,
   type Bloque,
-  type Preconfiguracion,
-  type Tarea,
+  type Atajo,
+  type Item,
   type Tipo,
-} from './interfaces/preconfiguraciones.interface.js';
+} from './interfaces/atajos.interface.js';
 
-const TABLA = 'preconfiguraciones';
-const TABLA_BLOQUES = 'preconfiguracion_bloques';
+const TABLA = 'atajos';
+const TABLA_BLOQUES = 'atajo_bloques';
 
 /** Lo que se devuelve. El id del creador no sale: con su nombre basta. */
 const CAMPOS =
   'id, nombre, descripcion, activa, creado_por, creado_en, actualizado_en';
 
-/** Columnas que pone la base de datos y no viajan como campos de la tarea */
+/** Columnas que pone la base de datos y no viajan como campos del ítem */
 const PROPIAS = new Set(['id', 'bloque_id', 'orden', 'nota', 'creado_en']);
 
 /**
- * Las preconfiguraciones, en tres niveles.
+ * Los atajos, en tres niveles.
  *
- *   preconfiguraciones          "Simulación SD"
- *     └─ preconfiguracion_bloques   bloque 1, de tipo "simulacion"
- *          └─ tarea_simulacion        1111 San Borja, 1110 Chorrillos, …
+ *   atajos          "Simulación SD"
+ *     └─ atajo_bloques   bloque 1, de tipo "simulacion"
+ *          └─ item_simulacion        1111 San Borja, 1110 Chorrillos, …
  *
- * Cada tipo de operación tiene su tabla de tareas, con **solo las columnas que
+ * Cada tipo de operación tiene su tabla de ítems, con **solo las columnas que
  * esa operación necesita**. Podrían estar todas en una con un JSON —y así
  * estuvo un rato—, pero con columnas de verdad la base de datos rechaza una
- * tarea de picking sin código en vez de descubrirlo al ejecutarla, y se puede
- * preguntar "qué preconfiguraciones tocan el 20026" con un `where`.
+ * ítem de picking sin código en vez de descubrirlo al ejecutarlo, y se puede
+ * preguntar "qué atajos tocan el 20026" con un `where`.
  *
  * **Son compartidas.** Todo el equipo ve y ejecuta las mismas, porque
  * "Simulación SE" es un estándar de la operación y no la preferencia de nadie.
@@ -52,8 +52,8 @@ const PROPIAS = new Set(['id', 'bloque_id', 'orden', 'nota', 'creado_en']);
  * registro de uso con el antes y el después.
  */
 @Injectable()
-export class PreconfiguracionesService {
-  private readonly logger = new Logger(PreconfiguracionesService.name);
+export class AtajosService {
+  private readonly logger = new Logger(AtajosService.name);
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -63,30 +63,30 @@ export class PreconfiguracionesService {
   // ---------- Lectura ----------
 
   /**
-   * El listado, sin bajar a las tareas.
+   * El listado, sin bajar a los ítems.
    *
    * Trae los bloques para poder decir de qué tipos es cada una, que es lo que
-   * se enseña en la lista. Las tareas no: son decenas por preconfiguración y
+   * se enseña en la lista. Los ítems no: son decenas por atajo y
    * nadie las mira hasta abrirla.
    */
-  async listar(filtro: ListarPreconfiguracionesDto = {}) {
+  async listar(filtro: ListarAtajosDto = {}) {
     let consulta = this.supabase.admin.from(TABLA).select(CAMPOS);
 
     if (!filtro.incluirInactivas) consulta = consulta.eq('activa', true);
 
     const { data, error } = await consulta.order('nombre', { ascending: true });
 
-    if (error) this.reventar('listar las preconfiguraciones', error.message);
+    if (error) this.reventar('listar los atajos', error.message);
 
-    const filas = (data ?? []) as Preconfiguracion[];
+    const filas = (data ?? []) as Atajo[];
     if (!filas.length) return filas;
 
     const bloques = await this.bloquesDe(filas.map((p) => p.id));
 
     return filas.map((p) => {
       const suyos = bloques.filter(
-        (b) => b.preconfiguracion_id === p.id,
-      ) as (Bloque & { preconfiguracion_id: string })[];
+        (b) => b.atajo_id === p.id,
+      ) as (Bloque & { atajo_id: string })[];
 
       return {
         ...p,
@@ -103,52 +103,52 @@ export class PreconfiguracionesService {
     });
   }
 
-  /** Una preconfiguración entera: sus bloques y las tareas de cada uno */
-  async obtener(id: string): Promise<Preconfiguracion> {
+  /** Un atajo entero: sus bloques y los ítems de cada uno */
+  async obtener(id: string): Promise<Atajo> {
     const { data, error } = await this.supabase.admin
       .from(TABLA)
       .select(CAMPOS)
       .eq('id', id)
       .maybeSingle();
 
-    if (error) this.reventar('leer la preconfiguración', error.message);
-    if (!data) throw new NotFoundException('No existe esa preconfiguración');
+    if (error) this.reventar('leer el atajo', error.message);
+    if (!data) throw new NotFoundException('No existe ese atajo');
 
-    const preconfiguracion = data as Preconfiguracion;
+    const atajo = data as Atajo;
     const bloques = await this.bloquesDe([id]);
 
-    // Las tareas de cada bloque, cada una en la tabla de su tipo
-    preconfiguracion.bloques = await Promise.all(
+    // Los ítems de cada bloque, cada uno en la tabla de su tipo
+    atajo.bloques = await Promise.all(
       bloques.map(async (b) => ({
         id: b.id,
         orden: b.orden,
         tipo: b.tipo,
         accion: b.accion,
         nota: b.nota,
-        tareas: await this.tareasDe(b.tipo, b.id),
+        items: await this.itemsDe(b.tipo, b.id),
       })),
     );
 
-    preconfiguracion.tipos = [
-      ...new Set(preconfiguracion.bloques.map((b) => b.tipo)),
+    atajo.tipos = [
+      ...new Set(atajo.bloques.map((b) => b.tipo)),
     ];
 
-    return preconfiguracion;
+    return atajo;
   }
 
   /**
-   * La preconfiguración que nombra un término.
+   * El atajo que nombra un término.
    *
    * Por nombre exacto primero y solo después por parecido, y si hay más de una
    * candidata **no se elige**: se dicen cuáles son. Ejecutar la equivocada
    * puede escribir en Ripley, así que adivinar por aproximación no es una
    * opción. Es por aquí por donde la pide el agente.
    */
-  async porNombre(termino: string): Promise<Preconfiguracion> {
+  async porNombre(termino: string): Promise<Atajo> {
     const buscado = termino.trim();
 
     if (!buscado) {
-      throw new BadRequestException('Indica el nombre de la preconfiguración');
+      throw new BadRequestException('Indica el nombre del atajo');
     }
 
     const todas = await this.listar();
@@ -166,20 +166,20 @@ export class PreconfiguracionesService {
 
     if (parecidas.length > 1) {
       throw new BadRequestException(
-        `Hay ${parecidas.length} preconfiguraciones que encajan con "${buscado}" y no voy ` +
+        `Hay ${parecidas.length} atajos que encajan con "${buscado}" y no voy ` +
           `a elegir por ti: ${parecidas.map((p) => p.nombre).join(', ')}`,
       );
     }
 
     throw new NotFoundException(
-      `No hay ninguna preconfiguración que se llame "${buscado}". Las que hay son: ` +
+      `No hay ningún atajo que se llame "${buscado}". Los que hay son: ` +
         (todas.map((p) => p.nombre).join(', ') || 'ninguna'),
     );
   }
 
   // ---------- Escritura ----------
 
-  async crear(usuario: UsuarioAutenticado, dto: CrearPreconfiguracionDto) {
+  async crear(usuario: UsuarioAutenticado, dto: CrearAtajoDto) {
     const fila = {
       nombre: dto.nombre.trim(),
       descripcion: dto.descripcion?.trim() || null,
@@ -195,7 +195,7 @@ export class PreconfiguracionesService {
 
     if (error) this.fallarAlGuardar('crear', fila.nombre, error);
 
-    const creada = data as Preconfiguracion;
+    const creada = data as Atajo;
 
     try {
       await this.guardarBloques(creada.id, dto.bloques);
@@ -208,17 +208,17 @@ export class PreconfiguracionesService {
     this.contexto.registrarCambio(null, {
       nombre: fila.nombre,
       bloques: dto.bloques.length,
-      tareas: dto.bloques.reduce((n, b) => n + b.tareas.length, 0),
+      items: dto.bloques.reduce((n, b) => n + b.items.length, 0),
     });
 
     this.logger.log(
-      `Preconfiguración "${fila.nombre}" creada por ${fila.creado_por}`,
+      `Atajo "${fila.nombre}" creado por ${fila.creado_por}`,
     );
 
     return this.obtener(creada.id);
   }
 
-  async editar(id: string, dto: EditarPreconfiguracionDto) {
+  async editar(id: string, dto: EditarAtajoDto) {
     // El estado de antes, para el registro: sin esto el historial dice que algo
     // cambió pero no desde qué
     const antes = await this.obtener(id);
@@ -250,9 +250,9 @@ export class PreconfiguracionesService {
     /*
      * Los bloques se reemplazan enteros.
      *
-     * El panel edita la preconfiguración entera, así que reconciliar altas,
-     * bajas y reordenaciones tarea por tarea sería mucho código para nada que
-     * se aproveche. Las tareas caen solas: la clave foránea va con cascade.
+     * El panel edita el atajo entero, así que reconciliar altas,
+     * bajas y reordenaciones ítem por ítem sería mucho código para nada que
+     * se aproveche. Los ítems caen solos: la clave foránea va con cascade.
      */
     if (dto.bloques) {
       await this.borrarBloques(id);
@@ -264,28 +264,28 @@ export class PreconfiguracionesService {
         nombre: antes.nombre,
         activa: antes.activa,
         bloques: antes.bloques?.length ?? 0,
-        tareas: this.contarTareas(antes),
+        items: this.contarItems(antes),
       },
       {
         nombre: cambios.nombre ?? antes.nombre,
         activa: cambios.activa ?? antes.activa,
         bloques: dto.bloques?.length ?? antes.bloques?.length ?? 0,
-        tareas:
-          dto.bloques?.reduce((n, b) => n + b.tareas.length, 0) ??
-          this.contarTareas(antes),
+        items:
+          dto.bloques?.reduce((n, b) => n + b.items.length, 0) ??
+          this.contarItems(antes),
       },
     );
 
-    this.logger.log(`Preconfiguración "${antes.nombre}" editada`);
+    this.logger.log(`Atajo "${antes.nombre}" editado`);
 
     return this.obtener(id);
   }
 
   /**
-   * Retirar una preconfiguración la apaga; no la borra.
+   * Retirar un atajo lo apaga; no lo borra.
    *
    * Puede estar nombrada en el historial de auditoría, y perder el nombre deja
-   * el registro sin sentido: "se ejecutó la preconfiguración 3f7a…" no le dice
+   * el registro sin sentido: "se ejecutó el atajo 3f7a…" no le dice
    * nada a nadie.
    */
   async retirar(id: string) {
@@ -296,14 +296,14 @@ export class PreconfiguracionesService {
       .update({ activa: false, actualizado_en: new Date().toISOString() })
       .eq('id', id);
 
-    if (error) this.reventar('retirar la preconfiguración', error.message);
+    if (error) this.reventar('retirar el atajo', error.message);
 
     this.contexto.registrarCambio(
       { nombre: antes.nombre, activa: true },
       { nombre: antes.nombre, activa: false },
     );
 
-    this.logger.log(`Preconfiguración "${antes.nombre}" retirada`);
+    this.logger.log(`Atajo "${antes.nombre}" retirado`);
 
     return { id, nombre: antes.nombre, activa: false };
   }
@@ -313,17 +313,17 @@ export class PreconfiguracionesService {
   private async bloquesDe(ids: string[]) {
     const { data, error } = await this.supabase.admin
       .from(TABLA_BLOQUES)
-      .select('id, preconfiguracion_id, orden, tipo, accion, nota')
-      .in('preconfiguracion_id', ids)
+      .select('id, atajo_id, orden, tipo, accion, nota')
+      .in('atajo_id', ids)
       .order('orden', { ascending: true });
 
     if (error) this.reventar('leer los bloques', error.message);
 
-    return (data ?? []) as (Bloque & { preconfiguracion_id: string })[];
+    return (data ?? []) as (Bloque & { atajo_id: string })[];
   }
 
-  /** Las tareas de un bloque, en la tabla que le corresponde por tipo */
-  private async tareasDe(tipo: Tipo, bloqueId: string): Promise<Tarea[]> {
+  /** Los ítems de un bloque, en la tabla que le corresponde por tipo */
+  private async itemsDe(tipo: Tipo, bloqueId: string): Promise<Item[]> {
     const tabla = TABLA_POR_TIPO[tipo];
 
     const { data, error } = await this.supabase.admin
@@ -332,37 +332,37 @@ export class PreconfiguracionesService {
       .eq('bloque_id', bloqueId)
       .order('orden', { ascending: true });
 
-    if (error) this.reventar(`leer las tareas de ${tipo}`, error.message);
+    if (error) this.reventar(`leer los ítems de ${tipo}`, error.message);
 
-    return (data ?? []) as Tarea[];
+    return (data ?? []) as Item[];
   }
 
-  private async borrarBloques(preconfiguracionId: string) {
-    // Las tareas caen con ellos: la clave foránea va con on delete cascade
+  private async borrarBloques(atajoId: string) {
+    // Los ítems caen con ellos: la clave foránea va con on delete cascade
     const { error } = await this.supabase.admin
       .from(TABLA_BLOQUES)
       .delete()
-      .eq('preconfiguracion_id', preconfiguracionId);
+      .eq('atajo_id', atajoId);
 
     if (error) this.reventar('reemplazar los bloques', error.message);
   }
 
   /**
-   * Guarda los bloques y, de cada uno, sus tareas en la tabla de su tipo.
+   * Guarda los bloques y, de cada uno, sus ítems en la tabla de su tipo.
    *
    * Los campos llegan en `camelCase` —son los del endpoint— y las columnas van
    * en `snake_case`. La conversión se hace aquí y en un solo sitio: un mapa a
    * mano de cuarenta nombres es garantizar que uno se quede sin traducir.
    */
   private async guardarBloques(
-    preconfiguracionId: string,
+    atajoId: string,
     bloques: BloqueDto[],
   ) {
     for (const [i, bloque] of bloques.entries()) {
       const { data, error } = await this.supabase.admin
         .from(TABLA_BLOQUES)
         .insert({
-          preconfiguracion_id: preconfiguracionId,
+          atajo_id: atajoId,
           orden: i + 1,
           tipo: bloque.tipo,
           accion: bloque.accion,
@@ -375,7 +375,7 @@ export class PreconfiguracionesService {
 
       const tabla = TABLA_POR_TIPO[bloque.tipo as Tipo];
 
-      const tareas = bloque.tareas.map((t, j) => ({
+      const items = bloque.items.map((t, j) => ({
         bloque_id: (data as { id: string }).id,
         orden: j + 1,
         nota: t.nota?.trim() || null,
@@ -384,13 +384,13 @@ export class PreconfiguracionesService {
 
       const { error: fallo } = await this.supabase.admin
         .from(tabla)
-        .insert(tareas);
+        .insert(items);
 
       if (fallo) {
         // El mensaje de Postgres dice qué columna falta, y es más útil que
         // "no se pudo guardar": "null value in column codigo"
         throw new BadRequestException(
-          `El bloque ${i + 1} (${bloque.tipo}) tiene tareas que la base de datos ` +
+          `El bloque ${i + 1} (${bloque.tipo}) tiene ítems que la base de datos ` +
             `rechaza: ${fallo.message}`,
         );
       }
@@ -413,8 +413,8 @@ export class PreconfiguracionesService {
     return salida;
   }
 
-  private contarTareas(p: Preconfiguracion): number {
-    return (p.bloques ?? []).reduce((n, b) => n + (b.tareas?.length ?? 0), 0);
+  private contarItems(p: Atajo): number {
+    return (p.bloques ?? []).reduce((n, b) => n + (b.items?.length ?? 0), 0);
   }
 
   // ---------- Fallos ----------
@@ -427,12 +427,12 @@ export class PreconfiguracionesService {
   ): never {
     if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
       throw new ConflictException(
-        `Ya hay una preconfiguración llamada "${nombre}". El nombre es por donde se la ` +
+        `Ya hay un atajo llamado "${nombre}". El nombre es por donde se lo ` +
           `pide desde el chat, así que no puede repetirse.`,
       );
     }
 
-    this.reventar(`${que} la preconfiguración`, error.message);
+    this.reventar(`${que} el atajo`, error.message);
   }
 
   private reventar(accion: string, detalle: string): never {

@@ -78,7 +78,7 @@ export class ConsultarCapacidadDto extends ConVentanaDto {
    * Faltaba, y hacía falta: una zona puede tener varias agendas y un almacén
    * varias del mismo servicio, así que sin este campo no había forma de pedir
    * una concreta —solo todas las de la zona—. El apartado del panel sí la pide,
-   * y una preconfiguración que copia esos campos no podía reproducirla.
+   * y un atajo que copia esos campos no podía reproducirla.
    *
    * **Lo exacto gana sobre lo parecido**, igual que al editar: pedir
    * "Zona 1401 - Suc. Aldea 6 Lima/Metropolitana" no trae además la que termina
@@ -234,7 +234,7 @@ export class SimularAgenteDto extends PaisDto {
    *
    * Vacío pide todos los tipos aplicables al destino. **Por sí solo no basta**:
    * hace falta el operador. "SD" a secas disparaba una lista de OPL escrita en
-   * el código; esa lista está ahora en las preconfiguraciones, y la revisión de
+   * el código; esa lista está ahora en los atajos, y la revisión de
    * siempre se pide por su nombre.
    */
   @IsOptional()
@@ -364,10 +364,19 @@ export class InterpretarDto {
   pais?: string;
 
   /**
-   * Las preconfiguraciones guardadas, con su descripción, para reconocerlas
-   * por su nombre o su apodo, y con los tipos de sus bloques para saber de qué
-   * tema son (el filtro previo de las que pueden servir). Las manda el flujo, que ya las lee: así esta ruta
-   * no depende del módulo de preconfiguraciones, que depende de este.
+   * Los atajos guardados, con su descripción, para reconocerlos por su nombre
+   * o su apodo, y con los tipos de sus bloques para saber de qué tema son (el
+   * filtro previo de los que pueden servir). Los manda el flujo, que ya los
+   * lee: así esta ruta no depende del módulo de atajos, que depende de este.
+   */
+  @IsOptional()
+  @IsArray()
+  atajos?: Array<{ nombre?: unknown; descripcion?: unknown; tipos?: unknown }>;
+
+  /**
+   * El nombre de antes de `atajos`. Lo sigue mandando el flujo de n8n hasta
+   * que se reimporte; quitar cuando ya no llegue.
+   * @deprecated usa `atajos`
    */
   @IsOptional()
   @IsArray()

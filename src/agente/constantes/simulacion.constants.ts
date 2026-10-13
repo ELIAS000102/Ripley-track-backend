@@ -3,7 +3,7 @@
  *
  * Aquí vivían además las dos simulaciones que la operación tiene montadas —los
  * cinco OPL de despacho y las once tiendas de retiro, con su destino cada uno—.
- * Se fueron a Supabase, a la tabla de preconfiguraciones: son datos de la
+ * Se fueron a Supabase, a la tabla de atajos: son datos de la
  * operación y cambian con ella, y una tienda nueva no puede necesitar un
  * despliegue. Lo que queda son valores por defecto, que es otra cosa.
  */
@@ -26,7 +26,7 @@ export const SKU_POR_DEFECTO = '2013435160001';
  * juntas son lo que la operación compara, así que pedir solo una pierde la
  * mitad de la respuesta.
  *
- * Esto no es una preconfiguración: es cómo hay que hablarle a Ripley, y se
+ * Esto no es un atajo: es cómo hay que hablarle a Ripley, y se
  * cumple igual la pida quien la pida.
  */
 export const SIN_FILTRAR = ['SD'];

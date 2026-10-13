@@ -19,9 +19,9 @@ import { partirLista } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
-import { AgendasDePreconfiguracionService } from '../capacidad/agendas-de-preconfiguracion.service.js';
+import { AgendasDeAtajoService } from '../capacidad/agendas-de-atajo.service.js';
 
-/** El código de un operador tal como lo guarda una preconfiguración: "1088" o "1088 - Courier" */
+/** El código de un operador tal como lo guarda un atajo: "1088" o "1088 - Courier" */
 const codigoDeOpl = (s: string) => resolverAliasOpl(String(s ?? '').trim()).split(/\s*[-·]\s*/)[0].trim().toUpperCase();
 import { POR_VEZ } from '../../constantes/limites.constants.js';
 
@@ -100,7 +100,7 @@ export class EditarTipoServicioAgenteService {
     private readonly opl: OplService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
-    private readonly agendasGuardadas: AgendasDePreconfiguracionService,
+    private readonly agendasGuardadas: AgendasDeAtajoService,
   ) {}
 
   async editar(
@@ -127,12 +127,14 @@ export class EditarTipoServicioAgenteService {
     }
 
     /*
-     * De una preconfiguración: cada operador en la zona y la agenda que ella
+     * De un atajo: cada operador en la zona y la agenda que él
      * guarda. El 1088 tiene cuatro zonas; "Estado del Next Day y Same Day de
      * chile" lo consulta en la Zona 4, y el cambio sobre lo que enseñó tiene que
      * ir a esa. Sin esto se volvía a buscar entre las cuatro y se preguntaba.
      */
-    const guardadas = dto.preconfiguracion ? await this.agendasGuardadas.leer(dto.preconfiguracion, 'opl') : null;
+    // `preconfiguracion` es el nombre de antes: lo manda el flujo hasta que se reimporte
+    const atajo = dto.atajo ?? dto.preconfiguracion;
+    const guardadas = atajo ? await this.agendasGuardadas.leer(atajo, 'opl') : null;
     const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.opl);
     // Del código guardado ("1088 - Courier Paquetería") se busca solo el código
     const pedidoDeOpls = todosLosSuyos
@@ -145,7 +147,7 @@ export class EditarTipoServicioAgenteService {
     this.logger.warn(
       `EDICIÓN del agente — ${usuario.email} cambia ${pedidos.length} ` +
         `servicio(s) en ${operadores.length} operador(es)` +
-        (guardadas ? ` según la preconfiguración "${guardadas.nombre}"` : ''),
+        (guardadas ? ` según el atajo "${guardadas.nombre}"` : ''),
     );
 
     const servicios: ServicioEditado[] = [];

@@ -42,8 +42,8 @@ function armar(
     agendas?: Array<Record<string, unknown>>;
     dias?: Array<Record<string, unknown>>;
     porAlmacen?: Record<string, Array<Record<string, unknown>>>;
-    /** Lo que guarda la preconfiguración que se nombre, por código */
-    preconfiguracion?: { nombre: string; agendas: Array<{ codigo: string; servicio: string | null; zona: string | null; agenda: string | null }> };
+    /** Lo que guarda el atajo que se nombre, por código */
+    atajo?: { nombre: string; agendas: Array<{ codigo: string; servicio: string | null; zona: string | null; agenda: string | null }> };
   } = {},
 ) {
   const actualizarPicking = vi.fn().mockResolvedValue({ ok: true });
@@ -146,7 +146,7 @@ function armar(
       auditoria,
       // Las agendas de transferencia tienen su propia batería
       undefined as never,
-      { leer: vi.fn().mockResolvedValue(opciones.preconfiguracion ?? { nombre: '?', agendas: [] }) } as never,
+      { leer: vi.fn().mockResolvedValue(opciones.atajo ?? { nombre: '?', agendas: [] }) } as never,
       almacenesDePrueba(),
     ),
     actualizarPicking,
@@ -1230,12 +1230,12 @@ describe('Edición del agente: la disponibilidad', () => {
 });
 
 /**
- * Cambiar algo sobre lo que enseñó una preconfiguración ("BT LIMA"): cada
+ * Cambiar algo sobre lo que enseñó un atajo ("BT LIMA"): cada
  * código va con la zona y la agenda que ella guarda. Antes se volvía a buscar
  * entre todas las zonas del operador, se preguntaba cuál y, con un "a todas",
- * se cambiaba también la que la preconfiguración no enseña.
+ * se cambiaba también la que el atajo no enseña.
  */
-describe('Edición del agente: sobre una preconfiguración', () => {
+describe('Edición del agente: sobre un atajo', () => {
   const DOS_ZONAS = [
     { zoneId: 'z-1', nombre: 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana' },
     { zoneId: 'z-2', nombre: 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT' },
@@ -1248,8 +1248,8 @@ describe('Edición del agente: sobre una preconfiguración', () => {
     ],
   };
 
-  function conPreconfiguracion() {
-    const base = armar({ preconfiguracion: BT_LIMA });
+  function conAtajo() {
+    const base = armar({ atajo: BT_LIMA });
     const despacho = (base.servicio as unknown as { despacho: { listarZonas: unknown } }).despacho;
     (despacho as { listarZonas: unknown }).listarZonas = vi.fn((codigo: string) => Promise.resolve(
       codigo === '1401' ? DOS_ZONAS : [{ zoneId: 'z-9', nombre: `Agenda ${codigo} - Suc. Aldea 6 Perif.` }, { zoneId: 'z-8', nombre: `Zona ${codigo} BT` }],
@@ -1257,35 +1257,41 @@ describe('Edición del agente: sobre una preconfiguración', () => {
     return base;
   }
 
-  it('sin la preconfiguración, el 1401 tiene dos zonas y pregunta cuál', async () => {
-    const { servicio } = conPreconfiguracion();
+  it('sin el atajo, el 1401 tiene dos zonas y pregunta cuál', async () => {
+    const { servicio } = conAtajo();
     await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', activa: false })))
       .rejects.toThrow(/nombre exacto en "zona"/);
   });
 
   it('con ella, cambia solo la zona guardada, sin preguntar', async () => {
-    const { servicio, actualizarDespacho } = conPreconfiguracion();
-    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', disponible: 30, preconfiguracion: 'bt lima' }));
+    const { servicio, actualizarDespacho } = conAtajo();
+    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', disponible: 30, atajo: 'bt lima' }));
     expect(actualizarDespacho).toHaveBeenCalledOnce();
     expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
   });
 
-  it('"todos" son todos los códigos de la preconfiguración, cada uno con su zona', async () => {
-    const { servicio, actualizarDespacho } = conPreconfiguracion();
-    const r = await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: 'todos', activa: false, preconfiguracion: 'BT LIMA' }));
+  it('con el nombre de antes, "preconfiguracion", también: el flujo viejo lo manda hasta que se reimporte', async () => {
+    const { servicio, actualizarDespacho } = conAtajo();
+    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', disponible: 30, preconfiguracion: 'bt lima' }));
+    expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
+  });
+
+  it('"todos" son todos los códigos del atajo, cada uno con su zona', async () => {
+    const { servicio, actualizarDespacho } = conAtajo();
+    const r = await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: 'todos', activa: false, atajo: 'BT LIMA' }));
     expect(r.oficinas.map((o) => o.oficina)).toEqual(['1401', '1402']);
     expect(actualizarDespacho.mock.calls.map((c) => c[1])).toEqual(['z-1', 'z-9']);
   });
 
   it('un código que no está en ella se cambia como siempre', async () => {
-    const { servicio } = conPreconfiguracion();
-    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1404', activa: false, preconfiguracion: 'BT LIMA' })))
+    const { servicio } = conAtajo();
+    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1404', activa: false, atajo: 'BT LIMA' })))
       .rejects.toThrow(/nombre exacto en "zona"/);
   });
 
   it('lo que se dice explícitamente manda sobre lo guardado', async () => {
-    const { servicio, actualizarDespacho } = conPreconfiguracion();
-    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', zona: 'BT', activa: false, preconfiguracion: 'BT LIMA' }));
+    const { servicio, actualizarDespacho } = conAtajo();
+    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', zona: 'BT', activa: false, atajo: 'BT LIMA' }));
     expect(actualizarDespacho.mock.calls[0][1]).toBe('z-2');
   });
 });

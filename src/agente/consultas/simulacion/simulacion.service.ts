@@ -97,14 +97,14 @@ export class SimulacionAgenteService {
     /*
      * Los destinos salen de lo que llegue, siempre.
      *
-     * Antes había un atajo: el servicio a secas —"simula SD"— disparaba una
+     * Antes había una regla: el servicio a secas —"simula SD"— disparaba una
      * lista de OPL escrita en el código, con el destino de cada uno. Esa lista
-     * se fue a Supabase, a la tabla de preconfiguraciones, porque es un dato de
+     * se fue a Supabase, a la tabla de atajos, porque es un dato de
      * la operación: una tienda nueva no puede necesitar un despliegue.
      *
      * Así que "simula SD" ya no adivina nada. Esa consulta se pide ahora por su
-     * nombre —"ejecuta la Simulación SD"— y el ejecutor de preconfiguraciones
-     * llama aquí una vez por tarea, con su operador y su distrito.
+     * nombre —"ejecuta la Simulación SD"— y el ejecutor de atajos
+     * llama aquí una vez por ítem, con su operador y su distrito.
      */
     const destinos = this.destinosPedidos(dto);
 
@@ -221,7 +221,7 @@ export class SimulacionAgenteService {
    *
    * Antes una lista del código imponía el destino de los OPL conocidos —en
    * retiro en tienda el destino ES la tienda—. Esa lista está ahora en las
-   * preconfiguraciones, donde cada tarea lleva el suyo escrito: el conocimiento
+   * atajos, donde cada ítem lleva el suyo escrito: el conocimiento
    * sigue estando, pero en un sitio que se edita sin desplegar.
    */
   private destinoDe(code: string, dto: SimularAgenteDto): OplPorDefecto {

@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
-import { PreconfiguracionesService } from '../../../src/configuracion/preconfiguraciones/preconfiguraciones.service.js';
+import { AtajosService } from '../../../src/configuracion/atajos/atajos.service.js';
 
 /**
  * El parche que se manda a Supabase al editar.
@@ -18,7 +18,7 @@ function armar(fila = { id: 'p1', nombre: 'Paquetería Lima', descripcion: 'la d
   const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
 
   const from = vi.fn((tabla: string) => {
-    if (tabla === 'preconfiguraciones') {
+    if (tabla === 'atajos') {
       return {
         update,
         select: () => ({
@@ -27,8 +27,8 @@ function armar(fila = { id: 'p1', nombre: 'Paquetería Lima', descripcion: 'la d
       };
     }
     /*
-     * Los bloques y las tareas. Qué se guarda en ellos lo fija
-     * `preconfiguraciones.spec.ts`; aquí solo hacen falta para que un cambio de
+     * Los bloques y los ítems. Qué se guarda en ellos lo fija
+     * `atajos.spec.ts`; aquí solo hacen falta para que un cambio de
      * bloques no reviente, que es el camino que se comprueba abajo.
      */
     return {
@@ -37,7 +37,7 @@ function armar(fila = { id: 'p1', nombre: 'Paquetería Lima', descripcion: 'la d
       /*
        * Una promesa con `.select()` encima, que es lo que el builder de
        * Supabase es de verdad: el insert de los bloques encadena
-       * `.select().single()` y el de las tareas se espera directamente.
+       * `.select().single()` y el de los ítems se espera directamente.
        */
       insert: () =>
         Object.assign(Promise.resolve({ error: null }), {
@@ -48,7 +48,7 @@ function armar(fila = { id: 'p1', nombre: 'Paquetería Lima', descripcion: 'la d
     };
   });
 
-  const servicio = new PreconfiguracionesService(
+  const servicio = new AtajosService(
     { admin: { from } } as unknown as SupabaseService,
     { registrarCambio: vi.fn() } as unknown as ContextoAuditoria,
   );
@@ -133,7 +133,7 @@ describe('Una edición vacía no se manda', () => {
           {
             tipo: 'simulacion',
             accion: 'consultar',
-            tareas: [{ campos: { operador: '1111' } }],
+            items: [{ campos: { operador: '1111' } }],
           },
         ],
       }),

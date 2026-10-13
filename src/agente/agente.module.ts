@@ -17,7 +17,7 @@ import { BusquedaMasivaAgenteService } from './consultas/busqueda-masiva/busqued
 import { CapacidadAgenteService } from './consultas/capacidad/capacidad.service.js';
 import { CapacidadTransferenciaAgenteService } from './consultas/capacidad-transferencia/capacidad-transferencia.service.js';
 import { ReporteAgenteService } from './consultas/reporte/reporte.service.js';
-import { AgendasDePreconfiguracionService } from './edicion/capacidad/agendas-de-preconfiguracion.service.js';
+import { AgendasDeAtajoService } from './edicion/capacidad/agendas-de-atajo.service.js';
 import { SimulacionAgenteService } from './consultas/simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './consultas/tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './consultas/transferencia/transferencia.service.js';
@@ -95,7 +95,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
 
     // Edición
     EditarCapacidadAgenteService,
-    AgendasDePreconfiguracionService,
+    AgendasDeAtajoService,
     EditarCdAgenteService,
     ReasignarCapacidadAgenteService,
     EditarTipoServicioAgenteService,
@@ -108,9 +108,9 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
   ],
   /*
    * Además del modo, se exportan los services que ejecutan una operación.
-   * Los usa el módulo de preconfiguraciones: son los únicos que reciben códigos
+   * Los usa el módulo de atajos: son los únicos que reciben códigos
    * visibles y resuelven la cadena de catálogos por dentro, que es lo que una
-   * preconfiguración guardada puede guardar.
+   * atajo guardado puede guardar.
    */
   exports: [
     ModoAgenteService,

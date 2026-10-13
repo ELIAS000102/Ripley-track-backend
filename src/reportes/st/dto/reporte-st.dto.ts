@@ -150,7 +150,7 @@ export class GrupoStDto {
 /**
  * PUT /reportes/st/configuracion: los grupos enteros.
  *
- * Se reemplaza todo, como los bloques de una preconfiguración: el panel edita
+ * Se reemplaza todo, como los bloques de un atajo: el panel edita
  * la configuración completa y reconciliar altas, bajas y cambios de orden
  * tienda por tienda sería mucho código para nada.
  */

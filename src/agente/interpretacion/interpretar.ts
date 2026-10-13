@@ -26,8 +26,8 @@ import { resolverCd, type CdsPorPais } from '../constantes/cds.constants.js';
  */
 
 export type Caso =
-  | 'preconfiguracion'
-  | 'preconfiguraciones'
+  | 'atajo'
+  | 'atajos'
   | 'capacidad'
   | 'editar_capacidad'
   | 'reporte'
@@ -78,30 +78,30 @@ export interface Interpretacion {
   numeros: number[];
   /** "todas", "todos": aplica a todo lo que haya */
   todas: boolean;
-  /** Preconfiguraciones nombradas tal cual */
-  preconfiguraciones: string[];
+  /** Atajos nombrados tal cual */
+  atajos: string[];
   /**
-   * Las preconfiguraciones que PUEDEN servir para el mensaje, de más a menos:
+   * Los atajos que PUEDEN servir para el mensaje, de más a menos:
    * un filtro previo y grueso —nombre, apodo, servicios, tema, códigos y
    * palabras propias de la descripción—, con el motivo de cada una. No decide:
    * reduce las opciones, y el modelo que planifica elige entre ellas o, si
    * ninguna hace lo que se pide, arma el plan con las herramientas.
    */
-  preconfiguracionesPosibles: PreconfiguracionPosible[];
+  atajosPosibles: AtajoPosible[];
   candidatos: Caso[];
   caso: Caso | null;
   certeza: 'alta' | 'media' | 'baja';
   motivo: string;
 }
 
-export interface PreconfiguracionConocida {
+export interface AtajoConocido {
   nombre: string;
   descripcion?: string | null;
   /** Los tipos de sus bloques (picking, despacho, opl, masivo, simulacion…), si se conocen */
   tipos?: string[];
 }
 
-export interface PreconfiguracionPosible {
+export interface AtajoPosible {
   nombre: string;
   /** Por qué pasó el filtro: "nombrada", "servicio SE", "tema simulación", "código 1111"… */
   motivo: string;
@@ -312,7 +312,7 @@ const DICHO_AL_100 =
 const CAPACIDAD_DE_TRANSFERENCIA =
   /capacidad (de|para) (la |las )?transferenc|agendas? de transferenc|cuant[oa]s?( unidades)? (puede|pueden|se puede|se pueden) transferir|capacidad de transferir/;
 
-// ───────────────────────── Preconfiguraciones ─────────────────────────
+// ───────────────────────── Atajos ─────────────────────────
 
 const COMUNES = new Set((
   'a al con de del el en es la las lo los o para por se su sus un una y que si no mas menos ' +
@@ -324,13 +324,13 @@ const COMUNES = new Set((
 ).split(' '));
 
 /** Lo que se dice entre paréntesis en una descripción es su apodo: "(BT LIMA)" */
-function apodos(p: PreconfiguracionConocida): string[] {
+function apodos(p: AtajoConocido): string[] {
   return [...(p.descripcion ?? '').matchAll(/\(([^)]{2,40})\)/g)]
     .map((m) => normalizar(m[1]))
     .filter((a) => a.length >= 4 && !/^opl \d+$/.test(a));
 }
 
-function preconfiguracionesNombradas(plano: string, lista: PreconfiguracionConocida[]): string[] {
+function atajosNombrados(plano: string, lista: AtajoConocido[]): string[] {
   const dentro = (frase: string) => frase.length >= 4 && ` ${plano} `.includes(` ${frase} `);
   const dichas = lista.filter((p) => dentro(normalizar(p.nombre)) || apodos(p).some(dentro));
 
@@ -340,7 +340,7 @@ function preconfiguracionesNombradas(plano: string, lista: PreconfiguracionConoc
     .map((p) => p.nombre);
 }
 
-function tocaPreconfiguracion(plano: string, lista: PreconfiguracionConocida[]): boolean {
+function tocaAtajo(plano: string, lista: AtajoConocido[]): boolean {
   const propias = new Set<string>();
   for (const p of lista) {
     for (const t of normalizar(`${p.nombre} ${p.descripcion ?? ''}`).split(' ')) {
@@ -350,7 +350,7 @@ function tocaPreconfiguracion(plano: string, lista: PreconfiguracionConocida[]):
   return plano.split(' ').some((t) => propias.has(t));
 }
 
-/** El tema de cada tipo de bloque de una preconfiguración, en los términos de TEMAS */
+/** El tema de cada tipo de bloque de un atajo, en los términos de TEMAS */
 const TEMA_DEL_TIPO: Record<string, string> = {
   picking: 'capacidad', despacho: 'capacidad', recepcion: 'capacidad',
   opl: 'servicios', masivo: 'servicios', simulacion: 'simulacion', transferencia: 'transferencia',
@@ -358,7 +358,7 @@ const TEMA_DEL_TIPO: Record<string, string> = {
 /** "servicio" y "masiva" son el mismo tema visto desde dos lados: qué tiene uno, quién tiene uno */
 const temaDe = (t: string) => (t === 'servicio' || t === 'masiva' ? 'servicios' : t);
 
-/** Palabras que no distinguen una preconfiguración de otra, además de COMUNES */
+/** Palabras que no distinguen un atajo de otro, además de COMUNES */
 const GENERICAS = new Set((
   'para forma tipo tipos cuentan cuenta tienen tiene editar masiva masivo respectivo respectivos ' +
   'respectivas respectiva sobre entre hacia desde estado estados activo activos activa activas ' +
@@ -370,9 +370,9 @@ const palabrasPropias = (texto: string) => new Set(
 );
 
 /**
- * El filtro previo: qué preconfiguraciones pueden servir para el mensaje.
+ * El filtro previo: qué atajos pueden servir para el mensaje.
  *
- * Es grueso a propósito. Antes solo contaba una preconfiguración NOMBRADA, y
+ * Es grueso a propósito. Antes solo contaba un atajo NOMBRADO, y
  * "haz un cruce entre las sucursales de la SE y de la ST" (ejecución 1677) se
  * planificó con dos búsquedas masivas teniendo guardadas "OPLS de la SE" y
  * "OPLS de la ST". Aquí se reduce la lista a las que encajan por algo —se
@@ -380,14 +380,14 @@ const palabrasPropias = (texto: string) => new Set(
  * que planifica decide con ella: la usa, la combina, o arma el plan con las
  * herramientas si ninguna hace lo que se pide.
  *
- * Un servicio dicho que la preconfiguración no tiene, o un tema distinto,
+ * Un servicio dicho que el atajo no tiene, o un tema distinto,
  * restan: "Simulación SD" no sirve para una simulación de la SE.
  */
-function preconfiguracionesPosibles(
+function atajosPosibles(
   plano: string,
-  lista: PreconfiguracionConocida[],
+  lista: AtajoConocido[],
   dicho: { nombradas: string[]; servicios: string[]; temas: string[]; codigos: string[] },
-): PreconfiguracionPosible[] {
+): AtajoPosible[] {
   const temasDichos = new Set(dicho.temas.map(temaDe));
   const propiasDichas = palabrasPropias(plano);
 
@@ -441,7 +441,7 @@ export function interpretar(
   pregunta: string,
   opciones: {
     pais?: string | null;
-    preconfiguraciones?: PreconfiguracionConocida[];
+    atajos?: AtajoConocido[];
     hoy?: string;
     /** Los CDs de cada país, de la configuración del panel: ninguno está escrito aquí */
     cds?: CdsPorPais;
@@ -449,7 +449,7 @@ export function interpretar(
 ): Interpretacion {
   const original = pregunta.trim();
   const plano = normalizar(original);
-  const lista = opciones.preconfiguraciones ?? [];
+  const lista = opciones.atajos ?? [];
 
   // ── El país: dicho, o deducido del CD ──
   let pais: 'PE' | 'CL' | null = /\b(chile|chilen[oa]s?)\b/.test(plano) ? 'CL'
@@ -539,14 +539,14 @@ export function interpretar(
   if (capacidadDeTransferencia && !temas.includes('capacidad')) temas.push('capacidad');
   const hayCodigos = cds.length + operadores.length + almacenes.length > 0;
 
-  // ── Preconfiguraciones ──
-  const listar = /preconfiguraci/.test(plano)
+  // ── Atajos ──
+  const listar = /\batajos?\b|preconfiguraci/.test(plano)
     && /\b(cuales|que|lista|listado|hay|tienes|tenemos|existen|guardadas|muestrame|ensename)\b/.test(plano)
     && !/\b(ejecuta|ejecutar|corre|correr|lanza|lanzar|haz)\b/.test(plano);
-  const preconfiguraciones = preconfiguracionesNombradas(plano, lista);
-  const tocaGuardada = tocaPreconfiguracion(plano, lista);
-  const posibles = listar ? [] : preconfiguracionesPosibles(plano, lista, {
-    nombradas: preconfiguraciones,
+  const atajos = atajosNombrados(plano, lista);
+  const tocaGuardada = tocaAtajo(plano, lista);
+  const posibles = listar ? [] : atajosPosibles(plano, lista, {
+    nombradas: atajos,
     servicios,
     temas,
     codigos: [...cds.map((c) => c.code), ...operadores, ...almacenes],
@@ -557,8 +557,8 @@ export function interpretar(
   const motivos: string[] = [];
   const agregar = (c: Caso, por: string) => { if (!candidatos.includes(c)) { candidatos.push(c); motivos.push(`${c}: ${por}`); } };
 
-  if (listar) agregar('preconfiguraciones', 'pregunta cuáles hay');
-  if (preconfiguraciones.length && !cambio) agregar('preconfiguracion', 'nombra una guardada');
+  if (listar) agregar('atajos', 'pregunta cuáles hay');
+  if (atajos.length && !cambio) agregar('atajo', 'nombra uno guardado');
 
   if (cambio && temas.includes('transferencia')) {
     // En una transferencia el CD es el origen del stock, no una agenda que
@@ -591,7 +591,7 @@ export function interpretar(
   /*
    * Cruzar los operadores de varios servicios ("los de la SE con los de la
    * ST") es del agente de búsqueda masiva: trae las listas de los servicios en
-   * una llamada y las cruza él. Sin esto, el nombre de una preconfiguración
+   * una llamada y las cruza él. Sin esto, el nombre de un atajo
    * metido en la frase ("OPLS de la SE") se llevaba la petición.
    *
    * Lo que mezcla temas —"los servicios de la 20021 y su capacidad"— no tiene
@@ -603,9 +603,9 @@ export function interpretar(
 
   if (cruceDeServicios) agregar('busqueda_masiva', 'cruza los operadores de varios servicios');
 
-  // Una consulta con preconfiguraciones que pueden servir: el modelo puede elegirlas
+  // Una consulta con atajos que pueden servir: el modelo puede elegirlos
   if (posibles.length && !cambio && !listar) {
-    agregar('preconfiguracion', `pueden servir: ${posibles.map((p) => p.nombre).join(', ')}`);
+    agregar('atajo', `pueden servir: ${posibles.map((p) => p.nombre).join(', ')}`);
   }
 
   // ── La certeza ──
@@ -614,11 +614,11 @@ export function interpretar(
 
   const fuerte = (c: Caso): boolean => {
     switch (c) {
-      case 'preconfiguraciones':
+      case 'atajos':
         return true;
-      case 'preconfiguracion':
+      case 'atajo':
         // Nombrada, sí; que solo pueda servir (el filtro previo) lo decide el modelo
-        return preconfiguraciones.length > 0;
+        return atajos.length > 0;
       case 'editar_capacidad':
         return Boolean(cds.length || operadores.length || almacenes.length) && Boolean(fechas || cds.length || servicios.length);
       case 'editar_servicio':
@@ -641,25 +641,25 @@ export function interpretar(
   };
 
   /*
-   * Una preconfiguración nombrada tal cual, sin códigos ni cambio, es esa: "el
+   * Un atajo nombrado tal cual, sin códigos ni cambio, es ese: "el
    * despacho del BT Lima" suena también a capacidad, pero lo que nombra es la
    * guardada.
    *
    * Salvo que el mensaje pida servicios que ella no cubre. "De esos opls de la
    * SE busca en los de la ST" lleva dentro el nombre "OPLS de la SE", pero pide
    * cruzarla con la ST, y eso la guardada no lo hace: decidirlo por el nombre
-   * mandaba la petición al agente de preconfiguraciones, que se quedaba sin
+   * mandaba la petición al agente de atajos, que se quedaba sin
    * pasos intentándolo.
    */
   const cubiertos = new Set(
     lista
-      .filter((p) => preconfiguraciones.includes(p.nombre))
+      .filter((p) => atajos.includes(p.nombre))
       .flatMap((p) => serviciosDelTexto(`${p.nombre} ${p.descripcion ?? ''}`)),
   );
   const pideMas = servicios.some((s) => !cubiertos.has(s));
 
   /*
-   * Las herramientas se imponen solo si NINGUNA preconfiguración puede servir.
+   * Las herramientas se imponen solo si NINGÚN atajo puede servir.
    * Con alguna posible, una consulta la decide el modelo: elige entre ellas o,
    * si ninguna hace lo que se pide, arma el plan con las herramientas. El
    * cruce de la 1677 se decidía aquí, por regla, como búsqueda masiva, aunque
@@ -670,16 +670,16 @@ export function interpretar(
   if (cruceDeServicios && !hayPosibles) {
     caso = 'busqueda_masiva';
     certeza = 'alta';
-  } else if (preconfiguraciones.length && !hayCodigos && !cambio && !listar && !pideMas) {
-    caso = 'preconfiguracion';
+  } else if (atajos.length && !hayCodigos && !cambio && !listar && !pideMas) {
+    caso = 'atajo';
     certeza = 'alta';
   } else if (candidatos.length === 1 && fuerte(candidatos[0])) {
-    // Algo que suena a una preconfiguración guardada lo decide la IA, salvo
+    // Algo que suena a un atajo guardado lo decide la IA, salvo
     // que el mensaje lleve códigos: "la capacidad del big ticket" puede ser la
     // guardada; "la capacidad del 1130" no. Y también si el filtro previo
     // encontró alguna que puede servir
     const dudaGuardada = ((tocaGuardada && !hayCodigos) || hayPosibles)
-      && !['preconfiguracion', 'preconfiguraciones'].includes(candidatos[0]);
+      && !['atajo', 'atajos'].includes(candidatos[0]);
     if (!dudaGuardada) {
       caso = candidatos[0];
       certeza = 'alta';
@@ -700,8 +700,8 @@ export function interpretar(
     fechasDichas: fechasDichas(original, hoy),
     numeros,
     todas,
-    preconfiguraciones,
-    preconfiguracionesPosibles: posibles,
+    atajos,
+    atajosPosibles: posibles,
     candidatos,
     caso,
     certeza,

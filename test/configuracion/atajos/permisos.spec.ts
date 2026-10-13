@@ -4,15 +4,15 @@ import {
   PERMITIDO_AGENTE_EDITOR,
 } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
 import type { UsuarioAutenticado } from '../../../src/auth/interfaces/auth.interface.js';
-import type { EjecutorPreconfiguracionService } from '../../../src/configuracion/preconfiguraciones/ejecutor.service.js';
-import { PreconfiguracionesController } from '../../../src/configuracion/preconfiguraciones/preconfiguraciones.controller.js';
-import type { PreconfiguracionesService } from '../../../src/configuracion/preconfiguraciones/preconfiguraciones.service.js';
-import type { Preconfiguracion } from '../../../src/configuracion/preconfiguraciones/interfaces/preconfiguraciones.interface.js';
+import type { EjecutorAtajoService } from '../../../src/configuracion/atajos/ejecutor.service.js';
+import { AtajosController } from '../../../src/configuracion/atajos/atajos.controller.js';
+import type { AtajosService } from '../../../src/configuracion/atajos/atajos.service.js';
+import type { Atajo } from '../../../src/configuracion/atajos/interfaces/atajos.interface.js';
 
 /**
  * Qué alcanza el agente de estas rutas.
  *
- * Solo leer y ejecutar. Y ejecutar tampoco escribe: una preconfiguración es el
+ * Solo leer y ejecutar. Y ejecutar tampoco escribe: un atajo es el
  * vocabulario de la operación —"BT LIMA" son cinco OPL con sus zonas—, no una
  * macro de cambios. Hubo un rato en que podía llevar bloques de edición y el
  * permiso dependía del contenido; lo que queda de aquello es el cuidado de que
@@ -21,11 +21,17 @@ import type { Preconfiguracion } from '../../../src/configuracion/preconfiguraci
 
 const USUARIO = { id: 'u1', email: 'jose@ripley.com.pe' } as UsuarioAutenticado;
 
+describe('Las rutas', () => {
+  it('responde en /configuracion/atajos y, mientras se reimporta el flujo, en la de antes', () => {
+    expect(Reflect.getMetadata('path', AtajosController)).toEqual(['configuracion/atajos', 'configuracion/preconfiguraciones']);
+  });
+});
+
 const marcada = (metodo: string, clave: string) =>
   Reflect.getMetadata(
     clave,
-    PreconfiguracionesController.prototype[
-      metodo as keyof PreconfiguracionesController
+    AtajosController.prototype[
+      metodo as keyof AtajosController
     ] as object,
   ) === true;
 
@@ -34,17 +40,17 @@ function armar(bloques: { accion: string }[], _puedeEscribir = false) {
 
   const porNombre = vi
     .fn()
-    .mockResolvedValue({ nombre: 'BT Lima', bloques } as Preconfiguracion);
+    .mockResolvedValue({ nombre: 'BT Lima', bloques } as Atajo);
 
-  const controller = new PreconfiguracionesController(
-    { porNombre } as unknown as PreconfiguracionesService,
-    { ejecutar } as unknown as EjecutorPreconfiguracionService,
+  const controller = new AtajosController(
+    { porNombre } as unknown as AtajosService,
+    { ejecutar } as unknown as EjecutorAtajoService,
   );
 
   return { controller, ejecutar, porNombre };
 }
 
-describe('Lo que el agente alcanza de las preconfiguraciones', () => {
+describe('Lo que el agente alcanza de los atajos', () => {
   it('puede leer la lista: ejecuta por nombre y sin los nombres no sabe cuáles hay', () => {
     expect(marcada('listar', PERMITIDO_AGENTE)).toBe(true);
   });
@@ -98,7 +104,7 @@ describe('Ejecutar no pide el modo editor, porque no escribe', () => {
     // Era `exigirModoEditorSiEscribe`, y existía porque el permiso dependía del
     // contenido. Sin bloques de edición no hay contenido del que dependa.
     expect(
-      'exigirModoEditorSiEscribe' in PreconfiguracionesController.prototype,
+      'exigirModoEditorSiEscribe' in AtajosController.prototype,
     ).toBe(false);
   });
 

@@ -52,7 +52,7 @@ function armar(
     agendas?: Array<Record<string, unknown>>;
     servicios?: typeof SERVICIOS;
     opls?: Record<string, { id: string; nombre: string }>;
-    /** Lo que guarda la preconfiguración: cada operador con su zona y su agenda */
+    /** Lo que guarda el atajo: cada operador con su zona y su agenda */
     guardadas?: Array<{ codigo: string; zona: string | null; agenda: string | null }>;
   } = {},
 ) {
@@ -600,7 +600,7 @@ describe('Editar un tipo de servicio: lo que llega tras validar', () => {
   });
 });
 
-describe('Editar un tipo de servicio sobre lo que enseñó una preconfiguración', () => {
+describe('Editar un tipo de servicio sobre lo que enseñó un atajo', () => {
   /** El 1088 de Chile tiene cuatro zonas; "Estado del Next Day y Same Day de chile" lo consulta en la Zona 4 */
   const CUATRO_ZONAS = [
     { mainZone: 'z-4', nombre: 'Zona 4' },
@@ -613,13 +613,13 @@ describe('Editar un tipo de servicio sobre lo que enseñó una preconfiguración
   it('va a la zona que ella guarda, sin preguntar cuál de las cuatro', async () => {
     const { servicio, actualizarServicio, guardadas } = armar({ ...SAME_DAY, guardadas: [{ codigo: '1088', zona: 'Zona 4', agenda: null }] });
 
-    await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, preconfiguracion: 'Estado del Next Day y Same Day de chile' }));
+    await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, atajo: 'Estado del Next Day y Same Day de chile' }));
 
     expect(guardadas.leer).toHaveBeenCalledWith('Estado del Next Day y Same Day de chile', 'opl');
     expect(actualizarServicio.mock.calls[0][1].mainZone).toBe('z-4');
   });
 
-  it('sin la preconfiguración, con las cuatro zonas, se sigue negando a elegir', async () => {
+  it('sin el atajo, con las cuatro zonas, se sigue negando a elegir', async () => {
     const { servicio, actualizarServicio } = armar(SAME_DAY);
 
     await expect(servicio.editar(USUARIO, editar({ opl: '1088', activo: false }))).rejects.toThrow(/Hay 4 opciones .* indica la zona/);
@@ -629,7 +629,7 @@ describe('Editar un tipo de servicio sobre lo que enseñó una preconfiguración
   it('la zona que se dice manda sobre la guardada', async () => {
     const { servicio, actualizarServicio } = armar({ ...SAME_DAY, guardadas: [{ codigo: '1088', zona: 'Zona 4', agenda: null }] });
 
-    await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, zona: 'Zona 2', preconfiguracion: 'Estado del Next Day y Same Day de chile' }));
+    await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, zona: 'Zona 2', atajo: 'Estado del Next Day y Same Day de chile' }));
 
     expect(actualizarServicio.mock.calls[0][1].mainZone).toBe('z-2');
   });
@@ -641,7 +641,7 @@ describe('Editar un tipo de servicio sobre lo que enseñó una preconfiguración
       guardadas: [{ codigo: '1088 - Courier Paquetería', zona: 'Zona 4', agenda: null }, { codigo: '1130', zona: 'Zona 4', agenda: null }],
     });
 
-    await servicio.editar(USUARIO, editar({ opl: 'todos', activo: false, preconfiguracion: 'Estado del Next Day y Same Day de chile' }));
+    await servicio.editar(USUARIO, editar({ opl: 'todos', activo: false, atajo: 'Estado del Next Day y Same Day de chile' }));
 
     expect((opl.buscarOpl as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['1088', '1130']);
   });

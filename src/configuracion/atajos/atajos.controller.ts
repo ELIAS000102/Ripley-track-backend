@@ -12,17 +12,17 @@ import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PermitidoAgente } from '../../agente/seguridad/permitido-agente.decorator.js';
-import { EjecutorPreconfiguracionService } from './ejecutor.service.js';
-import { PreconfiguracionesService } from './preconfiguraciones.service.js';
+import { EjecutorAtajoService } from './ejecutor.service.js';
+import { AtajosService } from './atajos.service.js';
 import {
-  CrearPreconfiguracionDto,
-  EditarPreconfiguracionDto,
-  EjecutarPreconfiguracionDto,
-  ListarPreconfiguracionesDto,
-} from './dto/preconfiguraciones.dto.js';
+  CrearAtajoDto,
+  EditarAtajoDto,
+  EjecutarAtajoDto,
+  ListarAtajosDto,
+} from './dto/atajos.dto.js';
 
 /**
- * Preconfiguraciones: tandas de consulta con sus datos ya puestos.
+ * Atajos: tandas de consulta con sus datos ya puestos.
  *
  * Son compartidas —todo el equipo ve y ejecuta las mismas— y cada cambio queda
  * en el registro de uso. Vivían escritas en el código; están en Supabase porque
@@ -34,15 +34,16 @@ import {
  * códigos. Guardado aquí, preguntar por el BT Lima funciona sin que esos cinco
  * códigos estén escritos en el prompt ni en el código.
  */
-@Controller('configuracion/preconfiguraciones')
-export class PreconfiguracionesController {
+// La ruta de antes sigue respondiendo mientras el flujo de n8n no se reimporte
+@Controller(['configuracion/atajos', 'configuracion/preconfiguraciones'])
+export class AtajosController {
   constructor(
-    private readonly preconfiguraciones: PreconfiguracionesService,
-    private readonly ejecutor: EjecutorPreconfiguracionService,
+    private readonly atajos: AtajosService,
+    private readonly ejecutor: EjecutorAtajoService,
   ) {}
 
   /**
-   * GET .../preconfiguraciones?incluirInactivas=true
+   * GET .../atajos?incluirInactivas=true
    *
    * El agente la alcanza porque **ejecuta por nombre**, y sin poder leer los
    * nombres no tiene cómo saber cuáles hay: la alternativa era que adivinara o
@@ -51,12 +52,12 @@ export class PreconfiguracionesController {
    */
   @PermitidoAgente()
   @Get()
-  async listar(@Query() query: ListarPreconfiguracionesDto) {
-    return this.preconfiguraciones.listar(query);
+  async listar(@Query() query: ListarAtajosDto) {
+    return this.atajos.listar(query);
   }
 
   /**
-   * POST .../preconfiguraciones/ejecutar   — la que usa el agente
+   * POST .../atajos/ejecutar   — la que usa el agente
    *
    * Por **nombre**, que es como se la pide en el chat: "ejecuta la simulación
    * SE". No puede crear ni cambiar ninguna, solo disparar las que ya existen.
@@ -65,88 +66,88 @@ export class PreconfiguracionesController {
    * como un identificador.
    *
    * Lleva `@PermitidoAgente()` y no `@PermitidoAgenteEditor()` porque una
-   * preconfiguración **solo consulta**: es el vocabulario de la operación, no
+   * atajo **solo consulta**: es el vocabulario de la operación, no
    * una macro de cambios. Hubo un rato en que podía llevar bloques de edición y
    * el permiso dependía del contenido; se quitó, y con ello la comprobación.
    */
-  @Auditar('preconfiguracion.ejecutar')
+  @Auditar('atajo.ejecutar')
   @PermitidoAgente()
   @Post('ejecutar')
   async ejecutarPorNombre(
     @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EjecutarPreconfiguracionDto,
+    @Body() body: EjecutarAtajoDto,
   ) {
-    const preconfiguracion = await this.preconfiguraciones.porNombre(
+    const atajo = await this.atajos.porNombre(
       body.nombre,
     );
 
     return this.ejecutor.ejecutar(
       usuario,
-      preconfiguracion,
+      atajo,
       body.soloPrimeras,
     );
   }
 
-  /** GET .../preconfiguraciones/{id} */
+  /** GET .../atajos/{id} */
   @Get(':id')
   async obtener(@Param('id') id: string) {
-    return this.preconfiguraciones.obtener(id);
+    return this.atajos.obtener(id);
   }
 
-  /** POST .../preconfiguraciones */
-  @Auditar('preconfiguracion.crear')
+  /** POST .../atajos */
+  @Auditar('atajo.crear')
   @Post()
   async crear(
     @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: CrearPreconfiguracionDto,
+    @Body() body: CrearAtajoDto,
   ) {
-    return this.preconfiguraciones.crear(usuario, body);
+    return this.atajos.crear(usuario, body);
   }
 
-  /** PUT .../preconfiguraciones/{id} */
-  @Auditar('preconfiguracion.editar')
+  /** PUT .../atajos/{id} */
+  @Auditar('atajo.editar')
   @Put(':id')
   async editar(
     @Param('id') id: string,
-    @Body() body: EditarPreconfiguracionDto,
+    @Body() body: EditarAtajoDto,
   ) {
-    return this.preconfiguraciones.editar(id, body);
+    return this.atajos.editar(id, body);
   }
 
   /**
-   * DELETE .../preconfiguraciones/{id}
+   * DELETE .../atajos/{id}
    *
    * La apaga; no la borra. Puede estar nombrada en el historial de auditoría, y
    * perder el nombre deja el registro sin sentido.
    */
-  @Auditar('preconfiguracion.retirar')
+  @Auditar('atajo.retirar')
   @Delete(':id')
   async retirar(@Param('id') id: string) {
-    return this.preconfiguraciones.retirar(id);
+    return this.atajos.retirar(id);
   }
 
   /**
-   * POST .../preconfiguraciones/{id}/ejecutar
+   * POST .../atajos/{id}/ejecutar
    *
-   * Va por `POST` aunque haya preconfiguraciones que solo consultan: las que
+   * Va por `POST` aunque haya atajos que solo consultan: los que
    * llevan bloques de edición **escriben en Ripley**, y eso no puede ir en un
    * verbo que cualquier cosa reintenta sola.
    *
    * Se audita siempre. Una que solo consulta deja una línea de más en el
    * historial, y es el lado bueno en el que equivocarse.
    */
-  @Auditar('preconfiguracion.ejecutar')
+  @Auditar('atajo.ejecutar')
   @Post(':id/ejecutar')
   async ejecutar(
     @Usuario() usuario: UsuarioAutenticado,
     @Param('id') id: string,
     @Query('soloPrimeras') soloPrimeras?: string,
   ) {
-    const preconfiguracion = await this.preconfiguraciones.obtener(id);
+    const atajo = await this.atajos.obtener(id);
 
     return this.ejecutor.ejecutar(
       usuario,
-      preconfiguracion,
+      atajo,
       soloPrimeras ? Number(soloPrimeras) : undefined,
     );
   }

@@ -11,7 +11,7 @@ import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
  *
  * Aquí vivían dos listas escritas en el código: los cinco operadores de
  * despacho y las once tiendas de retiro, con el destino de cada uno. "Simula
- * SD" a secas las disparaba. Se fueron a las preconfiguraciones, así que lo que
+ * SD" a secas las disparaba. Se fueron a los atajos, así que lo que
  * se fija aquí es lo que cambió: que ya no se adivina nada, y que lo que sí es
  * un valor por defecto —el SKU, el punto de entrega— sigue funcionando.
  */

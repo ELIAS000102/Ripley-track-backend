@@ -1,17 +1,17 @@
 /**
- * Los tipos de bloque, y la tabla donde están sus tareas.
+ * Los tipos de bloque, y la tabla donde están sus ítems.
  *
- * El reporte de CDs no está: no hay nada que preconfigurarle —se pide con un
+ * El reporte de CDs no está: no hay nada que guardarle como atajo —se pide con un
  * país y unos días— y no admite edición.
  */
 export const TABLA_POR_TIPO = {
-  picking: 'tarea_picking',
-  recepcion: 'tarea_recepcion',
-  despacho: 'tarea_despacho',
-  opl: 'tarea_opl',
-  masivo: 'tarea_masivo',
-  transferencia: 'tarea_transferencia',
-  simulacion: 'tarea_simulacion',
+  picking: 'item_picking',
+  recepcion: 'item_recepcion',
+  despacho: 'item_despacho',
+  opl: 'item_opl',
+  masivo: 'item_masivo',
+  transferencia: 'item_transferencia',
+  simulacion: 'item_simulacion',
 } as const;
 
 export const TIPOS = Object.keys(TABLA_POR_TIPO) as Tipo[];
@@ -19,9 +19,9 @@ export const TIPOS = Object.keys(TABLA_POR_TIPO) as Tipo[];
 export type Tipo = keyof typeof TABLA_POR_TIPO;
 
 /**
- * Qué hacen las tareas de un bloque. **Solo consultar.**
+ * Qué hacen los ítems de un bloque. **Solo consultar.**
  *
- * Una preconfiguración no es una macro de cambios: es el vocabulario de la
+ * Un atajo no es una macro de cambios: es el vocabulario de la
  * operación. "BT LIMA" son cinco OPL con sus zonas, y el backend solo entiende
  * códigos, así que sin esto el agente pedía la capacidad de "BT LIMA" y recibía
  * un "no encontrado". Guardado, el agente sabe a qué se refiere el usuario sin
@@ -34,13 +34,13 @@ export type Tipo = keyof typeof TABLA_POR_TIPO;
 export type Accion = 'consultar';
 
 /**
- * Una tarea, tal como sale de su tabla.
+ * Un ítem, tal como sale de su tabla.
  *
  * Las columnas van en `snake_case` y los campos del endpoint en `camelCase`.
  * La conversión se hace en un sitio, al armar el DTO: mantener a mano un mapa
  * de cuarenta nombres es garantizar que uno se quede sin traducir.
  */
-export interface Tarea {
+export interface Item {
   id: number;
   orden: number;
   nota: string | null;
@@ -53,11 +53,11 @@ export interface Bloque {
   tipo: Tipo;
   accion: Accion;
   nota: string | null;
-  /** Se rellenan al leer la preconfiguración entera */
-  tareas?: Tarea[];
+  /** Se rellenan al leer el atajo entero */
+  items?: Item[];
 }
 
-export interface Preconfiguracion {
+export interface Atajo {
   id: string;
   nombre: string;
   descripcion: string | null;
@@ -75,8 +75,8 @@ export interface Preconfiguracion {
   tipos?: Tipo[];
 }
 
-/** Una tarea ya ejecutada */
-export interface TareaEjecutada {
+/** Un ítem ya ejecutado */
+export interface ItemEjecutada {
   orden: number;
   nota: string | null;
   /** La respuesta del apartado, tal como la devolvería su propio endpoint */
@@ -84,7 +84,7 @@ export interface TareaEjecutada {
   /**
    * El motivo, si falló.
    *
-   * Una tarea que falla **no detiene a las siguientes**: un bloque de once
+   * Un ítem que falla **no detiene a los siguientes**: un bloque de once
    * simulaciones no puede quedarse sin responder porque la tercera tienda ya no
    * exista.
    */
@@ -96,12 +96,12 @@ export interface BloqueEjecutado {
   tipo: Tipo;
   accion: Accion;
   nota: string | null;
-  tareas: TareaEjecutada[];
+  items: ItemEjecutada[];
 }
 
 export interface Ejecucion {
-  preconfiguracion: string;
+  atajo: string;
   bloques: BloqueEjecutado[];
-  /** Cuántas tareas salieron bien y cuántas no, en toda la preconfiguración */
-  resumen: { tareas: number; correctas: number; fallidas: number };
+  /** Cuántos ítems salieron bien y cuántos no, en todo el atajo */
+  resumen: { items: number; correctas: number; fallidas: number };
 }

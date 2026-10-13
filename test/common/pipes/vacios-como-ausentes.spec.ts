@@ -6,7 +6,7 @@ import { ArgumentMetadata } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
-import { EjecutarPreconfiguracionDto } from '../../../src/configuracion/preconfiguraciones/dto/preconfiguraciones.dto.js';
+import { EjecutarAtajoDto } from '../../../src/configuracion/atajos/dto/atajos.dto.js';
 import { VaciosComoAusentesPipe } from '../../../src/common/pipes/vacios-como-ausentes.pipe.js';
 
 /**
@@ -60,16 +60,16 @@ describe('Lo que no toca', () => {
   });
 
   it('lo anidado, que es dato del usuario y no un campo de este backend', () => {
-    // `campos` son los datos de una tarea de preconfiguración: lo que haya ahí
+    // `campos` son los datos de un ítem de atajo: lo que haya ahí
     // lo valida el DTO de esa operación, no este pipe
     expect(
       pipe.transform(
-        { nombre: 'X', bloques: [{ tareas: [{ campos: { codigo: '' } }] }] },
+        { nombre: 'X', bloques: [{ items: [{ campos: { codigo: '' } }] }] },
         como('body'),
       ),
     ).toEqual({
       nombre: 'X',
-      bloques: [{ tareas: [{ campos: { codigo: '' } }] }],
+      bloques: [{ items: [{ campos: { codigo: '' } }] }],
     });
   });
 
@@ -82,7 +82,7 @@ describe('Lo que no toca', () => {
 describe('El 400 que se vio en n8n', () => {
   /** Lo que haría el ValidationPipe después de este */
   const validarComoNest = async (cuerpo: unknown) => {
-    const dto = plainToInstance(EjecutarPreconfiguracionDto, cuerpo);
+    const dto = plainToInstance(EjecutarAtajoDto, cuerpo);
     const fallos = await validate(dto as object);
 
     return fallos.flatMap((f) => Object.values(f.constraints ?? {}));
@@ -114,7 +114,7 @@ describe('El 400 que se vio en n8n', () => {
 
     expect(await validarComoNest(limpio)).toEqual([]);
     expect(
-      plainToInstance(EjecutarPreconfiguracionDto, limpio).soloPrimeras,
+      plainToInstance(EjecutarAtajoDto, limpio).soloPrimeras,
     ).toBe(2);
   });
 
