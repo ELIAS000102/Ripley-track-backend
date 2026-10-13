@@ -159,11 +159,19 @@ export class TransfService {
       `Guardando relación "${actual.label}" del almacén ${dto.warehouseId}`,
     );
 
+    // Ripley devuelve el documento entero ya guardado. En un simulacro, el que
+    // habría devuelto: el mismo, con esta relación como iba a quedar
     const respuesta = await this.ripley.put<RelacionesResponse>(
       this.ripley.endpoint('officeRelationship'),
       pais,
       payload,
       { id: dto.warehouseId },
+      {
+        ...doc,
+        relationships: doc.relationships.map((r) =>
+          r._id === actual._id ? { ...r, ...payload } : r,
+        ),
+      },
     );
 
     // La API devuelve el documento completo ya actualizado

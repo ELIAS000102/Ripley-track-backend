@@ -124,6 +124,14 @@ class SesionFalsa implements CanActivate {
 
     if (id) peticion.usuario = { id, email: `${id}@ripley.com.pe` };
 
+    // Un paso de una rutina: lo que dejaría el guard de sesión con su token
+    if (id && peticion.get('x-rutina')) {
+      peticion.rutina = {
+        id: 'token-1', ejecucion: 'e-1', rutina: 'r-1', usuario: peticion.usuario!,
+        modo: 'prueba', tarea: 1, paso: 1, exp: Date.now() + 60000,
+      };
+    }
+
     return true;
   }
 }
@@ -312,6 +320,37 @@ describe('AgenteGuard', () => {
       await comoAgente(request(servidor()).get('/consultas/sin-marcar')).expect(
         403,
       );
+    });
+  });
+
+  describe('un paso de una rutina', () => {
+    const comoRutina = (r: request.Test) => comoAgente(r).set('X-Rutina', '1');
+
+    it('escribe sin el interruptor: lo autorizó su creador al activarla, y una prueba va en simulacro', async () => {
+      await comoRutina(request(servidor()).put('/edicion/capacidad')).expect(200);
+    });
+
+    it('consulta lo marcado, como el agente', async () => {
+      await comoRutina(request(servidor()).get('/consultas/permitida')).expect(200);
+    });
+
+    it('lo que nadie marcó sigue cerrado', async () => {
+      await comoRutina(request(servidor()).get('/consultas/sin-marcar')).expect(403);
+    });
+
+    it('la lista negra le aplica igual: ni el token de Ripley, ni el modo, ni las rutinas', async () => {
+      await comoRutina(request(servidor()).get('/configuracion/token-ripley/estado')).expect(403);
+      await comoRutina(request(servidor()).put('/agente/modo')).expect(403);
+      await comoRutina(request(servidor()).post('/rutinas')).expect(403);
+    });
+
+    it('sin la cabecera del agente no pasa: el token de una rutina no abre las rutas del panel', async () => {
+      const r = await request(servidor()).post('/consultas/escribir').set('X-Usuario', 'ana').set('X-Rutina', '1').expect(403);
+      expect(r.body.message).toMatch(/solo sirve para las herramientas de Silvana/);
+    });
+
+    it('y una persona con el interruptor apagado sigue sin poder escribir', async () => {
+      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(403);
     });
   });
 });

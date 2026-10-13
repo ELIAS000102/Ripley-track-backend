@@ -112,8 +112,15 @@ export class EditarTransferenciaAgenteService {
 
     this.exigirAlgunCambio(resueltos, porEscribir);
 
+    // Cómo quedó cada relación según Ripley. En un simulacro, cómo quedaría:
+    // es lo único que lo dice, porque nada llegó a escribirse
+    const guardadas = new Map<
+      string,
+      NonNullable<Awaited<ReturnType<TransfService['actualizarRelacion']>>['relacion']>
+    >();
+
     for (const r of porEscribir) {
-      await this.transf.actualizarRelacion({
+      const guardada = await this.transf.actualizarRelacion({
         warehouseId: origen.id,
         relacionId: r.relacion!.relacionId,
         pais,
@@ -122,13 +129,14 @@ export class EditarTransferenciaAgenteService {
         transferPeriod: dto.transito,
         availableDays: dias,
       });
+      if (guardada?.relacion) guardadas.set(r.relacion!.relacionId, guardada.relacion);
     }
 
-    // Se relee UNA vez para contar lo que quedó, no lo que se pidió
-    const { relaciones: despues } = await this.transf.listarRelaciones(
-      origen.id,
-      pais,
-    );
+    // Se relee UNA vez para contar lo que quedó, no lo que se pidió. En un
+    // simulacro no: Ripley diría lo de antes
+    const despues = this.auditoria.enSimulacro()
+      ? relaciones.map((x) => guardadas.get(x.relacionId) ?? x)
+      : (await this.transf.listarRelaciones(origen.id, pais)).relaciones;
 
     const destinos: DestinoEditado[] = resueltos.map((r) => {
       if (!r.relacion) {

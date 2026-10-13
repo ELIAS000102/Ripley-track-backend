@@ -172,7 +172,8 @@ export class OplMasivoService {
   ): Promise<AgendaState[]> {
     const payload = await this.armarPayloadConsulta(dto, pais);
 
-    const data = await this.ripley.post<ConsultaStateResponse>(
+    // Un POST que lee: por `postDeLectura`, o un simulacro lo cortaría
+    const data = await this.ripley.postDeLectura<ConsultaStateResponse>(
       this.ripley.endpoint('routesState'),
       pais,
       payload,
@@ -304,10 +305,22 @@ export class OplMasivoService {
 
     this.logger.log(`Actualizando ${data.length} agenda(s)`);
 
+    // En un simulacro, cada agenda enviada cuenta como encontrada y cambiada:
+    // es lo que pasaría si se hiciera de verdad
     const respuesta = await this.ripley.post<ActualizacionResponse>(
       this.ripley.endpoint('routesUpdate'),
       pais,
       { type: this.TIPO_ACCION, data },
+      undefined,
+      {
+        rows: data.map(() => ({
+          acknowledged: true,
+          matchedCount: 1,
+          modifiedCount: 1,
+          upsertedCount: 0,
+          upsertedId: null,
+        })),
+      },
     );
 
     const filas = respuesta?.rows ?? [];

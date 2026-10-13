@@ -13,6 +13,7 @@ import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { CrearRutinaDto, EditarRutinaDto, HorarioDto, TareaDto } from './dto/rutinas.dto.js';
 import { choques, horaCorta, proximoTurno } from './horarios.util.js';
 import type {
+  EjecucionDetalle,
   Horario,
   Paso,
   ResumenEjecucion,
@@ -24,7 +25,13 @@ import type {
 const CAMPOS = 'id, nombre, descripcion, pais, activa, version, probada_version, probada_en, creado_por, creado_por_id, creado_en, actualizado_en';
 const CAMPOS_EJECUCION = 'id, rutina_id, modo, origen, estado, version, programada_para, tarea_detenida, motivo, inicio, fin, creado_en';
 
+/** Lo de más que trae una ejecución entera: qué tareas hace y lo que hizo cada una */
+export const CAMPOS_DETALLE = `${CAMPOS_EJECUCION}, tareas, resultado, disparada_por`;
+
 type FilaEjecucion = ResumenEjecucion & { rutina_id: string };
+
+/** Una rutina entera, como la recorre el ejecutor: con sus pasos y con quién la creó */
+export type RutinaParaEjecutar = Rutina & { creado_por_id: string | null; tareas: Tarea[]; horarios: Horario[] };
 
 const ascendente = (lista: number[] = []) => [...lista].sort((a, b) => a - b);
 
@@ -109,6 +116,60 @@ export class RutinasService {
       horarios,
       tareas: tareas.map((t) => ({ ...t, pasos: pasos.filter((p) => p.tarea_id === t.id).map((p) => sinCampo(p, 'tarea_id')) })),
     }, ejecuciones, usuario);
+  }
+
+  /**
+   * Una entera, como la necesita el ejecutor: con sus pasos y con su creador.
+   * No pasa por la vista, que lo quita: el ejecutor corre con su cuenta.
+   */
+  async paraEjecutar(id: string): Promise<RutinaParaEjecutar> {
+    const { data, error } = await this.supabase.admin.from('rutinas').select(CAMPOS).eq('id', id).maybeSingle();
+    if (error) this.reventar('leer la rutina', error.message);
+    if (!data) throw new NotFoundException('No existe esa rutina');
+
+    const [horarios, tareas] = await Promise.all([this.horariosDe([id]), this.tareasDe([id])]);
+    const pasos = await this.pasosDe(tareas.map((t) => t.id));
+
+    return {
+      ...(data as Rutina & { creado_por_id: string | null }),
+      horarios: horarios.map((h) => sinCampo(h, 'rutina_id')),
+      tareas: tareas.map((t) => ({
+        ...sinCampo(t, 'rutina_id'),
+        pasos: pasos.filter((p) => p.tarea_id === t.id).map((p) => sinCampo(p, 'tarea_id')),
+      })),
+    };
+  }
+
+  /** Una ejecución entera: qué tareas hace y lo que hizo cada paso */
+  async ejecucion(rutinaId: string, ejecucionId: string): Promise<EjecucionDetalle> {
+    const { data, error } = await this.supabase.admin
+      .from('rutina_ejecuciones')
+      .select(CAMPOS_DETALLE)
+      .eq('id', ejecucionId)
+      .eq('rutina_id', rutinaId)
+      .maybeSingle();
+    if (error) this.reventar('leer la ejecución', error.message);
+    if (!data) throw new NotFoundException('No existe esa ejecución de la rutina');
+
+    const fila = data as EjecucionDetalle;
+    return { ...fila, tareas: [...(fila.tareas ?? [])].map(Number), resultado: Array.isArray(fila.resultado) ? fila.resultado : [] };
+  }
+
+  /**
+   * Apunta que la versión probada salió bien, y con eso se puede activar.
+   *
+   * Solo si la rutina sigue en esa versión: si alguien la cambió mientras se
+   * probaba, lo probado ya no es lo que hay. Dice si la apuntó.
+   */
+  async marcarProbada(id: string, version: number): Promise<boolean> {
+    const { data, error } = await this.supabase.admin
+      .from('rutinas')
+      .update({ probada_version: version, probada_en: new Date().toISOString() })
+      .eq('id', id)
+      .eq('version', version)
+      .select('id');
+    if (error) this.reventar('apuntar la prueba', error.message);
+    return Boolean((data as unknown[] | null)?.length);
   }
 
   /** Las últimas ejecuciones de una rutina, la más reciente primero */
@@ -304,7 +365,8 @@ export class RutinasService {
       propia: Boolean(dueno) && dueno === usuario.id,
       probada,
       noActivable,
-      proxima: rutina.activa && !detenida ? proximoTurno(horarios, rutina.pais) : null,
+      // Una real detenida para la rutina hasta que se reanude; una prueba detenida, no
+      proxima: rutina.activa && detenida?.modo !== 'real' ? proximoTurno(horarios, rutina.pais) : null,
       ultima: resumen(ejecuciones[0]),
       detenida,
     };

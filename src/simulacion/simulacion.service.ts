@@ -324,7 +324,8 @@ export class SimulacionService {
       `Simulando ${dto.deliveryMethod}/${dto.typeOfServiceCode} — ${almacen?.code ?? 'sin almacén'} → ${courier.code} (${comuna.name})`,
     );
 
-    const respuesta = await this.ripley.post<SimulacionResponse>(
+    // Simular no cambia nada en Ripley: es un POST que lee
+    const respuesta = await this.ripley.postDeLectura<SimulacionResponse>(
       this.ripley.endpoint('simulator'),
       pais,
       payload,

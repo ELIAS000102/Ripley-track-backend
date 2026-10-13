@@ -85,3 +85,69 @@ export interface RutinaVista extends Rutina {
   /** Una ejecución detenida esperando que alguien confirme que puede seguir */
   detenida: ResumenEjecucion | null;
 }
+
+// ---------- Lo que hace una ejecución ----------
+
+/** Una herramienta que llamó un paso, tal como la vio el backend */
+export interface LlamadaHerramienta {
+  herramienta: string;
+  /** El código HTTP con que respondió */
+  estado: number;
+  /** Lo que salió mal: el error de la llamada, o el de las filas que fallaron */
+  problemas: string[];
+  /** El atajo que ejecutó, si fue un atajo */
+  atajo?: string;
+  /** Las escrituras que no salieron hacia Ripley porque era una prueba */
+  escriturasEvitadas: number;
+}
+
+export interface PasoEjecutado {
+  orden: number;
+  instruccion: string;
+  estado: 'completado' | 'fallido';
+  /** Por qué falló, en una frase */
+  motivo?: string;
+  /** Lo que contestó Silvana */
+  respuesta: string;
+  llamadas: LlamadaHerramienta[];
+  inicio: string;
+  fin: string;
+}
+
+export interface TareaEjecutada {
+  orden: number;
+  nombre: string;
+  /** 1 la primera vez; al reanudar, la tarea que falló se reintenta con el siguiente */
+  intento: number;
+  estado: 'en_curso' | 'completada' | 'fallida' | 'cancelada';
+  pasos: PasoEjecutado[];
+}
+
+/** Una ejecución entera, con lo que hizo cada tarea y cada paso */
+export interface EjecucionDetalle extends ResumenEjecucion {
+  rutina_id: string;
+  tareas: number[];
+  resultado: TareaEjecutada[];
+  disparada_por: string | null;
+}
+
+/** Lo que devuelve el flujo de n8n en un paso de una rutina */
+export interface RespuestaAgente {
+  respuesta?: string;
+  motivo?: string | null;
+  seguro?: boolean;
+  /** Solo lo trae el flujo que entiende las rutinas */
+  rutina?: {
+    /** El tipo del plan: "pasos", "libre", "faltan", "aclarar"… */
+    tipo?: string;
+    faltan?: string[];
+    descartados?: string[];
+    /** Las herramientas que llamó, según el flujo */
+    herramientas?: string[];
+    /** Un agente contestó sin hacer sus llamadas, o le faltaron después del reintento */
+    sinTerminar?: boolean;
+    /** Lo que quedó sin llamar: los códigos, o el nombre de la herramienta */
+    faltaron?: string[];
+    error?: boolean;
+  } | null;
+}

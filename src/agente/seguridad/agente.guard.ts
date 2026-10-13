@@ -50,6 +50,12 @@ const PROHIBIDO_SIEMPRE = ['/configuracion/token-ripley', '/agente/modo', '/ruti
  *    activarlo, porque si no el agente se inventa por qué falló—.
  * 3. **¿Consulta?** Las rutas con @PermitidoAgente() pasan. El resto, 403.
  *
+ * **Un paso de una rutina** llega con un token de rutina en vez de una sesión.
+ * Solo sirve con "X-Origen: agente" —sin eso pasaría por las rutas del panel—,
+ * y escribe sin el interruptor: el permiso lo dio su creador al activarla, tras
+ * una prueba correcta, y en una prueba no escribe nada porque va en simulacro.
+ * La lista negra le aplica igual.
+ *
  * El modo se pregunta al servidor, nunca a la petición. Es lo que hace que el
  * interruptor sea un control y no un adorno: una petición puede mentir sobre en
  * qué modo cree estar, pero no sobre lo que el backend tiene guardado.
@@ -72,7 +78,12 @@ export class AgenteGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<RequestConUsuario>();
 
-    if (request.get('x-origen')?.toLowerCase() !== 'agente') return true;
+    if (request.get('x-origen')?.toLowerCase() !== 'agente') {
+      if (request.rutina) {
+        throw new ForbiddenException('El token de una rutina solo sirve para las herramientas de Silvana.');
+      }
+      return true;
+    }
 
     // 1. Lista negra
     const ruta = request.path ?? request.url ?? '';
@@ -103,7 +114,8 @@ export class AgenteGuard implements CanActivate {
 
     // 2. Escrituras: hace falta el interruptor puesto
     if (escribe) {
-      if (!this.modo.puedeEscribir(request.usuario?.id)) {
+      // Un paso de una rutina no depende del interruptor de nadie: corre solo
+      if (!request.rutina && !this.modo.puedeEscribir(request.usuario?.id)) {
         throw new ForbiddenException(
           'El agente está en modo consultor y esta operación modifica datos. ' +
             'Activa el modo editor con el interruptor del chat y vuelve a pedirlo.',

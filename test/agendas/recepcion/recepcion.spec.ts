@@ -334,6 +334,9 @@ describe('Guardar un día', () => {
       '/capacities/a-se-cap',
       'PE',
       expect.anything(),
+      undefined,
+      // Lo que se responde en un simulacro: el día existe
+      expect.objectContaining({ matchedCount: 1 }),
     );
   });
 
@@ -622,6 +625,9 @@ describe('El id de la capacidad, venga como venga', () => {
       '/capacities/a-se-cap',
       'PE',
       expect.anything(),
+      undefined,
+      // Lo que se responde en un simulacro: el día existe
+      expect.objectContaining({ matchedCount: 1 }),
     );
   });
 

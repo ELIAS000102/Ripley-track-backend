@@ -31,13 +31,14 @@ Cubre estas áreas de la operación logística:
 - **Rutinas** — trabajo que la agente hace sola, a su hora: tareas en orden, cada una con
   pasos de instrucciones estrictas, en los días y horas que se le den, en la hora de su país.
   Corren con la cuenta de quien las creó, se crean apagadas y solo se activan tras una prueba
-  correcta de su última versión.
+  correcta de su última versión. Una prueba las recorre enteras sin cambiar ninguna agenda; si
+  un paso falla, la rutina se detiene y avisa, y al reanudarla se reintenta esa tarea.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
 cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado,
 los grupos de lead time con sus matrices y mallas, que no vienen de Ripley sino de un Excel,
-las rutinas con su historial,
+las rutinas con su historial y sus avisos,
 y la configuración de los reportes: los grupos de tiendas del reporte ST y los CDs del reporte de los CDs.
 
 ## Quién lo usa

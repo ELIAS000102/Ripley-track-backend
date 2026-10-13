@@ -47,6 +47,13 @@ export function resumirCuerpo(data: unknown): string {
  * usuario por la firma de todos los services.
  *
  * Cada agenda (picking, despacho, etc.) solo arma su path y sus params.
+ *
+ * **Es también el único sitio donde se corta un simulacro.** Si la petición va
+ * en simulacro, un PUT o un POST que escribe no sale: se anota y se devuelve lo
+ * que Ripley habría respondido. Que sea aquí y no en cada service es lo que lo
+ * hace fiable: una escritura nueva que nadie recuerde marcar queda cortada
+ * igual. Por eso los POST que solo leen van por `postDeLectura`: si fueran por
+ * `post`, el simulacro los cortaría también.
  */
 @Injectable()
 export class RipleyHttpService {
@@ -233,14 +240,19 @@ export class RipleyHttpService {
   /**
    * "params" es opcional: picking lleva el id en la ruta,
    * despacho lo lleva en query string (?id=...).
+   *
+   * `simulada` es lo que Ripley habría respondido, para un simulacro. Hace
+   * falta donde quien llama lee la respuesta —cuántas filas coincidieron, el
+   * documento ya guardado—; donde no, basta con lo de por defecto.
    */
   async put<T>(
     path: string,
     pais: string,
     body: any,
     params?: Record<string, any>,
+    simulada?: T,
   ): Promise<T> {
-    return this.peticion<T>('put', 'actualizar', path, pais, params, body);
+    return this.peticion<T>('put', 'actualizar', path, pais, params, body, false, simulada);
   }
 
   async post<T>(
@@ -248,8 +260,9 @@ export class RipleyHttpService {
     pais: string,
     body: any,
     params?: Record<string, any>,
+    simulada?: T,
   ): Promise<T> {
-    return this.peticion<T>('post', 'enviar', path, pais, params, body);
+    return this.peticion<T>('post', 'enviar', path, pais, params, body, false, simulada);
   }
 
   /**
@@ -259,8 +272,13 @@ export class RipleyHttpService {
    * escribir. Uno que solo lee no tiene por qué hacerlo: borrarla en cada
    * búsqueda obligaba a repedir clústeres, oficinas y servicios cada vez.
    */
-  async postDeLectura<T>(path: string, pais: string, body: any): Promise<T> {
-    return this.peticion<T>('post', 'consultar', path, pais, undefined, body, true);
+  async postDeLectura<T>(
+    path: string,
+    pais: string,
+    body: any,
+    params?: Record<string, any>,
+  ): Promise<T> {
+    return this.peticion<T>('post', 'consultar', path, pais, params, body, true);
   }
 
   /**
@@ -280,14 +298,22 @@ export class RipleyHttpService {
     params?: Record<string, any>,
     body?: any,
     soloLee = false,
+    simulada?: T,
   ): Promise<T> {
     const url = `${this.getBaseUrl(pais)}${path}`;
 
     this.comprobarParams(params, accion);
 
     // Fuera del try a propósito: si falta el token, el aviso debe llegar
-    // íntegro al cliente en vez de convertirse en un 502 genérico.
+    // íntegro al cliente en vez de convertirse en un 502 genérico. Y antes del
+    // simulacro: una prueba tiene que fallar igual que fallaría de verdad si
+    // quien la corre no tiene token
     const headers = await this.getHeaders(pais);
+
+    if (metodo !== 'get' && !soloLee && this.contexto.enSimulacro()) {
+      return this.simular(metodo, accion, path, simulada);
+    }
+
     const config = { params, headers };
 
     try {
@@ -307,5 +333,28 @@ export class RipleyHttpService {
     } catch (error) {
       this.manejarError(error, accion, params, path.length, pais);
     }
+  }
+
+  /**
+   * Una escritura que no sale: se anota y se devuelve lo que Ripley habría
+   * respondido. La caché de catálogos no se olvida, porque nada cambió.
+   *
+   * Lo de por defecto lleva `simulado: true` para que, si alguien lo enseña
+   * tal cual, no pase por una respuesta de Ripley.
+   */
+  private simular<T>(
+    metodo: 'put' | 'post',
+    accion: string,
+    path: string,
+    simulada?: T,
+  ): T {
+    this.contexto.anotarEscrituraEvitada({ metodo, accion });
+
+    // Como el resto del log: la ruta por su longitud, nunca por su texto
+    this.logger.log(
+      `Simulacro: no se envía la escritura (${metodo.toUpperCase()} al ${accion}, ruta de ${path.length} car.)`,
+    );
+
+    return simulada ?? ({ simulado: true } as T);
   }
 }

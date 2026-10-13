@@ -25,7 +25,16 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
       }
       return r.slice(0, tope);
     };
-    const resultado = () => {
+    /*
+     * Una consulta se resuelve UNA vez, como la de Supabase, que es una sola
+     * petición. Cada eslabón de la cadena crea su promesa, y antes cada una
+     * volvía a ejecutarla: un `update({ estado: 'completada' }).eq('estado',
+     * 'en_curso').select()` cambiaba la fila en la primera pasada y la última
+     * ya no la encontraba.
+     */
+    let hecho: { data: unknown; error: null } | null = null;
+    const resultado = () => (hecho ??= ejecutar());
+    const ejecutar = () => {
       if (accion === 'borrar') {
         const quitar = new Set(filtradas());
         tablas[nombre] = tablas[nombre].filter((f) => !quitar.has(f));

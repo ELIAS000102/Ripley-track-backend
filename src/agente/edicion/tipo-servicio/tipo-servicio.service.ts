@@ -277,8 +277,12 @@ export class EditarTipoServicioAgenteService {
 
     const porEscribir = resueltos.filter((r) => r.servicio && r.cambia);
 
+    // Lo que se guardó de cada servicio: en un simulacro es lo único que dice
+    // cómo quedaría, porque nada llegó a Ripley
+    const guardados = new Map<string, unknown>();
+
     for (const r of porEscribir) {
-      await this.opl.actualizarServicio(r.servicio!.idServicio, {
+      const guardado = await this.opl.actualizarServicio(r.servicio!.idServicio, {
         ...consulta,
         isActive: cambio.activo,
         enabledForCheckout: cambio.enCheckout,
@@ -288,13 +292,18 @@ export class EditarTipoServicioAgenteService {
         maxOcurrence: cambio.maxOcurrencia,
         cortes: corte ? [corte] : undefined,
       });
+      guardados.set(r.servicio!.idServicio, guardado);
     }
 
     // Se relee una vez por operador, y solo si se escribió: contar lo que
-    // quedó es releer, pero releer sin haber tocado nada es una llamada de más
-    const despues = porEscribir.length
-      ? (await this.opl.listarServicios(consulta)).servicios
-      : servicios;
+    // quedó es releer, pero releer sin haber tocado nada es una llamada de más.
+    // En un simulacro no se relee: Ripley diría lo de antes, y el "después"
+    // sería que no cambió nada
+    const despues = !porEscribir.length
+      ? servicios
+      : this.auditoria.enSimulacro()
+        ? servicios.map((s) => this.previsto(s, guardados.get(s.idServicio)))
+        : (await this.opl.listarServicios(consulta)).servicios;
 
     const filas: ServicioEditado[] = resueltos.map((r) => {
       if (!r.servicio) {
@@ -618,6 +627,36 @@ export class EditarTipoServicioAgenteService {
       distinto(cambio.maxOcurrencia, antes.maxOcurrencia) ||
       cambiaCorte
     );
+  }
+
+  /**
+   * Cómo quedaría un servicio con lo que se mandó a guardar, para un simulacro.
+   *
+   * Sale de lo que `OplService` armó para Ripley, no de rehacer aquí la
+   * mezcla: ya resolvió qué campos cambian y qué día de corte se reemplaza, y
+   * hacerlo dos veces es la forma de que el simulacro y la realidad difieran.
+   */
+  private previsto<
+    T extends { isActive?: boolean; enabledForCheckout?: boolean; cortes?: unknown; slackDays?: unknown; maxOcurrence?: unknown },
+  >(servicio: T, guardado: unknown): T {
+    if (!guardado || typeof guardado !== 'object') return servicio;
+
+    const g = guardado as {
+      isActive?: boolean;
+      enabledForCheckout?: boolean;
+      slackDays?: number | string;
+      maxOcurrence?: number | string;
+      cutTime?: Array<{ id?: number; value?: string }>;
+    };
+
+    return {
+      ...servicio,
+      isActive: g.isActive ?? servicio.isActive,
+      enabledForCheckout: g.enabledForCheckout ?? servicio.enabledForCheckout,
+      slackDays: g.slackDays === undefined ? servicio.slackDays : Number(g.slackDays),
+      maxOcurrence: g.maxOcurrence === undefined ? servicio.maxOcurrence : Number(g.maxOcurrence),
+      cortes: g.cutTime ?? servicio.cortes,
+    };
   }
 
   /**

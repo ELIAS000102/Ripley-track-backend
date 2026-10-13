@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { CacheSesiones } from '../cache-sesiones.service.js';
+import { TokenRutinaService } from '../token-rutina.service.js';
 import { ES_PUBLICO } from '../decorators/publico.decorator.js';
 import type {
   RequestConUsuario,
@@ -29,6 +30,7 @@ export class SupabaseAuthGuard implements CanActivate {
     private readonly supabase: SupabaseService,
     private readonly cache: CacheSesiones,
     private readonly contexto: ContextoAuditoria,
+    private readonly rutinas: TokenRutinaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -46,6 +48,18 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException(
         'Falta el token de sesión: envía el header "Authorization: Bearer <token>"',
       );
+    }
+
+    // Un paso de una rutina: corre en nombre de quien la creó, y si es una
+    // prueba, en simulacro desde aquí mismo, antes de que corra nada más.
+    // Qué rutas puede tocar lo decide AgenteGuard.
+    if (this.rutinas.esDeRutina(token)) {
+      const permiso = await this.rutinas.validar(token);
+      request.usuario = permiso.usuario;
+      request.rutina = permiso;
+      this.contexto.identificarUsuario(permiso.usuario.id, permiso.usuario.email);
+      if (permiso.modo === 'prueba') this.contexto.activarSimulacro();
+      return true;
     }
 
     // El interceptor de auditoría lee de aquí para saber quién hizo la petición.

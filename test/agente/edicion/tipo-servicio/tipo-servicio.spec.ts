@@ -109,6 +109,7 @@ function armar(
   return {
     servicio: new EditarTipoServicioAgenteService(opl, contexto, {
       registrarCambio,
+      enSimulacro: () => false,
     } as unknown as ContextoAuditoria, guardadas),
     actualizarServicio,
     registrarCambio,

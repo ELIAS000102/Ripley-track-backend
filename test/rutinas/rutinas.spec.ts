@@ -182,6 +182,16 @@ describe('Lo que está corriendo o detenido', () => {
     expect(tablas.rutina_ejecuciones.find((e) => e.id === 'e2')).toMatchObject({ estado: 'cancelada' });
   });
 
+  it('una PRUEBA detenida no le quita el turno a una rutina activa: solo una real la para', async () => {
+    const { servicio, tablas } = montar();
+    const r = await servicio.crear(JOSE, APERTURA as never);
+    Object.assign(tablas.rutinas[0], { activa: true, probada_version: 1 });
+    tablas.rutina_ejecuciones = [{ id: 'p1', rutina_id: r.id, estado: 'detenida', modo: 'prueba', origen: 'manual', version: 1, creado_en: '2026-10-13T13:00:00Z' }];
+
+    const vista = (await servicio.listar(JOSE))[0];
+    expect([vista.detenida?.id, vista.proxima !== null]).toEqual(['p1', true]);
+  });
+
   it('el historial va de la más reciente a la más antigua', async () => {
     const { servicio, tablas } = montar();
     const r = await servicio.crear(JOSE, APERTURA as never);

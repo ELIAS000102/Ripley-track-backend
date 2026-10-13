@@ -70,6 +70,7 @@ function armar(relaciones = RELACIONES) {
   return {
     servicio: new EditarTransferenciaAgenteService(transf, contexto, {
       registrarCambio,
+      enSimulacro: () => false,
     } as unknown as ContextoAuditoria, almacenesDePrueba()),
     actualizarRelacion,
     registrarCambio,

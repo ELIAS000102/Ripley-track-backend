@@ -322,7 +322,7 @@ describe('Editar un día', () => {
     expect(ripley.put).toHaveBeenCalledWith('/capacities/634878417e6a170011a32305', 'PE', {
       capacities: [{ active: false, assigned: 190, day: '2026-10-12T00:00:00.000Z', occupied: 0 }],
       schedules: [{ country: 'PE', idOffice: '20026', type: 'transfer', typeOfService: 'ST', unitMeasure: 'Unidades' }],
-    });
+    }, undefined, expect.objectContaining({ matchedCount: 1 }));
   });
 
   it('buscando por destino se escribe igual, con el código del ORIGEN', async () => {

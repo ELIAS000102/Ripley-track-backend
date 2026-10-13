@@ -199,6 +199,7 @@ describe('Escribir invalida la caché de catálogos', () => {
 
     const contexto = {
       usuarioActual: () => ({ id: 'u1', email: 'ana@ripley.com.pe' }),
+      enSimulacro: () => false,
     } as unknown as ContextoAuditoria;
 
     const tokens = {

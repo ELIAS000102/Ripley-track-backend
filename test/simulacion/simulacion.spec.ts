@@ -99,7 +99,8 @@ function armar(region: unknown = CALLAO) {
 
   const ripley = {
     get,
-    post,
+    // Simular es un POST que lee: va por postDeLectura, que un simulacro no corta
+    postDeLectura: post,
     endpoint: (nombre: string) => `/${nombre}`,
   } as unknown as RipleyHttpService;
 

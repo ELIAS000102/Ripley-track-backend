@@ -134,6 +134,9 @@ export class AuditoriaInterceptor implements NestInterceptor {
 
     this.auditoria.registrar({
       ...base,
+      // Un simulacro no cambió nada, pero se anota igual —quién probó qué— y
+      // con la acción marcada, para que nadie lo lea como un cambio hecho
+      accion: this.contexto.enSimulacro() ? `${base.accion}.simulacro` : base.accion,
       // Normalmente lo resuelve el guard; en el login, que es público,
       // lo reporta el propio AuthService una vez validadas las credenciales.
       usuario_id: request.usuario?.id ?? usuario?.id ?? null,

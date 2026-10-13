@@ -546,6 +546,9 @@ export class RecepcionService {
       `${this.ripley.endpoint('capacitiesReception')}/${capacityId}`,
       pais,
       payload,
+      undefined,
+      // En un simulacro, el día existe: ya se comprobó al leerlo
+      { acknowledged: true, matchedCount: 1, modifiedCount: 1 },
     );
 
     // 3. Un día que no existe no da error HTTP: responde 200 con matchedCount

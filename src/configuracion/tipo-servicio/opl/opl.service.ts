@@ -118,7 +118,8 @@ export class OplService {
     contexto: ContextoAgenda,
     pais: string,
   ): Promise<TipoServicioOpl[]> {
-    const data = await this.ripley.post<ListaServiciosResponse>(
+    // Un POST que lee: por `postDeLectura`, o un simulacro lo cortaría
+    const data = await this.ripley.postDeLectura<ListaServiciosResponse>(
       this.ripley.endpoint('listTypeServices'),
       pais,
       contexto,
@@ -252,10 +253,14 @@ export class OplService {
 
     this.logger.log(`Guardando servicio ${actual.code} (${idServicio})`);
 
+    // En un simulacro se devuelve lo que se habría guardado: es lo que el
+    // agente enseña como "después", porque releer daría el estado de antes
     return this.ripley.put(
       `${this.ripley.endpoint('saveOplService')}/${idServicio}`,
       pais,
       payload,
+      undefined,
+      { ...payload, id: idServicio },
     );
   }
 }
