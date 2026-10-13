@@ -15,12 +15,22 @@ export interface AgendaGuardada {
   agenda: string | null;
 }
 
-type TipoAgenda = 'picking' | 'despacho' | 'recepcion';
+/** Las agendas de capacidad, y "opl": la agenda de servicios de un operador */
+type TipoAgenda = 'picking' | 'despacho' | 'recepcion' | 'opl';
 
 const TABLA_TAREAS: Record<TipoAgenda, string> = {
   picking: 'tarea_picking',
   despacho: 'tarea_despacho',
   recepcion: 'tarea_recepcion',
+  opl: 'tarea_opl',
+};
+
+/** La columna del código: en las de capacidad es "codigo"; en las de servicios, el operador */
+const COLUMNA_CODIGO: Partial<Record<TipoAgenda, string>> = { opl: 'opl' };
+
+const QUE_GUARDA: Record<TipoAgenda, string> = {
+  picking: 'agendas de picking', despacho: 'agendas de despacho', recepcion: 'agendas de recepción',
+  opl: 'operadores con su agenda de servicios',
 };
 
 const comparable = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -71,20 +81,21 @@ export class AgendasDePreconfiguracionService {
 
     const ids = ((bloques ?? []) as Array<{ id: string }>).map((b) => b.id);
     if (!ids.length) {
-      throw new BadRequestException(`La preconfiguración "${preconf.nombre}" no tiene agendas de ${tipo}.`);
+      throw new BadRequestException(`La preconfiguración "${preconf.nombre}" no tiene ${QUE_GUARDA[tipo]}.`);
     }
 
+    const columna = COLUMNA_CODIGO[tipo] ?? 'codigo';
     const { data: tareas, error: errorTareas } = await this.supabase.admin
       .from(TABLA_TAREAS[tipo])
-      .select('codigo, servicio, zona, agenda')
+      .select(`${columna}, servicio, zona, agenda`)
       .in('bloque_id', ids)
       .order('orden', { ascending: true });
     if (errorTareas) this.fallo(errorTareas);
 
     return {
       nombre: preconf.nombre,
-      agendas: ((tareas ?? []) as Array<Record<string, unknown>>).map((t) => ({
-        codigo: String(t.codigo ?? '').trim(),
+      agendas: ((tareas ?? []) as unknown as Array<Record<string, unknown>>).map((t) => ({
+        codigo: String(t[columna] ?? '').trim(),
         servicio: texto(t.servicio),
         zona: texto(t.zona),
         agenda: texto(t.agenda),

@@ -40,3 +40,27 @@ describe('Las agendas de una preconfiguración', () => {
     await expect(montar().leer('BT LIMA', 'picking')).rejects.toThrow('La preconfiguración "BT LIMA" no tiene agendas de picking.');
   });
 });
+
+describe('Los operadores de una preconfiguración de servicios', () => {
+  it('se leen de tarea_opl, con el operador como código', async () => {
+    const servicio = new AgendasDePreconfiguracionService(supabaseEnMemoria({
+      preconfiguraciones: [{ id: 'p1', nombre: 'Estado del Next Day y Same Day de chile', activa: true }],
+      preconfiguracion_bloques: [{ id: 'b1', preconfiguracion_id: 'p1', tipo: 'opl' }],
+      tarea_opl: [{ bloque_id: 'b1', orden: 1, opl: '1088', servicio: null, zona: 'Zona 4', agenda: null }],
+    }));
+
+    expect(await servicio.leer('Estado del Next Day y Same Day de chile', 'opl')).toEqual({
+      nombre: 'Estado del Next Day y Same Day de chile',
+      agendas: [{ codigo: '1088', servicio: null, zona: 'Zona 4', agenda: null }],
+    });
+  });
+
+  it('una sin operadores lo dice con esas palabras', async () => {
+    const servicio = new AgendasDePreconfiguracionService(supabaseEnMemoria({
+      preconfiguraciones: [{ id: 'p1', nombre: 'BT LIMA', activa: true }],
+      preconfiguracion_bloques: [{ id: 'b1', preconfiguracion_id: 'p1', tipo: 'despacho' }],
+    }));
+
+    await expect(servicio.leer('BT LIMA', 'opl')).rejects.toThrow('La preconfiguración "BT LIMA" no tiene operadores con su agenda de servicios.');
+  });
+});

@@ -339,6 +339,19 @@ export class EditarTipoServicioDto extends PaisDto {
   @IsString()
   agenda?: string;
 
+  /**
+   * La preconfiguración de la que salieron los operadores ("Estado del Next
+   * Day y Same Day de chile"): cada uno se cambia en la zona y la agenda que
+   * ella tiene guardadas, sin preguntar cuál —el 1088 tiene cuatro zonas y la
+   * preconfiguración ya dice que es la Zona 4—. Lo que se diga en `zona` o
+   * `agenda` manda sobre lo guardado. Con `opl` = "todos", todos los suyos.
+   */
+  @IsOptional()
+  @Transform(({ value }) => aTexto(value))
+  @IsString()
+  @MaxLength(80)
+  preconfiguracion?: string;
+
   /** Si el servicio está activo. Omítelo para dejarlo como está. */
   @IsOptional()
   @Transform(({ value }) => aBooleano(value))

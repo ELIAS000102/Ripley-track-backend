@@ -55,7 +55,7 @@ function armar(servicios = SERVICIOS) {
   return {
     servicio: new EditarTipoServicioAgenteService(opl, contexto, {
       registrarCambio: vi.fn(),
-    } as unknown as ContextoAuditoria),
+    } as unknown as ContextoAuditoria, { leer: vi.fn() } as never),
     actualizarServicio,
   };
 }

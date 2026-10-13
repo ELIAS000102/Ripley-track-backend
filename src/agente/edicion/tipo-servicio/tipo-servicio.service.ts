@@ -19,6 +19,10 @@ import { partirLista } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
+import { AgendasDePreconfiguracionService } from '../capacidad/agendas-de-preconfiguracion.service.js';
+
+/** El código de un operador tal como lo guarda una preconfiguración: "1088" o "1088 - Courier" */
+const codigoDeOpl = (s: string) => resolverAliasOpl(String(s ?? '').trim()).split(/\s*[-·]\s*/)[0].trim().toUpperCase();
 import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
@@ -96,6 +100,7 @@ export class EditarTipoServicioAgenteService {
     private readonly opl: OplService,
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoAuditoria,
+    private readonly agendasGuardadas: AgendasDePreconfiguracionService,
   ) {}
 
   async editar(
@@ -121,29 +126,51 @@ export class EditarTipoServicioAgenteService {
       );
     }
 
+    /*
+     * De una preconfiguración: cada operador en la zona y la agenda que ella
+     * guarda. El 1088 tiene cuatro zonas; "Estado del Next Day y Same Day de
+     * chile" lo consulta en la Zona 4, y el cambio sobre lo que enseñó tiene que
+     * ir a esa. Sin esto se volvía a buscar entre las cuatro y se preguntaba.
+     */
+    const guardadas = dto.preconfiguracion ? await this.agendasGuardadas.leer(dto.preconfiguracion, 'opl') : null;
+    const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.opl);
+    // Del código guardado ("1088 - Courier Paquetería") se busca solo el código
+    const pedidoDeOpls = todosLosSuyos
+      ? [...new Set(guardadas.agendas.map((a) => a.codigo.split(/\s*[-·]\s*/)[0].trim()).filter(Boolean))].join(', ')
+      : dto.opl;
+
     const pedidos = this.serviciosPedidos(dto.servicio, corte);
-    const operadores = this.oplsPedidos(dto.opl, corte);
+    const operadores = this.oplsPedidos(pedidoDeOpls, corte);
 
     this.logger.warn(
       `EDICIÓN del agente — ${usuario.email} cambia ${pedidos.length} ` +
-        `servicio(s) en ${operadores.length} operador(es)`,
+        `servicio(s) en ${operadores.length} operador(es)` +
+        (guardadas ? ` según la preconfiguración "${guardadas.nombre}"` : ''),
     );
 
     const servicios: ServicioEditado[] = [];
     const opls: string[] = [];
 
     for (const termino of operadores) {
-      const { filas, etiqueta } = await this.editarUnOpl(
-        termino,
-        dto,
-        pedidos,
-        cambio,
-        corte,
-        pais,
-      );
+      // Lo que se dijo explícitamente manda; lo demás, lo guardado
+      const suyas = guardadas?.agendas.filter((a) => codigoDeOpl(a.codigo) === codigoDeOpl(termino)) ?? [];
+      const variantes: EditarTipoServicioDto[] = suyas.length
+        ? suyas.map((g) => ({ ...dto, zona: dto.zona || g.zona || undefined, agenda: dto.agenda || g.agenda || undefined }))
+        : [dto];
 
-      opls.push(etiqueta);
-      servicios.push(...filas);
+      for (const pedido of variantes) {
+        const { filas, etiqueta } = await this.editarUnOpl(
+          termino,
+          pedido,
+          pedidos,
+          cambio,
+          corte,
+          pais,
+        );
+
+        if (!opls.includes(etiqueta)) opls.push(etiqueta);
+        servicios.push(...filas);
+      }
     }
 
     const cambiados = servicios.filter((s) => !s.error).length;
