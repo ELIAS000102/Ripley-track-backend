@@ -99,6 +99,22 @@ class ModoPorDescuidoController {
   }
 }
 
+/** El mismo descuido, sobre las rutinas: corren solas con la cuenta de quien las creó */
+@Controller('rutinas')
+class RutinasPorDescuidoController {
+  @PermitidoAgente()
+  @Get()
+  listar() {
+    return { ok: true };
+  }
+
+  @PermitidoAgenteEditor()
+  @Post()
+  crear() {
+    return { ok: true };
+  }
+}
+
 /** Hace el papel del guard de sesión: el usuario llega en una cabecera */
 @Injectable()
 class SesionFalsa implements CanActivate {
@@ -123,6 +139,7 @@ describe('AgenteGuard', () => {
         EdicionController,
         TokenPorDescuidoController,
         ModoPorDescuidoController,
+        RutinasPorDescuidoController,
       ],
       providers: [
         ModoAgenteService,
@@ -206,6 +223,21 @@ describe('AgenteGuard', () => {
       await comoAgente(request(servidor()).put('/agente/modo'))
         .send({ modo: 'editor' })
         .expect(403);
+    });
+
+    it('el agente no puede ver, crear ni activar rutinas, ni en modo editor', async () => {
+      // Una rutina corre sola con la cuenta de alguien: si el agente pudiera
+      // crearla, una instrucción colada en un dato dejaría cambios programados
+      modo.activar('ana');
+
+      const ver = await comoAgente(request(servidor()).get('/rutinas')).expect(403);
+      expect(ver.body.message).toContain('una persona desde el panel');
+
+      await comoAgente(request(servidor()).post('/rutinas')).send({}).expect(403);
+    });
+
+    it('el panel sí puede con las rutinas', async () => {
+      await request(servidor()).get('/rutinas').expect(200);
     });
 
     it('el panel sí puede cambiar el modo', async () => {

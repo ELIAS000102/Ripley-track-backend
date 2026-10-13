@@ -28,8 +28,12 @@ import { InterrupcionAgenteService } from './interrupcion.service.js';
  * instrucción colada en un dato que lea bastaría para que se pusiera en modo
  * editor y a continuación escribiera. El interruptor lo mueve una persona desde
  * el panel, y nadie más.
+ *
+ * `/rutinas`, porque una rutina corre sola con la cuenta y el token de Ripley de
+ * quien la creó: si el agente pudiera crearla o activarla, una instrucción colada
+ * en un dato le bastaría para dejar programados cambios que nadie pidió.
  */
-const PROHIBIDO_SIEMPRE = ['/configuracion/token-ripley', '/agente/modo'];
+const PROHIBIDO_SIEMPRE = ['/configuracion/token-ripley', '/agente/modo', '/rutinas'];
 
 /**
  * Restringe lo que puede hacer el agente de IA.
@@ -76,7 +80,9 @@ export class AgenteGuard implements CanActivate {
       throw new ForbiddenException(
         ruta.startsWith('/agente/modo')
           ? 'El modo del agente solo lo cambia una persona desde el panel.'
-          : 'El agente no tiene acceso a la gestión del token de Ripley.',
+          : ruta.startsWith('/rutinas')
+            ? 'Las rutinas las crea, las prueba y las activa una persona desde el panel.'
+            : 'El agente no tiene acceso a la gestión del token de Ripley.',
       );
     }
 

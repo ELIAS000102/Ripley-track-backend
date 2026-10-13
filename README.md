@@ -3,7 +3,7 @@
 API NestJS que actúa como capa intermedia hacia las APIs corporativas de Ripley, para Perú y
 Chile. Da servicio a un panel web y a una agente de IA que conversa por chat.
 
-Cubre cinco áreas de la operación logística:
+Cubre estas áreas de la operación logística:
 
 - **Agendas de picking, despacho, recepción y transferencia** — la capacidad de cada día:
   cuánto hay asignado, cuánto se lleva ocupado y si el día acepta pedidos. Lo que un almacén
@@ -28,11 +28,16 @@ Cubre cinco áreas de la operación logística:
 
   Cada grupo tiene una base (Valle en Chile, Regular en Perú) y los eventos temporales que haga
   falta (Cyber, Navidad…) con su vigencia, y calcula cuándo se despacha lo vendido una fecha.
+- **Rutinas** — trabajo que la agente hace sola, a su hora: tareas en orden, cada una con
+  pasos de instrucciones estrictas, en los días y horas que se le den, en la hora de su país.
+  Corren con la cuenta de quien las creó, se crean apagadas y solo se activan tras una prueba
+  correcta de su última versión.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
 cambios, las conversaciones con la agente, el token corporativo de cada usuario, cifrado,
 los grupos de lead time con sus matrices y mallas, que no vienen de Ripley sino de un Excel,
+las rutinas con su historial,
 y la configuración de los reportes: los grupos de tiendas del reporte ST y los CDs del reporte de los CDs.
 
 ## Quién lo usa
@@ -51,7 +56,7 @@ confirmación previa y un permiso que se apaga solo.
 - **El token corporativo de Ripley no sale del backend.** Cada usuario guarda el suyo
   cifrado; ninguna ruta lo devuelve, ni siquiera a su dueño.
 - **Lo que la agente puede tocar es una lista cerrada.** Lo que no está explícitamente
-  permitido, está prohibido.
+  permitido, está prohibido. Las rutinas quedan fuera: las crea y las activa una persona.
 - **Todo cambio queda registrado** con quién lo hizo, cómo estaban los datos antes y cómo
   quedaron. Las consultas no se registran.
 

@@ -23,6 +23,7 @@ import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-ma
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from './configuracion/transf-suc/transf.module.js';
 import { AtajosModule } from './configuracion/atajos/atajos.module.js';
+import { RutinasModule } from './rutinas/rutinas.module.js';
 import { SimulacionModule } from './simulacion/simulacion.module.js';
 import { LeadTimeModule } from './lead_time/lead-time.module.js';
 
@@ -53,6 +54,7 @@ import { LeadTimeModule } from './lead_time/lead-time.module.js';
     OplModule,
     TransfModule,
     AtajosModule,
+    RutinasModule,
     SimulacionModule,
     LeadTimeModule,
     AgenteModule,
