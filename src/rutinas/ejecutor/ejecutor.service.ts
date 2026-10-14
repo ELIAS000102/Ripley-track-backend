@@ -8,7 +8,7 @@ import {
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InterrupcionAgenteService } from '../../agente/seguridad/interrupcion.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import type { PermisoRutina, UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { TokenRutinaService } from '../../auth/token-rutina.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service.js';
@@ -16,52 +16,85 @@ import type {
   EjecucionDetalle,
   Paso,
   PasoEjecutado,
-  RespuestaAgente,
   Tarea,
   TareaEjecutada,
 } from '../interfaces/rutinas.interface.js';
 import { CAMPOS_DETALLE, RutinasService, type RutinaParaEjecutar } from '../rutinas.service.js';
 import { evaluarPaso } from './evaluar-paso.js';
 import { LlamadasRutinaService } from './llamadas.js';
-import { WebhookAgenteService } from './webhook-agente.service.js';
+import { ESPERA_PASO_MS, WebhookAgenteService } from './webhook-agente.service.js';
 
 /** Lo que se guarda de lo que contestó Silvana en cada paso */
 const RESPUESTA_MAXIMA = 6000;
 
+/** Lo que se espera a que el flujo diga que acepta la rutina: solo la recibe y contesta */
+const ESPERA_ACEPTACION_MS = 30 * 1000;
+
+/** Lo que vale el token de una ejecución: de sobra para una rutina larga */
+const VIGENCIA_TOKEN_MS = 3 * 60 * 60 * 1000;
+
 const recorte = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+/** Lo que cuenta el flujo al terminar cada paso */
+export interface PasoInformado {
+  tarea: number;
+  paso: number;
+  respuesta?: string;
+  motivo?: string | null;
+  rutina?: Record<string, unknown> | null;
+}
+
+/** Una ejecución que está corriendo en este proceso */
+interface Marcha {
+  ejecucion: EjecucionDetalle;
+  rutina: RutinaParaEjecutar;
+  dueno: UsuarioAutenticado;
+  /** El id del token de esta marcha: un aviso con otro no vale */
+  token: string;
+  /** La petición de n8n, para cortarla al cancelar */
+  peticion: string;
+  /** Los pasos que tocan, en orden, y por cuál va */
+  plan: Array<{ tarea: Tarea; paso: Paso; intento: number }>;
+  k: number;
+  resultado: TareaEjecutada[];
+  /** Cuándo empezó el paso que está haciendo */
+  desde: string;
+  reloj: ReturnType<typeof setTimeout> | null;
+  hecha: Promise<void>;
+  terminar: () => void;
+}
 
 /**
  * Ejecuta las rutinas: sus tareas en orden y, dentro de cada una, sus pasos.
  *
- * Cada paso es un mensaje al flujo de Silvana —el mismo webhook del chat—, con
- * la instrucción, un token de rutina para que sus herramientas corran con la
- * cuenta de quien la creó, y la marca `rutina` para que no pregunte nada: lo
- * que en el chat sería una pregunta, aquí es un paso fallido.
+ * **La rutina va entera a Silvana, en una sola ejecución.** El backend manda al
+ * webhook del flujo todas las tareas y sus pasos, con un token de rutina y la
+ * marca `rutina`. El flujo contesta enseguida que la acepta y la recorre él,
+ * paso a paso, con los mismos agentes y herramientas del chat. Al terminar cada
+ * paso avisa al backend (`POST /agente/rutina/paso`), que lo evalúa —con lo que
+ * respondió cada herramienta, no con el texto de Silvana— y le dice si sigue.
+ * Así no hay una petición abierta durante minutos, y el panel ve cada paso en
+ * cuanto termina.
  *
  * - **Una prueba no escribe nada.** Su token pone cada herramienta en
- *   simulacro: recorre la rutina entera contra los datos de verdad y no cambia
- *   ninguna agenda. Si sale bien, la versión queda probada y se puede activar.
- * - **Si un paso falla, la rutina se detiene** y se avisa a quien la creó. Al
- *   reanudarla se reintenta la tarea que falló, desde su primer paso, y la
- *   secuencia sigue.
- * - **Los pasos de una tarea comparten conversación** —"esos operadores" son
- *   los del paso anterior—; cada tarea, y cada intento, empieza una nueva.
+ *   simulacro. Si sale bien, la versión queda probada y se puede activar.
+ * - **Si un paso falla, la rutina se detiene**: el backend le dice al flujo que
+ *   pare y avisa a quien la creó. Al reanudarla se reintenta la tarea que
+ *   falló, desde su primer paso, y la secuencia sigue.
+ * - **Si el flujo deja de avisar**, al cabo de cinco minutos sin noticias de un
+ *   paso la ejecución queda detenida.
  *
- * Una ejecución corre en este proceso, en segundo plano: si se reinicia a
- * mitad, al arrancar queda detenida, lista para reanudarse.
+ * Corre en este proceso: si se reinicia a mitad, al arrancar queda detenida,
+ * lista para reanudarse.
  */
 @Injectable()
 export class EjecutorRutinasService implements OnApplicationBootstrap {
   private readonly logger = new Logger(EjecutorRutinasService.name);
 
-  /** Las que alguien canceló mientras corrían: se mira entre paso y paso */
-  private readonly canceladas = new Set<string>();
+  private readonly marchas = new Map<string, Marcha>();
 
-  /** La petición en curso de cada ejecución, para cortarla al cancelar */
-  private readonly enVuelo = new Map<string, { peticion: string; usuarioId: string }>();
-
-  /** Las que corren en este proceso, hasta que terminan del todo (avisos incluidos) */
-  private readonly enMarcha = new Map<string, Promise<void>>();
+  /** Lo que se espera el aviso de un paso. Se puede cambiar en los tests */
+  esperaPasoMs = ESPERA_PASO_MS;
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -98,7 +131,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     });
 
     this.logger.log(`Prueba de la rutina "${rutina.nombre}" (versión ${rutina.version}) por ${usuario.email}`);
-    this.lanzar(ejecucion, rutina, 0);
+    await this.lanzar(ejecucion, rutina, 0);
     return ejecucion;
   }
 
@@ -126,7 +159,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const reanudada = { ...ejecucion, estado: 'en_curso' as const, motivo: null };
     const desde = Math.max(0, reanudada.tareas.indexOf(Number(ejecucion.tarea_detenida)));
     this.logger.log(`Rutina "${rutina.nombre}" reanudada por ${usuario.email} desde la tarea ${reanudada.tareas[desde]}`);
-    this.lanzar(reanudada, rutina, desde);
+    await this.lanzar(reanudada, rutina, desde);
     return reanudada;
   }
 
@@ -139,9 +172,18 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       throw new ConflictException(`Esta ejecución ya está ${ejecucion.estado.replace('_', ' ')}.`);
     }
 
+    const marcha = this.marchas.get(ejecucionId);
+    const motivo = `La canceló ${usuario.email}.`;
+
     const { data, error } = await this.supabase.admin
       .from('rutina_ejecuciones')
-      .update({ estado: 'cancelada', motivo: `La canceló ${usuario.email}.`, fin: new Date().toISOString() })
+      .update({
+        estado: 'cancelada',
+        motivo,
+        fin: new Date().toISOString(),
+        // Lo que llevaba hecho se queda, con la tarea en curso marcada como cancelada
+        ...(marcha ? { resultado: this.conTareaEnCursoComo(marcha.resultado, 'cancelada') } : {}),
+      })
       .eq('id', ejecucionId)
       .eq('estado', ejecucion.estado)
       .select('id');
@@ -149,136 +191,145 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     if (!(data as unknown[] | null)?.length) throw new ConflictException('Cambió de estado justo ahora: vuelve a mirarla.');
 
     this.tokens.olvidar(ejecucionId);
-    if (ejecucion.estado === 'en_curso') {
-      this.canceladas.add(ejecucionId);
-      // Lo que esté haciendo ahora mismo deja de poder llamar a nada
-      const vuelo = this.enVuelo.get(ejecucionId);
-      if (vuelo) await this.interrupcion.interrumpir(vuelo.peticion, vuelo.usuarioId).catch(() => undefined);
+    if (marcha) {
+      // Lo que esté haciendo ahora mismo deja de poder llamar a nada, y el
+      // siguiente aviso del flujo recibe que no siga
+      await this.interrupcion.interrumpir(marcha.peticion, marcha.dueno.id).catch(() => undefined);
+      this.acabar(marcha);
     }
 
     this.logger.log(`Ejecución de la rutina ${rutinaId} cancelada por ${usuario.email}`);
-    return { ...ejecucion, estado: 'cancelada', motivo: `La canceló ${usuario.email}.` };
+    return { ...ejecucion, estado: 'cancelada', motivo };
   }
-
-  // ---------- El recorrido ----------
 
   /** Espera a que una ejecución de este proceso termine del todo, avisos incluidos */
   esperar(id: string): Promise<void> {
-    return this.enMarcha.get(id) ?? Promise.resolve();
+    return this.marchas.get(id)?.hecha ?? Promise.resolve();
   }
 
-  /** En segundo plano: quien la pidió recibe la ejecución ya creada y la sigue desde el panel */
-  private lanzar(ejecucion: EjecucionDetalle, rutina: RutinaParaEjecutar, desde: number) {
-    const marcha = this.recorrer(ejecucion, rutina, desde).catch(async (e) => {
-      this.logger.error(`La ejecución ${ejecucion.id} se cortó: ${(e as Error).message}`);
-      await this.cerrar(ejecucion.id, {
-        estado: 'detenida',
-        motivo: `Se cortó el ejecutor: ${(e as Error).message}`,
-        tarea_detenida: ejecucion.tarea_detenida ?? ejecucion.tareas[desde] ?? null,
-      }).catch(() => undefined);
-    }).finally(() => {
-      this.enVuelo.delete(ejecucion.id);
-      this.canceladas.delete(ejecucion.id);
-      this.enMarcha.delete(ejecucion.id);
+  // ---------- Lo que cuenta el flujo ----------
+
+  /**
+   * Un paso terminó en el flujo: se evalúa y se le dice si sigue.
+   *
+   * El paso tiene que ser el que tocaba, con el token de esta marcha: el flujo
+   * no decide el orden, lo sigue.
+   */
+  async pasoHecho(permiso: PermisoRutina, informe: PasoInformado): Promise<{ seguir: boolean; motivo?: string }> {
+    const marcha = this.marchas.get(permiso.ejecucion);
+    if (!marcha || marcha.token !== permiso.id) {
+      return { seguir: false, motivo: 'Esta ejecución ya no está en marcha.' };
+    }
+
+    const toca = marcha.plan[marcha.k];
+    if (!toca || toca.tarea.orden !== Number(informe.tarea) || toca.paso.orden !== Number(informe.paso)) {
+      const motivo = toca
+        ? `El flujo contó el paso ${informe.paso} de la tarea ${informe.tarea} cuando tocaba el ${toca.paso.orden} de la tarea ${toca.tarea.orden}. Reimporta el flujo actualizado.`
+        : 'El flujo contó un paso de más.';
+      await this.detener(marcha, toca?.tarea.orden ?? null, motivo);
+      return { seguir: false, motivo };
+    }
+
+    const llamadas = this.llamadas.tomar(permiso.id);
+    const evaluacion = evaluarPaso({
+      respuesta: { respuesta: informe.respuesta, motivo: informe.motivo, rutina: (informe.rutina ?? null) as never },
+      llamadas,
+      atajos: toca.paso.atajos.map((a) => a.nombre),
     });
-    this.enMarcha.set(ejecucion.id, marcha);
+
+    const hecho: PasoEjecutado = {
+      orden: toca.paso.orden,
+      instruccion: toca.paso.instruccion,
+      estado: evaluacion.estado,
+      ...(evaluacion.motivo ? { motivo: evaluacion.motivo } : {}),
+      respuesta: recorte(String(informe.respuesta ?? '').trim(), RESPUESTA_MAXIMA),
+      llamadas,
+      inicio: marcha.desde,
+      fin: new Date().toISOString(),
+    };
+
+    const tarea = this.tareaEnCurso(marcha, toca);
+    tarea.pasos.push(hecho);
+
+    if (evaluacion.estado === 'fallido') {
+      tarea.estado = 'fallida';
+      const motivo = `Tarea ${toca.tarea.orden} «${toca.tarea.nombre}», paso ${toca.paso.orden}: ${evaluacion.motivo}`;
+      await this.detener(marcha, toca.tarea.orden, motivo);
+      return { seguir: false, motivo };
+    }
+
+    if (toca.paso.orden === toca.tarea.pasos.at(-1)?.orden) tarea.estado = 'completada';
+
+    marcha.k++;
+    if (marcha.k >= marcha.plan.length) {
+      await this.completar(marcha);
+      return { seguir: false };
+    }
+
+    // La tarea siguiente ya se ve empezando
+    this.tareaEnCurso(marcha, marcha.plan[marcha.k]);
+    marcha.desde = new Date().toISOString();
+    await this.guardar(marcha.ejecucion.id, { resultado: marcha.resultado });
+    this.vigilar(marcha);
+    return { seguir: true };
   }
 
-  /** Lo hace en primer plano: el que lanza lo deja correr, los tests lo esperan */
-  async recorrer(ejecucion: EjecucionDetalle, rutina: RutinaParaEjecutar, desde: number): Promise<void> {
-    const dueno = rutina.creado_por_id ? { id: rutina.creado_por_id, email: rutina.creado_por ?? '' } : null;
-    const resultado: TareaEjecutada[] = [...(ejecucion.resultado ?? [])];
+  // ---------- Arrancar ----------
+
+  private async lanzar(ejecucion: EjecucionDetalle, rutina: RutinaParaEjecutar, desde: number) {
     const ordenes = ejecucion.tareas.length ? ejecucion.tareas : rutina.tareas.map((t) => t.orden);
+    const resultado: TareaEjecutada[] = [...(ejecucion.resultado ?? [])];
+    const dueno = rutina.creado_por_id ? { id: rutina.creado_por_id, email: rutina.creado_por ?? '' } : null;
 
-    if (!dueno) {
-      await this.detener(ejecucion, rutina, null, ordenes[desde] ?? null, 'La rutina no tiene creador: no hay con qué cuenta correrla.', resultado);
-      return;
-    }
+    const tareas = ordenes.slice(desde).map((orden) => rutina.tareas.find((t) => t.orden === orden));
+    const plan = tareas.flatMap((t) => (t
+      ? t.pasos.map((paso) => ({ tarea: t, paso, intento: resultado.filter((r) => r.orden === t.orden).length + 1 }))
+      : []));
 
-    for (let i = desde; i < ordenes.length; i++) {
-      const tarea = rutina.tareas.find((t) => t.orden === ordenes[i]);
-      if (!tarea) {
-        await this.detener(ejecucion, rutina, dueno, ordenes[i], `La tarea ${ordenes[i]} ya no existe.`, resultado);
-        return;
-      }
-
-      const intento = resultado.filter((r) => r.orden === tarea.orden).length + 1;
-      const hecha: TareaEjecutada = { orden: tarea.orden, nombre: tarea.nombre, intento, estado: 'en_curso', pasos: [] };
-      resultado.push(hecha);
-      await this.guardar(ejecucion.id, { resultado });
-
-      // Una conversación por tarea e intento: los pasos de la tarea se ven
-      // entre ellos, y un reintento no arrastra lo que se torció
-      const sesion = `rutina-${ejecucion.id}-t${tarea.orden}-i${intento}`;
-      this.enVuelo.set(ejecucion.id, { peticion: sesion, usuarioId: dueno.id });
-
-      for (const paso of tarea.pasos) {
-        if (this.canceladas.has(ejecucion.id)) {
-          hecha.estado = 'cancelada';
-          await this.guardar(ejecucion.id, { resultado }, false);
-          return;
-        }
-
-        const hecho = await this.correrPaso(ejecucion, rutina, dueno, tarea, paso, sesion);
-        hecha.pasos.push(hecho);
-
-        if (this.canceladas.has(ejecucion.id)) {
-          hecha.estado = 'cancelada';
-          await this.guardar(ejecucion.id, { resultado }, false);
-          return;
-        }
-
-        if (hecho.estado === 'fallido') {
-          hecha.estado = 'fallida';
-          await this.detener(ejecucion, rutina, dueno, tarea.orden,
-            `Tarea ${tarea.orden} «${tarea.nombre}», paso ${paso.orden}: ${hecho.motivo}`, resultado);
-          return;
-        }
-        await this.guardar(ejecucion.id, { resultado });
-      }
-
-      hecha.estado = 'completada';
-      await this.guardar(ejecucion.id, { resultado });
-    }
-
-    await this.completar(ejecucion, rutina, dueno, resultado);
-  }
-
-  private async correrPaso(
-    ejecucion: EjecucionDetalle,
-    rutina: RutinaParaEjecutar,
-    dueno: UsuarioAutenticado,
-    tarea: Tarea,
-    paso: Paso,
-    sesion: string,
-  ): Promise<PasoEjecutado> {
-    const inicio = new Date().toISOString();
-    const base = { orden: paso.orden, instruccion: paso.instruccion, inicio };
-
-    // Un atajo retirado después de guardar la rutina: Silvana ya no lo encuentra
-    const retirado = paso.atajos.find((a) => a.activa === false);
-    if (retirado) {
-      return { ...base, estado: 'fallido', motivo: `El atajo "${retirado.nombre}" está retirado: quítalo del paso o reactívalo.`, respuesta: '', llamadas: [], fin: inicio };
-    }
+    // Lo que no deja ni empezar se dice antes de mandar nada
+    const faltaTarea = tareas.findIndex((t) => !t);
+    const retirado = plan.find((p) => p.paso.atajos.some((a) => a.activa === false));
+    const impide = !dueno ? 'La rutina no tiene creador: no hay con qué cuenta correrla.'
+      : faltaTarea >= 0 ? `La tarea ${ordenes[desde + faltaTarea]} ya no existe.`
+      : retirado ? `El atajo "${retirado.paso.atajos.find((a) => a.activa === false)!.nombre}" del paso ${retirado.paso.orden} de la tarea ${retirado.tarea.orden} está retirado: quítalo del paso o reactívalo.`
+      : null;
 
     const { token, permiso } = this.tokens.emitir({
       ejecucion: ejecucion.id,
       rutina: rutina.id,
-      usuario: dueno,
+      usuario: dueno ?? { id: '', email: '' },
       modo: ejecucion.modo,
-      tarea: tarea.orden,
-      paso: paso.orden,
-    });
+      // El token es de la ejecución entera: el paso lo dice el aviso del flujo
+      tarea: 0,
+      paso: 0,
+    }, VIGENCIA_TOKEN_MS);
 
-    let respuesta: RespuestaAgente | undefined;
-    let error: string | undefined;
+    let terminar = () => {};
+    const hecha = new Promise<void>((r) => { terminar = r; });
+    const marcha: Marcha = {
+      ejecucion, rutina, dueno: dueno ?? { id: '', email: '' }, token: permiso.id,
+      peticion: `rutina-${ejecucion.id}-${Date.now().toString(36)}`,
+      plan, k: 0, resultado, desde: new Date().toISOString(), reloj: null, hecha, terminar,
+    };
+    this.marchas.set(ejecucion.id, marcha);
+
+    if (impide) {
+      await this.detener(marcha, ordenes[desde] ?? null, impide);
+      return;
+    }
+
+    this.tareaEnCurso(marcha, plan[0]);
+    await this.guardar(ejecucion.id, { resultado });
+    this.vigilar(marcha);
+
     try {
-      respuesta = await this.webhook.preguntar({
-        pregunta: paso.instruccion,
+      const respuesta = await this.webhook.preguntar({
+        // Lo lee quien mire la ejecución en n8n; el flujo usa "rutina"
+        pregunta: `Rutina «${rutina.nombre}»`,
         token,
-        sessionId: sesion,
-        peticionId: sesion,
-        usuario_email: dueno.email,
+        sessionId: `rutina-${ejecucion.id}`,
+        peticionId: marcha.peticion,
+        usuario_email: marcha.dueno.email,
         usuario_nombre: `la rutina «${rutina.nombre}»`,
         // El flujo carga las instrucciones de edición; quien decide si puede
         // escribir sigue siendo el backend, por el token
@@ -287,39 +338,64 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
           ejecucion: ejecucion.id,
           nombre: rutina.nombre,
           pais: rutina.pais,
-          tarea: tarea.orden,
-          nombreTarea: tarea.nombre,
-          paso: paso.orden,
-          pasos: tarea.pasos.length,
           prueba: ejecucion.modo === 'prueba',
-          atajos: paso.atajos.map((a) => a.nombre),
-          guias: paso.guias.map((g) => ({ nombre: g.nombre, tipo: g.tipo })),
+          tareas: tareas.map((t) => ({
+            orden: t!.orden,
+            nombre: t!.nombre,
+            intento: plan.find((p) => p.tarea.orden === t!.orden)?.intento ?? 1,
+            pasos: t!.pasos.map((p) => ({
+              orden: p.orden,
+              instruccion: p.instruccion,
+              atajos: p.atajos.map((a) => a.nombre),
+              guias: p.guias.map((g) => ({ nombre: g.nombre, tipo: g.tipo })),
+            })),
+          })),
         },
-      });
+      }, ESPERA_ACEPTACION_MS);
+
+      if ((respuesta as { aceptada?: unknown })?.aceptada !== true) {
+        await this.detener(marcha, plan[0].tarea.orden, 'El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.');
+      }
     } catch (e) {
-      error = (e as Error).message;
+      await this.detener(marcha, plan[0].tarea.orden, (e as Error).message);
     }
+  }
 
-    const llamadas = this.llamadas.tomar(permiso.id);
-    const evaluacion = evaluarPaso({ respuesta, error, llamadas, atajos: paso.atajos.map((a) => a.nombre) });
+  /** La tarea del paso que toca, en el resultado: la crea si es la primera vez que se ve */
+  private tareaEnCurso(marcha: Marcha, toca: Marcha['plan'][number]): TareaEjecutada {
+    const ultima = marcha.resultado.at(-1);
+    if (ultima && ultima.orden === toca.tarea.orden && ultima.intento === toca.intento) return ultima;
+    const nueva: TareaEjecutada = { orden: toca.tarea.orden, nombre: toca.tarea.nombre, intento: toca.intento, estado: 'en_curso', pasos: [] };
+    marcha.resultado.push(nueva);
+    return nueva;
+  }
 
-    return {
-      ...base,
-      estado: evaluacion.estado,
-      ...(evaluacion.motivo ? { motivo: evaluacion.motivo } : {}),
-      respuesta: recorte(String(respuesta?.respuesta ?? '').trim(), RESPUESTA_MAXIMA),
-      llamadas,
-      fin: new Date().toISOString(),
-    };
+  /** Cinco minutos sin noticias de un paso: el flujo se colgó o se cayó */
+  private vigilar(marcha: Marcha) {
+    if (marcha.reloj) clearTimeout(marcha.reloj);
+    marcha.reloj = setTimeout(() => {
+      const toca = marcha.plan[marcha.k];
+      const motivo = `Silvana no avisó en ${Math.max(1, Math.round(this.esperaPasoMs / 60000))} minutos de cómo le fue con el paso ${toca?.paso.orden ?? '?'} de la tarea ${toca?.tarea.orden ?? '?'}: se dejó de esperar.`;
+      void this.interrupcion.interrumpir(marcha.peticion, marcha.dueno.id).catch(() => undefined);
+      void this.detener(marcha, toca?.tarea.orden ?? null, motivo);
+    }, this.esperaPasoMs);
+    marcha.reloj.unref?.();
+  }
+
+  private acabar(marcha: Marcha) {
+    if (marcha.reloj) clearTimeout(marcha.reloj);
+    this.marchas.delete(marcha.ejecucion.id);
+    this.tokens.olvidar(marcha.ejecucion.id);
+    marcha.terminar();
   }
 
   // ---------- Cómo termina ----------
 
-  private async completar(ejecucion: EjecucionDetalle, rutina: RutinaParaEjecutar, dueno: UsuarioAutenticado, resultado: TareaEjecutada[]) {
-    const cerrada = await this.cerrar(ejecucion.id, { estado: 'completada', resultado });
-    if (!cerrada) return;
+  private async completar(marcha: Marcha) {
+    const { ejecucion, rutina, dueno } = marcha;
+    const cerrada = await this.cerrar(ejecucion.id, { estado: 'completada', resultado: marcha.resultado });
 
-    if (ejecucion.modo === 'prueba') {
+    if (cerrada && ejecucion.modo === 'prueba') {
       const probada = await this.rutinas.marcarProbada(rutina.id, ejecucion.version);
       await this.avisos.avisar(dueno.id, {
         tipo: 'rutina_probada',
@@ -331,21 +407,16 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
         ejecucion_id: ejecucion.id,
       });
     }
-    this.logger.log(`Rutina "${rutina.nombre}" completada (${ejecucion.modo})`);
+    if (cerrada) this.logger.log(`Rutina "${rutina.nombre}" completada (${ejecucion.modo})`);
+    this.acabar(marcha);
   }
 
-  private async detener(
-    ejecucion: EjecucionDetalle,
-    rutina: RutinaParaEjecutar,
-    dueno: UsuarioAutenticado | null,
-    tarea: number | null,
-    motivo: string,
-    resultado: TareaEjecutada[],
-  ) {
+  private async detener(marcha: Marcha, tarea: number | null, motivo: string) {
+    const { ejecucion, rutina, dueno } = marcha;
+    const resultado = this.conTareaEnCursoComo(marcha.resultado, 'fallida');
     const cerrada = await this.cerrar(ejecucion.id, { estado: 'detenida', tarea_detenida: tarea, motivo, resultado });
-    if (!cerrada) return;
 
-    if (dueno) {
+    if (cerrada && dueno.id) {
       await this.avisos.avisar(dueno.id, {
         tipo: 'rutina_detenida',
         titulo: ejecucion.modo === 'prueba' ? `La prueba de «${rutina.nombre}» se detuvo` : `«${rutina.nombre}» se detuvo`,
@@ -354,18 +425,18 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
         ejecucion_id: ejecucion.id,
       });
     }
-    this.logger.warn(`Rutina "${rutina.nombre}" detenida: ${motivo}`);
+    if (cerrada) this.logger.warn(`Rutina "${rutina.nombre}" detenida: ${motivo}`);
+    this.acabar(marcha);
   }
 
-  /**
-   * Lo que va haciendo, mientras sigue en curso. Una cancelada no se pisa: si
-   * se canceló a mitad de un paso, lo de ese paso se guarda (`soloEnCurso` en
-   * false) pero el estado sigue siendo el de la cancelación.
-   */
-  private async guardar(id: string, cambios: { resultado: TareaEjecutada[] }, soloEnCurso = true) {
-    let consulta = this.supabase.admin.from('rutina_ejecuciones').update(cambios).eq('id', id);
-    if (soloEnCurso) consulta = consulta.eq('estado', 'en_curso');
-    const { error } = await consulta;
+  /** La tarea que iba en curso, con otro estado: la que se detuvo o se canceló a mitad */
+  private conTareaEnCursoComo(resultado: TareaEjecutada[], estado: 'fallida' | 'cancelada'): TareaEjecutada[] {
+    return resultado.map((t) => (t.estado === 'en_curso' ? { ...t, estado } : t));
+  }
+
+  /** Lo que va haciendo, mientras sigue en curso: una cancelada no se pisa */
+  private async guardar(id: string, cambios: { resultado: TareaEjecutada[] }) {
+    const { error } = await this.supabase.admin.from('rutina_ejecuciones').update(cambios).eq('id', id).eq('estado', 'en_curso');
     if (error) this.logger.error(`No se pudo guardar el avance de la ejecución ${id}: ${error.message}`);
   }
 
@@ -428,7 +499,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
 
   // ---------- Reglas ----------
 
-  /** La rutina entera, si es de quien pregunta y no está corriendo ya */
+  /** La rutina entera, si es de quien pregunta */
   private async suya(rutinaId: string, usuario: UsuarioAutenticado, para: string): Promise<RutinaParaEjecutar> {
     const rutina = await this.rutinas.paraEjecutar(rutinaId);
     if (!rutina.creado_por_id || rutina.creado_por_id !== usuario.id) {

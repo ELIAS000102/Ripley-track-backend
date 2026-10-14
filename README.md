@@ -58,6 +58,9 @@ confirmación previa y un permiso que se apaga solo.
   cifrado; ninguna ruta lo devuelve, ni siquiera a su dueño.
 - **Lo que la agente puede tocar es una lista cerrada.** Lo que no está explícitamente
   permitido, está prohibido. Las rutinas quedan fuera: las crea y las activa una persona.
+- **A la API corporativa se le habla a un ritmo controlado**, por país: un tope de peticiones a
+  la vez y una pausa mínima entre ellas, sin repetir lo idéntico y sin insistir con un token que
+  acaba de rechazar.
 - **Todo cambio queda registrado** con quién lo hizo, cómo estaban los datos antes y cómo
   quedaron. Las consultas no se registran.
 

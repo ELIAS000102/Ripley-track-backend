@@ -15,6 +15,14 @@ import {
   SimularAgenteDto,
 } from '../../agente/dto/consultas.dto.js';
 import { motivoDelFallo } from '../../agente/utils/error.util.js';
+import { enParalelo } from '../../common/utils/lotes.util.js';
+
+/**
+ * Cuántos ítems de un bloque a la vez. Iban de uno en uno: cuarenta tiendas
+ * eran cuarenta esperas seguidas. El tope de lo que llega a Ripley lo pone su
+ * carril, así que esto solo decide cuánto se adelanta.
+ */
+const ITEMS_A_LA_VEZ = 3;
 import type {
   Accion,
   Bloque,
@@ -242,25 +250,15 @@ export class EjecutorAtajoService {
       };
     }
 
-    const hechas: ItemEjecutada[] = [];
-
-    for (const item of items) {
+    // En el orden del bloque, aunque terminen en otro
+    const hechas: ItemEjecutada[] = await enParalelo(items, ITEMS_A_LA_VEZ, async (item) => {
       try {
         const dto = await this.comoDto(item, receta, bloque.tipo);
-
-        hechas.push({
-          orden: item.orden,
-          nota: item.nota,
-          resultado: await receta.correr(usuario, dto),
-        });
+        return { orden: item.orden, nota: item.nota, resultado: await receta.correr(usuario, dto) };
       } catch (e) {
-        hechas.push({
-          orden: item.orden,
-          nota: item.nota,
-          error: motivoDelFallo(e, 'No se pudo ejecutar este ítem'),
-        });
+        return { orden: item.orden, nota: item.nota, error: motivoDelFallo(e, 'No se pudo ejecutar este ítem') };
       }
-    }
+    });
 
     return { ...base, items: hechas };
   }

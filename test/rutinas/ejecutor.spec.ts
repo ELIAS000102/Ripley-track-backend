@@ -16,24 +16,24 @@ import { supabaseEnMemoria, type Fila } from '../fixtures/supabase-memoria.js';
 /**
  * El ejecutor de rutinas, de punta a punta.
  *
- * Las tablas van en memoria y el flujo de n8n es un webhook falso que hace lo
- * que haría el de verdad: valida el token que le llega —como las herramientas
- * del backend— y anota las llamadas de ese paso. Lo que se fija es el recorrido:
- * tareas y pasos en orden, que un paso fallido detenga la rutina y avise, que
- * reanudarla reintente la tarea que falló, y que una prueba que sale bien deje
- * la versión probada.
+ * La rutina va entera al flujo de n8n en un solo envío: el flujo la acepta, la
+ * recorre él paso a paso y, al terminar cada uno, avisa al backend, que lo
+ * evalúa y le dice si sigue. Aquí el flujo es uno falso que hace exactamente
+ * eso —valida el token como las herramientas del backend, anota las llamadas de
+ * cada paso y avisa— con las tablas en memoria.
  */
 
 const JOSE = { id: 'u-jose', email: 'jose@ejemplo.com' } as UsuarioAutenticado;
 const ANA = { id: 'u-ana', email: 'ana@ejemplo.com' } as UsuarioAutenticado;
 
-/** Lo que hace el flujo en un paso: qué herramientas llama y qué contesta */
+/** Lo que el flujo sabe de un paso cuando lo hace */
+type PasoDelFlujo = { tarea: number; paso: number; instruccion: string; atajos: string[]; guias: unknown[] };
 type Hecho = { llamadas?: Omit<LlamadaHerramienta, 'escriturasEvitadas'>[]; respuesta?: RespuestaAgente };
-type Guion = (cuerpo: Record<string, any>) => Hecho | Promise<Hecho>;
+type Guion = (p: PasoDelFlujo, cuerpo: Record<string, any>) => Hecho | Promise<Hecho>;
 
 /** Hace lo que pide el paso: sus atajos, si los nombra, y una consulta */
-const bien: Guion = (c) => {
-  const atajos = (c.rutina?.atajos ?? []).map((atajo: string) => ({ herramienta: 'Ejecutar un atajo', atajo, estado: 200, problemas: [] }));
+const bien: Guion = (p) => {
+  const atajos = p.atajos.map((atajo) => ({ herramienta: 'Ejecutar un atajo', atajo, estado: 200, problemas: [] }));
   const llamadas = [...atajos, { herramienta: 'Capacidad de agendas', estado: 200, problemas: [] }];
   return {
     llamadas,
@@ -41,7 +41,7 @@ const bien: Guion = (c) => {
   };
 };
 
-function montar(guion: Guion = bien) {
+function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boolean } = {}) {
   const tablas: Record<string, Fila[]> = {
     rutinas: [{ id: 'r1', nombre: 'Apertura de Chile', descripcion: null, pais: 'CL', activa: false, version: 1, probada_version: null, probada_en: null, creado_por: JOSE.email, creado_por_id: JOSE.id, creado_en: '2026-10-13', actualizado_en: '2026-10-13' }],
     rutina_tareas: [
@@ -66,22 +66,37 @@ function montar(guion: Guion = bien) {
     supabase,
   );
   const llamadas = new LlamadasRutinaService();
-  const recibidos: Record<string, any>[] = [];
+  const envios: Record<string, any>[] = [];
+  const hechos: PasoDelFlujo[] = [];
+  let ejecutor!: EjecutorRutinasService;
 
+  /** El flujo: acepta, y después recorre los pasos avisando de cada uno */
   const webhook = {
     preguntar: vi.fn(async (cuerpo: Record<string, any>) => {
-      recibidos.push(cuerpo);
-      // Como cada herramienta del backend: sin un token válido, nada
+      envios.push(cuerpo);
       const permiso = await tokens.validar(cuerpo.token);
-      const r = await guion(cuerpo);
-      for (const l of r.llamadas ?? []) llamadas.anotar(permiso.id, { ...l, escriturasEvitadas: permiso.modo === 'prueba' ? 1 : 0 });
-      return r.respuesta ?? {};
+      if (opciones.acepta === false) return { respuesta: '¿Confirmas?' };
+      if (opciones.avisa === false) return { aceptada: true };
+
+      setTimeout(async () => {
+        for (const t of cuerpo.rutina.tareas) {
+          for (const p of t.pasos) {
+            const paso = { tarea: t.orden, paso: p.orden, instruccion: p.instruccion, atajos: p.atajos, guias: p.guias };
+            hechos.push(paso);
+            const r = await guion(paso, cuerpo);
+            for (const l of r.llamadas ?? []) llamadas.anotar(permiso.id, { ...l, escriturasEvitadas: permiso.modo === 'prueba' ? 1 : 0 });
+            const v = await ejecutor.pasoHecho(permiso, { tarea: t.orden, paso: p.orden, respuesta: r.respuesta?.respuesta, rutina: (r.respuesta?.rutina ?? null) as never });
+            if (!v.seguir) return;
+          }
+        }
+      }, 0);
+      return { aceptada: true, pasos: cuerpo.rutina.tareas.reduce((n: number, t: any) => n + t.pasos.length, 0) };
     }),
   } as unknown as WebhookAgenteService;
 
   const interrupcion = { interrumpir: vi.fn().mockResolvedValue({ interrumpida: true }) } as unknown as InterrupcionAgenteService;
   const rutinas = new RutinasService(supabase, { registrarCambio: vi.fn() } as unknown as ContextoAuditoria);
-  const ejecutor = new EjecutorRutinasService(supabase, rutinas, tokens, webhook, llamadas, new NotificacionesService(supabase), interrupcion);
+  ejecutor = new EjecutorRutinasService(supabase, rutinas, tokens, webhook, llamadas, new NotificacionesService(supabase), interrupcion);
 
   /** Espera a que la ejecución termine del todo, y la devuelve como quedó */
   const terminada = async (id: string) => {
@@ -89,93 +104,107 @@ function montar(guion: Guion = bien) {
     return tablas.rutina_ejecuciones.find((x) => x.id === id)!;
   };
 
-  return { ejecutor, tablas, recibidos, webhook, interrupcion, tokens, terminada };
+  return { ejecutor, tablas, envios, hechos, webhook, interrupcion, tokens, terminada };
 }
 
 const pasosDe = (resultado: TareaEjecutada[]) => resultado.map((t) => [t.orden, t.intento, t.estado, t.pasos.map((p) => p.estado)]);
 
 describe('Probar una rutina', () => {
-  it('recorre sus tareas y sus pasos en orden, y si sale bien queda probada y avisa', async () => {
-    const { ejecutor, tablas, recibidos, terminada } = montar();
+  it('va entera al flujo en UN solo envío, que la recorre paso a paso', async () => {
+    const { ejecutor, envios, hechos, terminada } = montar();
 
-    const creada = await ejecutor.probar('r1', JOSE);
-    expect([creada.modo, creada.origen, creada.estado, creada.tareas]).toEqual(['prueba', 'manual', 'en_curso', [1, 2]]);
+    await terminada((await ejecutor.probar('r1', JOSE)).id);
 
-    const fin = await terminada(creada.id);
+    expect(envios).toHaveLength(1);
+    expect(envios[0].rutina.tareas.map((t: any) => [t.orden, t.nombre, t.intento, t.pasos.map((p: any) => p.instruccion)])).toEqual([
+      [1, 'Activar la S y el DX', 1, ['ejecuta el atajo del same day', 'activa la S y el DX de esos operadores']],
+      [2, 'Revisar el picking', 1, ['dame el picking del 10095 de hoy']],
+    ]);
+    expect(hechos.map((p) => `${p.tarea}.${p.paso}`)).toEqual(['1.1', '1.2', '2.1']);
+  });
+
+  it('si sale bien, queda completada, la versión probada, y se avisa', async () => {
+    const { ejecutor, tablas, terminada } = montar();
+    const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
+
     expect(fin.estado).toBe('completada');
     expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([[1, 1, 'completada', ['completado', 'completado']], [2, 1, 'completada', ['completado']]]);
-    expect(recibidos.map((c) => c.pregunta)).toEqual(['ejecuta el atajo del same day', 'activa la S y el DX de esos operadores', 'dame el picking del 10095 de hoy']);
-
     expect(tablas.rutinas[0]).toMatchObject({ probada_version: 1 });
     expect(tablas.notificaciones.map((n) => [n.usuario_id, n.tipo])).toEqual([[JOSE.id, 'rutina_probada']]);
   });
 
-  it('cada paso le dice al flujo que es una rutina, con su país, sus atajos y sus guías, y en modo editor', async () => {
-    const { ejecutor, recibidos, terminada } = montar();
+  it('le dice al flujo que es una prueba, con su país, sus atajos y sus guías, y en modo editor', async () => {
+    const { ejecutor, envios, terminada } = montar();
     await terminada((await ejecutor.probar('r1', JOSE)).id);
 
-    expect(recibidos[0]).toMatchObject({
-      modo: 'editor',
-      rutina: { nombre: 'Apertura de Chile', pais: 'CL', tarea: 1, paso: 1, pasos: 2, prueba: true, atajos: ['Estado del Next Day y Same Day de chile'], guias: [] },
-    });
-    expect(recibidos[1].rutina.guias).toEqual([{ nombre: 'BT Provincia', tipo: 'malla' }]);
-    expect(recibidos[0].token).toMatch(/^rutina\./);
+    expect(envios[0]).toMatchObject({ modo: 'editor', rutina: { nombre: 'Apertura de Chile', pais: 'CL', prueba: true } });
+    expect(envios[0].rutina.tareas[0].pasos[0].atajos).toEqual(['Estado del Next Day y Same Day de chile']);
+    expect(envios[0].rutina.tareas[0].pasos[1].guias).toEqual([{ nombre: 'BT Provincia', tipo: 'malla' }]);
+    expect(envios[0].token).toMatch(/^rutina\./);
   });
 
-  it('los pasos de una tarea comparten conversación; otra tarea empieza una nueva', async () => {
-    const { ejecutor, recibidos, terminada } = montar();
+  it('cada paso se evalúa con SUS llamadas: las de otro paso no cuentan', async () => {
+    // El primer paso pide un atajo y lo usa; el segundo no llama a ninguno. Si
+    // las llamadas no se repartieran por paso, el segundo se vería con el atajo
+    const { ejecutor, terminada } = montar();
+    const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
+    const [t1] = fin.resultado as TareaEjecutada[];
+    expect(t1.pasos.map((p) => p.llamadas.map((l) => l.herramienta))).toEqual([['Ejecutar un atajo', 'Capacidad de agendas'], ['Capacidad de agendas']]);
+  });
+
+  it('el token de la ejecución deja de valer al terminar', async () => {
+    const { ejecutor, envios, tokens, terminada } = montar();
     await terminada((await ejecutor.probar('r1', JOSE)).id);
-
-    const [a, b, c] = recibidos.map((r) => r.sessionId);
-    expect(a).toBe(b);
-    expect(c).not.toBe(a);
+    await expect(tokens.validar(envios[0].token)).rejects.toThrow('ya no está en curso');
   });
 
-  it('el token de una prueba es de prueba, y deja de valer al terminar', async () => {
-    const { ejecutor, recibidos, tokens, terminada } = montar();
-    await terminada((await ejecutor.probar('r1', JOSE)).id);
-
-    await expect(tokens.validar(recibidos[0].token)).rejects.toThrow('ya no está en curso');
-  });
-
-  it('solo la prueba su creador: corre con su cuenta', async () => {
-    const { ejecutor } = montar();
-    await expect(ejecutor.probar('r1', ANA)).rejects.toThrow('Solo quien la creó puede probarla');
-  });
-
-  it('no dos a la vez', async () => {
+  it('solo la prueba su creador, y no dos a la vez', async () => {
     const { ejecutor, tablas } = montar();
+    await expect(ejecutor.probar('r1', ANA)).rejects.toThrow('Solo quien la creó puede probarla');
     tablas.rutina_ejecuciones.push({ id: 'otra', rutina_id: 'r1', estado: 'en_curso' });
     await expect(ejecutor.probar('r1', JOSE)).rejects.toThrow('Ya se está ejecutando');
+  });
+
+  it('un flujo viejo, que no acepta la rutina, se dice: hay que reimportarlo', async () => {
+    const { ejecutor, terminada } = montar(bien, { acepta: false });
+    const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
+    expect([fin.estado, fin.motivo]).toEqual(['detenida', 'El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.']);
+  });
+
+  it('un atajo retirado se dice antes de mandar nada', async () => {
+    const m = montar();
+    m.tablas.atajos[0].activa = false;
+    const fin = await m.terminada((await m.ejecutor.probar('r1', JOSE)).id);
+    expect(fin.motivo).toContain('El atajo "Estado del Next Day y Same Day de chile" del paso 1 de la tarea 1 está retirado');
+    expect(m.envios).toHaveLength(0);
   });
 });
 
 describe('Un paso que falla', () => {
   /** El segundo paso de la primera tarea choca con varias zonas */
-  const fallaElSegundo: Guion = (c) =>
-    c.pregunta.startsWith('activa')
+  const fallaElSegundo: Guion = (p, c) =>
+    p.instruccion.startsWith('activa')
       ? {
           llamadas: [{ herramienta: 'Editar un tipo de servicio', estado: 400, problemas: ['Hay 4 opciones en el operador 1088 y no voy a elegir por ti'] }],
           respuesta: { respuesta: '¿Qué zona?', rutina: { tipo: 'pasos', herramientas: ['Editar un tipo de servicio'] } },
         }
-      : bien(c);
+      : bien(p, c);
 
-  it('detiene la rutina en esa tarea, no sigue con las demás y se lo cuenta a su creador', async () => {
-    const { ejecutor, tablas, recibidos, terminada } = montar(fallaElSegundo);
-
+  it('el backend le dice al flujo que pare: no sigue con las demás, y se avisa a su creador', async () => {
+    const { ejecutor, tablas, hechos, terminada } = montar(fallaElSegundo);
     const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
 
     expect([fin.estado, fin.tarea_detenida]).toEqual(['detenida', 1]);
     expect(fin.motivo).toBe('Tarea 1 «Activar la S y el DX», paso 2: "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti');
-    expect(recibidos).toHaveLength(2);
+    expect(hechos.map((p) => `${p.tarea}.${p.paso}`)).toEqual(['1.1', '1.2']);
     expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([[1, 1, 'fallida', ['completado', 'fallido']]]);
     expect(tablas.notificaciones.map((n) => [n.tipo, n.titulo])).toEqual([['rutina_detenida', 'La prueba de «Apertura de Chile» se detuvo']]);
     expect(tablas.rutinas[0].probada_version).toBeNull();
   });
 
-  it('al reanudarla se reintenta la tarea que falló, desde su primer paso, y sigue', async () => {
+  it('al reanudarla, el flujo recibe desde la tarea que falló, en su intento 2, y sigue', async () => {
     let arreglado = false;
-    const m = montar((c) => (arreglado ? bien(c) : fallaElSegundo(c)));
+    const m = montar((p, c) => (arreglado ? bien(p, c) : fallaElSegundo(p, c)));
     const id = (await m.ejecutor.probar('r1', JOSE)).id;
     await m.terminada(id);
 
@@ -183,14 +212,13 @@ describe('Un paso que falla', () => {
     await m.ejecutor.reanudar('r1', id, JOSE);
     const fin = await m.terminada(id);
 
+    expect(m.envios[1].rutina.tareas.map((t: any) => [t.orden, t.intento])).toEqual([[1, 2], [2, 1]]);
     expect(fin.estado).toBe('completada');
     expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([
       [1, 1, 'fallida', ['completado', 'fallido']],
       [1, 2, 'completada', ['completado', 'completado']],
       [2, 1, 'completada', ['completado']],
     ]);
-    // El reintento es otra conversación: no arrastra lo que se torció
-    expect(new Set(m.recibidos.slice(0, 2).map((r) => r.sessionId)).has(m.recibidos[2].sessionId)).toBe(false);
     expect(m.tablas.rutinas[0].probada_version).toBe(1);
   });
 
@@ -198,47 +226,50 @@ describe('Un paso que falla', () => {
     const m = montar(fallaElSegundo);
     const id = (await m.ejecutor.probar('r1', JOSE)).id;
     await m.terminada(id);
-
     m.tablas.rutinas[0].version = 2;
     await expect(m.ejecutor.reanudar('r1', id, JOSE)).rejects.toThrow('La rutina cambió después de detenerse');
   });
 
-  it('un flujo viejo, que no sabe de rutinas, se dice: hay que reimportarlo', async () => {
-    const m = montar(() => ({ respuesta: { respuesta: '¿Confirmas el cambio?' } }));
-    const fin = await m.terminada((await m.ejecutor.probar('r1', JOSE)).id);
-    expect(fin.motivo).toContain('reimporta el flujo actualizado');
-  });
-
-  it('un atajo retirado después de guardarla falla sin preguntarle a nadie', async () => {
+  it('un paso contado fuera de orden para la rutina: el orden lo pone el backend', async () => {
     const m = montar();
-    m.tablas.atajos[0].activa = false;
-    const fin = await m.terminada((await m.ejecutor.probar('r1', JOSE)).id);
+    const id = (await m.ejecutor.probar('r1', JOSE)).id;
+    await m.terminada(id);
 
-    expect(fin.motivo).toContain('El atajo "Estado del Next Day y Same Day de chile" está retirado');
-    expect(m.recibidos).toHaveLength(0);
+    // Otra prueba, con un flujo que se salta el primer paso
+    m.tablas.rutinas[0].probada_version = null;
+    const otro = montar(bien, { avisa: false });
+    const e = await otro.ejecutor.probar('r1', JOSE);
+    const permiso = await otro.tokens.validar(otro.envios[0].token);
+    expect(await otro.ejecutor.pasoHecho(permiso, { tarea: 1, paso: 2 })).toMatchObject({ seguir: false });
+    const fin = await otro.terminada(e.id);
+    expect(fin.motivo).toContain('cuando tocaba el 1 de la tarea 1');
   });
 
-  it('si n8n no responde, falla con el motivo', async () => {
-    const m = montar(() => Promise.reject(new Error('No se pudo hablar con n8n: comprueba que esté en marcha.')));
+  it('si el flujo deja de avisar, al cabo de un rato se deja de esperar y se corta', async () => {
+    const m = montar(bien, { avisa: false });
+    m.ejecutor.esperaPasoMs = 30;
     const fin = await m.terminada((await m.ejecutor.probar('r1', JOSE)).id);
-    expect(fin.motivo).toContain('No se pudo hablar con n8n');
+
+    expect(fin.estado).toBe('detenida');
+    expect(fin.motivo).toContain('no avisó');
+    expect(m.interrupcion.interrumpir).toHaveBeenCalled();
   });
 });
 
 describe('Cancelar', () => {
-  it('mientras corre: corta lo que esté haciendo y no sigue', async () => {
+  it('mientras corre: el siguiente aviso del flujo recibe que pare', async () => {
     let id = '';
-    const m = montar(async (c) => {
-      // Alguien la cancela mientras Silvana hace el primer paso
-      if (c.rutina.paso === 1 && c.rutina.tarea === 1) await m.ejecutor.cancelar('r1', id, JOSE);
-      return bien(c);
+    const m = montar(async (p, c) => {
+      if (p.tarea === 1 && p.paso === 1) await m.ejecutor.cancelar('r1', id, JOSE);
+      return bien(p, c);
     });
     id = (await m.ejecutor.probar('r1', JOSE)).id;
     const fin = await m.terminada(id);
+    await new Promise((r) => setTimeout(r, 10));
 
     expect(fin.estado).toBe('cancelada');
-    expect(m.recibidos).toHaveLength(1);
-    expect(m.interrupcion.interrumpir).toHaveBeenCalledWith(m.recibidos[0].peticionId, JOSE.id);
+    expect(m.hechos).toHaveLength(1);
+    expect(m.interrupcion.interrumpir).toHaveBeenCalledWith(m.envios[0].peticionId, JOSE.id);
   });
 
   it('una detenida que no va a seguir', async () => {
@@ -246,8 +277,7 @@ describe('Cancelar', () => {
     const id = (await m.ejecutor.probar('r1', JOSE)).id;
     await m.terminada(id);
 
-    const r = await m.ejecutor.cancelar('r1', id, JOSE);
-    expect(r.estado).toBe('cancelada');
+    expect((await m.ejecutor.cancelar('r1', id, JOSE)).estado).toBe('cancelada');
     await expect(m.ejecutor.reanudar('r1', id, JOSE)).rejects.toThrow('solo se reanuda una detenida');
   });
 });

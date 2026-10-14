@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { NotificacionesModule } from '../notificaciones/notificaciones.module.js';
 import { EjecutorRutinasService } from './ejecutor/ejecutor.service.js';
 import { LlamadasRutinaInterceptor, LlamadasRutinaService } from './ejecutor/llamadas.js';
+import { PasosRutinaController } from './ejecutor/pasos.controller.js';
 import { WebhookAgenteService } from './ejecutor/webhook-agente.service.js';
 import { RutinasController } from './rutinas.controller.js';
 import { RutinasService } from './rutinas.service.js';
@@ -13,7 +14,8 @@ import { RutinasService } from './rutinas.service.js';
 @Module({
   // Auth, por el token de rutina; Agente, para cortar lo que esté haciendo al cancelar
   imports: [AuthModule, AgenteModule, NotificacionesModule],
-  controllers: [RutinasController],
+  // El segundo es el aviso del flujo de n8n al terminar cada paso
+  controllers: [RutinasController, PasosRutinaController],
   providers: [
     RutinasService,
     EjecutorRutinasService,

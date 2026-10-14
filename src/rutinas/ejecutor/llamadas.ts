@@ -38,7 +38,7 @@ export const HERRAMIENTA_DE: Record<string, string> = {
  * interpretar el mensaje, el contexto— y no es algo que el paso haga. No
  * cuenta como herramienta.
  */
-const DEL_FLUJO = new Set(['POST /agente/interpretar', 'GET /agente/contexto', 'GET /agente/configuracion', 'GET /configuracion/atajos']);
+const DEL_FLUJO = new Set(['POST /agente/interpretar', 'GET /agente/contexto', 'GET /agente/configuracion', 'GET /configuracion/atajos', 'POST /agente/rutina/paso']);
 
 /** "Ya estaba así" no es un fallo: el paso pedía un estado que ya se cumplía */
 const YA_ESTABA = /^ya estaba así/i;

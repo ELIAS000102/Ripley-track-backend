@@ -22,6 +22,21 @@ export default () => {
         PE: process.env.RIPLEY_API_URL_PE,
         CL: process.env.RIPLEY_API_URL_CL,
       },
+      /*
+       * El ritmo hacia la API corporativa, por país: cuántas peticiones a la
+       * vez y cuánto entre el arranque de una y la siguiente. Vacío, los de
+       * por defecto (ver src/common/ripley/ritmo.ts). El simulador va aparte.
+       */
+      ritmo: {
+        general: {
+          paralelas: process.env.RIPLEY_RITMO_PARALELAS,
+          intervaloMs: process.env.RIPLEY_RITMO_INTERVALO_MS,
+        },
+        simulacion: {
+          paralelas: process.env.RIPLEY_RITMO_SIMULACION_PARALELAS,
+          intervaloMs: process.env.RIPLEY_RITMO_SIMULACION_INTERVALO_MS,
+        },
+      },
       // Los tokens ya no viven aquí: cada usuario guarda el suyo cifrado
       // (ver src/configuracion/token-ripley).
       endpoints: {

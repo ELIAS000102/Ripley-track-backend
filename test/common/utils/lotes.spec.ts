@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enLotes } from '../../../src/common/utils/lotes.util.js';
+import { enLotes, enParalelo } from '../../../src/common/utils/lotes.util.js';
 
 /**
  * El freno de mano contra la API corporativa.
@@ -83,5 +83,32 @@ describe('Recorrer por tandas', () => {
     // El segundo lote no llegó a salir: quien llama decide si reintenta, pero
     // seguir pidiendo contra una API que acaba de fallar no es decisión de aquí
     expect(llamadas).toEqual([1, 2]);
+  });
+});
+
+describe('enParalelo', () => {
+  it('como mucho los permitidos a la vez, y el resultado en el orden de la lista', async () => {
+    let ahora = 0;
+    let maximo = 0;
+    const r = await enParalelo([30, 5, 20, 1, 10], 2, async (ms, i) => {
+      maximo = Math.max(maximo, ++ahora);
+      await new Promise((ok) => setTimeout(ok, ms));
+      ahora--;
+      return i;
+    });
+    expect([r, maximo]).toEqual([[0, 1, 2, 3, 4], 2]);
+  });
+
+  it('un lento no frena a los demás: en cuanto acaba uno, arranca el siguiente', async () => {
+    const orden: number[] = [];
+    await enParalelo([60, 5, 5, 5], 2, async (ms, i) => {
+      await new Promise((ok) => setTimeout(ok, ms));
+      orden.push(i);
+    });
+    expect(orden).toEqual([1, 2, 3, 0]);
+  });
+
+  it('con una lista vacía no hace nada', async () => {
+    expect(await enParalelo([], 3, async () => 1)).toEqual([]);
   });
 });
