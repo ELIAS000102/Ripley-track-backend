@@ -8,7 +8,7 @@ export type TipoChat = 'conversacion' | 'notificaciones';
 export interface Chat {
   id: string;
   titulo: string;
-  /** Sin la columna (antes de la migración), o sin decirlo, es una conversación */
+  /** Sin decirlo, es una conversación */
   tipo?: TipoChat;
   creado_en: string;
   actualizado_en: string;

@@ -40,16 +40,37 @@ export const HERRAMIENTA_DE: Record<string, string> = {
  */
 const DEL_FLUJO = new Set(['POST /agente/interpretar', 'GET /agente/contexto', 'GET /agente/configuracion', 'GET /configuracion/atajos', 'POST /agente/rutina/paso']);
 
-/** "Ya estaba así" no es un fallo: el paso pedía un estado que ya se cumplía */
-const YA_ESTABA = /^ya estaba así/i;
+/**
+ * Una fila que no cambió porque ya estaba como se pedía no es un fallo: el paso
+ * pedía un estado que ya se cumplía. "Ya estaba así", y en los CDs "Ya estaba
+ * activa." o "Ya estaba inactiva."
+ */
+const YA_ESTABA = /^ya (?:estaba|estaban|está)\b/i;
+
+/** "Las 21 agendas ya estaban así", "La relación ya está así" */
+const YA_ESTABA_TODO = /(?:^|\s)ya (?:estaba|estaban|está) así/i;
+
+/** Los mensajes que juntan el motivo de cada fila: "Motivos: a; b" o "SD (1110): a; ST: b" */
+const NINGUNA_JORNADA = /^ninguna de las \d+ jornadas cambió\.\s*motivos?:\s*(.+)$/is;
+const NINGUN_CAMBIO = /^ninguno de los \d+ cambios se pudo aplicar\.\s*(.+)$/is;
 
 /**
- * Las ediciones responden 400 cuando no cambiaron nada porque TODO ya estaba
- * así —"Las 21 agendas ya estaban así", "La relación ya está así"—: para el
+ * Si una edición respondió 400 porque TODO ya estaba como se pedía: para el
  * chat es un aviso; para una rutina, el estado pedido ya se cumple (1748: "el
  * resto, que permanezca activo", y ya lo estaba).
+ *
+ * Un mensaje que junta varios motivos vale solo si TODOS lo son: "SD: Ya estaba
+ * así; ST: La agenda no tiene el servicio" es un fallo, aunque diga "ya estaba
+ * así" en una parte.
  */
-const YA_ESTABA_TODO = /(?:^|\s)ya (?:estaba|estaban|está) así/i;
+export function todoYaEstaba(mensaje: string): boolean {
+  const texto = mensaje.trim();
+  const jornadas = NINGUNA_JORNADA.exec(texto);
+  if (jornadas) return jornadas[1].split(/;\s*/).every((m) => YA_ESTABA.test(m.trim()));
+  const cambios = NINGUN_CAMBIO.exec(texto);
+  if (cambios) return cambios[1].split(/;\s*/).every((m) => YA_ESTABA.test(m.replace(/^[^:]*:\s*/, '').trim()));
+  return YA_ESTABA.test(texto) || YA_ESTABA_TODO.test(texto);
+}
 
 /**
  * Lo que salió mal dentro de una respuesta correcta: las filas con `error`
@@ -166,7 +187,7 @@ export class LlamadasRutinaInterceptor implements NestInterceptor {
           }),
         error: (e: { status?: number }) => {
           const mensaje = mensajeDe(e);
-          const yaEstaba = e?.status === 400 && YA_ESTABA_TODO.test(mensaje);
+          const yaEstaba = e?.status === 400 && todoYaEstaba(mensaje);
           this.llamadas.anotar(permiso.id, {
             ...base,
             estado: e?.status ?? 500,

@@ -45,8 +45,7 @@ export class ChatsService {
    * Los chats del usuario, el de actividad más reciente primero.
    *
    * «Notificaciones» está siempre: si aún no existe, se crea. Si no se puede
-   * crear, la lista sale igual, sin él. (Las columnas `tipo` y `ejecucion_id`
-   * son de `migracion-chat-notificaciones.sql`: sin ella no se leen los chats.)
+   * crear, la lista sale igual, sin él.
    */
   async listar(usuarioId: string): Promise<Chat[]> {
     try {

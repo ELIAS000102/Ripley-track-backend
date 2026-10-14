@@ -83,10 +83,10 @@ export class ConfiguracionReportesService {
 
   /** Un fallo de Supabase, contado para quien lo lee */
   private fallo(error: { code?: string; message?: string }, accion: string): never {
-    // Tabla o columna que no existe: falta el SQL, o la migración desde reportes_st
+    // Tabla o columna que no existe: falta el SQL
     if (error.code === '42P01' || error.code === 'PGRST205' || error.code === '42703' || error.code === 'PGRST204') {
       throw new BadGatewayException(
-        'Falta la tabla "reportes" en Supabase (o sigue siendo la antigua "reportes_st"): ejecuta la sección "Reportes" del SQL de configuración.',
+        'Falta la tabla "reportes" en Supabase: ejecuta la sección "Reportes" del SQL de configuración.',
       );
     }
     this.logger.error(`No se pudo ${accion}: ${error.message ?? 'error desconocido'}`);

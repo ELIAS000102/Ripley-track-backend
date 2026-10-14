@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluarPaso } from '../../src/rutinas/ejecutor/evaluar-paso.js';
-import { problemasDe } from '../../src/rutinas/ejecutor/llamadas.js';
+import { problemasDe, todoYaEstaba } from '../../src/rutinas/ejecutor/llamadas.js';
 import type { LlamadaHerramienta } from '../../src/rutinas/interfaces/rutinas.interface.js';
 
 /**
@@ -88,5 +88,27 @@ describe('Lo que salió mal dentro de una respuesta correcta', () => {
 
   it('lo del simulacro no es un problema', () => {
     expect(problemasDe({ ok: true, simulacro: { escriturasEvitadas: 1, aviso: 'x', error: 'no' } })).toEqual([]);
+  });
+});
+
+describe('Lo que ya estaba como se pedía', () => {
+  it('una fila "Ya estaba activa." de un CD no es un problema, como "Ya estaba así"', () => {
+    expect(problemasDe({ jornadas: [{ jornada: 'SE', error: 'Ya estaba activa.' }, { jornada: 'ST', error: 'Ya estaba inactiva.' }] })).toEqual([]);
+    expect(problemasDe({ jornadas: [{ jornada: 'SE', error: 'La jornada no existe.' }] })).toEqual(['La jornada no existe.']);
+  });
+
+  it.each([
+    ['un CD donde todas ya estaban (1)', 'Ninguna de las 1 jornadas cambió. Motivos: Ya estaba activa.', true],
+    ['un CD con varias, todas ya estaban', 'Ninguna de las 3 jornadas cambió. Motivos: Ya estaba activa.; Ya estaba inactiva.', true],
+    ['un CD con un motivo de verdad', 'Ninguna de las 2 jornadas cambió. Motivos: Ya estaba activa.; La jornada RC no existe en el CD.', false],
+    ['un cambio en bloque', 'Las 21 agendas ya estaban así. No he cambiado nada.', true],
+    ['una transferencia', 'La relación ya está así. No he cambiado nada.', true],
+    ['la capacidad de un día', 'Ya estaba así (asignado 500, activa).', true],
+    ['un tipo de servicio', 'Ya estaba así. No he cambiado nada aquí.', true],
+    ['varios servicios, todos ya estaban', 'Ninguno de los 2 cambios se pudo aplicar. SD (1110): Ya estaba así. No he cambiado nada aquí.; ST (1110): Ya estaba así. No he cambiado nada aquí.', true],
+    ['varios servicios, uno de verdad', 'Ninguno de los 2 cambios se pudo aplicar. SD (1110): Ya estaba así. No he cambiado nada aquí.; ST (1110): La agenda no tiene el servicio ST', false],
+    ['un error cualquiera', 'Hay 4 opciones en el operador 1088 y no voy a elegir por ti', false],
+  ])('%s', (_, mensaje, esperado) => {
+    expect(todoYaEstaba(mensaje)).toBe(esperado);
   });
 });
