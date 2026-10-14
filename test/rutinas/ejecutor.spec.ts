@@ -204,6 +204,40 @@ describe('Probar una rutina', () => {
   });
 });
 
+describe('Ejecutarla ahora, de verdad', () => {
+  it('sin una prueba correcta de la versión actual, no: cambiaría agendas sin haberla probado', async () => {
+    const { ejecutor, envios } = montar();
+    await expect(ejecutor.ejecutar('r1', JOSE)).rejects.toThrow('Pruébala antes de ejecutarla: todavía no tiene ninguna prueba correcta');
+    expect(envios).toHaveLength(0);
+  });
+
+  it('probada, corre de verdad: el flujo sabe que no es prueba, escribe, y se avisa al terminar', async () => {
+    const { ejecutor, tablas, envios, terminada } = montar();
+    await terminada((await ejecutor.probar('r1', JOSE)).id);
+
+    const e = await ejecutor.ejecutar('r1', JOSE);
+    const fin = await terminada(e.id);
+
+    expect([e.modo, e.origen, fin.estado, fin.disparada_por]).toEqual(['real', 'manual', 'completada', JOSE.email]);
+    expect(envios[1].rutina.prueba).toBe(false);
+    expect(tablas.notificaciones.map((n) => n.tipo)).toEqual(['rutina_probada', 'rutina_completada']);
+    expect(contado(tablas).at(-1)?.texto).toContain('**«Apertura de Chile» terminó bien**: hizo sus 2 tareas.');
+  });
+
+  it('si cambió después de la prueba, tampoco', async () => {
+    const { ejecutor, tablas, terminada } = montar();
+    await terminada((await ejecutor.probar('r1', JOSE)).id);
+    tablas.rutinas[0].version = 2;
+    await expect(ejecutor.ejecutar('r1', JOSE)).rejects.toThrow('cambió después de la última prueba correcta (versión 1, ahora 2)');
+  });
+
+  it('solo su creador: corre con su cuenta y su token de Ripley', async () => {
+    const { ejecutor, terminada } = montar();
+    await terminada((await ejecutor.probar('r1', JOSE)).id);
+    await expect(ejecutor.ejecutar('r1', ANA)).rejects.toThrow('Solo quien la creó puede ejecutarla');
+  });
+});
+
 describe('Un paso que falla', () => {
   /** El segundo paso de la primera tarea choca con varias zonas */
   const fallaElSegundo: Guion = (p, c) =>

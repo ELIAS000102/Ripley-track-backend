@@ -144,6 +144,35 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     return ejecucion;
   }
 
+  /**
+   * Ejecutarla ahora, de verdad: cambia las agendas en Ripley, como lo hará a
+   * su hora. Exige lo mismo que activarla —que la versión actual tenga una
+   * prueba correcta—, pero no que esté activa: se puede correr a mano una que
+   * no tiene horarios.
+   */
+  async ejecutar(rutinaId: string, usuario: UsuarioAutenticado): Promise<EjecucionDetalle> {
+    const rutina = await this.suya(rutinaId, usuario, 'ejecutarla');
+    if (!rutina.tareas.length) throw new BadRequestException('La rutina no tiene tareas que ejecutar.');
+
+    const probada = rutina.probada_version != null && rutina.probada_version === rutina.version;
+    if (!probada) {
+      throw new BadRequestException(rutina.probada_version == null
+        ? 'Pruébala antes de ejecutarla: todavía no tiene ninguna prueba correcta, y una ejecución de verdad cambia agendas en Ripley.'
+        : `Pruébala antes de ejecutarla: cambió después de la última prueba correcta (versión ${rutina.probada_version}, ahora ${rutina.version}).`);
+    }
+
+    const ejecucion = await this.crear(rutina, {
+      modo: 'real',
+      origen: 'manual',
+      disparada_por: usuario.email,
+      tareas: rutina.tareas.map((t) => t.orden),
+    });
+
+    this.logger.warn(`Rutina "${rutina.nombre}" (versión ${rutina.version}) ejecutada a mano por ${usuario.email}: cambia agendas de verdad`);
+    await this.lanzar(ejecucion, rutina, 0);
+    return ejecucion;
+  }
+
   /** Seguir una detenida: se reintenta la tarea que falló y lo que venía después */
   async reanudar(rutinaId: string, ejecucionId: string, usuario: UsuarioAutenticado): Promise<EjecucionDetalle> {
     const rutina = await this.suya(rutinaId, usuario, 'reanudarla');

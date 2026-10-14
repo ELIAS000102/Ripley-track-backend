@@ -56,6 +56,17 @@ export class RutinasController {
     return this.ejecutor.probar(id, usuario);
   }
 
+  /**
+   * POST /rutinas/{id}/ejecutar — ahora, de verdad: cambia las agendas en Ripley.
+   * Solo una versión con una prueba correcta. Responde enseguida, como probarla.
+   */
+  @Auditar('rutina.ejecutar')
+  @Post(':id/ejecutar')
+  @HttpCode(202)
+  async ejecutar(@Param('id', ParseUUIDPipe) id: string, @Usuario() usuario: UsuarioAutenticado) {
+    return this.ejecutor.ejecutar(id, usuario);
+  }
+
   /** POST /rutinas/{id}/ejecuciones/{ejecucion}/reanudar — reintenta la tarea que falló y sigue */
   @Auditar('rutina.reanudar')
   @Post(':id/ejecuciones/:ejecucion/reanudar')
