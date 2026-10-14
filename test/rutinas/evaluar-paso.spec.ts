@@ -30,6 +30,11 @@ describe('Un paso que sale bien', () => {
       .toEqual({ estado: 'completado' });
   });
 
+  it('un 400 porque todo ya estaba así: el estado que pedía el paso se cumple (1748)', () => {
+    expect(evaluar({ llamadas: [llamada(), llamada({ herramienta: 'Activar o desactivar agendas en bloque', estado: 400, yaEstaba: true })] }))
+      .toEqual({ estado: 'completado' });
+  });
+
   it('el atajo que pide el paso, usado aunque sea con el nombre corto', () => {
     expect(evaluar({
       atajos: ['Estado del Next Day y Same Day de chile'],

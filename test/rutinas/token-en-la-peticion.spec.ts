@@ -1,4 +1,4 @@
-import { Controller, Get, MiddlewareConsumer, Module, NestModule, Put } from '@nestjs/common';
+import { BadRequestException, Controller, Get, MiddlewareConsumer, Module, NestModule, Put } from '@nestjs/common';
 import type { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -50,6 +50,20 @@ class HerramientasFalsas {
   @Get('capacidad')
   consultar() {
     return { oficinas: [{ codigo: '1088', error: 'El operador 1088 no tiene la zona 4' }] };
+  }
+
+  /** Como el cambio en bloque cuando todo ya estaba como se pedía */
+  @PermitidoAgenteEditor()
+  @Put('masivo')
+  masivo() {
+    throw new BadRequestException('Las 21 agendas ya estaban así. No he cambiado nada.');
+  }
+
+  /** Un 400 de verdad */
+  @PermitidoAgenteEditor()
+  @Put('tipo-servicio')
+  tipoServicio() {
+    throw new BadRequestException('La agenda no tiene el servicio DX');
   }
 }
 
@@ -141,6 +155,18 @@ describe('Un paso de una rutina llamando a una herramienta', () => {
     expect(m.llamadas.tomar(permiso.id)).toEqual([
       { herramienta: 'Editar capacidad de una agenda', estado: 200, problemas: [], escriturasEvitadas: 1 },
       { herramienta: 'Capacidad de agendas', estado: 200, problemas: ['El operador 1088 no tiene la zona 4'], escriturasEvitadas: 0 },
+    ]);
+  });
+
+  it('un 400 porque todo ya estaba así se anota como cumplido; uno de verdad, como fallo', async () => {
+    const { token, permiso } = m.emitir('prueba');
+
+    await comoPaso(request(m.servidor).put('/agente/masivo'), token).expect(400);
+    await comoPaso(request(m.servidor).put('/agente/tipo-servicio'), token).expect(400);
+
+    expect(m.llamadas.tomar(permiso.id)).toEqual([
+      { herramienta: 'Activar o desactivar agendas en bloque', estado: 400, problemas: [], escriturasEvitadas: 0, yaEstaba: true },
+      { herramienta: 'Editar un tipo de servicio', estado: 400, problemas: ['La agenda no tiene el servicio DX'], escriturasEvitadas: 0 },
     ]);
   });
 

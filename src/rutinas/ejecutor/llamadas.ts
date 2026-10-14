@@ -44,6 +44,14 @@ const DEL_FLUJO = new Set(['POST /agente/interpretar', 'GET /agente/contexto', '
 const YA_ESTABA = /^ya estaba así/i;
 
 /**
+ * Las ediciones responden 400 cuando no cambiaron nada porque TODO ya estaba
+ * así —"Las 21 agendas ya estaban así", "La relación ya está así"—: para el
+ * chat es un aviso; para una rutina, el estado pedido ya se cumple (1748: "el
+ * resto, que permanezca activo", y ya lo estaba).
+ */
+const YA_ESTABA_TODO = /(?:^|\s)ya (?:estaba|estaban|está) así/i;
+
+/**
  * Lo que salió mal dentro de una respuesta correcta: las filas con `error`
  * —un día que no existe, un operador que no se encontró, un ítem de un atajo
  * que falló— y los `noEncontrados`. Una herramienta que cambia diez días y
@@ -156,13 +164,17 @@ export class LlamadasRutinaInterceptor implements NestInterceptor {
             problemas: problemasDe(cuerpo),
             escriturasEvitadas: evitadas(),
           }),
-        error: (e: { status?: number }) =>
+        error: (e: { status?: number }) => {
+          const mensaje = mensajeDe(e);
+          const yaEstaba = e?.status === 400 && YA_ESTABA_TODO.test(mensaje);
           this.llamadas.anotar(permiso.id, {
             ...base,
             estado: e?.status ?? 500,
-            problemas: [mensajeDe(e)],
+            problemas: yaEstaba ? [] : [mensaje],
             escriturasEvitadas: evitadas(),
-          }),
+            ...(yaEstaba ? { yaEstaba } : {}),
+          });
+        },
       }),
     );
   }

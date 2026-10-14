@@ -95,7 +95,8 @@ export function evaluarPaso(e: {
       : `Se paró antes de terminar: en vez de llamar a las herramientas, contestó "${recorte(r.respuesta, 200)}".`);
   }
 
-  const mala = e.llamadas.find((l) => l.estado >= 400);
+  // Un 400 porque todo ya estaba como se pedía no es un fallo: el estado se cumple
+  const mala = e.llamadas.find((l) => l.estado >= 400 && !l.yaEstaba);
   if (mala) return fallo(`"${mala.herramienta}" respondió ${mala.estado}: ${mala.problemas[0] ?? 'sin detalle'}`);
 
   const conProblemas = e.llamadas.find((l) => l.problemas.length);

@@ -99,6 +99,11 @@ export interface LlamadaHerramienta {
   atajo?: string;
   /** Las escrituras que no salieron hacia Ripley porque era una prueba */
   escriturasEvitadas: number;
+  /**
+   * Respondió 400 porque TODO ya estaba como se pedía ("Las 21 agendas ya
+   * estaban así"): el estado que pedía el paso se cumple, no es un fallo
+   */
+  yaEstaba?: boolean;
 }
 
 export interface PasoEjecutado {
