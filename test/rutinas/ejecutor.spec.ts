@@ -4,6 +4,7 @@ import type { InterrupcionAgenteService } from '../../src/agente/seguridad/inter
 import type { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../src/auth/interfaces/auth.interface.js';
 import { TokenRutinaService } from '../../src/auth/token-rutina.service.js';
+import { ChatsService } from '../../src/chats/chats.service.js';
 import { CifradoService } from '../../src/common/cifrado/cifrado.service.js';
 import { NotificacionesService } from '../../src/notificaciones/notificaciones.service.js';
 import { EjecutorRutinasService } from '../../src/rutinas/ejecutor/ejecutor.service.js';
@@ -58,6 +59,8 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
     grupos_leadtime: [{ id: 'g1', nombre: 'BT Provincia', tipo: 'malla', pais: 'CL' }],
     rutina_ejecuciones: [],
     notificaciones: [],
+    chats: [],
+    chat_mensajes: [],
   };
 
   const supabase = supabaseEnMemoria(tablas);
@@ -96,7 +99,7 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
 
   const interrupcion = { interrumpir: vi.fn().mockResolvedValue({ interrumpida: true }) } as unknown as InterrupcionAgenteService;
   const rutinas = new RutinasService(supabase, { registrarCambio: vi.fn() } as unknown as ContextoAuditoria);
-  ejecutor = new EjecutorRutinasService(supabase, rutinas, tokens, webhook, llamadas, new NotificacionesService(supabase), interrupcion);
+  ejecutor = new EjecutorRutinasService(supabase, rutinas, tokens, webhook, llamadas, new NotificacionesService(supabase), interrupcion, new ChatsService(supabase));
 
   /** Espera a que la ejecución termine del todo, y la devuelve como quedó */
   const terminada = async (id: string) => {
@@ -106,6 +109,12 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
 
   return { ejecutor, tablas, envios, hechos, webhook, interrupcion, tokens, terminada };
 }
+
+/** Lo que Silvana contó en «Notificaciones» */
+const contado = (tablas: Record<string, Fila[]>) => {
+  const chat = tablas.chats.find((c) => c.tipo === 'notificaciones');
+  return tablas.chat_mensajes.filter((m) => m.chat_id === chat?.id).map((m) => ({ texto: String(m.texto), ejecucion: m.ejecucion_id, rol: m.rol }));
+};
 
 const pasosDe = (resultado: TareaEjecutada[]) => resultado.map((t) => [t.orden, t.intento, t.estado, t.pasos.map((p) => p.estado)]);
 
@@ -131,6 +140,21 @@ describe('Probar una rutina', () => {
     expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([[1, 1, 'completada', ['completado', 'completado']], [2, 1, 'completada', ['completado']]]);
     expect(tablas.rutinas[0]).toMatchObject({ probada_version: 1 });
     expect(tablas.notificaciones.map((n) => [n.usuario_id, n.tipo])).toEqual([[JOSE.id, 'rutina_probada']]);
+  });
+
+  it('cada tarea se cuenta en el chat «Notificaciones» de su creador, la última con el final', async () => {
+    const { ejecutor, tablas, terminada } = montar();
+    const id = (await ejecutor.probar('r1', JOSE)).id;
+    await terminada(id);
+
+    expect(tablas.chats.map((c) => [c.usuario_id, c.titulo, c.tipo])).toEqual([[JOSE.id, 'Notificaciones', 'notificaciones']]);
+    const mensajes = contado(tablas);
+    expect(mensajes.map((m) => [m.rol, m.ejecucion])).toEqual([['agente', id], ['agente', id]]);
+    expect(mensajes[0].texto).toContain('**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX»: completada**');
+    expect(mensajes[0].texto).toContain('**Paso 2** · hecho · *activa la S y el DX de esos operadores*');
+    expect(mensajes[0].texto).toContain('Llamó a: Capacidad de agendas (1 sin aplicar)');
+    expect(mensajes[1].texto).toContain('Tarea 2 «Revisar el picking»: completada');
+    expect(mensajes[1].texto).toContain('**Prueba de «Apertura de Chile» salió bien**: hizo sus 2 tareas sin cambiar ninguna agenda. Ya puedes activarla.');
   });
 
   it('le dice al flujo que es una prueba, con su país, sus atajos y sus guías, y en modo editor', async () => {
@@ -202,6 +226,19 @@ describe('Un paso que falla', () => {
     expect(tablas.rutinas[0].probada_version).toBeNull();
   });
 
+  it('la tarea que falló se cuenta con el detalle del error: qué paso, qué herramienta y qué respondió', async () => {
+    const { ejecutor, tablas, terminada } = montar(fallaElSegundo);
+    await terminada((await ejecutor.probar('r1', JOSE)).id);
+
+    const [m] = contado(tablas);
+    expect(contado(tablas)).toHaveLength(1);
+    expect(m.texto).toContain('Tarea 1 «Activar la S y el DX»: falló**');
+    expect(m.texto).toContain('**Paso 2** · falló');
+    expect(m.texto).toContain('- **Error:** "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti');
+    expect(m.texto).toContain('¿Qué zona?');
+    expect(m.texto).toContain('reanúdala desde **Rutinas**');
+  });
+
   it('al reanudarla, el flujo recibe desde la tarea que falló, en su intento 2, y sigue', async () => {
     let arreglado = false;
     const m = montar((p, c) => (arreglado ? bien(p, c) : fallaElSegundo(p, c)));
@@ -253,6 +290,8 @@ describe('Un paso que falla', () => {
     expect(fin.estado).toBe('detenida');
     expect(fin.motivo).toContain('no avisó');
     expect(m.interrupcion.interrumpir).toHaveBeenCalled();
+    // No lo dijo un paso: va el motivo de la detención
+    expect(contado(m.tablas)[0].texto).toContain('**Por qué se detuvo:** Silvana no avisó');
   });
 });
 
@@ -279,6 +318,7 @@ describe('Cancelar', () => {
 
     expect((await m.ejecutor.cancelar('r1', id, JOSE)).estado).toBe('cancelada');
     await expect(m.ejecutor.reanudar('r1', id, JOSE)).rejects.toThrow('solo se reanuda una detenida');
+    expect(contado(m.tablas).at(-1)?.texto).toBe(`**Prueba de «Apertura de Chile» se canceló.** La canceló ${JOSE.email}.`);
   });
 });
 
@@ -296,5 +336,6 @@ describe('Si el servidor se reinicia a mitad', () => {
     expect([e.estado, e.tarea_detenida, (e.resultado as TareaEjecutada[])[1].estado]).toEqual(['detenida', 2, 'fallida']);
     expect(e.motivo).toContain('El servidor se reinició mientras corría la tarea 2');
     expect(m.tablas.notificaciones.map((n) => n.usuario_id)).toEqual([JOSE.id]);
+    expect(contado(m.tablas).map((x) => [x.ejecucion, x.texto.split('\n')[0]])).toEqual([['e-huerfana', '**Prueba de «Apertura de Chile» · Tarea 2 «Revisar»: falló**']]);
   });
 });

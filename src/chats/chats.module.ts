@@ -9,5 +9,7 @@ import { ChatsService } from './chats.service.js';
 @Module({
   controllers: [ChatsController],
   providers: [ChatsService],
+  // Las rutinas cuentan en «Notificaciones» lo que hizo cada tarea
+  exports: [ChatsService],
 })
 export class ChatsModule {}

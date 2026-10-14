@@ -8,6 +8,9 @@ import {
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import type { Chat, Mensaje } from './interfaces/chats.interface.js';
 
+/** El nombre del chat donde Silvana cuenta lo que hicieron las rutinas */
+export const TITULO_NOTIFICACIONES = 'Notificaciones';
+
 const TABLA_CHATS = 'chats';
 const TABLA_MENSAJES = 'chat_mensajes';
 
@@ -15,8 +18,14 @@ const TABLA_MENSAJES = 'chat_mensajes';
 const LARGO_TITULO = 60;
 
 /** Columnas que se devuelven de un chat: nunca el usuario_id */
-const CAMPOS_CHAT = 'id, titulo, creado_en, actualizado_en';
-const CAMPOS_MENSAJE = 'id, rol, texto, creado_en';
+const CAMPOS_CHAT = 'id, titulo, tipo, creado_en, actualizado_en';
+const CAMPOS_MENSAJE = 'id, rol, texto, creado_en, ejecucion_id';
+
+/** Lo que cabe en un mensaje de «Notificaciones»: una tarea con sus tablas */
+const LARGO_NOTIFICACION = 60000;
+
+const SOLO_LECTURA =
+  '«Notificaciones» es solo de lectura: ahí Silvana cuenta lo que hicieron tus rutinas. Para preguntarle algo, abre otro chat.';
 
 /**
  * Conversaciones con el agente, guardadas por usuario.
@@ -32,8 +41,20 @@ export class ChatsService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  /** Los chats del usuario, el de actividad más reciente primero */
+  /**
+   * Los chats del usuario, el de actividad más reciente primero.
+   *
+   * «Notificaciones» está siempre: si aún no existe, se crea. Si no se puede
+   * crear, la lista sale igual, sin él. (Las columnas `tipo` y `ejecucion_id`
+   * son de `migracion-chat-notificaciones.sql`: sin ella no se leen los chats.)
+   */
   async listar(usuarioId: string): Promise<Chat[]> {
+    try {
+      await this.chatDeNotificaciones(usuarioId);
+    } catch (e) {
+      this.logger.warn(`Sin el chat «Notificaciones» para ${usuarioId}: ${(e as Error).message}`);
+    }
+
     const { data, error } = await this.supabase.admin
       .from(TABLA_CHATS)
       .select(CAMPOS_CHAT)
@@ -61,7 +82,7 @@ export class ChatsService {
   }
 
   async eliminar(usuarioId: string, chatId: string): Promise<{ id: string }> {
-    await this.exigirPropiedad(usuarioId, chatId);
+    this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
     // Los mensajes caen solos: la clave foránea va con on delete cascade
     const { error } = await this.supabase.admin
@@ -81,7 +102,7 @@ export class ChatsService {
     chatId: string,
     titulo: string,
   ): Promise<Chat> {
-    await this.exigirPropiedad(usuarioId, chatId);
+    this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
     const { data, error } = await this.supabase.admin
       .from(TABLA_CHATS)
@@ -123,7 +144,7 @@ export class ChatsService {
     rol: 'usuario' | 'agente',
     texto: string,
   ): Promise<Mensaje> {
-    const chat = await this.exigirPropiedad(usuarioId, chatId);
+    const chat = this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
     const { data, error } = await this.supabase.admin
       .from(TABLA_MENSAJES)
@@ -159,7 +180,7 @@ export class ChatsService {
     mensajeId: string,
     texto: string,
   ): Promise<Mensaje> {
-    await this.exigirPropiedad(usuarioId, chatId);
+    this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
     const { data, error } = await this.supabase.admin
       .from(TABLA_MENSAJES)
@@ -179,6 +200,74 @@ export class ChatsService {
       .eq('id', chatId);
 
     return data as Mensaje;
+  }
+
+  // ---------- «Notificaciones» ----------
+
+  /**
+   * El chat «Notificaciones» de una persona: lo crea si no lo tiene.
+   *
+   * Uno por persona —lo garantiza un índice único—: si dos rutinas terminan a
+   * la vez y las dos lo crean, la segunda se encuentra el de la primera.
+   */
+  async chatDeNotificaciones(usuarioId: string): Promise<Chat> {
+    const buscar = async () => {
+      const { data, error } = await this.supabase.admin
+        .from(TABLA_CHATS)
+        .select(CAMPOS_CHAT)
+        .eq('usuario_id', usuarioId)
+        .eq('tipo', 'notificaciones')
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data as Chat | null;
+    };
+
+    const existente = await buscar();
+    if (existente) return existente;
+
+    const { data, error } = await this.supabase.admin
+      .from(TABLA_CHATS)
+      .insert({ usuario_id: usuarioId, titulo: TITULO_NOTIFICACIONES, tipo: 'notificaciones' })
+      .select(CAMPOS_CHAT)
+      .single();
+    if (!error) return data as Chat;
+
+    // Lo creó otro a la vez
+    const otro = await buscar();
+    if (otro) return otro;
+    throw new Error(error.message);
+  }
+
+  /**
+   * Silvana cuenta algo en «Notificaciones»: lo que hizo una tarea de una
+   * rutina, o cómo terminó.
+   *
+   * Contar nunca rompe lo que cuenta: si no se puede guardar, se anota en el
+   * log y la rutina sigue su curso.
+   */
+  async publicarNotificacion(usuarioId: string, texto: string, ejecucionId: string | null = null): Promise<void> {
+    try {
+      const chat = await this.chatDeNotificaciones(usuarioId);
+      const limpio = texto.length > LARGO_NOTIFICACION ? `${texto.slice(0, LARGO_NOTIFICACION - 1)}…` : texto;
+
+      const { error } = await this.supabase.admin
+        .from(TABLA_MENSAJES)
+        .insert({ chat_id: chat.id, rol: 'agente', texto: limpio, ejecucion_id: ejecucionId });
+      if (error) throw new Error(error.message);
+
+      await this.supabase.admin
+        .from(TABLA_CHATS)
+        .update({ actualizado_en: new Date().toISOString() })
+        .eq('id', chat.id);
+    } catch (e) {
+      this.logger.error(`No se pudo contar en «Notificaciones» de ${usuarioId}: ${(e as Error).message}`);
+    }
+  }
+
+  /** En «Notificaciones» no se escribe, ni se renombra, ni se borra */
+  private exigirEscribible(chat: Chat): Chat {
+    if (chat.tipo === 'notificaciones') throw new ForbiddenException(SOLO_LECTURA);
+    return chat;
   }
 
   /**

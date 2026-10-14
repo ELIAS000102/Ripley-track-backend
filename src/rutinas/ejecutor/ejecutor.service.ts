@@ -10,6 +10,7 @@ import {
 import { InterrupcionAgenteService } from '../../agente/seguridad/interrupcion.service.js';
 import type { PermisoRutina, UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { TokenRutinaService } from '../../auth/token-rutina.service.js';
+import { ChatsService } from '../../chats/chats.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service.js';
 import type {
@@ -22,6 +23,7 @@ import type {
 import { CAMPOS_DETALLE, RutinasService, type RutinaParaEjecutar } from '../rutinas.service.js';
 import { evaluarPaso } from './evaluar-paso.js';
 import { LlamadasRutinaService } from './llamadas.js';
+import { relatoCancelada, relatoDeTarea, relatoDelFinal, relatoSinTarea, type DeQueRutina } from './relato.js';
 import { ESPERA_PASO_MS, WebhookAgenteService } from './webhook-agente.service.js';
 
 /** Lo que se guarda de lo que contestó Silvana en cada paso */
@@ -57,6 +59,8 @@ interface Marcha {
   plan: Array<{ tarea: Tarea; paso: Paso; intento: number }>;
   k: number;
   resultado: TareaEjecutada[];
+  /** La tarea que está haciendo esta marcha: la que se cuenta si se detiene */
+  actual: TareaEjecutada | null;
   /** Cuándo empezó el paso que está haciendo */
   desde: string;
   reloj: ReturnType<typeof setTimeout> | null;
@@ -66,6 +70,10 @@ interface Marcha {
 
 /**
  * Ejecuta las rutinas: sus tareas en orden y, dentro de cada una, sus pasos.
+ *
+ * **Cada tarea que termina se cuenta en el chat «Notificaciones»** de quien la
+ * creó: lo que hizo cada paso y, si falló, el detalle del error. Y cómo
+ * terminó la ejecución entera va además a sus avisos.
  *
  * **La rutina va entera a Silvana, en una sola ejecución.** El backend manda al
  * webhook del flujo todas las tareas y sus pasos, con un token de rutina y la
@@ -104,6 +112,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     private readonly llamadas: LlamadasRutinaService,
     private readonly avisos: NotificacionesService,
     private readonly interrupcion: InterrupcionAgenteService,
+    private readonly chats: ChatsService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -198,6 +207,10 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       this.acabar(marcha);
     }
 
+    const rutina = marcha?.rutina ?? (await this.rutinas.paraEjecutar(rutinaId).catch(() => null));
+    if (rutina) {
+      await this.chats.publicarNotificacion(usuario.id, relatoCancelada({ nombre: rutina.nombre, modo: ejecucion.modo }, motivo), ejecucionId);
+    }
     this.logger.log(`Ejecución de la rutina ${rutinaId} cancelada por ${usuario.email}`);
     return { ...ejecucion, estado: 'cancelada', motivo };
   }
@@ -265,6 +278,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       await this.completar(marcha);
       return { seguir: false };
     }
+    if (tarea.estado === 'completada') await this.contar(marcha, relatoDeTarea(this.deQue(marcha), tarea));
 
     // La tarea siguiente ya se ve empezando
     this.tareaEnCurso(marcha, marcha.plan[marcha.k]);
@@ -309,7 +323,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const marcha: Marcha = {
       ejecucion, rutina, dueno: dueno ?? { id: '', email: '' }, token: permiso.id,
       peticion: `rutina-${ejecucion.id}-${Date.now().toString(36)}`,
-      plan, k: 0, resultado, desde: new Date().toISOString(), reloj: null, hecha, terminar,
+      plan, k: 0, resultado, actual: null, desde: new Date().toISOString(), reloj: null, hecha, terminar,
     };
     this.marchas.set(ejecucion.id, marcha);
 
@@ -364,10 +378,10 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
   /** La tarea del paso que toca, en el resultado: la crea si es la primera vez que se ve */
   private tareaEnCurso(marcha: Marcha, toca: Marcha['plan'][number]): TareaEjecutada {
     const ultima = marcha.resultado.at(-1);
-    if (ultima && ultima.orden === toca.tarea.orden && ultima.intento === toca.intento) return ultima;
+    if (ultima && ultima.orden === toca.tarea.orden && ultima.intento === toca.intento) return (marcha.actual = ultima);
     const nueva: TareaEjecutada = { orden: toca.tarea.orden, nombre: toca.tarea.nombre, intento: toca.intento, estado: 'en_curso', pasos: [] };
     marcha.resultado.push(nueva);
-    return nueva;
+    return (marcha.actual = nueva);
   }
 
   /** Cinco minutos sin noticias de un paso: el flujo se colgó o se cayó */
@@ -395,19 +409,37 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const { ejecucion, rutina, dueno } = marcha;
     const cerrada = await this.cerrar(ejecucion.id, { estado: 'completada', resultado: marcha.resultado });
 
-    if (cerrada && ejecucion.modo === 'prueba') {
-      const probada = await this.rutinas.marcarProbada(rutina.id, ejecucion.version);
-      await this.avisos.avisar(dueno.id, {
-        tipo: 'rutina_probada',
-        titulo: `La prueba de «${rutina.nombre}» salió bien`,
-        mensaje: probada
-          ? 'Hizo todas sus tareas sin cambiar ninguna agenda. Ya puedes activarla.'
-          : 'Hizo todas sus tareas, pero la rutina cambió mientras se probaba: vuelve a probarla para poder activarla.',
-        rutina_id: rutina.id,
-        ejecucion_id: ejecucion.id,
-      });
+    if (cerrada) {
+      const probada = ejecucion.modo === 'prueba' ? await this.rutinas.marcarProbada(rutina.id, ejecucion.version) : null;
+      const tareas = new Set(marcha.plan.map((p) => p.tarea.orden)).size;
+
+      // La última tarea y cómo terminó, en un solo mensaje; antes que el aviso,
+      // que lleva a ese mensaje
+      const ultima = marcha.resultado.at(-1);
+      await this.contar(marcha, [
+        ...(ultima ? [relatoDeTarea(this.deQue(marcha), ultima)] : []),
+        relatoDelFinal(this.deQue(marcha), tareas, probada),
+      ].join('\n\n'));
+
+      await this.avisos.avisar(dueno.id, ejecucion.modo === 'prueba'
+        ? {
+            tipo: 'rutina_probada',
+            titulo: `La prueba de «${rutina.nombre}» salió bien`,
+            mensaje: probada
+              ? 'Hizo todas sus tareas sin cambiar ninguna agenda. Ya puedes activarla.'
+              : 'Hizo todas sus tareas, pero la rutina cambió mientras se probaba: vuelve a probarla para poder activarla.',
+            rutina_id: rutina.id,
+            ejecucion_id: ejecucion.id,
+          }
+        : {
+            tipo: 'rutina_completada',
+            titulo: `«${rutina.nombre}» terminó bien`,
+            mensaje: `Hizo ${tareas === 1 ? 'su tarea' : `sus ${tareas} tareas`}.`,
+            rutina_id: rutina.id,
+            ejecucion_id: ejecucion.id,
+          });
+      this.logger.log(`Rutina "${rutina.nombre}" completada (${ejecucion.modo})`);
     }
-    if (cerrada) this.logger.log(`Rutina "${rutina.nombre}" completada (${ejecucion.modo})`);
     this.acabar(marcha);
   }
 
@@ -416,6 +448,11 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const resultado = this.conTareaEnCursoComo(marcha.resultado, 'fallida');
     const cerrada = await this.cerrar(ejecucion.id, { estado: 'detenida', tarea_detenida: tarea, motivo, resultado });
 
+    if (cerrada) {
+      // La de esta marcha, ya marcada como fallida; una de antes no se vuelve a contar
+      const i = marcha.actual ? marcha.resultado.indexOf(marcha.actual) : -1;
+      await this.contar(marcha, i >= 0 ? relatoDeTarea(this.deQue(marcha), resultado[i], motivo) : relatoSinTarea(this.deQue(marcha), motivo));
+    }
     if (cerrada && dueno.id) {
       await this.avisos.avisar(dueno.id, {
         tipo: 'rutina_detenida',
@@ -427,6 +464,15 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     }
     if (cerrada) this.logger.warn(`Rutina "${rutina.nombre}" detenida: ${motivo}`);
     this.acabar(marcha);
+  }
+
+  /** Lo que cuenta en el chat «Notificaciones» de quien creó la rutina */
+  private async contar(marcha: Marcha, texto: string) {
+    if (marcha.dueno.id) await this.chats.publicarNotificacion(marcha.dueno.id, texto, marcha.ejecucion.id);
+  }
+
+  private deQue(marcha: Marcha): DeQueRutina {
+    return { nombre: marcha.rutina.nombre, modo: marcha.ejecucion.modo };
   }
 
   /** La tarea que iba en curso, con otro estado: la que se detuvo o se canceló a mitad */
@@ -483,6 +529,8 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       const { data: r } = await this.supabase.admin.from('rutinas').select('nombre, creado_por_id').eq('id', e.rutina_id).maybeSingle();
       const rutina = r as { nombre: string; creado_por_id: string | null } | null;
       if (rutina?.creado_por_id) {
+        const deQue = { nombre: rutina.nombre, modo: e.modo };
+        await this.chats.publicarNotificacion(rutina.creado_por_id, ultima ? relatoDeTarea(deQue, ultima, motivo) : relatoSinTarea(deQue, motivo), e.id);
         await this.avisos.avisar(rutina.creado_por_id, {
           tipo: 'rutina_detenida',
           titulo: `«${rutina.nombre}» se detuvo`,
