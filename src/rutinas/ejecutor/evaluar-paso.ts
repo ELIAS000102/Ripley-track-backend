@@ -39,6 +39,7 @@ const IA_CAIDA: Record<string, string> = {
  * 3. si el flujo no supo terminar (y si fue la IA, lo dice);
  * 3b. si la IA no dio un plan —ni la de respaldo—: el paso no se hizo;
  * 4. si le faltó un dato, o no entendió la instrucción;
+ * 4b. si el plan traía algo que no se puede hacer: el flujo no hizo nada;
  * 5. si dejó parte del paso sin hacer, o se paró antes de hacer sus llamadas;
  * 6. si una herramienta respondió con error;
  * 7. si una herramienta respondió bien pero con filas que fallaron;
@@ -77,6 +78,11 @@ export function evaluarPaso(e: {
   }
   if (rutina.tipo === 'aclarar' || rutina.tipo === 'corregir') {
     return fallo('No entendió la instrucción. Reescríbela con los datos concretos: códigos, servicios y fechas.');
+  }
+  if (rutina.tipo === 'incompleto') {
+    // El flujo no hizo nada: un plan a medias dejaría aplicada la mitad
+    const descartados = (rutina.descartados ?? []).filter(Boolean);
+    return fallo(`No se hizo nada de este paso: el plan traía algo que no se puede hacer${descartados.length ? ` (${descartados.join('; ')})` : ''}. Reescribe la instrucción con los datos concretos, o pártela en pasos.`);
   }
   if (rutina.descartados?.length) {
     return fallo(`Dejó sin hacer parte del paso: ${rutina.descartados.join('; ')}. Pártelo en pasos más cortos.`);

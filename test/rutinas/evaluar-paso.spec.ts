@@ -49,6 +49,7 @@ describe('Un paso que falla', () => {
     ['si la IA dio algo que no es un plan', { respuesta: { rutina: { tipo: 'sinPlan', fallaIA: 'respondió algo que no es un plan' } } }, 'respondió algo que no es un plan'],
     ['si le faltó un dato', { respuesta: { rutina: { tipo: 'faltan', faltan: ['la fecha del cambio'] } } }, 'Le faltó un dato para hacerlo: la fecha del cambio'],
     ['si no entendió la instrucción', { respuesta: { rutina: { tipo: 'aclarar' } } }, 'No entendió la instrucción'],
+    ['si el plan traía algo que no se puede hacer, y no se hizo nada', { respuesta: { rutina: { tipo: 'incompleto', descartados: ['el paso 2 (su lista "@1&@2" apunta a un paso que no está en este plan)'] } } }, 'No se hizo nada de este paso: el plan traía algo que no se puede hacer (el paso 2 (su lista "@1&@2"'],
     ['si dejó parte sin hacer', { respuesta: { rutina: { tipo: 'pasos', descartados: ['lo que iba después del paso 4'] } } }, 'Dejó sin hacer parte del paso: lo que iba después del paso 4'],
     ['si se paró a preguntar en vez de llamar', { respuesta: { respuesta: '¿De qué servicio?', rutina: { tipo: 'pasos', sinTerminar: true } } }, 'Se paró antes de terminar: en vez de llamar a las herramientas, contestó "¿De qué servicio?"'],
     ['si le faltaron llamadas', { respuesta: { rutina: { tipo: 'pasos', sinTerminar: true, faltaron: ['1111'] } } }, 'No llegó a hacer todas las llamadas: faltaron 1111'],
