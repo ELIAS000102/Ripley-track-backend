@@ -19,6 +19,12 @@ const recorte = (s?: string, n = 300) => {
 
 const fallo = (motivo: string): Evaluacion => ({ estado: 'fallido', motivo });
 
+/** Lo que dice "Explicar fallo" cuando el que reventó fue el modelo, no una herramienta */
+const IA_CAIDA: Record<string, string> = {
+  saturado: 'estaba saturada',
+  cuota: 'se quedó sin cuota',
+};
+
 /**
  * Si un paso de una rutina salió bien.
  *
@@ -30,7 +36,8 @@ const fallo = (motivo: string): Evaluacion => ({ estado: 'fallido', motivo });
  * Falla, en este orden:
  * 1. si no se pudo hablar con n8n, o tardó demasiado;
  * 2. si el flujo no es el que entiende las rutinas (hay que reimportarlo);
- * 3. si el flujo no supo terminar;
+ * 3. si el flujo no supo terminar (y si fue la IA, lo dice);
+ * 3b. si la IA no dio un plan —ni la de respaldo—: el paso no se hizo;
  * 4. si le faltó un dato, o no entendió la instrucción;
  * 5. si dejó parte del paso sin hacer, o se paró antes de hacer sus llamadas;
  * 6. si una herramienta respondió con error;
@@ -54,7 +61,15 @@ export function evaluarPaso(e: {
     return fallo('El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.');
   }
   if (rutina.error) {
-    return fallo(`Silvana no pudo terminar el paso${r.respuesta ? `: ${recorte(r.respuesta)}` : '.'}`);
+    const ia = IA_CAIDA[rutina.motivo ?? ''];
+    return fallo(ia
+      ? `La IA (Gemini) ${ia} a mitad del paso, también el modelo de respaldo: quedó a medias. Suele ser pasajero: reanúdala en unos minutos.`
+      : `Silvana no pudo terminar el paso${r.respuesta ? `: ${recorte(r.respuesta)}` : '.'}`);
+  }
+  if (rutina.tipo === 'sinPlan') {
+    return (rutina.fallaIA ?? 'no respondió').startsWith('no respondió')
+      ? fallo('La IA que arma el plan (Gemini) no respondió, tampoco la de respaldo: no se hizo nada de este paso. Suele ser pasajero: reanúdala en unos minutos.')
+      : fallo('La IA que arma el plan respondió algo que no es un plan: no se hizo nada de este paso. Reanúdala; si se repite, reescribe la instrucción con los datos concretos.');
   }
   if (rutina.tipo === 'faltan') {
     const faltan = (rutina.faltan ?? []).filter(Boolean);

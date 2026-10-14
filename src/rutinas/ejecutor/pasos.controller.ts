@@ -2,6 +2,7 @@ import { Body, Controller, ForbiddenException, HttpCode, Post, Req } from '@nest
 import { Type } from 'class-transformer';
 import { IsInt, IsObject, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { PermitidoAgente } from '../../agente/seguridad/permitido-agente.decorator.js';
+import { SinMarcaSimulacro } from '../../auditoria/simulacro.interceptor.js';
 import type { RequestConUsuario } from '../../auth/interfaces/auth.interface.js';
 import { EjecutorRutinasService } from './ejecutor.service.js';
 
@@ -46,6 +47,8 @@ export class PasosRutinaController {
 
   /** POST /agente/rutina/paso — { seguir: true } o { seguir: false, motivo } */
   @PermitidoAgente()
+  // Lo que contesta es si se sigue: lo que el paso evitó escribir ya lo dijo cada herramienta
+  @SinMarcaSimulacro()
   @Post('paso')
   @HttpCode(200)
   async paso(@Req() request: RequestConUsuario, @Body() body: PasoRutinaDto) {

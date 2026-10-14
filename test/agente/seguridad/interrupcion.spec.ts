@@ -157,7 +157,7 @@ describe('InterrupcionAgenteService', () => {
 describe('interpretar apunta la ejecución de la petición', () => {
   it('con peticion y ejecucion, las registra a nombre del usuario', () => {
     const registrar = vi.fn();
-    const ctrl = { interrupcion: { registrar } } as unknown as ConsultasAgenteController;
+    const ctrl = { interrupcion: { registrar }, configuracionCds: { todos: async () => ({}) } } as unknown as ConsultasAgenteController;
 
     ConsultasAgenteController.prototype.interpretar.call(
       ctrl,
@@ -170,7 +170,7 @@ describe('interpretar apunta la ejecución de la petición', () => {
 
   it('sin peticion no registra nada', () => {
     const registrar = vi.fn();
-    const ctrl = { interrupcion: { registrar } } as unknown as ConsultasAgenteController;
+    const ctrl = { interrupcion: { registrar }, configuracionCds: { todos: async () => ({}) } } as unknown as ConsultasAgenteController;
 
     ConsultasAgenteController.prototype.interpretar.call(ctrl, { pregunta: 'hola' } as never, { id: 'ana', email: 'a' });
     expect(registrar).not.toHaveBeenCalled();

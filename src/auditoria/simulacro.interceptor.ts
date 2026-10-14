@@ -3,10 +3,21 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  SetMetadata,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import { map, Observable } from 'rxjs';
 import { ContextoAuditoria } from './contexto-auditoria.service.js';
+
+const SIN_MARCA_SIMULACRO = 'sinMarcaSimulacro';
+
+/**
+ * Una ruta cuya respuesta no habla de Ripley —el aviso de un paso de una
+ * rutina—: no se marca. Diría "esta petición no intentó escribir nada" de sí
+ * misma, y quien la lee lo tomaría por el paso entero.
+ */
+export const SinMarcaSimulacro = () => SetMetadata(SIN_MARCA_SIMULACRO, true);
 
 /** Lo que se añade a la respuesta de una petición en simulacro */
 export interface MarcaSimulacro {
@@ -36,16 +47,22 @@ export function marcaSimulacro(evitadas: number): MarcaSimulacro {
  * Siempre con la cabecera `X-Simulacro: si`. Y, si la respuesta es un objeto
  * plano, con un campo `simulacro` que dice cuántas escrituras no salieron. Una
  * lista o un archivo (el Excel de una plantilla) se dejan como están: meterles
- * un campo los rompería.
+ * un campo los rompería. Las rutas con `@SinMarcaSimulacro()`, tampoco.
  */
 @Injectable()
 export class SimulacroInterceptor implements NestInterceptor {
-  constructor(private readonly contexto: ContextoAuditoria) {}
+  constructor(
+    private readonly contexto: ContextoAuditoria,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     return next.handle().pipe(
       map((cuerpo) => {
         if (!this.contexto.enSimulacro()) return cuerpo;
+        if (this.reflector.getAllAndOverride<boolean>(SIN_MARCA_SIMULACRO, [context.getHandler(), context.getClass()])) {
+          return cuerpo;
+        }
 
         context.switchToHttp().getResponse<Response>().setHeader?.('X-Simulacro', 'si');
 

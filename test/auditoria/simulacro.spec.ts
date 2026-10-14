@@ -21,7 +21,7 @@ import { AuditoriaService } from '../../src/auditoria/auditoria.service.js';
 import { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
 import { Auditar } from '../../src/auditoria/decorators/auditar.decorator.js';
 import type { RegistroUso } from '../../src/auditoria/interfaces/auditoria.interface.js';
-import { SimulacroInterceptor } from '../../src/auditoria/simulacro.interceptor.js';
+import { SimulacroInterceptor, SinMarcaSimulacro } from '../../src/auditoria/simulacro.interceptor.js';
 import type { CacheCatalogosService } from '../../src/common/ripley/cache-catalogos.service.js';
 import { RipleyHttpService } from '../../src/common/ripley/ripley-http.service.js';
 import type { TokenRipleyService } from '../../src/configuracion/token-ripley/token-ripley.service.js';
@@ -76,6 +76,13 @@ class ControladorDePrueba {
   @Get('lista')
   lista() {
     return [1, 2, 3];
+  }
+
+  /** Una respuesta que no habla de Ripley, como el aviso de un paso de una rutina */
+  @SinMarcaSimulacro()
+  @Post('aviso')
+  aviso() {
+    return { seguir: true };
   }
 }
 
@@ -178,6 +185,13 @@ describe('En simulacro, nada se escribe en Ripley', () => {
 
     expect(r.body).toEqual([1, 2, 3]);
     expect(r.headers['x-simulacro']).toBe('si');
+  });
+
+  it('una ruta con @SinMarcaSimulacro no se marca: su respuesta no habla de Ripley', async () => {
+    const r = await request(m.servidor).post('/prueba/aviso').set('X-Simulacro', 'si').expect(201);
+
+    expect(r.body).toEqual({ seguir: true });
+    expect(r.headers['x-simulacro']).toBeUndefined();
   });
 
   it('la caché de catálogos no se olvida: nada cambió', async () => {

@@ -149,5 +149,11 @@ export interface RespuestaAgente {
     /** Lo que quedó sin llamar: los códigos, o el nombre de la herramienta */
     faltaron?: string[];
     error?: boolean;
+    /** Con `error`: qué reventó, según el flujo ("saturado", "cuota", "tiempo"…) */
+    motivo?: string;
+    /** Qué IA armó el plan: "principal", "respaldo", o ninguna (un atajo directo) */
+    planificador?: string | null;
+    /** Con el tipo "sinPlan": por qué no hubo plan ("no respondió, ni la de respaldo (…)") */
+    fallaIA?: string | null;
   } | null;
 }
