@@ -28,6 +28,7 @@ import { RutinasModule } from './rutinas/rutinas.module.js';
 import { NotificacionesModule } from './notificaciones/notificaciones.module.js';
 import { SimulacionModule } from './simulacion/simulacion.module.js';
 import { LeadTimeModule } from './lead_time/lead-time.module.js';
+import { N8nModule } from './n8n/n8n.module.js';
 
 /**
  * Módulo raíz: registra la configuración global (variables de entorno),
@@ -62,6 +63,8 @@ import { LeadTimeModule } from './lead_time/lead-time.module.js';
     LeadTimeModule,
     AgenteModule,
     ChatsModule,
+    // Borra cada día las ejecuciones viejas de n8n
+    N8nModule,
   ],
   providers: [
     // Toda ruta exige sesión salvo las marcadas con @Publico()

@@ -98,6 +98,12 @@ export default () => {
        */
       n8nApiUrl: process.env.N8N_API_URL ?? '',
       n8nApiKey: process.env.N8N_API_KEY ?? '',
+      /**
+       * Borrar cada día, a las 00:10 de Perú, las ejecuciones terminadas de n8n
+       * de días anteriores (salvo las de rutinas detenidas). Necesita la API de
+       * arriba con permiso para listar y borrar ejecuciones. "false" la apaga.
+       */
+      n8nLimpiezaDiaria: process.env.N8N_LIMPIEZA_DIARIA !== 'false',
     },
     supabase: {
       url: process.env.SUPABASE_URL,
