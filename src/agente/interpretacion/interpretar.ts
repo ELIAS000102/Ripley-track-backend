@@ -295,6 +295,17 @@ const DESACTIVAR = /\b(desactiva\w*|deshabilita\w*|inhabilita\w*|cierra\w*|cerra
 const ESTADO_DESCRITO =
   /\b(esta|estan|este|esten|sigue|siguen|sigan|siga|queda|quedan|queden|quede|se mantiene|se mantienen|se mantenga|se mantengan|mantengan|mantenga|permanezcan?) (activ|inactiv|desactiv|habilitad|deshabilitad|abiert|cerrad)\w*/g;
 
+/**
+ * "Asegúrate de que estén inactivos": en una RUTINA no describe un estado, lo
+ * PIDE. Es una orden que se deja para que se cumpla cada vez, así que si alguno
+ * no lo está, hay que cambiarlo (y si ya lo estaba, el paso sale bien: "ya
+ * estaba así" no es un fallo). En el chat sigue siendo una consulta —"revísalo
+ * y dímelo"—, y "verifica" o "comprueba" que estén, también en una rutina.
+ */
+const ASEGURAR = /\basegur(?:a|ate|ar|en|ense|emos)\b(?: de)? que\b/;
+const ESTADO_PEDIDO = new RegExp(ESTADO_DESCRITO.source);
+const ESTADO_APAGADO = /^(inactiv|desactiv|deshabilitad|cerrad)/;
+
 const TEMAS: Record<string, RegExp> = {
   transferencia: /transferenc|desfase|desface|fuente de stock|tiempo de transito|dias de preparacion/,
   simulacion: /simul|cuando lleg|fecha de entrega|cuanto (demora|tarda)|tiempo de entrega/,
@@ -445,6 +456,8 @@ export function interpretar(
     hoy?: string;
     /** Los CDs de cada país, de la configuración del panel: ninguno está escrito aquí */
     cds?: CdsPorPais;
+    /** Es un paso de una rutina: "asegúrate de que estén…" pide el cambio */
+    rutina?: boolean;
   } = {},
 ): Interpretacion {
   const original = pregunta.trim();
@@ -511,11 +524,15 @@ export function interpretar(
 
   // ── Qué se pide ──
   const sinEstados = plano.replace(ESTADO_DESCRITO, ' ');
-  const cambio = CAMBIO.test(sinEstados);
+  const conVerbo = CAMBIO.test(sinEstados);
+  // En una rutina, "asegúrate de que estén inactivos" sin un verbo de cambio: lo pide el estado
+  const pedido = opciones.rutina && !conVerbo && ASEGURAR.test(plano) ? ESTADO_PEDIDO.exec(plano) : null;
+  const cambio = conVerbo || Boolean(pedido);
   const accion: Interpretacion['accion'] = cambio ? 'cambiar' : 'consultar';
 
   const sinDesactivar = sinEstados.replace(new RegExp(DESACTIVAR.source, 'g'), ' ');
   const sentido = !cambio ? null
+    : pedido ? (ESTADO_APAGADO.test(pedido[2]) ? 'desactivar' : 'activar')
     : DESACTIVAR.test(sinEstados) && !ACTIVAR.test(sinDesactivar) ? 'desactivar'
     : ACTIVAR.test(sinDesactivar) ? 'activar'
     : null;

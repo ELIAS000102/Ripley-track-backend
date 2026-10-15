@@ -5,11 +5,12 @@ import {
   HttpCode,
   Post,
   Query,
+  Req,
   UseInterceptors,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import type { RequestConUsuario, UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../contexto.service.js';
 import { PermitidoAgente } from '../seguridad/permitido-agente.decorator.js';
 import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
@@ -222,6 +223,7 @@ export class ConsultasAgenteController {
   async interpretar(
     @Body() body: InterpretarDto,
     @Usuario() usuario?: UsuarioAutenticado,
+    @Req() request?: RequestConUsuario,
   ) {
     if (body.peticion && usuario?.id) {
       this.interrupcion.registrar(body.peticion, usuario.id, body.ejecucion);
@@ -239,6 +241,7 @@ export class ConsultasAgenteController {
     // leer, se lee sin ellos: la IA decide igual, y el mensaje no se pierde
     const cds = await this.configuracionCds.todos().catch(() => ({}));
 
-    return interpretar(body.pregunta, { pais: body.pais, atajos, cds });
+    // Un paso de una rutina llega con su token: "asegúrate de que estén…" es una orden
+    return interpretar(body.pregunta, { pais: body.pais, atajos, cds, rutina: Boolean(request?.rutina) });
   }
 }

@@ -110,6 +110,32 @@ describe('Las frases que fallaban en el chat', () => {
     expect(r).toMatchObject({ accion: 'consultar', servicios: ['RE', 'RT'], caso: 'busqueda_masiva', certeza: 'alta' });
   });
 
+  describe('"Asegúrate de que estén…" en una rutina: una orden, no una consulta', () => {
+    const enRutina = (texto: string) => interpretar(texto, { hoy: HOY, atajos: ATAJOS, cds: CDS_DE_PRUEBA, rutina: true });
+
+    it.each([
+      ['asegúrate que todos los opls de la RE estén inactivos y muestralo en un cuadro resumido solo los totales', 'desactivar'],
+      ['asegurate de que los opls de la SE queden activos', 'activar'],
+      ['asegúrense de que las agendas de la ST sigan habilitadas', 'activar'],
+      ['asegúrate que la jornada SE del 20026 esté cerrada', 'desactivar'],
+    ])('"%s" → cambiar, %s', (texto, sentido) => {
+      expect(enRutina(texto)).toMatchObject({ accion: 'cambiar', sentido });
+    });
+
+    it('en el chat sigue siendo una consulta: "revísalo y dímelo"', () => {
+      expect(leer('asegúrate que todos los opls de la RE estén inactivos y muestralo en un cuadro')).toMatchObject({ accion: 'consultar', sentido: null });
+    });
+
+    it('"verifica" o "comprueba" que estén, también en una rutina, es una consulta', () => {
+      expect(enRutina('verifica que los opls de la RE estén inactivos')).toMatchObject({ accion: 'consultar' });
+      expect(enRutina('comprueba que las agendas de la SE estén activas')).toMatchObject({ accion: 'consultar' });
+    });
+
+    it('con un verbo de cambio, manda el verbo', () => {
+      expect(enRutina('activa la SE y asegúrate de que se mantengan activas')).toMatchObject({ accion: 'cambiar', sentido: 'activar' });
+    });
+  });
+
   it('"dame el despacho del bt lima" → el atajo, por su apodo', () => {
     const r = leer('dame el despacho del bt lima y la primera fecha de despacho para cada uno');
 
