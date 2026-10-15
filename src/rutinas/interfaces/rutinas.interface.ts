@@ -104,6 +104,14 @@ export interface LlamadaHerramienta {
    * estaban así"): el estado que pedía el paso se cumple, no es un fallo
    */
   yaEstaba?: boolean;
+  /** La llamada entera es una simulación: "Simular una entrega", o un atajo que solo simula */
+  simulacion?: boolean;
+  /**
+   * Lo que salió mal en las simulaciones de un atajo (sus bloques de tipo
+   * "simulacion"). En una prueba no cuenta: simula sobre agendas que la prueba
+   * no cambió
+   */
+  deSimulacion?: string[];
 }
 
 export interface PasoEjecutado {

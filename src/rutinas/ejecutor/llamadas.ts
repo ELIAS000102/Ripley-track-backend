@@ -117,6 +117,32 @@ function mensajeDe(e: unknown): string {
   return texto.slice(0, 300);
 }
 
+const SIMULAR = 'Simular una entrega';
+
+/**
+ * Lo que salió mal en una respuesta, separando lo de las simulaciones.
+ *
+ * Una simulación consulta las agendas tal como están en Ripley. En una prueba
+ * no se activa nada, así que una simulación que va detrás de unas activaciones
+ * simula sin ellas y puede fallar aunque la rutina esté bien: esos fallos van
+ * aparte, y el que evalúa el paso decide si cuentan.
+ */
+export function separarSimulacion(herramienta: string, cuerpo: unknown): { problemas: string[]; deSimulacion: string[]; simulacion: boolean } {
+  if (herramienta === SIMULAR) return { problemas: [], deSimulacion: problemasDe(cuerpo), simulacion: true };
+
+  const bloques = (cuerpo as { bloques?: unknown })?.bloques;
+  if (herramienta === 'Ejecutar un atajo' && Array.isArray(bloques)) {
+    const esSim = (b: unknown) => (b as { tipo?: unknown })?.tipo === 'simulacion';
+    const otros = bloques.filter((b) => !esSim(b));
+    return {
+      problemas: problemasDe({ ...(cuerpo as Record<string, unknown>), bloques: otros }),
+      deSimulacion: problemasDe({ bloques: bloques.filter(esSim) }),
+      simulacion: bloques.length > 0 && otros.length === 0,
+    };
+  }
+  return { problemas: problemasDe(cuerpo), deSimulacion: [], simulacion: false };
+}
+
 /**
  * Las herramientas que llamó cada paso de una rutina, mientras se ejecuta.
  *
@@ -178,13 +204,17 @@ export class LlamadasRutinaInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap({
-        next: (cuerpo) =>
+        next: (cuerpo) => {
+          const { problemas, deSimulacion, simulacion } = separarSimulacion(base.herramienta, cuerpo);
           this.llamadas.anotar(permiso.id, {
             ...base,
             estado: http.getResponse<Response>().statusCode ?? 200,
-            problemas: problemasDe(cuerpo),
+            problemas,
             escriturasEvitadas: evitadas(),
-          }),
+            ...(simulacion ? { simulacion } : {}),
+            ...(deSimulacion.length ? { deSimulacion } : {}),
+          });
+        },
         error: (e: { status?: number }) => {
           const mensaje = mensajeDe(e);
           const yaEstaba = e?.status === 400 && todoYaEstaba(mensaje);
@@ -194,6 +224,7 @@ export class LlamadasRutinaInterceptor implements NestInterceptor {
             problemas: yaEstaba ? [] : [mensaje],
             escriturasEvitadas: evitadas(),
             ...(yaEstaba ? { yaEstaba } : {}),
+            ...(base.herramienta === SIMULAR ? { simulacion: true } : {}),
           });
         },
       }),

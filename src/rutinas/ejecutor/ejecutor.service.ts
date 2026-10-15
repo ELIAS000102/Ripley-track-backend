@@ -277,6 +277,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       respuesta: { respuesta: informe.respuesta, motivo: informe.motivo, rutina: (informe.rutina ?? null) as never },
       llamadas,
       atajos: toca.paso.atajos.map((a) => a.nombre),
+      prueba: marcha.ejecucion.modo === 'prueba',
     });
 
     const hecho: PasoEjecutado = {

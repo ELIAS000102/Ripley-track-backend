@@ -56,3 +56,17 @@ describe('El relato de una tarea', () => {
     expect(relatoDelFinal({ nombre: 'Prueba', modo: 'prueba' }, 3, false)).toContain('cambió mientras se probaba');
   });
 });
+
+describe('Una simulación que falla en una prueba', () => {
+  it('se cuenta, y se dice por qué no cuenta', () => {
+    const texto = relatoDeTarea({ nombre: 'Prueba', modo: 'prueba' }, {
+      ...tarea, intento: 1,
+      pasos: [{ ...tarea.pasos[0], llamadas: [
+        { herramienta: 'Ejecutar un atajo', atajo: 'Simulación SE', estado: 200, problemas: [], escriturasEvitadas: 0, simulacion: true, deSimulacion: ['Sin agenda activa para el SE'] },
+      ] }],
+    });
+    expect(texto).toContain('Ejecutar un atajo «Simulación SE» (su simulación falló: no cuenta en una prueba)');
+    expect(texto).toContain('La simulación tuvo un error (Sin agenda activa para el SE), pero en una prueba no cuenta: simula sin las activaciones, que la prueba no hace.');
+    expect(texto).not.toContain('**Error:**');
+  });
+});

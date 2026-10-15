@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluarPaso } from '../../src/rutinas/ejecutor/evaluar-paso.js';
-import { problemasDe, todoYaEstaba } from '../../src/rutinas/ejecutor/llamadas.js';
+import { problemasDe, separarSimulacion, todoYaEstaba } from '../../src/rutinas/ejecutor/llamadas.js';
 import type { LlamadaHerramienta } from '../../src/rutinas/interfaces/rutinas.interface.js';
 
 /**
@@ -110,5 +110,36 @@ describe('Lo que ya estaba como se pedía', () => {
     ['un error cualquiera', 'Hay 4 opciones en el operador 1088 y no voy a elegir por ti', false],
   ])('%s', (_, mensaje, esperado) => {
     expect(todoYaEstaba(mensaje)).toBe(esperado);
+  });
+});
+
+describe('Las simulaciones, en una prueba', () => {
+  const simular = (extra: Partial<LlamadaHerramienta> = {}) =>
+    llamada({ herramienta: 'Simular una entrega', simulacion: true, escriturasEvitadas: 0, ...extra });
+
+  it('se separan: la herramienta de simular entera, y los bloques de simulación de un atajo', () => {
+    expect(separarSimulacion('Simular una entrega', { filas: [{ operador: '1110', error: 'Sin cobertura' }] }))
+      .toEqual({ problemas: [], deSimulacion: ['Sin cobertura'], simulacion: true });
+    expect(separarSimulacion('Ejecutar un atajo', { bloques: [
+      { tipo: 'opl', items: [{ error: 'El 1088 no tiene la zona 4' }] },
+      { tipo: 'simulacion', items: [{ error: 'Sin cobertura' }] },
+    ] })).toEqual({ problemas: ['El 1088 no tiene la zona 4'], deSimulacion: ['Sin cobertura'], simulacion: false });
+    expect(separarSimulacion('Ejecutar un atajo', { bloques: [{ tipo: 'simulacion', items: [] }] }).simulacion).toBe(true);
+  });
+
+  it('una simulación que falla no tumba la prueba: simula sin las activaciones, que la prueba no hace', () => {
+    expect(evaluar({ prueba: true, llamadas: [llamada(), simular({ estado: 400, problemas: ['No hay agenda activa para el SE'] })] })).toEqual({ estado: 'completado' });
+    expect(evaluar({ prueba: true, llamadas: [llamada(), simular({ deSimulacion: ['Sin cobertura'] })] })).toEqual({ estado: 'completado' });
+    expect(evaluar({ prueba: true, llamadas: [llamada({ herramienta: 'Ejecutar un atajo', deSimulacion: ['Sin cobertura'] })] })).toEqual({ estado: 'completado' });
+  });
+
+  it('en una ejecución real, sí cuenta', () => {
+    expect(evaluar({ llamadas: [simular({ estado: 400, problemas: ['No hay agenda activa para el SE'] })] }).motivo).toContain('"Simular una entrega" respondió 400');
+    expect(evaluar({ llamadas: [llamada({ herramienta: 'Ejecutar un atajo', deSimulacion: ['Sin cobertura'] })] }).motivo).toContain('Sin cobertura');
+  });
+
+  it('en una prueba, lo que no es simulación sigue contando', () => {
+    expect(evaluar({ prueba: true, llamadas: [llamada({ problemas: ['La agenda no tiene el servicio DX'] }), simular({ estado: 400 })] }).motivo)
+      .toContain('La agenda no tiene el servicio DX');
   });
 });

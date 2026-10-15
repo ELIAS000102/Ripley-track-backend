@@ -46,12 +46,19 @@ const IA_CAIDA: Record<string, string> = {
  * 8. si el flujo llamó a más herramientas de las que llegaron al backend: a
  *    alguna la rechazó un guard antes de que se pudiera anotar;
  * 9. si el paso nombraba atajos y no se usó alguno.
+ *
+ * **En una prueba, lo de las simulaciones no cuenta** (6 y 7): una simulación
+ * consulta las agendas como están en Ripley, y la prueba no activó nada, así
+ * que una que va detrás de unas activaciones simula sin ellas y puede fallar
+ * aunque la rutina esté bien. En una ejecución real, sí cuenta.
  */
 export function evaluarPaso(e: {
   respuesta?: RespuestaAgente;
   error?: string;
   llamadas: LlamadaHerramienta[];
   atajos: string[];
+  /** Una prueba: las simulaciones no cuentan */
+  prueba?: boolean;
 }): Evaluacion {
   if (e.error) return fallo(e.error);
 
@@ -96,11 +103,13 @@ export function evaluarPaso(e: {
   }
 
   // Un 400 porque todo ya estaba como se pedía no es un fallo: el estado se cumple
-  const mala = e.llamadas.find((l) => l.estado >= 400 && !l.yaEstaba);
+  const mala = e.llamadas.find((l) => l.estado >= 400 && !l.yaEstaba && !(e.prueba && l.simulacion));
   if (mala) return fallo(`"${mala.herramienta}" respondió ${mala.estado}: ${mala.problemas[0] ?? 'sin detalle'}`);
 
-  const conProblemas = e.llamadas.find((l) => l.problemas.length);
-  if (conProblemas) return fallo(`"${conProblemas.herramienta}": ${conProblemas.problemas.join(' · ')}`);
+  const queCuentan = (l: LlamadaHerramienta) =>
+    (e.prueba && l.simulacion ? [] : [...l.problemas, ...(e.prueba ? [] : l.deSimulacion ?? [])]);
+  const conProblemas = e.llamadas.find((l) => queCuentan(l).length);
+  if (conProblemas) return fallo(`"${conProblemas.herramienta}": ${queCuentan(conProblemas).join(' · ')}`);
 
   const dichas = (rutina.herramientas ?? []).filter((h) => !DEL_FLUJO.has(h));
   if (dichas.length > e.llamadas.length) {
