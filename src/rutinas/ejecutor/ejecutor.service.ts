@@ -23,7 +23,7 @@ import type {
 import { CAMPOS_DETALLE, RutinasService, type RutinaParaEjecutar } from '../rutinas.service.js';
 import { evaluarPaso } from './evaluar-paso.js';
 import { LlamadasRutinaService } from './llamadas.js';
-import { relatoCancelada, relatoDeTarea, relatoDelFinal, relatoSinTarea, type DeQueRutina } from './relato.js';
+import { relatoCancelada, relatoDePaso, relatoDelFinal, relatoDetenida, type DeQueRutina } from './relato.js';
 import { ESPERA_PASO_MS, WebhookAgenteService } from './webhook-agente.service.js';
 
 /** Lo que se guarda de lo que contestó Silvana en cada paso */
@@ -71,9 +71,9 @@ interface Marcha {
 /**
  * Ejecuta las rutinas: sus tareas en orden y, dentro de cada una, sus pasos.
  *
- * **Cada tarea que termina se cuenta en el chat «Notificaciones»** de quien la
- * creó: lo que hizo cada paso y, si falló, el detalle del error. Y cómo
- * terminó la ejecución entera va además a sus avisos.
+ * **Cada paso que termina se cuenta en el chat «Notificaciones»** de quien la
+ * creó, en su propio mensaje: lo que hizo y, si falló, el detalle del error.
+ * Y cómo terminó la ejecución entera, en uno más y en sus avisos.
  *
  * **La rutina va entera a Silvana, en una sola ejecución.** El backend manda al
  * webhook del flujo todas las tareas y sus pasos, con un token de rutina y la
@@ -293,11 +293,14 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
 
     const tarea = this.tareaEnCurso(marcha, toca);
     tarea.pasos.push(hecho);
+    // Cada paso, en su propio mensaje de «Notificaciones», en cuanto termina
+    await this.contar(marcha, relatoDePaso(this.deQue(marcha), tarea, hecho, toca.tarea.pasos.length));
 
     if (evaluacion.estado === 'fallido') {
       tarea.estado = 'fallida';
       const motivo = `Tarea ${toca.tarea.orden} «${toca.tarea.nombre}», paso ${toca.paso.orden}: ${evaluacion.motivo}`;
-      await this.detener(marcha, toca.tarea.orden, motivo);
+      // El error y cómo seguir ya van en el mensaje del paso
+      await this.detener(marcha, toca.tarea.orden, motivo, { yaContada: true });
       return { seguir: false, motivo };
     }
 
@@ -308,7 +311,6 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       await this.completar(marcha);
       return { seguir: false };
     }
-    if (tarea.estado === 'completada') await this.contar(marcha, relatoDeTarea(this.deQue(marcha), tarea));
 
     // La tarea siguiente ya se ve empezando
     this.tareaEnCurso(marcha, marcha.plan[marcha.k]);
@@ -443,13 +445,8 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       const probada = ejecucion.modo === 'prueba' ? await this.rutinas.marcarProbada(rutina.id, ejecucion.version) : null;
       const tareas = new Set(marcha.plan.map((p) => p.tarea.orden)).size;
 
-      // La última tarea y cómo terminó, en un solo mensaje; antes que el aviso,
-      // que lleva a ese mensaje
-      const ultima = marcha.resultado.at(-1);
-      await this.contar(marcha, [
-        ...(ultima ? [relatoDeTarea(this.deQue(marcha), ultima)] : []),
-        relatoDelFinal(this.deQue(marcha), tareas, probada),
-      ].join('\n\n'));
+      // Cómo terminó, en su propio mensaje; antes que el aviso, que lleva a él
+      await this.contar(marcha, relatoDelFinal(this.deQue(marcha), tareas, probada));
 
       await this.avisos.avisar(dueno.id, ejecucion.modo === 'prueba'
         ? {
@@ -473,15 +470,16 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     this.acabar(marcha);
   }
 
-  private async detener(marcha: Marcha, tarea: number | null, motivo: string) {
+  private async detener(marcha: Marcha, tarea: number | null, motivo: string, { yaContada = false } = {}) {
     const { ejecucion, rutina, dueno } = marcha;
     const resultado = this.conTareaEnCursoComo(marcha.resultado, 'fallida');
     const cerrada = await this.cerrar(ejecucion.id, { estado: 'detenida', tarea_detenida: tarea, motivo, resultado });
 
-    if (cerrada) {
-      // La de esta marcha, ya marcada como fallida; una de antes no se vuelve a contar
-      const i = marcha.actual ? marcha.resultado.indexOf(marcha.actual) : -1;
-      await this.contar(marcha, i >= 0 ? relatoDeTarea(this.deQue(marcha), resultado[i], motivo) : relatoSinTarea(this.deQue(marcha), motivo));
+    // Si no lo dijo un paso —el flujo dejó de avisar, n8n no respondió—, en un
+    // mensaje propio: lo que hicieron sus pasos ya se contó
+    if (cerrada && !yaContada) {
+      const t = marcha.actual;
+      await this.contar(marcha, relatoDetenida(this.deQue(marcha), t ? { orden: t.orden, nombre: t.nombre } : null, motivo));
     }
     if (cerrada && dueno.id) {
       await this.avisos.avisar(dueno.id, {
@@ -560,7 +558,7 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       const rutina = r as { nombre: string; creado_por_id: string | null } | null;
       if (rutina?.creado_por_id) {
         const deQue = { nombre: rutina.nombre, modo: e.modo };
-        await this.chats.publicarNotificacion(rutina.creado_por_id, ultima ? relatoDeTarea(deQue, ultima, motivo) : relatoSinTarea(deQue, motivo), e.id);
+        await this.chats.publicarNotificacion(rutina.creado_por_id, relatoDetenida(deQue, ultima ? { orden: ultima.orden, nombre: ultima.nombre } : null, motivo), e.id);
         await this.avisos.avisar(rutina.creado_por_id, {
           tipo: 'rutina_detenida',
           titulo: `«${rutina.nombre}» se detuvo`,

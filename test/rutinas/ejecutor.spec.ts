@@ -142,19 +142,23 @@ describe('Probar una rutina', () => {
     expect(tablas.notificaciones.map((n) => [n.usuario_id, n.tipo])).toEqual([[JOSE.id, 'rutina_probada']]);
   });
 
-  it('cada tarea se cuenta en el chat «Notificaciones» de su creador, la última con el final', async () => {
+  it('cada paso se cuenta en su propio mensaje de «Notificaciones», y el final en otro', async () => {
     const { ejecutor, tablas, terminada } = montar();
     const id = (await ejecutor.probar('r1', JOSE)).id;
     await terminada(id);
 
     expect(tablas.chats.map((c) => [c.usuario_id, c.titulo, c.tipo])).toEqual([[JOSE.id, 'Notificaciones', 'notificaciones']]);
     const mensajes = contado(tablas);
-    expect(mensajes.map((m) => [m.rol, m.ejecucion])).toEqual([['agente', id], ['agente', id]]);
-    expect(mensajes[0].texto).toContain('**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX»: completada**');
-    expect(mensajes[0].texto).toContain('**Paso 2** · hecho · *activa la S y el DX de esos operadores*');
-    expect(mensajes[0].texto).toContain('Llamó a: Capacidad de agendas (1 sin aplicar)');
-    expect(mensajes[1].texto).toContain('Tarea 2 «Revisar el picking»: completada');
-    expect(mensajes[1].texto).toContain('**Prueba de «Apertura de Chile» salió bien**: hizo sus 2 tareas sin cambiar ninguna agenda. Ya puedes activarla.');
+    // Tres pasos (dos de la tarea 1 y uno de la 2) y el final: cuatro mensajes
+    expect(mensajes.map((m) => [m.rol, m.ejecucion])).toEqual([['agente', id], ['agente', id], ['agente', id], ['agente', id]]);
+    expect(mensajes.map((m) => m.texto.split('\n')[0])).toEqual([
+      '**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 1 de 2: hecho**',
+      '**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 2 de 2: hecho**',
+      '**Prueba de «Apertura de Chile» · Tarea 2 «Revisar el picking» · Paso 1 de 1: hecho**',
+      '**Prueba de «Apertura de Chile» salió bien**: hizo sus 2 tareas sin cambiar ninguna agenda. Ya puedes activarla.',
+    ]);
+    expect(mensajes[1].texto).toContain('*activa la S y el DX de esos operadores*');
+    expect(mensajes[1].texto).toContain('Llamó a: Capacidad de agendas (1 sin aplicar)');
   });
 
   it('le dice al flujo que es una prueba, con su país, sus atajos y sus guías, y en modo editor', async () => {
@@ -260,14 +264,14 @@ describe('Un paso que falla', () => {
     expect(tablas.rutinas[0].probada_version).toBeNull();
   });
 
-  it('la tarea que falló se cuenta con el detalle del error: qué paso, qué herramienta y qué respondió', async () => {
+  it('el paso que falló se cuenta en su mensaje con el detalle del error: qué herramienta y qué respondió', async () => {
     const { ejecutor, tablas, terminada } = montar(fallaElSegundo);
     await terminada((await ejecutor.probar('r1', JOSE)).id);
 
-    const [m] = contado(tablas);
-    expect(contado(tablas)).toHaveLength(1);
-    expect(m.texto).toContain('Tarea 1 «Activar la S y el DX»: falló**');
-    expect(m.texto).toContain('**Paso 2** · falló');
+    // El paso 1, bien; el 2, con su error. Ningún mensaje más: la detención ya va en el del paso
+    expect(contado(tablas)).toHaveLength(2);
+    const m = contado(tablas)[1];
+    expect(m.texto.split('\n')[0]).toBe('**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 2 de 2: falló**');
     expect(m.texto).toContain('- **Error:** "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti');
     expect(m.texto).toContain('¿Qué zona?');
     expect(m.texto).toContain('reanúdala desde **Rutinas**');
@@ -325,7 +329,9 @@ describe('Un paso que falla', () => {
     expect(fin.motivo).toContain('no avisó');
     expect(m.interrupcion.interrumpir).toHaveBeenCalled();
     // No lo dijo un paso: va el motivo de la detención
-    expect(contado(m.tablas)[0].texto).toContain('**Por qué se detuvo:** Silvana no avisó');
+    // No lo dijo un paso: va en un mensaje propio, con su motivo
+    expect(contado(m.tablas).map((x) => x.texto.split('\n')[0])).toEqual(['**Prueba de «Apertura de Chile» se detuvo en la tarea 1 «Activar la S y el DX»**']);
+    expect(contado(m.tablas)[0].texto).toContain('- **Error:** Silvana no avisó');
   });
 });
 
@@ -370,6 +376,6 @@ describe('Si el servidor se reinicia a mitad', () => {
     expect([e.estado, e.tarea_detenida, (e.resultado as TareaEjecutada[])[1].estado]).toEqual(['detenida', 2, 'fallida']);
     expect(e.motivo).toContain('El servidor se reinició mientras corría la tarea 2');
     expect(m.tablas.notificaciones.map((n) => n.usuario_id)).toEqual([JOSE.id]);
-    expect(contado(m.tablas).map((x) => [x.ejecucion, x.texto.split('\n')[0]])).toEqual([['e-huerfana', '**Prueba de «Apertura de Chile» · Tarea 2 «Revisar»: falló**']]);
+    expect(contado(m.tablas).map((x) => [x.ejecucion, x.texto.split('\n')[0]])).toEqual([['e-huerfana', '**Prueba de «Apertura de Chile» se detuvo en la tarea 2 «Revisar»**']]);
   });
 });

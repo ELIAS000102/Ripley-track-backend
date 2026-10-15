@@ -34,8 +34,8 @@ Cubre estas áreas de la operación logística:
   correcta de su última versión. Una prueba las recorre enteras sin cambiar ninguna agenda; si
   un paso falla, la rutina se detiene y avisa, y al reanudarla se reintenta esa tarea.
 - **Notificaciones** — una campana con los avisos de las rutinas. Cada aviso lleva al chat
-  «Notificaciones», de solo lectura, donde la agente cuenta el resultado de cada tarea y el
-  detalle de los errores.
+  «Notificaciones», de solo lectura, donde la agente cuenta el resultado de cada paso, en su
+  propio mensaje, y el detalle de los errores.
 
 **Los datos de negocio no se guardan aquí.** Cada petición los lee en vivo de Ripley. En
 Supabase solo vive lo que es del backend: las cuentas y sus perfiles, el historial de
