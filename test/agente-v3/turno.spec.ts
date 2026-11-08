@@ -138,22 +138,44 @@ describe('Un turno de un atajo, de punta a punta', () => {
 });
 
 describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
-  it('un JSON roto: se anota por qué y se prueba otro modelo con el mismo prompt', async () => {
+  it('un JSON roto: se anota por qué y se prueba otro modelo, que ve por qué no valió', async () => {
     const { servicio, filas } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'simula la se', chat_id: 'c' });
     const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: 'Es el atajo de la SE', modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre } });
     expect(c.camino).toBe('clasificar');
     expect(c.modelo).not.toEqual(t.modelo);
-    expect(c.prompt).toEqual(t.prompt);
+    expect(c.prompt!.sistema).toBe(t.prompt!.sistema);
+    expect(c.prompt!.mensaje).toBe(`${t.prompt!.mensaje}\n\nTU CLASIFICACIÓN ANTERIOR NO VALIÓ: no devolvió un JSON. Corrígela.`);
     expect(filas.get(t.turno_id)!.modelos).toEqual([expect.objectContaining({ ok: false, motivo: 'no devolvió un JSON' })]);
   });
 
-  it('un atajo de Chile en un chat de Perú (sin que el mensaje diga Perú): el turno pasa a Chile y lo avisa', async () => {
+  it('"dame el picking RT de las tiendas del fase 1" en Perú: el atajo de Chile, por parecido, no vale; agotados, es una consulta en Perú', async () => {
+    const m = 'dame el picking RT de las tiendas del fase 1';
     const { servicio, filas, cambiarPais } = armar();
-    const t = await servicio.crear(USUARIO, { mensaje: 'dame el picking de las tiendas RT', chat_id: 'c' });
+    const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
+    let r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre } });
+    const motivo = '«Tiendas RT chile» es de Chile, el chat está en Perú y el mensaje no lo nombra ni dice Chile: usa un atajo de Perú o ninguno';
+    expect(r.camino).toBe('clasificar');
+    expect(filas.get(t.turno_id)!.modelos[0]).toMatchObject({ ok: false, clase: 'respuesta', motivo });
+    expect(r.prompt!.mensaje).toContain(`TU CLASIFICACIÓN ANTERIOR NO VALIÓ: ${motivo}.`);
+    // Aunque todos los modelos insistan: nunca pasa a Chile, y sigue como consulta (Armar) en Perú
+    for (let i = 0; i < 6 && r.camino === 'clasificar'; i++) {
+      r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre } });
+    }
+    expect(r.camino).toBe('armar');
+    expect(cambiarPais).not.toHaveBeenCalled();
+    expect(filas.get(t.turno_id)!.contexto!.pais).toBe('PE');
+    expect(filas.get(t.turno_id)!.clasificacion).toMatchObject({ tipo: 'consulta', atajo: null });
+    expect(r.prompt!.mensaje).toContain('PAÍS: Perú');
+  });
+
+  it('un atajo de Chile que el mensaje NOMBRA entero: el turno pasa a Chile y lo avisa', async () => {
+    const m = 'dame la tiendas rt chile';
+    const { servicio, filas, cambiarPais } = armar();
+    const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
     const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
     expect(c.camino).toBe('ejecutar');
-    expect(cambiarPais).toHaveBeenCalledWith(expect.anything(), 'dame el picking de las tiendas RT', 'CL', 'el atajo «Tiendas RT chile» es de Chile');
+    expect(cambiarPais).toHaveBeenCalledWith(expect.anything(), m, 'CL', 'el atajo «Tiendas RT chile» es de Chile');
     expect(filas.get(t.turno_id)!.contexto!.pais).toBe('CL');
     const aviso = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(aviso.progreso!.avisos).toContain('Paso a Chile: el atajo «Tiendas RT chile» es de Chile.');

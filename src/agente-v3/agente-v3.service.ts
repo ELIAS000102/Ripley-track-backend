@@ -140,18 +140,27 @@ export class AgenteV3Service {
 
     let clasificacion: Clasificacion | null = null;
     let motivo: string | null = null;
+    // Si lo único que no vale es el atajo de otro país: la misma lectura, como consulta sin atajo
+    let leidaSinAtajo: Clasificacion | null = null;
     if (!dto.error && dto.salida !== undefined) {
       const leida = leerClasificacion(dto.salida, contexto.atajos.map((a) => a.nombre));
       if (!leida.ok) motivo = leida.motivo;
-      else motivo = leida.valor.atajo ? this.atajoContraElMensaje(turno, leida.valor.atajo) : null;
+      else motivo = leida.valor.atajo ? this.atajoDeOtroPais(turno, leida.valor.atajo) : null;
       if (leida.ok && !motivo) clasificacion = leida.valor;
+      if (leida.ok && motivo) leidaSinAtajo = { ...leida.valor, tipo: leida.valor.tipo === 'atajo' ? 'consulta' : leida.valor.tipo, atajo: null, motivo: `${leida.valor.motivo} (sin el atajo: ${motivo})`.slice(0, 300) };
     }
     this.anotar(turno, 'clasificar', dto, motivo);
 
     if (!clasificacion) {
       await this.turnos.actualizar(turno.id, { modelos: turno.modelos });
       const otro = elegirModelo('clasificar', turno.id, this.intentos(turno));
-      if (otro) return this.salida(turno, 'clasificar', { modelo: otro, prompt: promptClasificar(turno.mensaje, contexto) });
+      // El modelo nuevo ve por qué no valió lo anterior (como en Armar)
+      if (otro) return this.salida(turno, 'clasificar', { modelo: otro, prompt: promptClasificar(turno.mensaje, contexto, motivo ?? undefined) });
+      // Agotados, y lo único que fallaba era el atajo de otro país: es una consulta en el país del chat
+      if (leidaSinAtajo) {
+        turno.clasificacion = leidaSinAtajo;
+        return this.seguir(usuario, turno, planDe(leidaSinAtajo, turno.contexto!, mensajeDe(turno)));
+      }
       return this.sinModelo(usuario, turno);
     }
 
@@ -161,15 +170,23 @@ export class AgenteV3Service {
     return this.seguir(usuario, turno, planDe(clasificacion, turno.contexto!, mensajeDe(turno)));
   }
 
-  /** Un atajo de otro país que contradice al país que DICE el mensaje: el clasificador se equivocó de atajo */
-  private atajoContraElMensaje(turno: Turno, atajo: string): string | null {
+  /**
+   * Un atajo de otro país solo vale si el mensaje lo NOMBRA (todas las palabras
+   * de su nombre: "dame la Tiendas RT chile") o dice ese país. Si no, el
+   * clasificador lo eligió por parecido ("las tiendas RT" en un chat de Perú)
+   * y no vale: otro intento, con el motivo.
+   */
+  private atajoDeOtroPais(turno: Turno, atajo: string): string | null {
     const a = turno.contexto!.atajos.find((x) => x.nombre === atajo);
+    if (!a || a.pais === turno.contexto!.pais) return null;
     const dicho = paisDelMensaje(turno.mensaje);
-    if (!a || !dicho || a.pais === dicho) return null;
-    return `«${atajo}» es de ${NOMBRE_PAIS[a.pais]} y el mensaje dice ${NOMBRE_PAIS[dicho]}`;
+    if (dicho === a.pais || atajoPorNombre(turno.mensaje, [a.nombre])) return null;
+    return dicho
+      ? `«${atajo}» es de ${NOMBRE_PAIS[a.pais]} y el mensaje dice ${NOMBRE_PAIS[dicho]}`
+      : `«${atajo}» es de ${NOMBRE_PAIS[a.pais]}, el chat está en ${NOMBRE_PAIS[turno.contexto!.pais]} y el mensaje no lo nombra ni dice ${NOMBRE_PAIS[a.pais]}: usa un atajo de ${NOMBRE_PAIS[turno.contexto!.pais]} o ninguno`;
   }
 
-  /** Un atajo de otro país (sin que el mensaje diga otro): el turno pasa a su país y se avisa */
+  /** Un atajo de otro país que el mensaje nombra: el turno pasa a su país y se avisa */
   private async alPaisDelAtajo(turno: Turno, atajo: string): Promise<void> {
     const a = turno.contexto!.atajos.find((x) => x.nombre === atajo);
     if (!a || a.pais === turno.contexto!.pais) return;

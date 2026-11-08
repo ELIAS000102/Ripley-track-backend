@@ -39,7 +39,7 @@ Responde SOLO con un JSON de una línea, sin texto alrededor:
 VOCABULARIO DE LA OPERACIÓN
 ${VOCABULARIO.map((v) => `- ${v}`).join('\n')}`;
 
-export function promptClasificar(mensaje: string, contexto: ContextoTurno): { sistema: string; mensaje: string } {
+export function promptClasificar(mensaje: string, contexto: ContextoTurno, noValio?: string): { sistema: string; mensaje: string } {
   const atajos = contexto.atajos
     .map((a) => `- «${a.nombre}» (${a.tipos.join(', ') || 'sin bloques'}; ${NOMBRE_PAIS[a.pais]}): ${a.descripcion ?? ''}`)
     .join('\n');
@@ -59,6 +59,6 @@ EL MENSAJE ANTERIOR DEL CHAT
 ${anterior}
 
 EL MENSAJE
-«${mensaje}»`,
+«${mensaje}»${noValio ? `\n\nTU CLASIFICACIÓN ANTERIOR NO VALIÓ: ${noValio}. Corrígela.` : ''}`,
   };
 }

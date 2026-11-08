@@ -375,3 +375,20 @@ describe('Agendas: el modelo las empareja, el código las comprueba', () => {
     expect(enClaro('No se cambió nada de lo 3 pedido. Motivos: Hay 5 opciones · No encontré la agenda')).toBe('Hay 5 opciones; No encontré la agenda');
   });
 });
+
+describe('"dame el picking RT de las tiendas del fase 1": el plan de Armar', () => {
+  it('ve los servicios con su fase, y vale la búsqueda masiva de RT + su picking RT (ref al paso 1)', () => {
+    const m = 'dame el picking RT de las tiendas del fase 1';
+    const c = ctx(m, { servicios: [
+      { codigo: 'RE', nombre: 'Retiro en Tienda Express', metodo_entrega: 'RT', fase: 'F1' },
+      { codigo: 'RT', nombre: 'Retiro en Tienda', metodo_entrega: 'RT', fase: 'F1' },
+      { codigo: 'SE', nombre: 'Site to Store Express', metodo_entrega: 'RT', fase: 'F2' },
+    ] });
+    expect(promptArmar(m, c, { tipo: 'consulta', dep: false, atajo: null, motivo: '' }).mensaje).toContain('- RT · Retiro en Tienda · retiro en tienda · fase F1');
+    const plan = { pasos: [
+      { herramienta: 'busqueda_masiva', param: { servicio: ['RT'] } },
+      { herramienta: 'consultar_capacidad', param: { tipo: 'picking', codigo: { ref: 'paso', n: 1 }, servicio: ['RT'] } },
+    ] };
+    expect(leerPlan(JSON.stringify(plan), c, m)).toMatchObject({ ok: true, valor: { plan: { origen: 'armar', pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: ['RT'] } }, { herramienta: 'consultar_capacidad', param: { tipo: 'picking', codigo: { ref: 'paso', n: 1 }, servicio: ['RT'] } }] } } });
+  });
+});
