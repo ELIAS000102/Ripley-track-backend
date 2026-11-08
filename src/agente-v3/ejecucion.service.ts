@@ -132,8 +132,9 @@ export class EjecucionV3Service {
     const base = { n, que: queEs(paso), herramienta: paso.herramienta };
     try {
       // Un paso que usa lo de otro que falló no se hace
-      const ref = Object.values(paso.param).find((v) => v && typeof v === 'object' && (v as { ref?: string }).ref === 'paso') as { n: number } | undefined;
-      if (ref && hechos[ref.n - 1]?.estado === 'error') throw new Error(`no se hizo: dependía del paso ${ref.n}, que falló`);
+      const refs = Object.values(paso.param).filter((v) => v && typeof v === 'object' && (v as { ref?: string }).ref === 'paso') as Array<{ n: number; sin?: number }>;
+      const fallido = refs.flatMap((r) => [r.n, ...(r.sin ? [r.sin] : [])]).find((k) => hechos[k - 1]?.estado === 'error');
+      if (fallido) throw new Error(`no se hizo: dependía del paso ${fallido}, que falló`);
 
       let datos = paso.herramienta === 'calcular' ? this.calcular(plan, contexto) : await this.correr(usuario, paso, hechos, contexto);
       // Un cambio: las filas "dónde · día · ahora · quedaría" van con los datos (el panel las dibuja tal cual)
@@ -180,11 +181,18 @@ export class EjecucionV3Service {
 
   /** Los códigos de una referencia: lo que cumplió (o trajo) otro paso, o el mensaje anterior */
   private codigosDe(v: unknown, hechos: PasoEjecutado[], contexto: ContextoTurno): string[] {
-    const r = v as { ref: string; n?: number };
+    const r = v as { ref: string; n?: number; sin?: number };
     if (r.ref === 'paso') {
-      const p = hechos[(r.n ?? 0) - 1];
-      if (!p) throw new Error(`el paso ${r.n} todavía no se hizo`);
-      return p.cumplen ?? codigosQueCumplen(filasDe(p.herramienta, p.datos, contexto.hoy));
+      const de = (k: number) => {
+        const p = hechos[k - 1];
+        if (!p) throw new Error(`el paso ${k} todavía no se hizo`);
+        return p.cumplen ?? codigosQueCumplen(filasDe(p.herramienta, p.datos, contexto.hoy));
+      };
+      const codigos = de(r.n ?? 0);
+      if (!r.sin) return codigos;
+      // "El resto": lo del paso n que no está en el paso "sin"
+      const quitar = new Set(de(r.sin));
+      return codigos.filter((c) => !quitar.has(c));
     }
     const res = (contexto.anterior?.resultados ?? []).filter((x) => x.datos);
     return [...new Set(res.flatMap((x) => x.cumplen ?? codigosQueCumplen(filasDe(x.herramienta, x.datos, contexto.hoy))))];

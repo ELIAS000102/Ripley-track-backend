@@ -132,12 +132,13 @@ describe('Cambios: cómo quedaría, sin aplicar nada', () => {
     expect(r.respuesta!.frase).toMatch(/^No pude: no pude poner la petición en simulacro/);
   });
 
-  it('leerPlan: una edición sin pedir un cambio no vale; un cambio sin edición tampoco; uno solo', () => {
+  it('leerPlan: una edición sin pedir un cambio no vale; un cambio sin edición tampoco; varios sí, hasta 4', () => {
     const c = ctx('cierra la 1100');
     const edicion = { herramienta: 'editar_capacidad', param: { tipo: 'despacho', codigo: ['1100'], fecha: 'hoy', activa: false } };
     expect(leerPlan(JSON.stringify({ pasos: [edicion] }), c, 'cierra la 1100')).toMatchObject({ ok: false, motivo: 'paso 1: editar_capacidad es un cambio, y no se pidió ningún cambio' });
     expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1100'] } }] }), c, 'cierra la 1100', true)).toMatchObject({ ok: false, motivo: 'se pidió un cambio y el plan no trae ninguno' });
-    expect(leerPlan(JSON.stringify({ pasos: [edicion, edicion] }), c, 'cierra la 1100', true)).toMatchObject({ ok: false, motivo: 'paso 2: un solo cambio por mensaje' });
+    expect(leerPlan(JSON.stringify({ pasos: [edicion, edicion] }), c, 'cierra la 1100', true)).toMatchObject({ ok: true });
+    expect(leerPlan(JSON.stringify({ pasos: [edicion, edicion, edicion, edicion, edicion] }), c, 'cierra la 1100', true)).toMatchObject({ ok: false, motivo: 'paso 5: más de 4 cambios en un mensaje; pídelos en dos' });
     expect(leerPlan(JSON.stringify({ pasos: [edicion] }), c, 'cierra la 1100', true)).toMatchObject({ ok: true, valor: { plan: { origen: 'cambio' } } });
     // Sin cambio, las ediciones ni aparecen en el catálogo
     expect(promptArmar('la 1100', c, { tipo: 'consulta', dep: false, atajo: null, motivo: '' }).sistema).not.toContain('editar_capacidad');

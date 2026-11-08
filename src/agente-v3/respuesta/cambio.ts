@@ -1,4 +1,5 @@
 import { partirOficina } from '../filas.js';
+import type { PasoEjecutado } from '../interfaces/agente-v3.interface.js';
 
 /**
  * La vista previa de un CAMBIO (decisión del usuario, 2026-11-08): la v3 dice
@@ -128,6 +129,20 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
     errores.length ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${[...new Set(errores.map((e) => e.error))].slice(0, 2).join('; ')})` : null,
   ].filter(Boolean);
   return { estado: cambian.length ? 'ok' : 'vacio', resumen: `${partes.join('; ')}. ${NO_APLICADO}` };
+}
+
+/**
+ * Varios cambios en un mensaje: una frase con todos, en el orden de los pasos
+ * ("Así quedaría — paso 2 · activar SE en lo del paso 1: cambiarían 11 de 11.
+ * paso 3 · …"), y "No apliqué nada" una sola vez.
+ */
+export function fraseDeCambios(cambios: PasoEjecutado[]): string {
+  const parte = (p: PasoEjecutado) => {
+    const titulo = `paso ${p.n} · ${p.que.replace(/^Vista previa: /, '')}`;
+    if (p.estado === 'error') return `${titulo}: no se podría (${p.error ?? p.resumen})`;
+    return `${titulo}: ${p.resumen.replace(` ${NO_APLICADO}`, '').replace(/^Así quedaría: /, '').replace(/\.$/, '')}`;
+  };
+  return `Así quedaría — ${cambios.map(parte).join('. ')}. ${NO_APLICADO}`;
 }
 
 const celda = (s: unknown) => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();

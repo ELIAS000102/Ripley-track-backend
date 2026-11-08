@@ -4,7 +4,7 @@ import type { Condicion } from '../filas.js';
 import type { Pais, PasoEjecutado, Pregunta, RespuestaPanel, ResultadoPanel, Turno } from '../interfaces/agente-v3.interface.js';
 import { herramienta as herramientaDe } from '../herramientas.js';
 import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto } from './atajo.js';
-import { markdownCambio, resumenCambio } from './cambio.js';
+import { fraseDeCambios, markdownCambio, resumenCambio } from './cambio.js';
 import { queEs } from '../que.js';
 
 /**
@@ -182,7 +182,10 @@ function base(turno: Turno, ahora: Date): Omit<RespuestaPanel, 'tipo' | 'frase' 
 export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel {
   const pasos = turno.pasos ?? [];
   const principal = [...pasos].reverse().find((p) => p.estado === 'ok') ?? [...pasos].reverse().find((p) => p.estado === 'vacio');
-  const texto = frase(pasos, principal);
+  // Varios cambios: la frase los dice todos y cada uno lleva su tabla con su título
+  const cambios = pasos.filter((p) => herramientaDe(p.herramienta)?.edicion);
+  const varios = cambios.length > 1 && cambios.some((p) => p.estado !== 'error');
+  const texto = varios ? fraseDeCambios(cambios) : frase(pasos, principal);
   const resultados: ResultadoPanel[] = pasos
     .filter((p) => p.estado !== 'error')
     .map((p) => ({
@@ -194,7 +197,9 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
       datos: p.datos,
       ...(p.total !== undefined ? { total: p.total } : {}),
     }));
-  const cuerpo = [principal, ...pasos.filter((p) => p !== principal)].filter(Boolean).map((p) => markdownDelPaso(p!)).filter((s) => s.trim());
+  const cuerpo = varios
+    ? [...cambios.map((p) => `**${p.que}**\n\n${markdownDelPaso(p)}`), ...pasos.filter((p) => !cambios.includes(p)).map((p) => markdownDelPaso(p))].filter((s) => s.trim())
+    : [principal, ...pasos.filter((p) => p !== principal)].filter(Boolean).map((p) => markdownDelPaso(p!)).filter((s) => s.trim());
   const ver = turno.plan?.ver;
   return {
     ...base(turno, ahora),

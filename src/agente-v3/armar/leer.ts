@@ -25,6 +25,8 @@ const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g
 const CAMPOS = new Set(['activa', 'enCheckout', 'habilitada', 'asignado', 'ocupado', 'disponible', 'uso', 'desfase', 'transito', 'preparacion', 'dias', 'jornadas', 'agenda', 'servicio', 'zona', 'entrega']);
 const OPS = new Set(['=', '!=', '>', '>=', '<', '<=']);
 const VER = new Set(['totales', 'cuadro', 'uso']);
+/** Cuántos cambios caben en un mensaje (todos en vista previa) */
+export const MAX_CAMBIOS = 4;
 
 /** "hoy", "mañana", "pasado mañana", "2026-11-08", "08-11", "08/11" → ISO */
 export function fechaIso(v: unknown, hoy: string): string | null {
@@ -64,7 +66,10 @@ function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: S
       if (!contexto.anterior?.resultados.some((x) => x.datos)) return { ok: false, motivo: `${p.nombre} usa lo que trajo el anterior, y no hay datos guardados de él` };
       return { ok: true, v: { ref: 'anterior' } };
     }
-    if (r.ref === 'paso' && Number.isInteger(r.n) && r.n! >= 1 && r.n! < n) return { ok: true, v: { ref: 'paso', n: r.n } };
+    // "sin": lo del paso N menos lo del paso M ("el resto de las de la ST" = las de la ST sin las de la SE)
+    const sin = (r as { sin?: unknown }).sin;
+    if (sin !== undefined && sin !== null && !(Number.isInteger(sin) && (sin as number) >= 1 && (sin as number) < n && sin !== r.n)) return { ok: false, motivo: `${p.nombre}: "sin" tiene que ser otro paso anterior (${JSON.stringify(v)})` };
+    if (r.ref === 'paso' && Number.isInteger(r.n) && r.n! >= 1 && r.n! < n) return { ok: true, v: { ref: 'paso', n: r.n, ...(sin ? { sin } : {}) } };
     return { ok: false, motivo: `${p.nombre}: referencia que no vale (${JSON.stringify(v)})` };
   }
   const fuente = FUENTE_POR_DEFECTO[contexto.pais];
@@ -132,8 +137,8 @@ function condicionDe(c: unknown, conCuantos: boolean): { ok: true; v: Record<str
 
 /**
  * `cambio`: la persona pidió un CAMBIO. Solo entonces valen las herramientas
- * de edición (se ejecutan en simulacro: la vista previa), y el plan trae una
- * y solo una; sin cambio, una edición no vale.
+ * de edición (se ejecutan en simulacro: la vista previa), y el plan trae al
+ * menos una y como mucho MAX_CAMBIOS; sin cambio, una edición no vale.
  */
 export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false): Lectura<PlanLeido> {
   const j = primerJson(texto);
@@ -152,7 +157,8 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     const h = herramienta(String(x.herramienta ?? ''));
     if (!h) return { ok: false, motivo: `paso ${n}: herramienta que no existe (${JSON.stringify(x.herramienta)})` };
     if (h.edicion && !cambio) return { ok: false, motivo: `paso ${n}: ${h.id} es un cambio, y no se pidió ningún cambio` };
-    if (h.edicion && pasos.some((p) => herramienta(p.herramienta)?.edicion)) return { ok: false, motivo: `paso ${n}: un solo cambio por mensaje` };
+    // Varios cambios en un mensaje, sí (todo es vista previa): cada uno en su paso, como mucho 4
+    if (h.edicion && pasos.filter((p) => herramienta(p.herramienta)?.edicion).length >= MAX_CAMBIOS) return { ok: false, motivo: `paso ${n}: más de ${MAX_CAMBIOS} cambios en un mensaje; pídelos en dos` };
     const param = (x.param && typeof x.param === 'object' ? x.param : {}) as Record<string, unknown>;
     const limpio: Record<string, unknown> = {};
 

@@ -11,7 +11,10 @@ const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ==
 export function queEs(p: PasoPlan, paisDelTurno?: string): string {
   const pais = NOMBRE_PAIS[String(p.param.pais ?? paisDelTurno)] ?? '';
   const x = p.param;
-  const cods = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? ((v as { ref: string; n?: number }).ref === 'anterior' ? 'lo del mensaje anterior' : `lo del paso ${(v as { n: number }).n}`) : lista(v).slice(0, 4).join(', ') + (lista(v).length > 4 ? ` y ${lista(v).length - 4} más` : ''));
+  const cods = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v)
+    ? ((v as { ref: string }).ref === 'anterior' ? 'lo del mensaje anterior' : `lo del paso ${(v as { n: number }).n}${(v as { sin?: number }).sin ? ` menos lo del paso ${(v as { sin: number }).sin}` : ''}`)
+    : lista(v).slice(0, 4).join(', ') + (lista(v).length > 4 ? ` y ${lista(v).length - 4} más` : ''));
+  const accion = (activo: unknown, si: string, no: string) => (activo === true ? si : activo === false ? no : 'cambiar');
   switch (p.herramienta) {
     case 'ejecutar_atajo': return `Atajo «${String(x.nombre)}»`;
     case 'saber_atajos': return 'Los atajos guardados';
@@ -36,7 +39,7 @@ export function queEs(p: PasoPlan, paisDelTurno?: string): string {
     case 'cortar_reabrir_cd': return `Vista previa: ${x.activa ? 'reabrir' : 'cortar'} ${x.cd ? `el CD ${String(x.cd)}` : 'los CDs'}`;
     case 'reasignar_capacidad': return `Vista previa: pasar ${String(x.unidades)} de ${String(x.origen)} a ${String(x.destino)} en el ${String(x.cd)}`;
     case 'editar_servicio_opl': return `Vista previa: ${lista(x.servicio).join(', ')} de ${cods(x.opl)}`;
-    case 'editar_masivo': return `Vista previa: ${String(x.servicio)} en bloque`;
+    case 'editar_masivo': return `Vista previa: ${accion(x.activo, 'activar', 'desactivar')} ${String(x.servicio)}${x.opls ? ` en ${cods(x.opls)}` : ' en bloque'}`;
     case 'editar_transferencia': return `Vista previa: transferencia a ${cods(x.destino)}`;
     default: return p.herramienta;
   }
