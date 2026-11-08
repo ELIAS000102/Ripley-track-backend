@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  PayloadTooLargeException,
   Post,
   Put,
 } from '@nestjs/common';
@@ -69,7 +70,7 @@ export class ChatsController {
     @Param('id') id: string,
     @Body() body: AgregarMensajeDto,
   ) {
-    return this.chats.agregarMensaje(usuario.id, id, body.rol, body.texto);
+    return this.chats.agregarMensaje(usuario.id, id, body.rol, body.texto, this.datosAcotados(body.datos));
   }
 
   /**
@@ -87,7 +88,7 @@ export class ChatsController {
     @Param('mensajeId') mensajeId: string,
     @Body() body: ReemplazarMensajeDto,
   ) {
-    return this.chats.reemplazarMensaje(usuario.id, id, mensajeId, body.texto);
+    return this.chats.reemplazarMensaje(usuario.id, id, mensajeId, body.texto, this.datosAcotados(body.datos));
   }
 
   /** PUT /chats/:id — cambia el título */
@@ -113,4 +114,18 @@ export class ChatsController {
   ) {
     return this.chats.eliminar(usuario.id, id);
   }
+
+  /**
+   * Los datos de una respuesta de la v3, con tope: tablas de un atajo grande caben
+   * de sobra en 2 MB; más que eso es un error del cliente, no una respuesta.
+   */
+  private datosAcotados(datos?: Record<string, unknown>) {
+    if (!datos) return undefined;
+    if (JSON.stringify(datos).length > MAXIMO_DATOS) {
+      throw new PayloadTooLargeException('Los datos de esta respuesta son demasiado grandes para guardarlos');
+    }
+    return datos;
+  }
 }
+
+const MAXIMO_DATOS = 2_000_000;

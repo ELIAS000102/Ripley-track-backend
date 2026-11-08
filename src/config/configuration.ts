@@ -104,6 +104,18 @@ export default () => {
        * arriba con permiso para listar y borrar ejecuciones. "false" la apaga.
        */
       n8nLimpiezaDiaria: process.env.N8N_LIMPIEZA_DIARIA !== 'false',
+      /**
+       * La v3, mientras se construye junto a la v2 (agente-v3/PLAN.md): su webhook
+       * y quién la puede probar. Sin N8N_V3_WEBHOOK_URL se usa el de la v2 con la
+       * ruta `agente-v3`. Sin probadores, el panel no enseña el interruptor a nadie.
+       */
+      v3: {
+        webhookUrl: process.env.N8N_V3_WEBHOOK_URL || (process.env.N8N_WEBHOOK_URL ?? '').replace(/\/agente-chat\/?$/, '/agente-v3'),
+        probadores: (process.env.AGENTE_V3_PROBADORES ?? '')
+          .split(',')
+          .map((c) => c.trim().toLowerCase())
+          .filter(Boolean),
+      },
     },
     supabase: {
       url: process.env.SUPABASE_URL,

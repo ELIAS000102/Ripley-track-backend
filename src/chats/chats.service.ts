@@ -20,6 +20,10 @@ const LARGO_TITULO = 60;
 /** Columnas que se devuelven de un chat: nunca el usuario_id */
 const CAMPOS_CHAT = 'id, titulo, tipo, creado_en, actualizado_en';
 const CAMPOS_MENSAJE = 'id, rol, texto, creado_en, ejecucion_id';
+/** Con la respuesta de la v3 del agente (agente-v3/sql/01-agente-v3.sql añade la columna) */
+const CAMPOS_MENSAJE_CON_DATOS = `${CAMPOS_MENSAJE}, datos`;
+/** "column … does not exist": el SQL de la v3 todavía no se corrió */
+const SIN_COLUMNA = (e: { code?: string; message?: string } | null) => e?.code === '42703' || /column .*datos.* does not exist/i.test(e?.message ?? '');
 
 /** Lo que cabe en un mensaje de «Notificaciones»: una tarea con sus tablas */
 const LARGO_NOTIFICACION = 60000;
@@ -38,6 +42,8 @@ const SOLO_LECTURA =
 @Injectable()
 export class ChatsService {
   private readonly logger = new Logger(ChatsService.name);
+  /** Si existe chat_mensajes.datos (la v3): null hasta que se sepa; false si falta el SQL */
+  private hayDatos: boolean | null = null;
 
   constructor(private readonly supabase: SupabaseService) {}
 
@@ -119,15 +125,18 @@ export class ChatsService {
   async mensajes(usuarioId: string, chatId: string): Promise<Mensaje[]> {
     await this.exigirPropiedad(usuarioId, chatId);
 
-    const { data, error } = await this.supabase.admin
-      .from(TABLA_MENSAJES)
-      .select(CAMPOS_MENSAJE)
-      .eq('chat_id', chatId)
-      .order('creado_en', { ascending: true });
+    const leer = (campos: string) =>
+      this.supabase.admin.from(TABLA_MENSAJES).select(campos).eq('chat_id', chatId).order('creado_en', { ascending: true });
+    let { data, error } = await leer(this.hayDatos === false ? CAMPOS_MENSAJE : CAMPOS_MENSAJE_CON_DATOS);
+    // Sin la columna de la v3 (el SQL aún no se corrió), el chat se sigue leyendo
+    if (SIN_COLUMNA(error)) {
+      this.hayDatos = false;
+      ({ data, error } = await leer(CAMPOS_MENSAJE));
+    }
 
     if (error) this.reventar('leer los mensajes', error.message);
 
-    return (data ?? []) as Mensaje[];
+    return (data ?? []) as unknown as Mensaje[];
   }
 
   /**
@@ -142,14 +151,19 @@ export class ChatsService {
     chatId: string,
     rol: 'usuario' | 'agente',
     texto: string,
+    datos?: Record<string, unknown>,
   ): Promise<Mensaje> {
     const chat = this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
-    const { data, error } = await this.supabase.admin
-      .from(TABLA_MENSAJES)
-      .insert({ chat_id: chatId, rol, texto })
-      .select(CAMPOS_MENSAJE)
-      .single();
+    // Los datos de la v3, solo si los hay (y si existe su columna): un mensaje sin ellos se guarda como siempre
+    const conDatos = Boolean(datos) && rol === 'agente' && this.hayDatos !== false;
+    const insertar = (fila: Record<string, unknown>, campos: string) =>
+      this.supabase.admin.from(TABLA_MENSAJES).insert(fila).select(campos).single();
+    let { data, error } = await insertar({ chat_id: chatId, rol, texto, ...(conDatos ? { datos } : {}) }, conDatos ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE);
+    if (conDatos && SIN_COLUMNA(error)) {
+      this.hayDatos = false;
+      ({ data, error } = await insertar({ chat_id: chatId, rol, texto }, CAMPOS_MENSAJE));
+    }
 
     if (error) this.reventar('guardar el mensaje', error.message);
 
@@ -163,7 +177,7 @@ export class ChatsService {
       })
       .eq('id', chatId);
 
-    return data as Mensaje;
+    return data as unknown as Mensaje;
   }
 
   /**
@@ -178,17 +192,19 @@ export class ChatsService {
     chatId: string,
     mensajeId: string,
     texto: string,
+    datos?: Record<string, unknown>,
   ): Promise<Mensaje> {
     this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
-    const { data, error } = await this.supabase.admin
-      .from(TABLA_MENSAJES)
-      .update({ texto })
-      .eq('id', mensajeId)
-      .eq('chat_id', chatId)
-      .eq('rol', 'agente')
-      .select(CAMPOS_MENSAJE)
-      .maybeSingle();
+    // Una respuesta reintentada cambia también sus datos: los de la v3, o ninguno si la nueva es de la v2
+    const conColumna = this.hayDatos !== false;
+    const cambiar = (cambios: Record<string, unknown>, campos: string) =>
+      this.supabase.admin.from(TABLA_MENSAJES).update(cambios).eq('id', mensajeId).eq('chat_id', chatId).eq('rol', 'agente').select(campos).maybeSingle();
+    let { data, error } = await cambiar(conColumna ? { texto, datos: datos ?? null } : { texto }, conColumna ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE);
+    if (conColumna && SIN_COLUMNA(error)) {
+      this.hayDatos = false;
+      ({ data, error } = await cambiar({ texto }, CAMPOS_MENSAJE));
+    }
 
     if (error) this.reventar('reemplazar el mensaje', error.message);
     if (!data) throw new NotFoundException('No existe esa respuesta en este chat');
@@ -198,7 +214,7 @@ export class ChatsService {
       .update({ actualizado_en: new Date().toISOString() })
       .eq('id', chatId);
 
-    return data as Mensaje;
+    return data as unknown as Mensaje;
   }
 
   // ---------- «Notificaciones» ----------

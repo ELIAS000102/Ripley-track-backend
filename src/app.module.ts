@@ -29,6 +29,7 @@ import { NotificacionesModule } from './notificaciones/notificaciones.module.js'
 import { SimulacionModule } from './simulacion/simulacion.module.js';
 import { LeadTimeModule } from './lead_time/lead-time.module.js';
 import { N8nModule } from './n8n/n8n.module.js';
+import { AgenteV3Module } from './agente-v3/agente-v3.module.js';
 
 /**
  * Módulo raíz: registra la configuración global (variables de entorno),
@@ -62,6 +63,8 @@ import { N8nModule } from './n8n/n8n.module.js';
     SimulacionModule,
     LeadTimeModule,
     AgenteModule,
+    // La v3 del agente, mientras se construye junto a la v2 (agente-v3/PLAN.md)
+    AgenteV3Module,
     ChatsModule,
     // Borra cada día las ejecuciones viejas de n8n
     N8nModule,

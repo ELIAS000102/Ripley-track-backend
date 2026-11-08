@@ -24,4 +24,6 @@ export interface Mensaje {
   creado_en: string;
   /** En «Notificaciones»: la ejecución de la rutina que cuenta el mensaje */
   ejecucion_id?: string | null;
+  /** La respuesta entera de la v3 del agente (sus datos, para volver a dibujarla); `texto` lleva la frase */
+  datos?: Record<string, unknown> | null;
 }

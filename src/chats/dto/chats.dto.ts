@@ -1,6 +1,7 @@
 import {
   IsIn,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -33,6 +34,11 @@ export class AgregarMensajeDto {
   @IsNotEmpty()
   @MaxLength(MAXIMO_TEXTO)
   texto: string;
+
+  /** La respuesta entera de la v3 del agente: con ella el panel vuelve a dibujar sus tablas */
+  @IsOptional()
+  @IsObject()
+  datos?: Record<string, unknown>;
 }
 
 /** Lo que se cambia de una respuesta al reintentarla: el texto nuevo */
@@ -41,4 +47,9 @@ export class ReemplazarMensajeDto {
   @IsNotEmpty()
   @MaxLength(MAXIMO_TEXTO)
   texto: string;
+
+  /** La respuesta entera de la v3 del agente: con ella el panel vuelve a dibujar sus tablas */
+  @IsOptional()
+  @IsObject()
+  datos?: Record<string, unknown>;
 }

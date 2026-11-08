@@ -61,7 +61,8 @@ describe('ChatsService.reemplazarMensaje', () => {
     const r = await servicio.reemplazarMensaje('ana', 'c1', 'm1', 'nuevo');
 
     expect(r.texto).toBe('nuevo');
-    expect(update).toHaveBeenCalledWith({ texto: 'nuevo' });
+    // Sin datos de la v3, los que tuviera la respuesta anterior se quitan: la nueva no es esa
+    expect(update).toHaveBeenCalledWith({ texto: 'nuevo', datos: null });
     expect(filtros).toEqual([['id', 'm1'], ['chat_id', 'c1'], ['rol', 'agente']]);
     expect(actualizaChat).toHaveBeenCalledTimes(1);
   });
