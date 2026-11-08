@@ -254,7 +254,8 @@ export class AgenteV3Service {
     await this.turnos.actualizar(turno.id, { estado: turno.estado, modelos: turno.modelos, clasificacion: turno.clasificacion, etapa: rol, contexto, plan: turno.plan, pasos: turno.pasos });
     const mensaje = mensajeDe(turno);
     let prompt: { sistema: string; mensaje: string };
-    if (rol === 'armar') prompt = promptArmar(mensaje, contexto, turno.clasificacion);
+    // Al reintentar, el modelo ve por qué no valió lo anterior ("«centralizado de San Luis» no es ninguna de…")
+    if (rol === 'armar') prompt = promptArmar(mensaje, contexto, turno.clasificacion, ultimoMotivo);
     else if (rol === 'calcular') { const { filas, deDonde } = filasDelAnterior(contexto); prompt = promptCalcular(mensaje, contexto, filas, deDonde); }
     else {
       const [sabido, fases] = await Promise.all([this.aprendizaje.sabido(contexto, mensaje), this.aprendizaje.fases()]);
@@ -273,7 +274,25 @@ export class AgenteV3Service {
     const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio) : null;
     this.anotar(turno, 'armar', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'armar', leida && !leida.ok ? leida.motivo : undefined);
-    const { plan, faltan } = leida.valor;
+    const { plan, faltan, buscar } = leida.valor;
+    // Nombra una agenda de unas oficinas de las que no se conoce ninguna: se buscan (solo leer) y Armar vuelve a elegir, viéndolas
+    const porBuscar = (buscar ?? []).filter((b) => b.codigos.some((c) => !(contexto.buscadas ?? []).includes(`${b.tipo}:${c}`)));
+    if (plan && porBuscar.length) {
+      const encontradas = [];
+      for (const b of porBuscar) {
+        try {
+          encontradas.push(...await this.ejecucion.buscarAgendas(usuario, contexto, b));
+        } catch (e) {
+          this.logger.warn(`No se pudieron buscar las agendas de ${b.codigos.join(', ')}: ${(e as Error).message}`);
+        }
+      }
+      turno.contexto = {
+        ...contexto,
+        agendas: [...(contexto.agendas ?? []), ...encontradas],
+        buscadas: [...(contexto.buscadas ?? []), ...porBuscar.flatMap((b) => b.codigos.map((c) => `${b.tipo}:${c}`))],
+      };
+      if (encontradas.length) return this.pedirModelo(usuario, turno, 'armar');
+    }
     if (!plan) return this.preguntar(usuario, turno, preguntaAbierta('armar', faltan.join(' ')));
     return this.aEjecutar(turno, plan);
   }
@@ -440,6 +459,12 @@ export class AgenteV3Service {
     const plan = turno.plan as PlanV3;
     const hechos = turno.pasos ?? [];
     const k = hechos.length;
+    // Antes del primer paso, el plan a la vista: el panel enseña los pasos mientras se hacen
+    if (k === 0 && plan.pasos.length && !turno.contexto?.anunciado) {
+      turno.contexto = { ...turno.contexto!, anunciado: true };
+      await this.turnos.actualizar(turno.id, { contexto: turno.contexto });
+      return this.salida(turno, 'avisar', { progreso: this.conAvisos(turno, respuestaProgreso(turno)) });
+    }
     if (k < plan.pasos.length) {
       const paso = await this.ejecucion.ejecutar(usuario, plan, k, hechos, turno.contexto!);
       turno.pasos = [...hechos, paso];

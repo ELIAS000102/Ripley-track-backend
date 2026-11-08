@@ -86,6 +86,16 @@ export interface MensajeAnterior {
   fallido?: boolean;
 }
 
+/** Una agenda que se conoce en el turno (del mensaje anterior o buscada): el modelo elige entre ellas */
+export interface AgendaConocida {
+  codigo: string;
+  /** picking · despacho · recepcion · opl */
+  tipo: string | null;
+  zona: string | null;
+  agenda: string;
+  servicio: string | null;
+}
+
 /** Algo que se aprende (lo deja limpio el rol «aprender» y se guarda con un "sí") */
 export interface Hecho {
   tipo: 'servicio' | 'entidad';
@@ -151,6 +161,12 @@ export interface ContextoTurno {
   mensaje_efectivo?: string | null;
   /** Lo que se está aprendiendo: se pregunta al final */
   ensenanza?: Ensenanza | null;
+  /** Las agendas que buscó el backend porque el plan nombraba una que no conocía (las del anterior se leen de él) */
+  agendas?: AgendaConocida[];
+  /** Las oficinas cuyas agendas ya se buscaron ("tipo:código"): no se vuelven a buscar */
+  buscadas?: string[];
+  /** Ya se avisó a la persona del plan antes de su primer paso */
+  anunciado?: boolean;
 }
 
 export interface Clasificacion {
@@ -263,7 +279,10 @@ export interface RespuestaPanel {
   markdown: string;
   notas: string[];
   avisos: string[];
-  pasos: Array<Pick<PasoEjecutado, 'n' | 'que' | 'estado' | 'resumen' | 'ms'>>;
+  /** En el progreso también los que van (`en_curso`) y los que faltan (`pendiente`), con `descripcion` para el panel */
+  pasos: Array<Pick<PasoEjecutado, 'n' | 'que' | 'resumen' | 'ms'> & { estado: PasoEjecutado['estado'] | 'en_curso' | 'pendiente'; descripcion?: string }>;
+  /** En el progreso: el país, para el chip del "Pensando…" */
+  contexto?: { pais: Pais; motivo_pais: string | null };
   detalles: {
     clasificacion: Clasificacion | null;
     modelos: IntentoModelo[];

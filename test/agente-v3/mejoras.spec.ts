@@ -5,7 +5,8 @@ import { leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { promptArmar } from '../../src/agente-v3/armar/prompt.js';
 import { calcular } from '../../src/agente-v3/calcular/calcular.js';
 import { leerCalculo } from '../../src/agente-v3/calcular/prompt.js';
-import { EjecucionV3Service } from '../../src/agente-v3/ejecucion.service.js';
+import { agendasDeDatos } from '../../src/agente-v3/agendas.js';
+import { EjecucionV3Service, enClaro } from '../../src/agente-v3/ejecucion.service.js';
 import { mencionesDe, type EntidadDirectorio } from '../../src/agente-v3/entidades.js';
 import { filasDe } from '../../src/agente-v3/filas.js';
 import type { ContextoTurno, Hecho, IntentoModelo, Turno } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
@@ -52,7 +53,7 @@ const EDICION = {
   resumen: { pedidos: 2, cambiados: 1, sinCambiar: 1 },
 };
 
-function armarServicio(contexto: ContextoTurno, { simulacro = true } = {}) {
+function armarServicio(contexto: ContextoTurno, { simulacro = true, capacidadDatos = CAPACIDAD as unknown } = {}) {
   const filas = new Map<string, Turno>();
   let n = 0;
   const turnos = {
@@ -72,7 +73,7 @@ function armarServicio(contexto: ContextoTurno, { simulacro = true } = {}) {
   };
   const rpc = vi.fn(async () => ({ data: 'm-1', error: null }));
   const supabase = { admin: { rpc } };
-  const capacidad = { consultar: vi.fn(async () => structuredClone(CAPACIDAD)) };
+  const capacidad = { consultar: vi.fn(async () => structuredClone(capacidadDatos)) };
   // El simulacro: lo que hace ContextoAuditoria (no tiene vuelta atrás)
   let enSimulacro = false;
   const auditoria = { activarSimulacro: vi.fn(() => { if (simulacro) enSimulacro = true; }), enSimulacro: vi.fn(() => enSimulacro) };
@@ -296,5 +297,74 @@ describe('Cálculos sobre lo guardado', () => {
   });
   it('un dato que no se guarda se dice, no se sustituye por otro', () => {
     expect(leerCalculo(JSON.stringify({ operacion: null, falta: 'la ciudad de cada tienda' }), ctx(''), filasDe('saber_entidades', ENTIDADES))).toEqual({ ok: true, valor: { falta: 'la ciudad de cada tienda' } });
+  });
+});
+
+// ── Las agendas: el modelo elige el nombre exacto, el código lo comprueba y lo manda solo donde está ──
+
+/** El despacho de la "Paquetería Lima" (captura del usuario, 2026-11-08): en la 1100 cada zona es una agenda */
+const zona = (nombre: string, agenda = nombre) => ({ agenda, zona: nombre, servicio: 'S', unidad: null, dias: [dia(MANANA, true, 1000, 0)] });
+const DESPACHO = { tipo: 'despacho', pais: 'PE', desde: HOY, sinDatos: [], oficinas: [
+  { oficina: '1100 - Lima metropolitana', agendas: [zona('Centralizado HUB Cedros'), zona('Centralizado HUB San Luis'), zona('CT Chorrillos - 99 Min'), zona('Flota Exclusiva'), zona('Centralizado HUB Surquillo')] },
+  { oficina: '1007', agendas: [zona('Zona 1007 - Sector Zona Lejana', 'Agenda 1007 - Sector Zona Lejana')] },
+  { oficina: '1008', agendas: [zona('Zona  Courrier Consolida')] },
+] };
+const ATAJO_PAQUETERIA = { atajo: 'Paqueteria Lima', bloques: [{ orden: 1, tipo: 'despacho', nota: null, items: [{ resultado: DESPACHO }] }], resumen: { items: 1, correctas: 1, fallidas: 0 } };
+const ANTERIOR = { id: 'm0', persona: 'AHORA DAME LA PQT LIMA', frase: '«Paqueteria Lima»: 3 oficinas…', herramientas: ['ejecutar_atajo'], plan: null, version: 3 as const, elegido: false,
+  resultados: [{ herramienta: 'ejecutar_atajo', titulo: 'Atajo «Paqueteria Lima»', datos: ATAJO_PAQUETERIA }] };
+const SAN_LUIS = 'CIERRA LA FECHA 12-11 DEL CENTRALIZASO DE SAN LUIS';
+const cerrar = (agenda: string, codigo: unknown = { ref: 'anterior' }) => JSON.stringify({ pasos: [{ herramienta: 'editar_capacidad', param: { tipo: 'despacho', codigo, fecha: '12-11', activa: false, agenda } }] });
+
+describe('Agendas: el modelo las empareja, el código las comprueba', () => {
+  it('las agendas del anterior, con su zona (también las de un atajo)', () => {
+    const a = agendasDeDatos('ejecutar_atajo', ATAJO_PAQUETERIA);
+    expect(a).toHaveLength(7);
+    expect(a[1]).toEqual({ codigo: '1100', tipo: 'despacho', zona: 'Centralizado HUB San Luis', agenda: 'Centralizado HUB San Luis', servicio: 'S' });
+  });
+
+  it('el caso de la captura: un nombre que no es ninguno no vale; el modelo ve por qué y elige el exacto; va solo a la 1100, con su zona', async () => {
+    const { servicio, editarCapacidad } = armarServicio(ctx(SAN_LUIS, { anterior: ANTERIOR }));
+    const t = await servicio.crear(USUARIO, { mensaje: SAN_LUIS, chat_id: 'c' });
+    const a = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('cambio'), modelo: M });
+    expect(a.prompt!.mensaje).toContain('AGENDAS QUE CONOZCO (oficina · tipo · zona › agenda · servicio)\n- 1100 · despacho · Centralizado HUB Cedros · S\n- 1100 · despacho · Centralizado HUB San Luis · S');
+    expect(a.prompt!.mensaje).toContain('- 1007 · despacho · Zona 1007 - Sector Zona Lejana › Agenda 1007 - Sector Zona Lejana · S');
+
+    // Lo que hizo el modelo aquella vez: otro modelo, y el prompt dice por qué no valió
+    const otra = await servicio.armado(USUARIO, t.turno_id, { salida: cerrar('centralizado de San Luis'), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
+    expect(otra.camino).toBe('armar');
+    expect(otra.prompt!.mensaje).toContain('TU PLAN ANTERIOR NO VALIÓ: paso 1: «centralizado de San Luis» no es ninguna de las agendas de 1100, 1007, 1008 (son: Centralizado HUB Cedros, Centralizado HUB San Luis,');
+
+    const e = await servicio.armado(USUARIO, t.turno_id, { salida: cerrar('Centralizado HUB San Luis'), modelo: { cuenta: otra.modelo!.cuenta, nombre: otra.modelo!.nombre } });
+    expect(e.camino).toBe('ejecutar');
+    const r = await hastaElFinal(servicio, t.turno_id);
+    expect(editarCapacidad.editarCapacidad).toHaveBeenCalledTimes(1);
+    expect(editarCapacidad.editarCapacidad).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ codigo: '1100', zona: 'Centralizado HUB San Luis', agenda: 'Centralizado HUB San Luis', fecha: '2026-11-12', activa: false }));
+    expect((r.respuesta!.resultados[0].datos as { notas: string[] }).notas).toEqual(['agenda: Centralizado HUB San Luis; sin ella: 1007, 1008']);
+  });
+
+  it('sin nada que la conozca: el backend busca las agendas de esas oficinas (solo leer) y Armar vuelve a elegir, viéndolas', async () => {
+    const m = 'cierra el centralizaso de san luis de la 1100 mañana';
+    const { servicio, capacidad, editarCapacidad } = armarServicio(ctx(m), { capacidadDatos: DESPACHO });
+    const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
+    const a = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('cambio'), modelo: M });
+    expect(a.prompt!.mensaje).not.toContain('AGENDAS QUE CONOZCO');
+    const b = await servicio.armado(USUARIO, t.turno_id, { salida: cerrar('centralizaso de san luis', ['1100']), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
+    expect(capacidad.consultar).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'despacho', codigo: '1100', dias: 1 }));
+    expect(editarCapacidad.editarCapacidad).not.toHaveBeenCalled();
+    expect(b.camino).toBe('armar');
+    expect(b.prompt!.mensaje).toContain('- 1100 · despacho · Centralizado HUB San Luis · S');
+    const e = await servicio.armado(USUARIO, t.turno_id, { salida: cerrar('Centralizado HUB San Luis', ['1100']), modelo: { cuenta: b.modelo!.cuenta, nombre: b.modelo!.nombre } });
+    expect(e.camino).toBe('ejecutar');
+    await hastaElFinal(servicio, t.turno_id);
+    expect(editarCapacidad.editarCapacidad).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ codigo: '1100', zona: 'Centralizado HUB San Luis', agenda: 'Centralizado HUB San Luis' }));
+  });
+
+  it('"los centralizados": la parte común vale, y cada uno va con su zona exacta', () => {
+    const c = ctx('cierra los centralizados', { anterior: ANTERIOR });
+    expect(leerPlan(cerrar('Centralizado'), c, 'cierra los centralizados', true)).toMatchObject({ ok: true });
+  });
+
+  it('el error de una edición, en claro', () => {
+    expect(enClaro('No se cambió nada de lo 3 pedido. Motivos: Hay 5 opciones · No encontré la agenda')).toBe('Hay 5 opciones; No encontré la agenda');
   });
 });

@@ -5,6 +5,7 @@ import type { Pais, PasoEjecutado, Pregunta, RespuestaPanel, ResultadoPanel, Tur
 import { herramienta as herramientaDe } from '../herramientas.js';
 import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto } from './atajo.js';
 import { markdownCambio, resumenCambio } from './cambio.js';
+import { queEs } from '../que.js';
 
 /**
  * Etapa 7 · Responder: la frase, los datos de cada paso para que el panel los
@@ -235,16 +236,27 @@ export function respuestaPregunta(turno: Turno, p: Pregunta, ahora = new Date())
   };
 }
 
-/** El progreso mientras quedan pasos: lo hecho y lo que falta */
+/**
+ * El progreso mientras quedan pasos: TODOS los del plan, con lo hecho, el que
+ * va (`en_curso`) y los que faltan (`pendiente`). Lleva `descripcion` y
+ * `contexto`, que es lo que pinta el "Pensando…" del panel (como con la v2).
+ */
 export function respuestaProgreso(turno: Turno, ahora = new Date()): RespuestaPanel {
   const hechos = turno.pasos ?? [];
-  const faltan = (turno.plan?.pasos ?? []).slice(hechos.length);
-  const texto = `Voy por el paso ${hechos.length + 1} de ${hechos.length + faltan.length}.`;
+  const plan = turno.plan?.pasos ?? [];
+  const texto = `Voy por el paso ${hechos.length + 1} de ${plan.length}.`;
+  const pasos = plan.map((p, i) => {
+    const hecho = hechos[i];
+    if (hecho) return { n: hecho.n, que: hecho.que, descripcion: hecho.que, estado: hecho.estado, resumen: hecho.resumen, ms: hecho.ms };
+    const que = queEs(p, turno.contexto?.pais);
+    return { n: i + 1, que, descripcion: que, estado: i === hechos.length ? 'en_curso' : 'pendiente', resumen: '', ms: 0 };
+  });
   return {
     ...base(turno, ahora),
     tipo: 'progreso',
     frase: texto,
     markdown: texto,
-    pasos: hechos.map(({ n, que, estado, resumen, ms }) => ({ n, que, estado, resumen, ms })),
+    pasos: pasos as RespuestaPanel['pasos'],
+    contexto: { pais: turno.contexto?.pais ?? 'PE', motivo_pais: turno.contexto?.motivo_pais ?? null },
   };
 }

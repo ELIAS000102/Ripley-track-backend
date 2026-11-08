@@ -1,3 +1,4 @@
+import { agendasParaPrompt } from '../agendas.js';
 import { VOCABULARIO } from '../constantes.js';
 import { codigosQueCumplen, filasDe } from '../filas.js';
 import { catalogoParaPrompt, FUENTE_POR_DEFECTO } from '../herramientas.js';
@@ -26,6 +27,7 @@ const REGLAS = `REGLAS
 - EL MÍNIMO DE PASOS: cada paso trae algo que ningún otro trae. busqueda_masiva ya dice si cada agenda está activa y en checkout: para ver o contar activos e inactivos basta con ella; consultar_servicios_opl solo si se pide la hora de corte, la holgura, las ocurrencias o los demás servicios. Varios servicios van juntos en UN paso.
 - CAPACIDAD: "picking" para tiendas, almacenes y CDs; "despacho" para OPL (4 cifras); "recepcion" para las agendas de recepción de las tiendas. "Cómo va el CD …" es consultar_reporte_cds.
 - UNA FASE ("fase 1", "F2") son sus servicios en el país: mira "SERVICIOS DEL PAÍS". "Las sucursales de la fase 1" = busqueda_masiva de esos servicios; "su picking" = consultar_capacidad con codigo {"ref": "paso", "n": 1}.
+- AGENDAS: si el mensaje nombra una agenda o una zona ("el centralizaso de San Luis", "la flota"), busca en "AGENDAS QUE CONOZCO" la que quiere decir aunque esté escrita de otra forma, abreviada o con faltas, y copia en "agenda" su nombre EXACTO (en despacho, la zona exacta en "zona"; es lo que va antes de "›", o el mismo nombre si no hay "›"). En "codigo" (u "opl") pon SOLO las oficinas que la tienen. Si nombra varias a la vez ("los centralizados"), pon la parte común ("Centralizado"). Si no está en la lista, escríbela como la dijo: el sistema buscará las agendas de esas oficinas y te las enseñará.
 - SIMULAR: "operador" es quién entrega. En retiro en tienda (ST, SE, RT…) la TIENDA donde se recoge es el operador; "almacen" es la fuente de stock. En despacho a domicilio (SD, DT, S…) el operador es el OPL.
 - CONDICIÓN y COMPROBAR: "solo las inactivas", "las que están sin cupo" → "condicion" en ese paso ({"campo": "activa", "op": "=", "valor": false}; {"campo": "disponible", "op": "<=", "valor": 0}). "Fíjate que todas estén inactivas", "¿están todos activos?" → "comprobar" ({"campo": "activa", "op": "=", "valor": false, "cuantos": "todos", "servicio": "RE"}). "Activos e inactivos" no lleva condición. Campos: activa, enCheckout, habilitada, asignado, ocupado, disponible, uso, desfase, transito, preparacion, dias, jornadas (cuántas jornadas tiene cada oficina; "un flujo" = una jornada).
 - SIGUE LA CONVERSACIÓN: si el mensaje depende del anterior ("¿y de Chile?", "¿y mañana?", "lo mismo para la 20027"), repite el PLAN DEL ANTERIOR cambiando solo lo que dice el mensaje (el país ya viene resuelto en "PAÍS").
@@ -43,7 +45,7 @@ CATÁLOGO DE HERRAMIENTAS (* = obligatorio)`;
 export const SISTEMA_ARMAR = `${cabecera(false)}\n${REGLAS}\n${catalogoParaPrompt(false)}`;
 export const SISTEMA_ARMAR_CAMBIO = `${cabecera(true)}\n${REGLAS}\n${catalogoParaPrompt(true)}`;
 
-export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificacion: Clasificacion | null): { sistema: string; mensaje: string } {
+export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificacion: Clasificacion | null, noValio?: string): { sistema: string; mensaje: string } {
   const codigos = contexto.entidades
     .map((e) => (e.porNombre
       ? `- "${e.texto}" → ${e.candidatos.map((c) => `${c.codigo} · ${c.nombre ?? ''} (${c.es_cd ? 'CD' : c.tipo})`).join(' o ')}`
@@ -57,6 +59,7 @@ export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificac
     s.descripcion ? s.descripcion : null,
   ].filter(Boolean).join(' · ')).join('\n');
   const atajos = contexto.atajos.filter((a) => a.pais === contexto.pais).map((a) => `- «${a.nombre}» (${a.tipos.join(', ')}): ${a.descripcion ?? ''}`).join('\n');
+  const agendas = agendasParaPrompt(contexto);
   const ant = contexto.anterior;
   const anterior = ant
     ? [
@@ -82,11 +85,11 @@ ${servicios || '(no los tengo)'}
 
 ATAJOS GUARDADOS
 ${atajos || '(ninguno)'}
-
+${agendas.length ? `\nAGENDAS QUE CONOZCO (oficina · tipo · zona › agenda · servicio)\n${agendas.join('\n')}\n` : ''}
 EL MENSAJE ANTERIOR
 ${anterior}
 ${contexto.aclaraciones.length ? `\nLO QUE ACLARÓ LA PERSONA\n${contexto.aclaraciones.map((a) => `- ${a}`).join('\n')}\n` : ''}
 EL MENSAJE
-«${mensaje}»`,
+«${mensaje}»${noValio ? `\n\nTU PLAN ANTERIOR NO VALIÓ: ${noValio}. Corrígelo.` : ''}`,
   };
 }

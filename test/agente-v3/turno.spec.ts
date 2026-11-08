@@ -105,6 +105,12 @@ describe('Un turno de un atajo, de punta a punta', () => {
     const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }), modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre } });
     expect(c.camino).toBe('ejecutar');
 
+    // Antes del primer paso, el plan a la vista: lo que pinta el "Pensando…" del panel
+    const aviso = await servicio.ejecutar(USUARIO, t.turno_id);
+    expect(aviso.camino).toBe('avisar');
+    expect(aviso.progreso).toMatchObject({ tipo: 'progreso', contexto: { pais: 'PE' }, pasos: [{ n: 1, descripcion: 'Atajo «Simulación SE»', estado: 'en_curso' }] });
+    expect(porNombre).not.toHaveBeenCalled();
+
     const r = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(porNombre).toHaveBeenCalledWith('Simulación SE');
     expect(r.camino).toBe('responder');
@@ -123,6 +129,7 @@ describe('Un turno de un atajo, de punta a punta', () => {
     const { servicio, ejecutar } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'simula la se', chat_id: 'chat-1' });
     await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    await servicio.ejecutar(USUARIO, t.turno_id);
     const a = await servicio.ejecutar(USUARIO, t.turno_id);
     const b = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(ejecutar).toHaveBeenCalledTimes(1);
@@ -148,6 +155,8 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
     expect(c.camino).toBe('ejecutar');
     expect(cambiarPais).toHaveBeenCalledWith(expect.anything(), 'dame el picking de las tiendas RT', 'CL', 'el atajo «Tiendas RT chile» es de Chile');
     expect(filas.get(t.turno_id)!.contexto!.pais).toBe('CL');
+    const aviso = await servicio.ejecutar(USUARIO, t.turno_id);
+    expect(aviso.progreso!.avisos).toContain('Paso a Chile: el atajo «Tiendas RT chile» es de Chile.');
     const r = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(r.respuesta!.avisos).toContain('Paso a Chile: el atajo «Tiendas RT chile» es de Chile.');
   });

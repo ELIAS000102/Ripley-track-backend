@@ -1,3 +1,4 @@
+import { agendasConocidas, CON_AGENDA, codigosDelAnterior, deLasOficinas, lasQueEncajan } from '../agendas.js';
 import { primerJson, type Lectura } from '../clasificar/leer.js';
 import { codigosDichos } from '../entidades.js';
 import { FUENTE_POR_DEFECTO, herramienta, type ParamDef } from '../herramientas.js';
@@ -13,6 +14,11 @@ export interface PlanLeido {
   plan: PlanV3 | null;
   /** Lo que el modelo dice que falta (se le pregunta a la persona) */
   faltan: string[];
+  /**
+   * Oficinas de las que el plan nombra una agenda que no se conoce: el backend
+   * las busca y Armar vuelve a elegir, viéndolas
+   */
+  buscar?: Array<{ herramienta: string; tipo: string | null; codigos: string[] }>;
 }
 
 const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -136,6 +142,7 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
 
   const permitidos = codigosPermitidos(contexto, mensaje);
   const pasos: PasoPlan[] = [];
+  const buscar: NonNullable<PlanLeido['buscar']> = [];
   for (const [i, crudo] of crudos.entries()) {
     const n = i + 1;
     const x = (crudo ?? {}) as Record<string, unknown>;
@@ -163,6 +170,22 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
       if (falta) return { ok: false, motivo: `paso ${n} (${h.id}): falta ${falta.nombre}` };
     }
 
+    // La agenda o la zona: una de las conocidas de esas oficinas; si no se conoce ninguna, se buscan
+    const conAgenda = CON_AGENDA[h.id];
+    if (conAgenda && (limpio.agenda || limpio.zona)) {
+      const v = limpio[conAgenda.lista];
+      const codigos = Array.isArray(v) ? (v as string[]) : v && typeof v === 'object' && (v as { ref?: string }).ref === 'anterior' ? codigosDelAnterior(contexto) : null;
+      if (codigos?.length) {
+        const tipo = conAgenda.tipo(limpio);
+        const conocidas = deLasOficinas(agendasConocidas(contexto), codigos, tipo);
+        if (!conocidas.length) buscar.push({ herramienta: h.id, tipo, codigos });
+        else if (!lasQueEncajan(conocidas, limpio.agenda, limpio.zona).length) {
+          const nombres = [...new Set(conocidas.map((a) => a.agenda))];
+          return { ok: false, motivo: `paso ${n}: «${String(limpio.agenda ?? limpio.zona)}» no es ninguna de las agendas de ${[...new Set(conocidas.map((a) => a.codigo))].join(', ')} (son: ${nombres.slice(0, 20).join(', ')}${nombres.length > 20 ? '…' : ''}); elige la que quiso decir y copia su nombre exacto` };
+        }
+      }
+    }
+
     const cond = condicionDe(x.condicion, false);
     if (!cond.ok) return { ok: false, motivo: `paso ${n}: ${cond.motivo}` };
     const comp = condicionDe(x.comprobar, true);
@@ -172,5 +195,5 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
 
   if (cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion)) return { ok: false, motivo: 'se pidió un cambio y el plan no trae ninguno' };
   const ver = typeof j.ver === 'string' && VER.has(j.ver) ? j.ver : null;
-  return { ok: true, valor: { plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver }, faltan } };
+  return { ok: true, valor: { plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver }, faltan, ...(buscar.length ? { buscar } : {}) } };
 }

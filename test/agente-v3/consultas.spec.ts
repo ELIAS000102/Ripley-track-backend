@@ -228,9 +228,12 @@ describe('Un turno de consulta, de punta a punta', () => {
     // El atajo de este doble es una búsqueda masiva: se ejecuta con el servicio de búsqueda
     const plan = { pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: 'RE' }, condicion: { campo: 'activa', op: '=', valor: false } }, { herramienta: 'consultar_transferencia', param: { origen: '20026', destino: { ref: 'paso', n: 1 } } }] };
     await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(plan), modelo: M });
+    const cero = await servicio.ejecutar(USUARIO, t.turno_id);
+    expect(cero.progreso!.pasos.map((p) => [p.descripcion, p.estado])).toEqual([['Búsqueda masiva de RE', 'en_curso'], ['Transferencia desde 20026 a lo del paso 1', 'pendiente']]);
     const uno = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(uno.camino).toBe('avisar');
     expect(uno.progreso!.pasos[0].resumen).toBe('2 de 3 inactivas: 20021, 20066.');
+    expect(uno.progreso!.pasos[1].estado).toBe('en_curso');
     const dos = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(transferencia.consultar).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ origen: '20026', destino: '20021,20066' }));
     expect(dos.respuesta!.frase).toBe('2 de 2 transferencias habilitadas.');

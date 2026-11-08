@@ -19,10 +19,12 @@ import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
+import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
 import { calcular } from './calcular/calcular.js';
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
-import type { ContextoTurno, PasoEjecutado, PasoPlan, PlanV3 } from './interfaces/agente-v3.interface.js';
+import { queEs } from './que.js';
+import type { AgendaConocida, ContextoTurno, PasoEjecutado, PasoPlan, PlanV3 } from './interfaces/agente-v3.interface.js';
 import { resumenDelPaso, type FilaAtajo } from './respuesta/armar.js';
 import { filasDelCambio } from './respuesta/cambio.js';
 
@@ -32,43 +34,8 @@ import { filasDelCambio } from './respuesta/cambio.js';
  * con su error, los que dependían de él no se hacen, y la respuesta lo dice.
  */
 
-const NOMBRE_PAIS: Record<string, string> = { PE: 'Perú', CL: 'Chile' };
 const plano = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v === undefined || v === null || v === '' ? [] : String(v).split(',').map((x) => x.trim()));
-
-export function queEs(p: PasoPlan): string {
-  const pais = NOMBRE_PAIS[String(p.param.pais)] ?? '';
-  const x = p.param;
-  const cods = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? ((v as { ref: string; n?: number }).ref === 'anterior' ? 'lo del mensaje anterior' : `lo del paso ${(v as { n: number }).n}`) : lista(v).slice(0, 4).join(', ') + (lista(v).length > 4 ? ` y ${lista(v).length - 4} más` : ''));
-  switch (p.herramienta) {
-    case 'ejecutar_atajo': return `Atajo «${String(x.nombre)}»`;
-    case 'saber_atajos': return 'Los atajos guardados';
-    case 'saber_fases': return `La fase ${String(x.fase)}`;
-    case 'saber_servicios': return x.servicio ? `Lo que sé de ${lista(x.servicio).join(', ')}` : `Los servicios guardados de ${pais}`;
-    case 'saber_entidades': {
-      if (x.codigo) return `Lo que sé de ${lista(x.codigo).join(', ')}`;
-      if (x.es_cd) return `Los CDs guardados de ${pais}`;
-      if (x.tipo === 'opl') return `Los OPL guardados de ${pais}`;
-      if (x.tipo === 'almacen') return `Los almacenes guardados de ${pais}`;
-      return `Las tiendas guardadas de ${pais}`;
-    }
-    case 'consultar_capacidad': return `Capacidad de ${x.tipo} de ${cods(x.codigo)}${x.servicio ? ` (${lista(x.servicio).join(', ')})` : ''}`;
-    case 'consultar_reporte_cds': return `Reporte de ${x.cd ? `el CD ${x.cd}` : 'los CDs'}`;
-    case 'consultar_transferencia': return `Transferencia${x.origen ? ` desde ${x.origen}` : ''}${x.destino ? ` a ${cods(x.destino)}` : ''}`;
-    case 'consultar_servicios_opl': return `Servicios de ${cods(x.opl)}`;
-    case 'busqueda_masiva': return `Búsqueda masiva de ${lista(x.servicio).join(', ')}`;
-    case 'simular_entrega': return `Simulación${x.servicio ? ` ${x.servicio}` : ''} en ${cods(x.operador)}`;
-    case 'calcular': return 'Cálculo con lo del mensaje anterior';
-    case 'editar_capacidad': return `Vista previa: ${x.activa === false ? 'cerrar' : x.activa === true ? 'abrir' : 'cambiar'} ${x.tipo} de ${cods(x.codigo)}${x.servicio ? ` (${String(x.servicio)})` : ''}`;
-    case 'editar_capacidad_transferencia': return `Vista previa: capacidad de transferencia${x.origen ? ` de ${String(x.origen)}` : ''}${x.destino ? ` a ${String(x.destino)}` : ''}`;
-    case 'cortar_reabrir_cd': return `Vista previa: ${x.activa ? 'reabrir' : 'cortar'} ${x.cd ? `el CD ${String(x.cd)}` : 'los CDs'}`;
-    case 'reasignar_capacidad': return `Vista previa: pasar ${String(x.unidades)} de ${String(x.origen)} a ${String(x.destino)} en el ${String(x.cd)}`;
-    case 'editar_servicio_opl': return `Vista previa: ${lista(x.servicio).join(', ')} de ${cods(x.opl)}`;
-    case 'editar_masivo': return `Vista previa: ${String(x.servicio)} en bloque`;
-    case 'editar_transferencia': return `Vista previa: transferencia a ${cods(x.destino)}`;
-    default: return p.herramienta;
-  }
-}
 
 /** Las listas largas, en tandas de POR_VEZ: el backend no acepta más de una vez */
 function enTandas(xs: string[], n = POR_VEZ): string[][] {
@@ -91,6 +58,50 @@ function juntar(partes: Array<Record<string, unknown>>): Record<string, unknown>
     salida.resumen = suma;
   }
   return salida;
+}
+
+/**
+ * El error de una edición de la v2, para el chat: sin "No se cambió nada de lo
+ * N pedido. Motivos:" delante y cada motivo separado.
+ */
+export function enClaro(error: string): string {
+  return error.replace(/^No se cambió nada de lo \d+ pedido\. Motivos: /, '').split(' · ').join('; ');
+}
+
+interface Grupo { codigos: string[]; extra: Record<string, unknown>; exacta: boolean }
+
+/**
+ * Con una agenda (o zona) en el paso y agendas conocidas de esas oficinas: un
+ * grupo por agenda que encaja, con su nombre y su zona exactos, y solo con las
+ * oficinas que la tienen. Sin agendas conocidas, el paso va tal cual.
+ */
+export function porAgenda(id: string, p: Record<string, unknown>, codigos: string[], agendaDespues: string | undefined, conocidas: AgendaConocida[]): { grupos: Grupo[]; notas: string[]; nombres?: string[] } {
+  const cfg = CON_AGENDA[id];
+  const agenda = p.agenda ?? agendaDespues;
+  const tal = { grupos: [{ codigos, extra: {}, exacta: false }], notas: [] as string[] };
+  if (!cfg || (!agenda && !p.zona) || !codigos.length) return tal;
+  const tipo = cfg.tipo(p);
+  const deEllas = deLasOficinas(conocidas, codigos, tipo);
+  if (!deEllas.length) return tal;
+  const encajan = lasQueEncajan(deEllas, agenda, p.zona);
+  if (!encajan.length) return tal;
+  // En despacho y en OPL la agenda vive en una zona: van las dos exactas. En picking y recepción, la agenda
+  const conZona = tipo === 'despacho' || tipo === 'opl';
+  const grupos = new Map<string, Grupo>();
+  for (const a of encajan) {
+    const extra: Record<string, unknown> = { agenda: a.agenda, ...(conZona && a.zona ? { zona: a.zona } : {}) };
+    // La consulta de capacidad filtra la agenda después (texto exacto): se pide por zona y se filtra
+    if (id === 'consultar_capacidad') delete extra.agenda;
+    const k = JSON.stringify(extra);
+    const g = grupos.get(k) ?? { codigos: [], extra, exacta: true };
+    if (!g.codigos.includes(a.codigo)) g.codigos.push(a.codigo);
+    grupos.set(k, g);
+  }
+  const con = new Set(encajan.map((a) => a.codigo));
+  const sin = codigos.filter((c) => !con.has(c));
+  const nombres = [...new Set(encajan.map((a) => a.agenda))];
+  const notas = [`agenda: ${nombres.slice(0, 4).join(', ')}${nombres.length > 4 ? ` y ${nombres.length - 4} más` : ''}${sin.length ? `; sin ella: ${sin.join(', ')}` : ''}`];
+  return { grupos: [...grupos.values()], notas, nombres };
 }
 
 @Injectable()
@@ -139,9 +150,23 @@ export class EjecucionV3Service {
       const { estado, resumen } = resumenDelPaso(paso.herramienta, datos, paso.param, contexto.hoy, salida);
       return { ...base, ...salida, estado, resumen, ms: Date.now() - t0, datos };
     } catch (e) {
-      const error = (e as Error).message || 'falló';
+      const error = enClaro((e as Error).message || 'falló');
       return { ...base, estado: 'error', resumen: error, error, ms: Date.now() - t0 };
     }
+  }
+
+  /**
+   * Las agendas de unas oficinas, para que Armar elija entre ellas (el plan
+   * nombraba una que no se conocía). Solo lee: la consulta de capacidad (un
+   * día) o la de servicios de OPL.
+   */
+  async buscarAgendas(usuario: UsuarioAutenticado, contexto: ContextoTurno, que: { herramienta: string; tipo: string | null; codigos: string[] }): Promise<AgendaConocida[]> {
+    const deOpl = que.herramienta.endsWith('servicio_opl') || que.herramienta === 'consultar_servicios_opl';
+    const paso: PasoPlan = deOpl
+      ? { herramienta: 'consultar_servicios_opl', param: { opl: que.codigos } }
+      : { herramienta: 'consultar_capacidad', param: { tipo: que.tipo ?? 'picking', codigo: que.codigos, dias: 1 } };
+    const datos = await this.consultar(usuario, paso, [], contexto);
+    return agendasDeDatos(paso.herramienta, datos, deOpl ? 'opl' : que.tipo);
   }
 
   /** 1c: el cálculo con las filas de lo que trajo el mensaje anterior */
@@ -228,7 +253,7 @@ export class EjecucionV3Service {
     }
 
     // Lo que el backend filtra por texto exacto o por UN servicio se pide sin ello y se filtra aquí
-    const despues: { servicios?: string[]; agenda?: string } = {};
+    const despues: { servicios?: string[]; agenda?: string; exactas?: string[] } = {};
     if (h.id === 'consultar_capacidad') {
       const servicios = lista(plano0.servicio);
       if (servicios.length > 1) { despues.servicios = servicios; delete plano0.servicio; }
@@ -244,25 +269,34 @@ export class EjecucionV3Service {
 
     const codigos = h.lista ? lista(plano0[h.lista]) : [];
     if (h.lista && plano0[h.lista] !== undefined && !codigos.length) throw new Error('no hay ningún código que consultar (lo que debía traerlos vino vacío)');
+
+    // La agenda que eligió Armar, con su nombre y su zona exactos, solo en las oficinas que la tienen
+    const { grupos, notas: deAgenda, nombres } = porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
+    notas = [...notas, ...deAgenda];
     const partes: Array<Record<string, unknown>> = [];
-    for (const tanda of h.lista && codigos.length ? enTandas(codigos) : [[]]) {
-      const plano = { ...plano0, ...(h.lista && codigos.length ? { [h.lista]: tanda.join(',') } : {}) };
-      for (const [k, v] of Object.entries(plano)) if (Array.isArray(v)) plano[k] = v.join(',');
-      const dto = plainToInstance(h.dto, plano, { enableImplicitConversion: true });
-      const fallos = await validate(dto as object, { whitelist: true });
-      if (fallos.length) throw new Error(`Los datos no valen para ${h.id}: ${fallos.flatMap((f) => Object.values(f.constraints ?? {})).join('; ')}`);
-      partes.push((await this.llamar(usuario, h.id, dto)) as Record<string, unknown>);
+    for (const g of grupos) {
+      for (const tanda of h.lista && g.codigos.length ? enTandas(g.codigos) : [[]]) {
+        const plano = { ...plano0, ...g.extra, ...(h.lista && g.codigos.length ? { [h.lista]: tanda.join(',') } : {}) };
+        for (const [k, v] of Object.entries(plano)) if (Array.isArray(v)) plano[k] = v.join(',');
+        const dto = plainToInstance(h.dto, plano, { enableImplicitConversion: true });
+        const fallos = await validate(dto as object, { whitelist: true });
+        if (fallos.length) throw new Error(`Los datos no valen para ${h.id}: ${fallos.flatMap((f) => Object.values(f.constraints ?? {})).join('; ')}`);
+        partes.push((await this.llamar(usuario, h.id, dto)) as Record<string, unknown>);
+      }
     }
     let datos: Record<string, unknown> = juntar(partes);
+    // Las que eligió Armar, por su nombre exacto (sin él, por la parte que se dijo)
+    if (nombres) { despues.agenda = undefined; despues.exactas = nombres; }
 
-    if (despues.servicios || despues.agenda) {
+    if (despues.servicios || despues.agenda || despues.exactas) {
       datos = {
         ...datos,
         oficinas: (Array.isArray(datos.oficinas) ? datos.oficinas : []).map((o: Record<string, unknown>) => ({
           ...o,
           agendas: (Array.isArray(o.agendas) ? o.agendas : []).filter((a: Record<string, unknown>) =>
             (!despues.servicios || despues.servicios.includes(String(a.servicio ?? '').toUpperCase()))
-            && (!despues.agenda || plano(a.agenda).includes(plano(despues.agenda).replace(/s$/, '')))),
+            && (!despues.agenda || plano(a.agenda).includes(plano(despues.agenda).replace(/s$/, '')))
+            && (!despues.exactas || despues.exactas.some((x) => plano(x) === plano(a.agenda)))),
         })),
       };
     }
