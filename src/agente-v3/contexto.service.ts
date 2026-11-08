@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
-import { mencionesDe, type EntidadDirectorio } from './entidades.js';
+import { almacenesDe, mencionesDe, type EntidadDirectorio } from './entidades.js';
 import type { AtajoDelContexto, ContextoTurno, MensajeAnterior, Pais, PasoPlan, ResultadoAnterior } from './interfaces/agente-v3.interface.js';
 
 /**
@@ -142,6 +142,7 @@ export class ContextoV3Service {
     return {
       hoy: hoyEn(pais), pais, motivo_pais, atajos, anterior,
       entidades: mencionesDe(mensaje, directorio, pais),
+      almacenes: almacenesDe(directorio, pais),
       servicios,
       aclaraciones: [], pregunta: null, rondas: 0, avisos,
     };
@@ -159,8 +160,14 @@ export class ContextoV3Service {
       ...contexto,
       pais, hoy: hoyEn(pais), motivo_pais: motivo, servicios,
       entidades: mencionesDe(mensaje, directorio, pais),
+      almacenes: almacenesDe(directorio, pais),
       avisos: [...(contexto.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`],
     };
+  }
+
+  /** Lo aprendido (un alias, un nombre) se usa desde el mensaje siguiente, sin esperar los 5 minutos del directorio */
+  olvidarDirectorio(): void {
+    this.directorio = null;
   }
 
   /** Vuelve a buscar los códigos y nombres de un mensaje (al retomar uno que falló) */

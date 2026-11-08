@@ -10,7 +10,9 @@ import { serviciosNombrados } from '../plan.js';
  * - Antes de preguntar "¿lo guardo?", lo que ya había: lo que cambiaría (los
  *   choques) y lo que no se puede tocar desde el chat.
  * - Lo puesto a mano por el administrador (`fuente: manual`) no se toca; en el
- *   directorio, tampoco lo que viene de los CDs o de los atajos.
+ *   directorio, tampoco lo que viene de los CDs o de los atajos. A esos sí se
+ *   les puede AÑADIR un alias ("el cd villa es el 20026"): el nombre, el tipo y
+ *   la fuente se quedan como estaban.
  */
 
 interface FilaServicioGuardada { pais: string; codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null; fuente: string; origen?: string | null; descripcion?: string | null }
@@ -18,6 +20,12 @@ interface FilaEntidadGuardada { pais: string; codigo: string; tipo: string; es_c
 
 const INTOCABLE_ENTIDAD = new Set(['manual', 'cds', 'atajos']);
 const NOMBRE_CAMPO: Record<string, string> = { nombre: 'nombre', metodo_entrega: 'método', fase: 'fase', origen: 'origen del stock', descripcion: 'descripción', clase: 'tipo', es_cd: 'CD' };
+const plano = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+/** Los alias que el hecho añade (los que la entidad no tenía) */
+const aliasNuevos = (h: Hecho, e: FilaEntidadGuardada | undefined) => (h.alias ?? []).filter((a) => plano(a) && !(e?.alias ?? []).some((x) => plano(x) === plano(a)));
+/** El hecho no cambia nada de lo que ya tenía la entidad salvo sus alias */
+const soloAlias = (h: Hecho, e: FilaEntidadGuardada) =>
+  (!h.nombre || plano(h.nombre) === plano(e.nombre)) && (!h.clase || h.clase === e.tipo) && (h.es_cd === null || h.es_cd === undefined || h.es_cd === e.es_cd || !h.es_cd);
 const sinColumna = (e: { code?: string; message?: string } | null) => Boolean(e) && /column|does not exist|42703/i.test(`${e!.code ?? ''} ${e!.message ?? ''}`);
 
 @Injectable()
@@ -76,7 +84,12 @@ export class AprendizajeService {
       } else {
         const e = entidades.find((x) => x.codigo === h.codigo && x.pais === h.pais);
         if (!e) continue;
-        if (INTOCABLE_ENTIDAD.has(e.fuente)) { intocables.push(`El ${h.codigo} viene de ${e.fuente === 'manual' ? 'lo puesto a mano' : e.fuente === 'cds' ? 'la configuración de CDs' : 'los atajos'}: no lo cambio desde el chat.`); continue; }
+        if (INTOCABLE_ENTIDAD.has(e.fuente)) {
+          // Un alias nuevo sí se puede añadir; lo demás de esa fila, no
+          if (soloAlias(h, e) && aliasNuevos(h, e).length) continue;
+          intocables.push(`El ${h.codigo} viene de ${e.fuente === 'manual' ? 'lo puesto a mano' : e.fuente === 'cds' ? 'la configuración de CDs' : 'los atajos'}: no cambio su nombre ni su tipo desde el chat${aliasNuevos(h, e).length ? ' (sí le puedo añadir el alias, si me lo enseñas solo)' : ''}.`);
+          continue;
+        }
         if (e.nombre && h.nombre && e.nombre !== h.nombre) choques.push(`Tenía el ${h.codigo} como «${e.nombre}»; pasaría a «${h.nombre}».`);
         if (h.clase && e.tipo !== h.clase) choques.push(`Tenía el ${h.codigo} como ${e.tipo}; pasaría a ${h.clase}.`);
       }
@@ -112,7 +125,17 @@ export class AprendizajeService {
         guardados.push(h.codigo);
       } else {
         const actual = entidades.find((x) => x.codigo === h.codigo && x.pais === h.pais);
-        if (actual && INTOCABLE_ENTIDAD.has(actual.fuente)) { omitidos.push(`${h.codigo} (viene de ${actual.fuente})`); continue; }
+        if (actual && INTOCABLE_ENTIDAD.has(actual.fuente)) {
+          // De lo que viene de los CDs, los atajos o lo puesto a mano solo se añaden alias
+          const nuevos = aliasNuevos(h, actual);
+          if (!soloAlias(h, actual) || !nuevos.length) { omitidos.push(`${h.codigo} (viene de ${actual.fuente})`); continue; }
+          const { error } = await this.supabase.admin.from('agente_entidades')
+            .update({ alias: [...(actual.alias ?? []), ...nuevos.map((a) => plano(a))], actualizado_en: ahora })
+            .eq('pais', h.pais).eq('codigo', h.codigo);
+          if (error) { this.logger.warn(`No se pudo guardar el alias de ${h.codigo}: ${error.message}`); omitidos.push(`${h.codigo} (${error.message})`); continue; }
+          guardados.push(`${h.codigo} (alias «${nuevos.join('», «')}»)`);
+          continue;
+        }
         const tipo = h.clase ?? actual?.tipo ?? (h.codigo.length === 4 ? 'opl' : 'tienda');
         const fila = {
           pais: h.pais, codigo: h.codigo, tipo, es_cd: Boolean(h.es_cd && tipo === 'almacen'),

@@ -1,5 +1,6 @@
 import { primerJson, type Lectura } from '../clasificar/leer.js';
 import { codigosPermitidos } from '../armar/leer.js';
+import { almacenesParaPrompt } from '../entidades.js';
 import type { ContextoTurno, Hecho } from '../interfaces/agente-v3.interface.js';
 
 /**
@@ -18,9 +19,10 @@ Devuelve "hechos" (uno por servicio o por código del que se enseña algo) y "du
   · nombre: el nombre del servicio bien escrito (mayúsculas donde toca), sin el código.
   · metodo_entrega: "RT" si se retira en tienda; "DP" si se despacha a domicilio.
   · fase (mira FASES): F1 = la tienda pickea y la misma tienda entrega; F2 = el CD o almacén pickea, transfiere y la tienda recepciona y entrega; F3 = una tienda fuente de stock pickea, transfiere a un CD y este a otra tienda; DD = despacho a domicilio. Solo si se dijo o se deduce SIN DUDA del recorrido que se cuenta.
-  · origen: el código del CD o almacén de donde sale SIEMPRE el stock, si se dijo (mira CÓDIGOS DEL MENSAJE para "el CD Aldeas").
+  · origen: el código del CD o almacén de donde sale SIEMPRE el stock, si se dijo (mira CÓDIGOS DEL MENSAJE y CDS Y ALMACENES DEL PAÍS para "el CD Aldeas").
   · descripcion: una o dos frases en buen español que expliquen el recorrido y lo que lo distingue (sin repetir el nombre ni el origen), corrigiendo faltas y muletillas.
 - Un CÓDIGO (tienda, almacén/CD u OPL): {"tipo": "entidad", "codigo": "1439", "clase": "tienda" | "almacen" | "opl", "es_cd": true | false, "nombre": "BT F.E Trujillo", "alias": ["…"]}
+  · alias: otra forma de llamarlo ("el cd villa es el 20026" → {"tipo": "entidad", "codigo": "20026", "alias": ["cd villa"]}). Si solo enseña un apodo, pon solo el alias: el nombre y la clase en null.
 Reglas:
 - Lo que no se dijo va null: no inventes nada. Ningún código que no esté en el mensaje o en CÓDIGOS DEL MENSAJE.
 - Si algo no queda claro (¿qué CD es "el de Aldeas"?, ¿es retiro o despacho?), ponlo en "dudas" como una pregunta corta.
@@ -47,6 +49,9 @@ ${sabido.join('\n') || '(nada)'}
 
 CÓDIGOS DEL MENSAJE
 ${codigos || '(ninguno)'}
+
+CDS Y ALMACENES DEL PAÍS
+${almacenesParaPrompt(contexto.almacenes).join('\n') || '(no los tengo)'}
 ${contexto.aclaraciones.length ? `\nLO QUE ACLARÓ LA PERSONA\n${contexto.aclaraciones.map((a) => `- ${a}`).join('\n')}\n` : ''}
 LO QUE ENSEÑA
 «${texto}»`,

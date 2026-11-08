@@ -161,6 +161,8 @@ export interface ContextoTurno {
   mensaje_efectivo?: string | null;
   /** Lo que se está aprendiendo: se pregunta al final */
   ensenanza?: Ensenanza | null;
+  /** Los CDs y almacenes del país, con sus alias: el modelo elige cuál nombra la persona ("el cd villa" → 20026) */
+  almacenes?: Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }>;
   /** Las agendas que buscó el backend porque el plan nombraba una que no conocía (las del anterior se leen de él) */
   agendas?: AgendaConocida[];
   /** Las oficinas cuyas agendas ya se buscaron ("tipo:código"): no se vuelven a buscar */

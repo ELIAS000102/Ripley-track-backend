@@ -368,6 +368,8 @@ export class AgenteV3Service {
     let nota: string;
     if ('si' in r) {
       const { guardados, omitidos } = await this.aprendizaje.guardar(e.hechos, usuario.email);
+      // Lo aprendido (un alias, un nombre) vale ya en el mensaje siguiente
+      if (guardados.length) this.contexto.olvidarDirectorio();
       nota = [
         guardados.length ? `Guardado para todos: ${guardados.join(', ')}. Ya lo uso desde el próximo mensaje.` : 'No guardé nada.',
         omitidos.length ? `No guardé: ${omitidos.join('; ')}.` : '',

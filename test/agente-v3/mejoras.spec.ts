@@ -70,6 +70,7 @@ function armarServicio(contexto: ContextoTurno, { simulacro = true, capacidadDat
     armar: vi.fn(async () => structuredClone(contexto)),
     cambiarPais: vi.fn(async (c: ContextoTurno, m: string, pais: 'PE' | 'CL', motivo: string) => ({ ...c, pais, motivo_pais: motivo, entidades: mencionesDe(m, DIRECTORIO, pais), avisos: [...(c.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`] })),
     rebuscar: vi.fn(async (m: string, pais: 'PE' | 'CL') => mencionesDe(m, DIRECTORIO, pais)),
+    olvidarDirectorio: vi.fn(),
   };
   const rpc = vi.fn(async () => ({ data: 'm-1', error: null }));
   const supabase = { admin: { rpc } };

@@ -32,6 +32,20 @@ function nombresDe(e: EntidadDirectorio): string[] {
   return [...new Set(base)].filter((n) => n.length >= 4 && !GENERICAS.has(n) && !/^\d+$/.test(n));
 }
 
+/** Los CDs y almacenes de un país, con sus alias (para que el modelo elija por el nombre) */
+export function almacenesDe(directorio: EntidadDirectorio[], pais: string): Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }> {
+  return directorio
+    .filter((e) => e.pais === pais && e.tipo === 'almacen')
+    .sort((a, b) => Number(b.es_cd) - Number(a.es_cd) || a.codigo.localeCompare(b.codigo))
+    .slice(0, 60)
+    .map((e) => ({ codigo: e.codigo, nombre: e.nombre, es_cd: e.es_cd, alias: e.alias ?? [] }));
+}
+
+/** "- 20026 · Ripley Fulfillment (CD) · también «cd villa el salvador»" */
+export function almacenesParaPrompt(almacenes: Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }> | undefined): string[] {
+  return (almacenes ?? []).map((a) => `- ${a.codigo} · ${a.nombre ?? ''} (${a.es_cd ? 'CD' : 'almacén'})${a.alias.length ? ` · también «${a.alias.join('», «')}»` : ''}`);
+}
+
 export function mencionesDe(mensaje: string, directorio: EntidadDirectorio[], pais: string): EntidadMencion[] {
   const m = ` ${plano(mensaje)} `;
   const delPais = directorio.filter((e) => e.pais === pais);

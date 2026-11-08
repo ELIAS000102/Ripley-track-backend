@@ -1,5 +1,6 @@
 import { agendasParaPrompt } from '../agendas.js';
 import { VOCABULARIO } from '../constantes.js';
+import { almacenesParaPrompt } from '../entidades.js';
 import { codigosQueCumplen, filasDe } from '../filas.js';
 import { catalogoParaPrompt, FUENTE_POR_DEFECTO } from '../herramientas.js';
 import type { Clasificacion, ContextoTurno } from '../interfaces/agente-v3.interface.js';
@@ -22,7 +23,7 @@ ES UN CAMBIO: el plan termina con la herramienta de CAMBIO que corresponde (edit
 
 const REGLAS = `REGLAS
 - Solo herramientas y parámetros del CATÁLOGO. Lo que la persona no dijo NO se pone (ni fechas, ni días, ni "soloActivas"): se queda como está por defecto.
-- Los CÓDIGOS solo pueden ser: los de "CÓDIGOS DEL MENSAJE"; el ORIGEN DE STOCK de un servicio (en "SERVICIOS DEL PAÍS": si el servicio lo tiene, úsalo para "origen" o "almacen", porque ese servicio sale siempre de ahí); la fuente de stock por defecto del país (en Perú, 20026) para "origen" o "almacen"; {"ref": "anterior"} (lo que trajo el mensaje anterior: "esas", "su", "de esos"); o {"ref": "paso", "n": N} (lo que trae el paso N de este plan). Nunca inventes un código.
+- Los CÓDIGOS solo pueden ser: los de "CÓDIGOS DEL MENSAJE"; el de un CD o almacén de "CDS Y ALMACENES DEL PAÍS" que la persona nombre por su nombre, una parte o un apodo ("el cd villa", "aldeas"), aunque no coincida letra a letra; el ORIGEN DE STOCK de un servicio (en "SERVICIOS DEL PAÍS": si el servicio lo tiene, úsalo para "origen" o "almacen", porque ese servicio sale siempre de ahí); la fuente de stock por defecto del país (en Perú, 20026) para "origen" o "almacen"; {"ref": "anterior"} (lo que trajo el mensaje anterior: "esas", "su", "de esos"); o {"ref": "paso", "n": N} (lo que trae el paso N de este plan). Nunca inventes un código.
 - PRIMERO LOS ATAJOS: si un atajo guardado trae lo que se pide (o la lista sobre la que se pide algo), el paso es "ejecutar_atajo" con su nombre exacto, y lo demás usa {"ref": "paso", "n": 1}. "La transferencia de los OPL de la SE" = ejecutar_atajo «OPLS de la SE» + consultar_transferencia con destino {"ref": "paso", "n": 1}.
 - EL MÍNIMO DE PASOS: cada paso trae algo que ningún otro trae. busqueda_masiva ya dice si cada agenda está activa y en checkout: para ver o contar activos e inactivos basta con ella; consultar_servicios_opl solo si se pide la hora de corte, la holgura, las ocurrencias o los demás servicios. Varios servicios van juntos en UN paso.
 - CAPACIDAD: "picking" para tiendas, almacenes y CDs; "despacho" para OPL (4 cifras); "recepcion" para las agendas de recepción de las tiendas. "Cómo va el CD …" es consultar_reporte_cds.
@@ -33,6 +34,7 @@ const REGLAS = `REGLAS
 - SIGUE LA CONVERSACIÓN: si el mensaje depende del anterior ("¿y de Chile?", "¿y mañana?", "lo mismo para la 20027"), repite el PLAN DEL ANTERIOR cambiando solo lo que dice el mensaje (el país ya viene resuelto en "PAÍS").
 - "ver": "totales" si pide solo los totales, un resumen o un cuadro de totales; "cuadro" si pide un cuadro; "uso" si pide porcentajes de consumo; si no, null.
 - Si falta un dato imprescindible que no está en ningún sitio, no lo inventes: ponlo en "faltan" (en palabras, para preguntárselo a la persona) y deja "pasos" vacío.
+- NO AMPLÍES: si la persona nombra un CD, una tienda o un OPL y no sabes cuál es su código, NO lo quites del plan (sin él la consulta sería de todos): ponlo en "faltan" ("¿Qué código es el CD Villa?").
 
 Responde SOLO con un JSON, sin texto alrededor:
 {"pasos": [{"herramienta": "...", "param": {...}, "condicion": null, "comprobar": null}], "ver": null, "faltan": []}
@@ -60,6 +62,7 @@ export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificac
   ].filter(Boolean).join(' · ')).join('\n');
   const atajos = contexto.atajos.filter((a) => a.pais === contexto.pais).map((a) => `- «${a.nombre}» (${a.tipos.join(', ')}): ${a.descripcion ?? ''}`).join('\n');
   const agendas = agendasParaPrompt(contexto);
+  const almacenes = almacenesParaPrompt(contexto.almacenes);
   const ant = contexto.anterior;
   const anterior = ant
     ? [
@@ -79,6 +82,9 @@ HOY: ${contexto.hoy}
 ${clasificacion?.dep ? 'EL MENSAJE DEPENDE DEL ANTERIOR.\n' : ''}
 CÓDIGOS DEL MENSAJE
 ${codigos || '(ninguno)'}
+
+CDS Y ALMACENES DEL PAÍS
+${almacenes.join('\n') || '(no los tengo)'}
 
 SERVICIOS DEL PAÍS
 ${servicios || '(no los tengo)'}

@@ -42,12 +42,15 @@ export function fechaIso(v: unknown, hoy: string): string | null {
 /**
  * Los códigos que se pueden usar: los del mensaje, los de las aclaraciones y
  * el origen de stock guardado de los servicios del país (lo aprendido: "la SG
- * sale siempre del 20096"). La fuente por defecto se mira aparte.
+ * sale siempre del 20096") y los CDs y almacenes del país. La fuente por
+ * defecto se mira aparte.
  */
 export function codigosPermitidos(contexto: ContextoTurno, mensaje: string): Set<string> {
   const del = (t: string) => [...t.matchAll(/\b(\d{3,6})\b/g)].map((m) => m[1]);
   const origenes = contexto.servicios.map((s) => s.origen).filter((o): o is string => Boolean(o));
-  return new Set([...codigosDichos(contexto.entidades), ...del(mensaje), ...contexto.aclaraciones.flatMap(del), ...origenes]);
+  // Los CDs y almacenes del país van en el prompt: el modelo elige cuál nombra la persona ("el cd villa" → 20026)
+  const almacenes = (contexto.almacenes ?? []).map((a) => a.codigo);
+  return new Set([...codigosDichos(contexto.entidades), ...del(mensaje), ...contexto.aclaraciones.flatMap(del), ...origenes, ...almacenes]);
 }
 
 type Valor = { ok: true; v: unknown } | { ok: false; motivo: string };
