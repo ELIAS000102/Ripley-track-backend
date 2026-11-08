@@ -192,9 +192,9 @@ function armarServicio(contexto: ContextoTurno) {
   const capacidad = { consultar: vi.fn(async (dto: { codigo: string }) => ({ ...CAPACIDAD, oficinas: CAPACIDAD.oficinas.filter((o) => dto.codigo.split(',').some((c) => o.oficina.startsWith(c))) })) };
   const masivo = { buscar: vi.fn(async () => MASIVA) };
   const transferencia = { consultar: vi.fn(async (_u: unknown, dto: { destino: string }) => ({ destinos: dto.destino.split(',').map((d) => ({ origen: '20026 - CD', destino: `${d} - Ripley ${d}`, habilitada: d !== '20048', preparacion: 0, transito: 1, desfase: 1, dias: 'L-D' })) })) };
-  const ejecucion = new EjecucionV3Service(supabase as never, {} as never, {} as never, capacidad as never, {} as never, transferencia as never, {} as never, masivo as never, {} as never);
+  const ejecucion = new EjecucionV3Service(supabase as never, {} as never, {} as never, capacidad as never, {} as never, transferencia as never, {} as never, masivo as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   const interrupcion = { registrar: vi.fn(), estaInterrumpida: vi.fn(() => false) };
-  const servicio = new AgenteV3Service(turnos as never, ctxServ as never, ejecucion, interrupcion as never, supabase as never);
+  const servicio = new AgenteV3Service(turnos as never, ctxServ as never, ejecucion, interrupcion as never, supabase as never, {} as never);
   return { servicio, capacidad, masivo, transferencia, filas };
 }
 
@@ -256,6 +256,9 @@ describe('Un turno de consulta, de punta a punta', () => {
     const otra = await servicio.respuesta(USUARIO, t.turno_id, { texto: 'la tienda de chorrillos, picking de RT' });
     expect(otra.camino).toBe('armar');
     expect(otra.prompt!.mensaje).toContain('LO QUE ACLARÓ LA PERSONA\n- la tienda de chorrillos, picking de RT');
+    // Con la respuesta el turno vuelve a "en_curso": Armar acepta el plan nuevo (antes se quedaba en "pregunta")
+    const plan = await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'picking', codigo: ['20021'], servicio: ['RT'] } }] }), modelo: { cuenta: otra.modelo!.cuenta, nombre: otra.modelo!.nombre } });
+    expect(plan.camino).toBe('ejecutar');
   });
 
   it('un nombre de dos códigos: se pregunta antes de armar; con la elección, a Armar con ese código', async () => {

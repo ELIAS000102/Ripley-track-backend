@@ -228,7 +228,8 @@ export function fraseAtajo(e: Ejecucion, hoy: string): string {
 export function markdownAtajo(e: Ejecucion): string {
   return e.bloques
     .map((b) => {
-      const titulo = e.bloques.length > 1 || b.nota ? `**${b.nota ?? `Bloque ${b.orden} · ${b.tipo}`}**\n\n` : '';
+      // Un título solo si hay varios bloques: con uno, la nota suele ser la descripción del atajo y estorba
+      const titulo = e.bloques.length > 1 ? `**${b.nota ?? `Bloque ${b.orden} · ${b.tipo}`}**\n\n` : '';
       const errores = b.items.filter((i) => i.error).map((i) => `- ${i.nota ?? `Ítem ${i.orden}`}: ${i.error}`);
       return `${titulo}${markdownBloque(b)}${errores.length ? `\n\nSin respuesta:\n${errores.join('\n')}` : ''}`;
     })

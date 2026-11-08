@@ -84,7 +84,10 @@ describe('Lo que devuelve Clasificar: se lee, no se arregla', () => {
 
   it('sin JSON, con un tipo que no existe o sin el sí/no de depender: no vale', () => {
     expect(leerClasificacion('Es un atajo.', ATAJOS)).toMatchObject({ ok: false, motivo: 'no devolvió un JSON' });
-    expect(leerClasificacion('{"tipo":"cambio","depende_del_anterior":false,"atajo":"(ninguno)"}', ATAJOS).ok).toBe(false);
+    expect(leerClasificacion('{"tipo":"borrar","depende_del_anterior":false,"atajo":"(ninguno)"}', ATAJOS).ok).toBe(false);
+    // "cambio" y "enseñar" (con o sin eñe) ya son tipos
+    expect(leerClasificacion('{"tipo":"cambio","depende_del_anterior":false,"atajo":"(ninguno)"}', ATAJOS).ok).toBe(true);
+    expect(leerClasificacion('{"tipo":"ensenar","depende_del_anterior":false,"atajo":"(ninguno)"}', ATAJOS)).toMatchObject({ ok: true, valor: { tipo: 'enseñar', ensena: true } });
     expect(leerClasificacion('{"tipo":"atajo","depende_del_anterior":"no","atajo":"Simulación SE"}', ATAJOS).ok).toBe(false);
   });
 

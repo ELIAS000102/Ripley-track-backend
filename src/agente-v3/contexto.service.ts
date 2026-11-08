@@ -29,6 +29,17 @@ interface FilaMensaje {
   plan: Record<string, unknown> | null;
   pais: Pais | null;
   resultados: Array<Record<string, unknown>> | null;
+  con_contenido: boolean | null;
+}
+
+/**
+ * El país que dejan claro los códigos escritos: si todos los que están en el
+ * directorio son de un solo país (y ninguno del otro), ese.
+ */
+export function paisDeLosCodigos(mensaje: string, directorio: EntidadDirectorio[]): Pais | null {
+  const codigos = [...new Set([...mensaje.matchAll(/\b(\d{3,6})\b/g)].map((m) => m[1]))];
+  const paises = new Set(codigos.flatMap((c) => directorio.filter((e) => e.codigo === c).map((e) => e.pais as Pais)));
+  return paises.size === 1 ? [...paises][0] : null;
 }
 
 /** Lo que trajo un mensaje guardado (v3: `datos`; v2: `datos` por tandas), sin las filas si ya no se guardan */
@@ -110,20 +121,51 @@ export class ContextoV3Service {
         resultados: resultadosGuardados(fila.resultados),
         version: guardado.version,
         elegido: Boolean(elegido),
+        // Sin contenido y sin ser una charla ni algo que se enseñó: falló o quedó en una pregunta. Se puede retomar
+        fallido: fila.con_contenido === false && !['charla', 'aprender'].includes(String(fila.plan?.origen ?? '')) && Boolean(fila.persona),
       };
     }
 
+    // El país: el que dice el mensaje; si no, el que dejan claro sus códigos; si no, el del
+    // mensaje elegido con "Responder"; si no, el del último del chat; si no, Perú
     const dicho = paisDelMensaje(mensaje);
-    const pais: Pais = dicho ?? ultimo?.pais ?? 'PE';
-    const motivo_pais = dicho ? `el mensaje dice ${dicho === 'CL' ? 'Chile' : 'Perú'}` : ultimo?.pais ? 'el del último mensaje del chat' : 'un chat nuevo es de Perú';
+    const porCodigos = dicho ? null : paisDeLosCodigos(mensaje, directorio);
+    const pais: Pais = dicho ?? porCodigos ?? elegido?.pais ?? ultimo?.pais ?? 'PE';
+    const motivo_pais = dicho
+      ? `el mensaje dice ${dicho === 'CL' ? 'Chile' : 'Perú'}`
+      : porCodigos ? `los códigos del mensaje son de ${porCodigos === 'CL' ? 'Chile' : 'Perú'}`
+        : elegido?.pais ? 'el del mensaje al que respondes' : ultimo?.pais ? 'el del último mensaje del chat' : 'un chat nuevo es de Perú';
+    const antes = elegido?.pais ?? ultimo?.pais ?? null;
+    const avisos = porCodigos && antes && antes !== porCodigos ? [`Paso a ${porCodigos === 'CL' ? 'Chile' : 'Perú'}: ${motivo_pais}.`] : [];
 
     const servicios = await this.serviciosDe(pais);
     return {
       hoy: hoyEn(pais), pais, motivo_pais, atajos, anterior,
       entidades: mencionesDe(mensaje, directorio, pais),
       servicios,
-      aclaraciones: [], pregunta: null, rondas: 0,
+      aclaraciones: [], pregunta: null, rondas: 0, avisos,
     };
+  }
+
+  /**
+   * El turno pasa a otro país (lo nombrado solo existe allí, o la persona lo
+   * aclaró): el día, los servicios y los nombres del mensaje se vuelven a mirar
+   * en ese país, y se avisa.
+   */
+  async cambiarPais(contexto: ContextoTurno, mensaje: string, pais: Pais, motivo: string): Promise<ContextoTurno> {
+    if (pais === contexto.pais) return contexto;
+    const [servicios, directorio] = await Promise.all([this.serviciosDe(pais), this.leerDirectorio()]);
+    return {
+      ...contexto,
+      pais, hoy: hoyEn(pais), motivo_pais: motivo, servicios,
+      entidades: mencionesDe(mensaje, directorio, pais),
+      avisos: [...(contexto.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`],
+    };
+  }
+
+  /** Vuelve a buscar los códigos y nombres de un mensaje (al retomar uno que falló) */
+  async rebuscar(mensaje: string, pais: Pais): Promise<ContextoTurno['entidades']> {
+    return mencionesDe(mensaje, await this.leerDirectorio(), pais);
   }
 
   private async leerDirectorio(): Promise<EntidadDirectorio[]> {
@@ -137,14 +179,17 @@ export class ContextoV3Service {
     return this.directorio.filas;
   }
 
-  private async serviciosDe(pais: Pais): Promise<ContextoTurno['servicios']> {
-    const { data, error } = await this.supabase.admin.from('agente_servicios').select('codigo, nombre, metodo_entrega, fase').eq('pais', pais).order('codigo');
+  /** Los servicios del país, con lo aprendido (origen, descripción) si ya están sus columnas (sql/02) */
+  async serviciosDe(pais: Pais): Promise<ContextoTurno['servicios']> {
+    const leer = (campos: string) => this.supabase.admin.from('agente_servicios').select(campos).eq('pais', pais).order('codigo');
+    let { data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente, origen, descripcion');
+    if (error && /column|does not exist|42703/i.test(`${error.code ?? ''} ${error.message}`)) ({ data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente'));
     if (error) this.logger.warn(`No se pudieron leer los servicios: ${error.message}`);
-    return (data ?? []) as ContextoTurno['servicios'];
+    return (data ?? []) as unknown as ContextoTurno['servicios'];
   }
 
   private async mensajesDelChat(chatId: string, usuarioId: string, respondeA: string | null) {
-    const campos = 'id, usuario_id, n, persona, frase, plan, pais, resultados';
+    const campos = 'id, usuario_id, n, persona, frase, plan, pais, resultados, con_contenido';
     const { data, error } = await this.supabase.admin
       .from('agente_mensajes')
       .select(campos)

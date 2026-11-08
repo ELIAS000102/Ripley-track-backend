@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { InterrupcionAgenteService } from '../agente/seguridad/interrupcion.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import { AprendizajeService } from './aprender/aprendizaje.service.js';
+import { leerAprendido, promptAprender } from './aprender/prompt.js';
 import { leerPlan } from './armar/leer.js';
 import { promptArmar } from './armar/prompt.js';
 import { leerCalculo, promptCalcular } from './calcular/prompt.js';
@@ -13,10 +15,10 @@ import type { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from './dto/
 import { EjecucionV3Service } from './ejecucion.service.js';
 import { ambiguas } from './entidades.js';
 import { filasDe, type Fila } from './filas.js';
-import type { Clasificacion, ContextoTurno, IntentoModelo, PlanV3, Pregunta, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
+import type { Clasificacion, ContextoTurno, Ensenanza, IntentoModelo, Pais, PlanV3, Pregunta, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
 import { claseDeFallo, elegirModelo } from './modelos.js';
 import { planDe, type QueSigue } from './plan.js';
-import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeNombre } from './preguntas.js';
+import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAprender, preguntaDeNombre, respuestaDeAprender } from './preguntas.js';
 import { armarRespuesta, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
 import { TurnosService } from './turnos.service.js';
 
@@ -26,11 +28,16 @@ import { TurnosService } from './turnos.service.js';
  *
  * contexto → clasificar → (atajo · repetir · saber · charla: sin otra llamada)
  *                       → consulta: Armar (1b) → ejecutar
+ *                       → cambio: Armar con las ediciones → ejecutar en simulacro (vista previa)
  *                       → cálculo: Qué calcular (1c) → ejecutar
+ *                       → enseñar: Aprender → "¿lo guardo?" → guardar
  *                       → lo que no está claro: preguntar (1d) → la respuesta vuelve a la etapa
+ * Lo que se enseña de paso ("…, que sale siempre del 20096") se aprende al
+ * FINAL, con la respuesta ya hecha: la pregunta no interrumpe la petición.
  */
 
 const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const NOMBRE_PAIS: Record<Pais, string> = { PE: 'Perú', CL: 'Chile' };
 
 /** Sin modelo: un mensaje que nombra UN atajo y nada más se puede ejecutar igual */
 export function atajoPorNombre(mensaje: string, atajos: string[]): string | null {
@@ -45,6 +52,30 @@ function filasDelAnterior(contexto: ContextoTurno): { filas: Fila[]; deDonde: st
   return { filas: res.flatMap((r) => filasDe(r.herramienta, r.datos, contexto.hoy)), deDonde: res.map((r) => r.titulo).join(' + ') };
 }
 
+/** Lo que se pide de verdad: el mensaje, o, al retomar uno que falló, aquel con lo que se aclara ahora */
+export const mensajeDe = (turno: Pick<Turno, 'mensaje' | 'contexto'>) => turno.contexto?.mensaje_efectivo ?? turno.mensaje;
+
+/**
+ * Por qué no hubo modelo, con la causa real: la cuota gratis del día (429),
+ * los modelos saturados (503), o que respondieron algo que no valía.
+ */
+export function porQueSinModelo(intentos: IntentoModelo[], rol?: RolModelo): string {
+  const fallidos = intentos.filter((i) => !i.ok && (!rol || i.rol === rol));
+  if (!fallidos.length) return 'no había ningún modelo disponible';
+  const clases = new Set(fallidos.map((i) => i.clase ?? 'otro'));
+  if (clases.size === 1 && clases.has('cuota')) return 'se acabó la cuota gratis de los modelos por hoy (429): vuelve a intentarlo más tarde';
+  if (clases.size === 1 && clases.has('saturado')) return 'los modelos están saturados ahora mismo (503): vuelve a intentarlo en un momento';
+  if ([...clases].every((c) => c === 'cuota' || c === 'saturado')) return 'los modelos no tienen cupo ahora mismo (cuota o saturados): vuelve a intentarlo en un momento';
+  const respuesta = fallidos.filter((i) => i.clase === 'respuesta').map((i) => i.motivo);
+  if (respuesta.length) return `los modelos respondieron, pero no algo que valiera (${[...new Set(respuesta)].slice(0, 2).join('; ')})`;
+  return `los modelos fallaron (${[...new Set(fallidos.map((i) => i.motivo))].slice(0, 2).join('; ')})`;
+}
+
+const esFalloDeCupo = (intentos: IntentoModelo[], rol: RolModelo) => {
+  const f = intentos.filter((i) => !i.ok && i.rol === rol);
+  return f.length > 0 && f.every((i) => i.clase === 'cuota' || i.clase === 'saturado' || /sin respuesta/i.test(i.motivo ?? ''));
+};
+
 @Injectable()
 export class AgenteV3Service {
   private readonly logger = new Logger(AgenteV3Service.name);
@@ -55,6 +86,7 @@ export class AgenteV3Service {
     private readonly ejecucion: EjecucionV3Service,
     private readonly interrupcion: InterrupcionAgenteService,
     private readonly supabase: SupabaseService,
+    private readonly aprendizaje: AprendizajeService,
   ) {}
 
   private salida(turno: Pick<Turno, 'id'>, camino: SalidaRuta['camino'], extra: Partial<SalidaRuta> = {}): SalidaRuta {
@@ -72,7 +104,7 @@ export class AgenteV3Service {
     const base = { rol, cuenta: dto.modelo.cuenta, nombre: dto.modelo.nombre, ronda: turno.contexto?.rondas ?? 0 };
     const intento: IntentoModelo = dto.error || dto.salida === undefined
       ? { ...base, ok: false, motivo: (dto.error ?? 'sin respuesta').slice(0, 300), clase: claseDeFallo(dto.error ?? '') }
-      : motivo ? { ...base, ok: false, motivo, clase: 'otro' } : { ...base, ok: true };
+      : motivo ? { ...base, ok: false, motivo, clase: 'respuesta' } : { ...base, ok: true };
     turno.modelos = [...(turno.modelos ?? []), intento];
     return intento;
   }
@@ -111,7 +143,7 @@ export class AgenteV3Service {
     if (!dto.error && dto.salida !== undefined) {
       const leida = leerClasificacion(dto.salida, contexto.atajos.map((a) => a.nombre));
       if (!leida.ok) motivo = leida.motivo;
-      else motivo = leida.valor.atajo ? this.atajoDeOtroPais(turno, leida.valor.atajo) : null;
+      else motivo = leida.valor.atajo ? this.atajoContraElMensaje(turno, leida.valor.atajo) : null;
       if (leida.ok && !motivo) clasificacion = leida.valor;
     }
     this.anotar(turno, 'clasificar', dto, motivo);
@@ -124,25 +156,51 @@ export class AgenteV3Service {
     }
 
     turno.clasificacion = clasificacion;
-    return this.seguir(usuario, turno, planDe(clasificacion, contexto, turno.mensaje));
+    if (clasificacion.retoma) await this.retomar(turno);
+    if (clasificacion.atajo) await this.alPaisDelAtajo(turno, clasificacion.atajo);
+    return this.seguir(usuario, turno, planDe(clasificacion, turno.contexto!, mensajeDe(turno)));
   }
 
-  /** Un atajo de Chile en un chat de Perú (o al revés), sin que el mensaje nombre ese país */
-  private atajoDeOtroPais(turno: Turno, atajo: string): string | null {
+  /** Un atajo de otro país que contradice al país que DICE el mensaje: el clasificador se equivocó de atajo */
+  private atajoContraElMensaje(turno: Turno, atajo: string): string | null {
     const a = turno.contexto!.atajos.find((x) => x.nombre === atajo);
-    if (!a || a.pais === turno.contexto!.pais || paisDelMensaje(turno.mensaje) === a.pais) return null;
-    return `«${atajo}» es de ${a.pais === 'CL' ? 'Chile' : 'Perú'} y el chat está en ${turno.contexto!.pais === 'CL' ? 'Chile' : 'Perú'}`;
+    const dicho = paisDelMensaje(turno.mensaje);
+    if (!a || !dicho || a.pais === dicho) return null;
+    return `«${atajo}» es de ${NOMBRE_PAIS[a.pais]} y el mensaje dice ${NOMBRE_PAIS[dicho]}`;
   }
 
-  /** Ningún modelo respondió bien: un atajo nombrado tal cual se ejecuta igual; si no, se dice */
+  /** Un atajo de otro país (sin que el mensaje diga otro): el turno pasa a su país y se avisa */
+  private async alPaisDelAtajo(turno: Turno, atajo: string): Promise<void> {
+    const a = turno.contexto!.atajos.find((x) => x.nombre === atajo);
+    if (!a || a.pais === turno.contexto!.pais) return;
+    turno.contexto = await this.contexto.cambiarPais(turno.contexto!, mensajeDe(turno), a.pais, `el atajo «${atajo}» es de ${NOMBRE_PAIS[a.pais]}`);
+  }
+
+  /**
+   * El mensaje completa o corrige el anterior, que falló ("es de Perú", "la
+   * 20048"): se pide aquello con lo que se aclara ahora, en el país que toca.
+   */
+  private async retomar(turno: Turno): Promise<void> {
+    const contexto = turno.contexto!;
+    const ant = contexto.anterior;
+    if (!ant?.fallido || !ant.persona) return;
+    const efectivo = `${ant.persona} (${turno.mensaje})`;
+    const dicho = paisDelMensaje(turno.mensaje);
+    let nuevo: ContextoTurno = { ...contexto, mensaje_efectivo: efectivo };
+    if (dicho && dicho !== contexto.pais) nuevo = await this.contexto.cambiarPais(nuevo, efectivo, dicho, `lo aclaraste («${turno.mensaje}»)`);
+    else nuevo = { ...nuevo, entidades: await this.contexto.rebuscar(efectivo, nuevo.pais) };
+    turno.contexto = nuevo;
+  }
+
+  /** Ningún modelo respondió bien: un atajo nombrado tal cual se ejecuta igual; si no, se dice por qué */
   private async sinModelo(usuario: UsuarioAutenticado, turno: Turno): Promise<SalidaRuta> {
     const atajo = atajoPorNombre(turno.mensaje, (turno.contexto?.atajos ?? []).map((a) => a.nombre));
     if (atajo) {
       turno.clasificacion = { tipo: 'atajo', dep: false, atajo, motivo: 'sin modelo: el mensaje nombra el atajo' };
+      await this.alPaisDelAtajo(turno, atajo);
       return this.seguir(usuario, turno, { ok: true, plan: { origen: 'atajo', pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: atajo } }] } });
     }
-    const motivos = [...new Set((turno.modelos ?? []).filter((m) => !m.ok).map((m) => m.motivo))].slice(0, 3).join('; ');
-    return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude entender el mensaje: los modelos no respondieron${motivos ? ` (${motivos})` : ''}. Vuelve a intentarlo en un momento.`), 'error');
+    return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude entender el mensaje: ${porQueSinModelo(turno.modelos ?? [], 'clasificar')}.`), 'error');
   }
 
   /** Lo que sigue después de clasificar (o de aclarar una duda) */
@@ -157,6 +215,10 @@ export class AgenteV3Service {
       turno.plan = { origen: 'charla', pasos: [] };
       return this.terminar(usuario, turno, respuestaCharla(turno, texto), 'terminado');
     }
+    if ('aprender' in r) {
+      turno.plan = { origen: 'aprender', pasos: [] };
+      return this.pedirModelo(usuario, turno, 'aprender');
+    }
     if ('armar' in r) {
       // Un nombre que es de varios códigos se pregunta antes de armar nada
       const duda = ambiguas(contexto.entidades)[0];
@@ -170,36 +232,45 @@ export class AgenteV3Service {
   private async aEjecutar(turno: Turno, plan: PlanV3): Promise<SalidaRuta> {
     turno.plan = plan;
     turno.etapa = 'ejecutar';
-    await this.turnos.actualizar(turno.id, { modelos: turno.modelos, clasificacion: turno.clasificacion, plan, etapa: 'ejecutar', contexto: turno.contexto });
+    await this.turnos.actualizar(turno.id, { estado: turno.estado, modelos: turno.modelos, clasificacion: turno.clasificacion, plan, etapa: 'ejecutar', contexto: turno.contexto });
     return this.salida(turno, 'ejecutar');
   }
 
-  /** El prompt de Armar o de Qué calcular, con el modelo que toca; sin modelo, se pregunta o se dice */
-  private async pedirModelo(usuario: UsuarioAutenticado, turno: Turno, rol: 'armar' | 'calcular', ultimoMotivo?: string): Promise<SalidaRuta> {
+  /** El prompt del rol con el modelo que toca; sin modelo, se pregunta o se dice por qué */
+  private async pedirModelo(usuario: UsuarioAutenticado, turno: Turno, rol: 'armar' | 'calcular' | 'aprender', ultimoMotivo?: string): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
     const modelo = elegirModelo(rol, turno.id, this.intentos(turno));
     if (!modelo) {
-      const motivo = ultimoMotivo ?? [...(turno.modelos ?? [])].reverse().find((m) => m.rol === rol && !m.ok)?.motivo ?? 'los modelos no respondieron';
-      if (/no respondi|\b(429|503)\b|quota|overload|sin respuesta/i.test(motivo)) {
-        return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude ${rol === 'armar' ? 'armar la consulta' : 'preparar el cálculo'}: los modelos no respondieron (${motivo}). Vuelve a intentarlo en un momento.`), 'error');
+      if (rol === 'aprender') return this.sinAprender(usuario, turno);
+      const que = rol === 'armar' ? (turno.clasificacion?.tipo === 'cambio' ? 'preparar el cambio' : 'armar la consulta') : 'preparar el cálculo';
+      if (esFalloDeCupo(this.intentos(turno), rol)) {
+        return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude ${que}: ${porQueSinModelo(this.intentos(turno), rol)}.`), 'error');
       }
-      return this.preguntar(usuario, turno, preguntaAbierta(rol, `No pude ${rol === 'armar' ? 'armar la consulta' : 'entender qué calcular'} (${motivo}). ¿Me lo dices de otra forma?`));
+      const motivo = ultimoMotivo ?? porQueSinModelo(this.intentos(turno), rol);
+      return this.preguntar(usuario, turno, preguntaAbierta(rol, `No pude ${que} (${motivo}). ¿Me lo dices de otra forma?`));
     }
     turno.etapa = rol;
-    await this.turnos.actualizar(turno.id, { modelos: turno.modelos, clasificacion: turno.clasificacion, etapa: rol, contexto });
-    const prompt = rol === 'armar'
-      ? promptArmar(turno.mensaje, contexto, turno.clasificacion)
-      : (() => { const { filas, deDonde } = filasDelAnterior(contexto); return promptCalcular(turno.mensaje, contexto, filas, deDonde); })();
+    // El estado también: tras contestar una pregunta vuelve a "en_curso", o la etapa siguiente no lo aceptaría
+    await this.turnos.actualizar(turno.id, { estado: turno.estado, modelos: turno.modelos, clasificacion: turno.clasificacion, etapa: rol, contexto, plan: turno.plan, pasos: turno.pasos });
+    const mensaje = mensajeDe(turno);
+    let prompt: { sistema: string; mensaje: string };
+    if (rol === 'armar') prompt = promptArmar(mensaje, contexto, turno.clasificacion);
+    else if (rol === 'calcular') { const { filas, deDonde } = filasDelAnterior(contexto); prompt = promptCalcular(mensaje, contexto, filas, deDonde); }
+    else {
+      const [sabido, fases] = await Promise.all([this.aprendizaje.sabido(contexto, mensaje), this.aprendizaje.fases()]);
+      prompt = promptAprender(mensaje, contexto, sabido, fases);
+    }
     return this.salida(turno, rol, { modelo, prompt });
   }
 
-  // ───────────── 4 · Armar (1b) ─────────────
+  // ───────────── 4 · Armar (1b, y los cambios) ─────────────
 
   async armado(usuario: UsuarioAutenticado, id: string, dto: SalidaModeloDto): Promise<SalidaRuta> {
     const turno = await this.turnos.obtener(id, usuario.id);
     if (turno.etapa !== 'armar' || turno.estado !== 'en_curso') return this.comoEsta(turno);
     const contexto = turno.contexto!;
-    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, turno.mensaje) : null;
+    const cambio = turno.clasificacion?.tipo === 'cambio';
+    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio) : null;
     this.anotar(turno, 'armar', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'armar', leida && !leida.ok ? leida.motivo : undefined);
     const { plan, faltan } = leida.valor;
@@ -217,7 +288,88 @@ export class AgenteV3Service {
     const leida = !dto.error && dto.salida !== undefined ? leerCalculo(dto.salida, contexto, filas) : null;
     this.anotar(turno, 'calcular', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'calcular', leida && !leida.ok ? leida.motivo : undefined);
+    if ('falta' in leida.valor) {
+      const { deDonde } = filasDelAnterior(contexto);
+      turno.plan = { origen: 'calcular', pasos: [] };
+      return this.terminar(usuario, turno, respuestaSinPlan(turno, `No tengo ${leida.valor.falta}: no es un dato que guarde ni que traiga «${deDonde}».`), 'terminado');
+    }
     return this.aEjecutar(turno, { origen: 'calcular', pasos: [{ herramienta: 'calcular', param: {} }], calculo: leida.valor.calculo, ver: leida.valor.ver });
+  }
+
+  // ───────────── 4'' · Aprender ─────────────
+
+  /** Lo que se enseñó, limpio: se revisa contra lo guardado y se pregunta "¿lo guardo?" */
+  async aprendido(usuario: UsuarioAutenticado, id: string, dto: SalidaModeloDto): Promise<SalidaRuta> {
+    const turno = await this.turnos.obtener(id, usuario.id);
+    if (turno.etapa !== 'aprender' || turno.estado !== 'en_curso') return this.comoEsta(turno);
+    const contexto = turno.contexto!;
+    const texto = mensajeDe(turno);
+    const leida = !dto.error && dto.salida !== undefined ? leerAprendido(dto.salida, contexto, texto) : null;
+    this.anotar(turno, 'aprender', dto, leida && !leida.ok ? leida.motivo : null);
+    if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'aprender');
+    const { hechos, dudas } = leida.valor;
+    const { choques, intocables } = await this.aprendizaje.revisar(hechos);
+    const ensenanza: Ensenanza = { texto, hechos, dudas, choques, intocables };
+    turno.contexto = { ...contexto, ensenanza };
+    return this.preguntar(usuario, turno, preguntaDeAprender(ensenanza));
+  }
+
+  /** Ningún modelo pudo pasar a limpio lo que se enseña: no se guarda nada y se dice */
+  private sinAprender(usuario: UsuarioAutenticado, turno: Turno): Promise<SalidaRuta> {
+    const texto = `No pude entender lo que me enseñas (${porQueSinModelo(this.intentos(turno), 'aprender')}): no guardé nada.`;
+    const contexto = turno.contexto!;
+    turno.contexto = { ...contexto, ensenanza: { texto: mensajeDe(turno), hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' } };
+    if ((turno.pasos ?? []).length) {
+      const r = armarRespuesta(turno);
+      return this.terminar(usuario, turno, { ...r, avisos: [...r.avisos, texto] }, 'terminado');
+    }
+    return this.terminar(usuario, turno, respuestaSinPlan(turno, texto), 'terminado');
+  }
+
+  /** Lo pidió y además enseñó algo: se aprende al final, con la respuesta ya hecha */
+  private tocaAprender(turno: Turno): boolean {
+    return Boolean(turno.clasificacion?.ensena) && !turno.contexto?.ensenanza;
+  }
+
+  /** "¿Lo guardo?": sí → al directorio común; «No ahora» → nada; escribir → se vuelve a entender con la corrección */
+  private async contestarAprender(usuario: UsuarioAutenticado, turno: Turno, dto: RespuestaPersonaDto): Promise<SalidaRuta> {
+    const contexto = turno.contexto!;
+    const p = contexto.pregunta!;
+    const e = contexto.ensenanza;
+    const r = respuestaDeAprender(p, dto);
+    if ('nada' in r || !e) {
+      turno.contexto = { ...contexto, rondas: contexto.rondas + 1 };
+      return this.preguntar(usuario, turno, p);
+    }
+    if ('corrige' in r) {
+      turno.contexto = { ...contexto, pregunta: null, ensenanza: null, aclaraciones: [...contexto.aclaraciones, r.corrige], rondas: contexto.rondas + 1 };
+      turno.estado = 'en_curso';
+      return this.pedirModelo(usuario, turno, 'aprender');
+    }
+    let nota: string;
+    if ('si' in r) {
+      const { guardados, omitidos } = await this.aprendizaje.guardar(e.hechos, usuario.email);
+      nota = [
+        guardados.length ? `Guardado para todos: ${guardados.join(', ')}. Ya lo uso desde el próximo mensaje.` : 'No guardé nada.',
+        omitidos.length ? `No guardé: ${omitidos.join('; ')}.` : '',
+      ].filter(Boolean).join(' ');
+      e.final = 'guardado';
+    } else {
+      nota = 'De acuerdo: no guardé lo que me enseñaste.';
+      e.final = 'rechazado';
+    }
+    turno.contexto = { ...contexto, pregunta: null, ensenanza: e };
+    turno.estado = 'en_curso';
+    return this.terminar(usuario, turno, this.respuestaFinal(turno, nota), 'terminado');
+  }
+
+  /** La respuesta del turno con lo aprendido: con los resultados si los hubo, o solo la nota */
+  private respuestaFinal(turno: Turno, nota: string): RespuestaPanel {
+    if ((turno.pasos ?? []).length) {
+      const r = armarRespuesta(turno);
+      return { ...r, notas: [...r.notas, nota], markdown: `${r.markdown}\n\n${nota}` };
+    }
+    return respuestaCharla(turno, nota);
   }
 
   // ───────────── 1d · Preguntar y la respuesta ─────────────
@@ -225,24 +377,37 @@ export class AgenteV3Service {
   private async preguntar(usuario: UsuarioAutenticado, turno: Turno, p: Pregunta): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
     if (contexto.rondas >= MAX_RONDAS) {
+      if (p.etapa === 'aprender') {
+        turno.contexto = { ...contexto, ensenanza: contexto.ensenanza ? { ...contexto.ensenanza, final: 'sin_entender' } : null };
+        return this.terminar(usuario, turno, this.respuestaFinal(turno, `Lo dejo aquí: después de ${MAX_RONDAS} preguntas no guardé lo que me enseñaste.`), 'terminado');
+      }
       return this.terminar(usuario, turno, respuestaSinPlan(turno, `Lo dejo aquí: después de ${MAX_RONDAS} preguntas sigo sin tenerlo claro (${p.texto}). Pídemelo de nuevo con todos los datos.`), 'terminado');
     }
     turno.contexto = { ...contexto, pregunta: p };
     turno.estado = 'pregunta';
     turno.etapa = 'pregunta';
-    const pregunta = respuestaPregunta(turno, p);
-    await this.turnos.actualizar(turno.id, { contexto: turno.contexto, estado: 'pregunta', etapa: 'pregunta', modelos: turno.modelos, clasificacion: turno.clasificacion, respuesta: pregunta });
+    const pregunta = this.conAvisos(turno, respuestaPregunta(turno, p));
+    await this.turnos.actualizar(turno.id, { contexto: turno.contexto, estado: 'pregunta', etapa: 'pregunta', modelos: turno.modelos, clasificacion: turno.clasificacion, respuesta: pregunta, plan: turno.plan, pasos: turno.pasos });
     return this.salida(turno, 'preguntar', { pregunta });
   }
 
   async respuesta(usuario: UsuarioAutenticado, id: string, dto: RespuestaPersonaDto): Promise<SalidaRuta> {
     const turno = await this.turnos.obtener(id, usuario.id);
     if (turno.estado !== 'pregunta') return this.comoEsta(turno);
-    // Nadie contestó en 10 minutos: no hay a quién responder
+    const etapa = turno.contexto!.pregunta?.etapa ?? 'armar';
+    // Nadie contestó en 10 minutos: no hay a quién responder. Si ya estaba la
+    // respuesta (solo faltaba "¿lo guardo?"), se guarda en el chat sin aprender
     if (dto.caducada) {
+      if (etapa === 'aprender' && (turno.pasos ?? []).length) {
+        turno.contexto = { ...turno.contexto!, pregunta: null, ensenanza: turno.contexto!.ensenanza ? { ...turno.contexto!.ensenanza, final: 'rechazado' } : null };
+        await this.terminar(usuario, turno, this.respuestaFinal(turno, 'Nadie contestó: no guardé lo que me enseñaste.'), 'terminado');
+        return this.salida(turno, 'fin');
+      }
       await this.turnos.actualizar(turno.id, { estado: 'cancelado', etapa: 'caducada' });
       return this.salida(turno, 'fin');
     }
+    if (etapa === 'aprender') return this.contestarAprender(usuario, turno, dto);
+
     const r = aplicarRespuesta(turno.contexto!, dto);
     turno.estado = 'en_curso';
     if ('cancelar' in r) return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Cancelado: no hice nada.'), tipo: 'cancelada' }, 'cancelado');
@@ -250,8 +415,11 @@ export class AgenteV3Service {
       turno.contexto = { ...turno.contexto!, rondas: turno.contexto!.rondas + 1 };
       return this.preguntar(usuario, turno, turno.contexto.pregunta ?? preguntaAbierta('armar', '¿Me lo dices de otra forma?'));
     }
-    const etapa = turno.contexto!.pregunta?.etapa ?? 'armar';
     turno.contexto = { ...r.contexto, rondas: turno.contexto!.rondas + 1 };
+    // La aclaración dice el país ("es de Chile"): el turno pasa a ese país
+    const ultima = turno.contexto.aclaraciones.at(-1) ?? '';
+    const dicho = paisDelMensaje(ultima);
+    if (dicho && dicho !== turno.contexto.pais) turno.contexto = await this.contexto.cambiarPais(turno.contexto, `${mensajeDe(turno)} ${ultima}`, dicho, `lo aclaraste («${ultima}»)`);
     if (etapa === 'calcular') return this.pedirModelo(usuario, turno, 'calcular');
     // Otra duda de nombres, o ya a armar
     const duda = ambiguas(turno.contexto.entidades)[0];
@@ -277,7 +445,8 @@ export class AgenteV3Service {
       turno.pasos = [...hechos, paso];
       await this.turnos.actualizar(turno.id, { pasos: turno.pasos });
     }
-    if (turno.pasos.length < plan.pasos.length) return this.salida(turno, 'avisar', { progreso: respuestaProgreso(turno) });
+    if (turno.pasos.length < plan.pasos.length) return this.salida(turno, 'avisar', { progreso: this.conAvisos(turno, respuestaProgreso(turno)) });
+    if (this.tocaAprender(turno)) return this.pedirModelo(usuario, turno, 'aprender');
     return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
   }
 
@@ -288,10 +457,17 @@ export class AgenteV3Service {
 
   // ───────────── Terminar: guardar y responder ─────────────
 
+  /** Lo que se le dice además (un cambio de país…), delante de los avisos de la respuesta */
+  private conAvisos(turno: Turno, r: RespuestaPanel): RespuestaPanel {
+    const avisos = [...new Set([...(turno.contexto?.avisos ?? []), ...r.avisos])];
+    return { ...r, avisos };
+  }
+
   private async terminar(usuario: UsuarioAutenticado, turno: Turno, respuesta: RespuestaPanel, estado: Turno['estado']): Promise<SalidaRuta> {
-    const mensajeId = await this.guardarMensaje(usuario, turno, respuesta);
-    const final = { ...respuesta, mensaje_id: mensajeId };
-    await this.turnos.actualizar(turno.id, { estado, etapa: 'responder', respuesta: final, mensaje_id: mensajeId, modelos: turno.modelos, clasificacion: turno.clasificacion, contexto: turno.contexto, plan: turno.plan });
+    const conAvisos = this.conAvisos(turno, respuesta);
+    const mensajeId = await this.guardarMensaje(usuario, turno, conAvisos);
+    const final = { ...conAvisos, mensaje_id: mensajeId };
+    await this.turnos.actualizar(turno.id, { estado, etapa: 'responder', respuesta: final, mensaje_id: mensajeId, modelos: turno.modelos, clasificacion: turno.clasificacion, contexto: turno.contexto, plan: turno.plan, pasos: turno.pasos });
     return this.salida(turno, 'responder', { respuesta: final });
   }
 
@@ -299,12 +475,14 @@ export class AgenteV3Service {
   private async guardarMensaje(usuario: UsuarioAutenticado, turno: Turno, r: RespuestaPanel): Promise<string | null> {
     const plan = { v: 3, origen: turno.plan?.origen ?? null, pasos: turno.plan?.pasos ?? [], calculo: turno.plan?.calculo ?? null, clasificacion: turno.clasificacion };
     const cumplen = new Map((turno.pasos ?? []).map((p) => [p.n, p.cumplen]));
+    const efectivo = turno.contexto?.mensaje_efectivo;
+    const aclaraciones = turno.contexto?.aclaraciones ?? [];
     const { data, error } = await this.supabase.admin.rpc('agente_v3_guardar_mensaje', {
       p: {
         chat_id: turno.chat_id,
         usuario_id: usuario.id,
         persona: turno.mensaje,
-        entendido: turno.contexto?.aclaraciones.length ? `${turno.mensaje} (${turno.contexto.aclaraciones.join('; ')})` : null,
+        entendido: efectivo || aclaraciones.length ? `${efectivo ?? turno.mensaje}${aclaraciones.length ? ` (${aclaraciones.join('; ')})` : ''}` : null,
         frase: r.frase,
         plan,
         resultados: r.resultados.map((x) => ({ n: x.n, herramienta: x.herramienta, atajo: x.atajo, descripcion: x.titulo, principal: x.principal, datos: x.datos, ...(cumplen.get(x.n) ? { cumplen: cumplen.get(x.n) } : {}) })),

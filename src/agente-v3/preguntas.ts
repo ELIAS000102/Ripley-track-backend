@@ -1,5 +1,6 @@
+import { hechoEnPalabras } from './aprender/prompt.js';
 import type { EntidadMencion } from './entidades.js';
-import type { ContextoTurno, Pregunta } from './interfaces/agente-v3.interface.js';
+import type { ContextoTurno, Ensenanza, Pregunta } from './interfaces/agente-v3.interface.js';
 
 /**
  * Parte 1d · las preguntas. Las detecta el código (no depende de que el modelo
@@ -27,6 +28,44 @@ export function preguntaDeNombre(m: EntidadMencion): Pregunta {
 /** Lo que el modelo dice que falta, o por qué no se pudo armar */
 export function preguntaAbierta(etapa: Pregunta['etapa'], texto: string): Pregunta {
   return { id: `${etapa}:abierta`, etapa, texto, opciones: [], libre: 'Escríbelo aquí' };
+}
+
+/**
+ * "¿Lo guardo para todos?" (decisión del usuario, 2026-11-08): va AL FINAL de
+ * la petición, con lo que se entendió, lo que cambiaría y lo que no se puede
+ * tocar. Siempre se puede decir «No ahora»; escribir es corregir lo entendido.
+ */
+export function preguntaDeAprender(e: Ensenanza): Pregunta {
+  const guardables = e.hechos.length > 0 && e.intocables.length < e.hechos.length;
+  const lineas = [
+    guardables ? 'Me enseñaste esto. ¿Lo guardo para todos?' : e.hechos.length ? 'Entendí esto, pero no lo puedo guardar desde el chat:' : 'No me quedó claro lo que me enseñas.',
+    ...e.hechos.map((h) => `• ${hechoEnPalabras(h)}`),
+    ...(e.choques.length ? [`Ojo: ${e.choques.join(' ')}`] : []),
+    ...e.intocables,
+    ...(e.dudas.length ? [`No me quedó claro: ${e.dudas.join(' ')}`] : []),
+  ];
+  return {
+    id: 'aprender',
+    etapa: 'aprender',
+    texto: lineas.join('\n'),
+    opciones: [...(guardables ? [{ id: 'si', texto: 'Sí, guárdalo' }] : []), { id: 'no', texto: 'No ahora' }],
+    libre: guardables ? 'O corrígeme: escribe cómo es' : 'Explícamelo de otra forma',
+  };
+}
+
+const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Lo que contestó a "¿lo guardo?": sí, no, o una corrección (lo que escribió) */
+export function respuestaDeAprender(p: Pregunta, r: Contestacion): { si: true } | { no: true } | { corrige: string } | { nada: true } {
+  if (r.cancelar) return { no: true };
+  const elegida = r.respuestas ? String(r.respuestas[p.id] ?? '').trim() : '';
+  const texto = String(r.texto ?? '').trim().slice(0, 500);
+  if (elegida === 'si' && p.opciones.some((o) => o.id === 'si')) return { si: true };
+  if (elegida === 'no') return { no: true };
+  const t = plano(texto);
+  if (/^(no|no ahora|ahora no|no gracias|no lo guardes|dejalo|mejor no)$/.test(t)) return { no: true };
+  if (/^(si|si guardalo|guardalo|dale|ok|vale|correcto|esta bien|si esta bien)$/.test(t) && p.opciones.some((o) => o.id === 'si')) return { si: true };
+  return texto ? { corrige: texto } : { nada: true };
 }
 
 export interface Contestacion {

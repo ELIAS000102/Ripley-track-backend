@@ -53,6 +53,14 @@ export class AgenteV3Controller {
     return this.agente.calculo(usuario, id, body);
   }
 
+  /** POST /agente/v3/turnos/:id/aprendizaje — lo que devolvió Aprender (lo enseñado, limpio), o su error */
+  @PermitidoAgente()
+  @Post(':id/aprendizaje')
+  @HttpCode(200)
+  aprendizaje(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+    return this.agente.aprendido(usuario, id, body);
+  }
+
   /**
    * POST /agente/v3/turnos/:id/respuesta — lo que contestó la persona a una pregunta (1d).
    * n8n la manda con el token de quien contestó: si no es quien creó el turno, 403.

@@ -30,7 +30,8 @@ export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clas
   const j = primerJson(texto);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
 
-  const tipo = typeof j.tipo === 'string' ? (plano(j.tipo).replace('cálculo', 'calculo') as TipoPeticion) : null;
+  // Sin tildes para comparar; "enseñar" se escribe con eñe en los tipos
+  const tipo = typeof j.tipo === 'string' ? ((plano(j.tipo) === 'ensenar' ? 'enseñar' : plano(j.tipo)) as TipoPeticion) : null;
   if (!tipo || !TIPOS_PETICION.includes(tipo)) return { ok: false, motivo: `tipo desconocido: ${JSON.stringify(j.tipo)}` };
 
   const dep = j.depende_del_anterior;
@@ -49,5 +50,7 @@ export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clas
   const motivo = typeof j.motivo === 'string' ? j.motivo.slice(0, 300) : '';
   // La respuesta de una charla se revisa al usarla (respuestaDeCharla): aquí solo se lee
   const respuesta = tipo === 'charla' && typeof j.respuesta === 'string' && j.respuesta.trim() ? j.respuesta.trim().slice(0, 600) : null;
-  return { ok: true, valor: { tipo, dep, atajo, motivo, ...(tipo === 'charla' ? { respuesta } : {}) } };
+  const retoma = j.retoma === true;
+  const ensena = j.ensena === true || tipo === 'enseñar';
+  return { ok: true, valor: { tipo, dep, atajo, motivo, ...(tipo === 'charla' ? { respuesta } : {}), ...(retoma ? { retoma } : {}), ...(ensena ? { ensena } : {}) } };
 }

@@ -12,14 +12,15 @@ import type { Comprobacion, Condicion } from '../filas.js';
 export type Pais = 'PE' | 'CL';
 
 /** El tipo de petición que dice el clasificador */
-export type TipoPeticion = 'atajo' | 'consulta' | 'calculo' | 'saber' | 'repetir' | 'charla';
-export const TIPOS_PETICION: TipoPeticion[] = ['atajo', 'consulta', 'calculo', 'saber', 'repetir', 'charla'];
+export type TipoPeticion = 'atajo' | 'consulta' | 'calculo' | 'saber' | 'repetir' | 'charla' | 'cambio' | 'enseñar';
+export const TIPOS_PETICION: TipoPeticion[] = ['atajo', 'consulta', 'calculo', 'saber', 'repetir', 'charla', 'cambio', 'enseñar'];
 
 /** Lo que le dice cada ruta a n8n que haga después ("fin": nada, nadie espera respuesta) */
 export type Camino =
   | 'clasificar'
   | 'armar'
   | 'calcular'
+  | 'aprender'
   | 'ejecutar'
   | 'avisar'
   | 'redactar'
@@ -28,7 +29,7 @@ export type Camino =
   | 'fin';
 
 /** Para qué se llama a un modelo */
-export type RolModelo = 'clasificar' | 'armar' | 'calcular' | 'redactar';
+export type RolModelo = 'clasificar' | 'armar' | 'calcular' | 'aprender' | 'redactar';
 
 /** Uno de los nodos Gemini del flujo: un modelo de una cuenta */
 export interface ModeloElegido {
@@ -47,8 +48,8 @@ export interface IntentoModelo {
   ok: boolean;
   /** Por qué no sirvió: el error del nodo o lo que no valía de su respuesta */
   motivo?: string;
-  /** saturado (503) · cuota (429) · otro */
-  clase?: 'saturado' | 'cuota' | 'otro';
+  /** saturado (503) · cuota (429) · respuesta (contestó algo que no vale) · otro */
+  clase?: 'saturado' | 'cuota' | 'respuesta' | 'otro';
   /** La ronda de preguntas en que se hizo: tras una respuesta, cada rol vuelve a tener sus intentos */
   ronda?: number;
 }
@@ -81,13 +82,47 @@ export interface MensajeAnterior {
   /** Lo guardó la v3 (con su plan) o la v2 */
   version: 2 | 3;
   elegido: boolean;
+  /** Falló o quedó en una pregunta: este mensaje puede retomarlo ("es de Perú") */
+  fallido?: boolean;
+}
+
+/** Algo que se aprende (lo deja limpio el rol «aprender» y se guarda con un "sí") */
+export interface Hecho {
+  tipo: 'servicio' | 'entidad';
+  pais: Pais;
+  codigo: string;
+  nombre?: string | null;
+  /** servicio */
+  metodo_entrega?: 'RT' | 'DP' | null;
+  fase?: string | null;
+  origen?: string | null;
+  descripcion?: string | null;
+  /** entidad */
+  clase?: 'tienda' | 'almacen' | 'opl' | null;
+  es_cd?: boolean | null;
+  alias?: string[] | null;
+}
+
+/** Lo que se está aprendiendo en este turno: se pregunta y se guarda al final */
+export interface Ensenanza {
+  /** Lo que dijo la persona que enseña algo */
+  texto: string;
+  hechos: Hecho[];
+  /** Lo que el modelo no tuvo claro */
+  dudas: string[];
+  /** Lo que ya había y cambiaría ("Tenía la SG como F2") */
+  choques: string[];
+  /** Lo que no se puede tocar desde el chat (puesto a mano por el administrador) */
+  intocables: string[];
+  /** Cómo terminó: guardado, rechazado («No ahora») o sin entender */
+  final?: 'guardado' | 'rechazado' | 'sin_entender';
 }
 
 /** Una pregunta a la persona (1d): con opciones, con texto libre, o con las dos */
 export interface Pregunta {
   id: string;
   /** La etapa que preguntó: ahí sigue el turno con la respuesta */
-  etapa: 'entidades' | 'armar' | 'calcular';
+  etapa: 'entidades' | 'armar' | 'calcular' | 'aprender';
   texto: string;
   opciones: Array<{ id: string; texto: string }>;
   libre: string | null;
@@ -103,13 +138,19 @@ export interface ContextoTurno {
   anterior: MensajeAnterior | null;
   /** Los códigos y nombres del mensaje, buscados en el directorio */
   entidades: EntidadMencion[];
-  /** Los servicios del país, con su método y su fase (agente_servicios) */
-  servicios: Array<{ codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null }>;
+  /** Los servicios del país, con su método, su fase y lo aprendido (agente_servicios) */
+  servicios: Array<{ codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null; fuente?: string | null; origen?: string | null; descripcion?: string | null }>;
   /** Lo que la persona contestó a las preguntas de este turno */
   aclaraciones: string[];
   /** La pregunta que espera respuesta */
   pregunta: Pregunta | null;
   rondas: number;
+  /** Lo que se le dice además de la respuesta (un cambio de país…) */
+  avisos?: string[];
+  /** Al retomar un mensaje que falló: aquella petición con lo que se aclara ahora */
+  mensaje_efectivo?: string | null;
+  /** Lo que se está aprendiendo: se pregunta al final */
+  ensenanza?: Ensenanza | null;
 }
 
 export interface Clasificacion {
@@ -119,6 +160,10 @@ export interface Clasificacion {
   motivo: string;
   /** En "charla": lo que contesta el modelo (revisado por el código) */
   respuesta?: string | null;
+  /** Completa o corrige el mensaje anterior, que falló ("es de Perú") */
+  retoma?: boolean;
+  /** Además de lo que pide, enseña algo (se aprende al final) */
+  ensena?: boolean;
 }
 
 /** Un paso del plan, con el formato que se mide en la fase 0 (`fase0/detalle.mjs`) */
@@ -133,7 +178,7 @@ export interface PasoPlan {
 export interface Calculo {
   operacion: 'suma' | 'maximo' | 'minimo' | 'contar' | 'porcentaje' | 'filtrar' | 'ordenar' | 'explicar';
   campo: string | null;
-  filtro: { agenda?: string; codigo?: string[]; fecha?: string; servicio?: string[]; activa?: boolean };
+  filtro: { agenda?: string; codigo?: string[]; fecha?: string; servicio?: string[]; activa?: boolean; nombre?: string; fase?: string; tipo?: string };
   agrupar: string[];
   orden?: 'asc' | 'desc';
   distintos?: boolean;
@@ -142,7 +187,7 @@ export interface Calculo {
 export interface PlanV3 {
   pasos: PasoPlan[];
   /** De dónde salió */
-  origen: 'atajo' | 'repetir' | 'saber' | 'armar' | 'calcular' | 'charla';
+  origen: 'atajo' | 'repetir' | 'saber' | 'armar' | 'calcular' | 'charla' | 'cambio' | 'aprender';
   calculo?: Calculo;
   /** Cómo se pidió enseñarlo: "totales", "cuadro", "uso" */
   ver?: string | null;

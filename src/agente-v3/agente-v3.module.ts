@@ -4,6 +4,7 @@ import { SinRastroInterceptor } from '../agente/seguridad/sin-rastro.interceptor
 import { AtajosModule } from '../configuracion/atajos/atajos.module.js';
 import { AgenteV3Controller } from './agente-v3.controller.js';
 import { AgenteV3Service } from './agente-v3.service.js';
+import { AprendizajeService } from './aprender/aprendizaje.service.js';
 import { ContextoV3Service } from './contexto.service.js';
 import { EjecucionV3Service } from './ejecucion.service.js';
 import { TurnosService } from './turnos.service.js';
@@ -16,11 +17,12 @@ import { TurnosService } from './turnos.service.js';
  * decide el código: el contexto, los prompts, validar lo que dice el modelo,
  * ejecutar y armar la respuesta. Ejecuta con los services del backend en el
  * mismo proceso: el agente (por `InterrupcionAgenteService`, el botón
- * "Detener") y los atajos.
+ * "Detener") y los atajos. Los cambios, solo en vista previa (simulacro), y lo
+ * que se enseña en el chat, al directorio común tras un "sí" (aprender/).
  */
 @Module({
   imports: [AgenteModule, AtajosModule],
   controllers: [AgenteV3Controller],
-  providers: [AgenteV3Service, TurnosService, ContextoV3Service, EjecucionV3Service, SinRastroInterceptor],
+  providers: [AgenteV3Service, TurnosService, ContextoV3Service, EjecucionV3Service, AprendizajeService, SinRastroInterceptor],
 })
 export class AgenteV3Module {}

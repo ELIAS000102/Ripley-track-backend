@@ -2,7 +2,9 @@ import type { Ejecucion } from '../../configuracion/atajos/interfaces/atajos.int
 import type { ResultadoCalculo } from '../calcular/calcular.js';
 import type { Condicion } from '../filas.js';
 import type { Pais, PasoEjecutado, Pregunta, RespuestaPanel, ResultadoPanel, Turno } from '../interfaces/agente-v3.interface.js';
+import { herramienta as herramientaDe } from '../herramientas.js';
 import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto } from './atajo.js';
+import { markdownCambio, resumenCambio } from './cambio.js';
 
 /**
  * Etapa 7 · Responder: la frase, los datos de cada paso para que el panel los
@@ -10,7 +12,8 @@ import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto
  */
 
 export interface FilaEntidad { codigo: string; nombre: string | null; tipo: string; es_cd: boolean; pais: string; fuente: string }
-export interface FilaServicio { pais: string; codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null }
+export interface FilaServicio { pais: string; codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null; fuente?: string; origen?: string | null; descripcion?: string | null; ensenado_por?: string | null }
+export interface FilaFase { codigo: string; metodo_entrega: string; nombre: string | null; recorrido: string[]; descripcion: string }
 export interface FilaAtajo { nombre: string; descripcion: string | null; tipos: string[]; pais: string }
 
 const NOMBRE_PAIS: Record<string, string> = { PE: 'Perú', CL: 'Chile' };
@@ -48,21 +51,64 @@ export function resumenDelPaso(herramienta: string, datos: unknown, param: Recor
     const r = datos as ResultadoCalculo;
     return { estado: r.usadas ? 'ok' : 'vacio', resumen: r.frase };
   }
-  if (herramienta === 'saber_entidades') {
-    const l = datos as FilaEntidad[];
-    const [uno, varios] = TIPO_ENTIDAD[String(param.tipo)] ?? ['código', 'códigos'];
-    const que = param.es_cd ? (l.length === 1 ? 'CD' : 'CDs') : l.length === 1 ? uno : varios;
-    return { estado: l.length ? 'ok' : 'vacio', resumen: l.length ? `${l.length} ${que} de ${NOMBRE_PAIS[String(param.pais)] ?? param.pais}` : `ningún ${que} guardado` };
+  if (herramienta.startsWith('saber_')) return loGuardado(herramienta, datos, param);
+  if (herramientaDe(herramienta)?.edicion) return resumenCambio(herramienta, datos);
+  return { estado: 'ok', resumen: '' };
+}
+
+const METODO: Record<string, string> = { RT: 'retiro en tienda', DP: 'despacho a domicilio' };
+const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? String(v).split(',') : []);
+
+/** Un servicio en una frase: lo que es, su fase, de dónde sale el stock y lo que enseñó la gente */
+function servicioEnPalabras(s: FilaServicio): string {
+  const partes = [
+    s.metodo_entrega ? METODO[s.metodo_entrega] ?? s.metodo_entrega : null,
+    s.fase ? `fase ${s.fase}` : null,
+    s.origen ? `el stock sale del ${s.origen}` : null,
+  ].filter(Boolean);
+  return `${s.codigo}${s.nombre ? ` · ${s.nombre}` : ''}${partes.length ? `: ${partes.join(', ')}` : ''}.${s.descripcion ? ` ${s.descripcion}` : ''}`;
+}
+
+/**
+ * Lo guardado, contestando lo que se preguntó: "¿qué es la fase 1?" → su
+ * recorrido y sus servicios; "¿qué es la SG?" → lo que se sabe de la SG;
+ * "¿qué es el 1130?" → su tipo, nombre y país; sin filtro, el inventario.
+ */
+function loGuardado(herramienta: string, datos: unknown, param: Record<string, unknown>): { estado: PasoEjecutado['estado']; resumen: string } {
+  const pais = NOMBRE_PAIS[String(param.pais)] ?? String(param.pais ?? '');
+  if (herramienta === 'saber_fases') {
+    const d = datos as { fase: FilaFase | null; servicios: FilaServicio[] };
+    if (!d.fase) return { estado: 'vacio', resumen: `No tengo guardada la fase ${String(param.fase)}.` };
+    const f = d.fase;
+    const recorrido = (f.recorrido ?? []).length ? ` Recorrido: ${f.recorrido.join(' → ')}.` : '';
+    const servicios = d.servicios.length ? ` En ${pais}: ${d.servicios.map((s) => `${s.codigo}${s.nombre ? ` (${s.nombre})` : ''}`).join(', ')}.` : ` En ${pais} no tengo servicios de esa fase.`;
+    return { estado: 'ok', resumen: `La fase ${f.codigo}${f.nombre ? ` (${f.nombre})` : ''}: ${f.descripcion}${/[.!?]$/.test(f.descripcion) ? '' : '.'}${recorrido}${servicios}` };
   }
   if (herramienta === 'saber_servicios') {
     const l = datos as FilaServicio[];
-    return { estado: l.length ? 'ok' : 'vacio', resumen: `${l.length} servicios de ${NOMBRE_PAIS[String(param.pais)] ?? param.pais}` };
+    const pedidos = lista(param.servicio);
+    if (pedidos.length) {
+      const faltan = pedidos.filter((c) => !l.some((s) => s.codigo === c));
+      const texto = [...l.map(servicioEnPalabras), ...(faltan.length ? [`No tengo guardado ${faltan.join(', ')} en ${pais}.`] : [])].join(' ');
+      return { estado: l.length ? 'ok' : 'vacio', resumen: texto };
+    }
+    return { estado: l.length ? 'ok' : 'vacio', resumen: l.length ? `Tengo guardados ${l.length} servicios de ${pais}: ${algunos(l.map((s) => `${s.codigo}${s.fase ? ` (${s.fase})` : ''}`), 12)}.` : `No tengo servicios guardados de ${pais}.` };
   }
-  if (herramienta === 'saber_atajos') {
-    const l = datos as FilaAtajo[];
-    return { estado: l.length ? 'ok' : 'vacio', resumen: `${l.length} atajos` };
+  if (herramienta === 'saber_entidades') {
+    const l = datos as FilaEntidad[];
+    const pedidos = lista(param.codigo);
+    if (pedidos.length) {
+      const faltan = pedidos.filter((c) => !l.some((e) => e.codigo === c));
+      const una = (e: FilaEntidad) => `${e.codigo}${e.nombre ? ` · ${nombreCorto(e.nombre)}` : ''}: ${e.es_cd ? 'CD' : TIPO_ENTIDAD[e.tipo]?.[0] ?? e.tipo} de ${NOMBRE_PAIS[e.pais] ?? e.pais}.`;
+      return { estado: l.length ? 'ok' : 'vacio', resumen: [...l.map(una), ...(faltan.length ? [`No tengo guardado el ${faltan.join(', ')}.`] : [])].join(' ') };
+    }
+    const [uno, varios] = TIPO_ENTIDAD[String(param.tipo)] ?? ['código', 'códigos'];
+    const que = param.es_cd ? (l.length === 1 ? 'CD' : 'CDs') : l.length === 1 ? uno : varios;
+    const guardadas = param.tipo === 'tienda' && !param.es_cd ? (l.length === 1 ? 'guardada' : 'guardadas') : l.length === 1 ? 'guardado' : 'guardados';
+    return { estado: l.length ? 'ok' : 'vacio', resumen: l.length ? `Tengo ${guardadas} ${l.length} ${que} de ${pais}: ${algunos(l.map((e) => (e.nombre ? `${e.codigo} · ${nombreCorto(e.nombre)}` : e.codigo)))}.` : `No tengo ningún ${que} de ${pais} guardado.` };
   }
-  return { estado: 'ok', resumen: '' };
+  const l = datos as FilaAtajo[];
+  return { estado: l.length ? 'ok' : 'vacio', resumen: l.length ? `Hay ${l.length} atajos: ${algunos(l.map((a) => `«${a.nombre}»`), 8)}.` : 'No hay atajos guardados.' };
 }
 
 /** La condición y la comprobación delante de la frase: lo primero es contestar */
@@ -90,18 +136,6 @@ function frase(pasos: PasoEjecutado[], principal: PasoEjecutado | undefined): st
     const err = pasos.find((p) => p.estado === 'error');
     return err ? `No pude: ${err.error ?? err.resumen}` : 'No vino nada.';
   }
-  if (principal.herramienta === 'saber_entidades') {
-    const l = principal.datos as FilaEntidad[];
-    return `Tengo guardados ${principal.resumen}: ${algunos(l.map((e) => (e.nombre ? `${e.codigo} · ${nombreCorto(e.nombre)}` : e.codigo)))}.`;
-  }
-  if (principal.herramienta === 'saber_servicios') {
-    const l = principal.datos as FilaServicio[];
-    return `Tengo guardados ${principal.resumen}: ${algunos(l.map((s) => `${s.codigo}${s.fase ? ` (${s.fase})` : ''}`), 12)}.`;
-  }
-  if (principal.herramienta === 'saber_atajos') {
-    const l = principal.datos as FilaAtajo[];
-    return `Hay ${l.length} atajos: ${algunos(l.map((a) => `«${a.nombre}»`), 8)}.`;
-  }
   const r = principal.resumen.trim();
   const fallidos = pasos.filter((p) => p.estado === 'error');
   return `${/[.!?]$/.test(r) ? r : `${r}.`}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}`;
@@ -118,9 +152,11 @@ function markdownDelPaso(p: PasoEjecutado): string {
   if (p.herramienta === 'saber_entidades') {
     return tabla(['Código', 'Nombre', 'Tipo', 'De dónde'], (p.datos as FilaEntidad[]).map((e) => [e.codigo, nombreCorto(e.nombre), e.es_cd ? 'CD' : e.tipo, e.fuente]));
   }
-  if (p.herramienta === 'saber_servicios') {
-    return tabla(['Servicio', 'Nombre', 'Método', 'Fase'], (p.datos as FilaServicio[]).map((s) => [s.codigo, s.nombre, s.metodo_entrega, s.fase]));
+  if (p.herramienta === 'saber_servicios' || p.herramienta === 'saber_fases') {
+    const l = p.herramienta === 'saber_fases' ? (p.datos as { servicios: FilaServicio[] }).servicios : (p.datos as FilaServicio[]);
+    return tabla(['Servicio', 'Nombre', 'Método', 'Fase', 'Origen del stock'], l.map((s) => [s.codigo, s.nombre, s.metodo_entrega, s.fase, s.origen ?? '']));
   }
+  if (herramientaDe(p.herramienta)?.edicion) return markdownCambio(p.herramienta, p.datos);
   if (p.herramienta === 'saber_atajos') {
     return tabla(['Atajo', 'Para qué', 'Bloques', 'País'], (p.datos as FilaAtajo[]).map((a) => [a.nombre, a.descripcion, a.tipos.join(', '), NOMBRE_PAIS[a.pais] ?? a.pais]));
   }
@@ -180,8 +216,16 @@ export function respuestaCharla(turno: Turno, texto: string, ahora = new Date())
   return { ...base(turno, ahora), tipo: 'resultado', frase: texto.split('\n')[0], markdown: texto, notas: texto.includes('\n') ? texto.split('\n').slice(1).filter(Boolean) : [] };
 }
 
-/** Una pregunta (1d), con el formato de dudas que ya entiende el panel */
+/**
+ * Una pregunta (1d), con el formato de dudas que ya entiende el panel. La de
+ * aprender va al final de la petición: lleva lo que se consultó, para que la
+ * persona tenga su respuesta aunque no conteste.
+ */
 export function respuestaPregunta(turno: Turno, p: Pregunta, ahora = new Date()): RespuestaPanel {
+  if (p.etapa === 'aprender' && (turno.pasos ?? []).length) {
+    const r = armarRespuesta(turno, ahora);
+    return { ...r, tipo: 'pregunta', markdown: `${r.markdown}\n\n${p.texto}`, dudas: [{ id: p.id, pregunta: p.texto, opciones: p.opciones, libre: p.libre }] };
+  }
   return {
     ...base(turno, ahora),
     tipo: 'pregunta',

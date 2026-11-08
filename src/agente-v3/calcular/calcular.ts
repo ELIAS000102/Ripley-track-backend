@@ -22,7 +22,7 @@ const plano = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').rep
 const ddmm = (f?: string) => (f && /^\d{4}-\d{2}-\d{2}/.test(f) ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : String(f ?? ''));
 const redondo = (x: number) => Math.round(x * 10) / 10;
 
-const NOMBRE_CAMPO: Record<string, string> = { ocupado: 'ocupado', asignado: 'asignado', disponible: 'disponible', uso: 'uso', desfase: 'desfase', transito: 'tránsito', preparacion: 'preparación', dias: 'días', codigo: 'códigos', activa: 'agendas' };
+const NOMBRE_CAMPO: Record<string, string> = { tipo: 'tipo', fase: 'fase', metodo: 'método', pais: 'país', origen: 'origen', ocupado: 'ocupado', asignado: 'asignado', disponible: 'disponible', uso: 'uso', desfase: 'desfase', transito: 'tránsito', preparacion: 'preparación', dias: 'días', codigo: 'códigos', activa: 'agendas' };
 const UNIDAD: Record<string, string> = { ocupado: 'unidades', asignado: 'unidades', disponible: 'unidades', uso: '%', desfase: 'días', transito: 'días', preparacion: 'días', dias: 'días' };
 
 /** Lo que significa cada campo (para "explicar"): fijo, no lo escribe el modelo */
@@ -44,6 +44,9 @@ export function filtrar(filas: Fila[], f: Calculo['filtro']): Fila[] {
     if (f.fecha && x.fecha !== f.fecha) return false;
     if (f.servicio?.length && !f.servicio.map((s) => s.toUpperCase()).includes(String(x.servicio ?? '').toUpperCase())) return false;
     if (typeof f.activa === 'boolean' && x.activa !== f.activa) return false;
+    if (f.nombre && !plano(x.nombre).includes(plano(f.nombre))) return false;
+    if (f.fase && String(x.fase ?? '').toUpperCase() !== f.fase.toUpperCase()) return false;
+    if (f.tipo && plano(x.tipo) !== plano(f.tipo)) return false;
     return true;
   });
 }
@@ -58,6 +61,8 @@ function claveDe(x: Fila, agrupar: string[]): { clave: string; etiqueta: string 
       case 'agenda': return [`${x.codigo}/${x.agenda ?? x.jornada ?? ''}`, x.agenda ?? x.jornada ?? '—'];
       case 'servicio': return [x.servicio ?? '', x.servicio || '—'];
       case 'activa': return [String(x.activa), x.activa ? 'activas' : 'inactivas'];
+      case 'tipo': return [x.tipo ?? '', x.tipo ?? '—'];
+      case 'fase': return [x.fase ?? '', x.fase ? `fase ${x.fase}` : 'sin fase'];
       default: return ['', ''];
     }
   });
@@ -72,6 +77,9 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
     k.filtro?.servicio?.length ? k.filtro.servicio.join(', ') : null,
     k.filtro?.fecha ? ddmm(k.filtro.fecha) : null,
     typeof k.filtro?.activa === 'boolean' ? (k.filtro.activa ? 'activas' : 'inactivas') : null,
+    k.filtro?.nombre ? `«${k.filtro.nombre}»` : null,
+    k.filtro?.fase ? `fase ${k.filtro.fase}` : null,
+    k.filtro?.tipo ? k.filtro.tipo : null,
   ].filter(Boolean).join(', ');
   const base = { notas: [] as string[], usadas: filas.length };
   if (!filas.length) {
@@ -84,9 +92,10 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
     const tabla = filas.slice(0, 30).map((f) => columnas.map((c) => celda(f, c)));
     const glosario = columnas.map((c) => GLOSARIO[c]).filter(Boolean);
     const frase = k.operacion === 'filtrar'
-      ? `${new Set(filas.map((f) => f.codigo)).size} de ${new Set(todas.map((f) => f.codigo)).size} cumplen${acota ? ` (${acota})` : ''}, según «${deDonde}».`
+      ? `${cuantasFilas(filas, todas)}${acota ? ` (${acota})` : ''}, según «${deDonde}».`
       : `Lo que trajo «${deDonde}»${acota ? ` (${acota})` : ''}: ${glosario.join('; ') || 'en la tabla'}.`;
-    return { ...base, titulo: deDonde, columnas: columnas.map((c) => NOMBRE_CAMPO[c] ?? c), filas: tabla, valor: null, frase };
+    const notas = filas.length > 30 ? [`En la tabla, las primeras 30 de ${filas.length}.`] : [];
+    return { ...base, notas, titulo: deDonde, columnas: columnas.map((c) => NOMBRE_CAMPO[c] ?? c), filas: tabla, valor: null, frase };
   }
 
   // Lo demás: por grupos
@@ -133,6 +142,15 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
   };
 }
 
+/** "12 de 40 agendas (5 códigos)": lo que se filtra son filas, y se cuentan como lo que son */
+function cuantasFilas(filas: Fila[], todas: Fila[]): string {
+  const clase = filas[0]?.clase;
+  const codigos = new Set(filas.map((f) => f.codigo)).size;
+  if (clase === 'entidad' || clase === 'servicio') return `${filas.length} de ${todas.length} ${clase === 'entidad' ? 'códigos' : 'servicios'}`;
+  const que = clase === 'capacidad' || clase === 'reporte' ? 'días de agenda' : clase === 'transferencia' ? 'destinos' : clase === 'simulacion' ? 'resultados' : 'agendas';
+  return `${filas.length} de ${todas.length} ${que} (${codigos} ${codigos === 1 ? 'código' : 'códigos'})`;
+}
+
 const COLUMNAS: Record<string, string[]> = {
   capacidad: ['codigo', 'agenda', 'servicio', 'fecha', 'asignado', 'ocupado', 'disponible', 'uso', 'activa'],
   masiva: ['codigo', 'agenda', 'servicio', 'activa', 'enCheckout'],
@@ -140,6 +158,8 @@ const COLUMNAS: Record<string, string[]> = {
   transferencia: ['origen', 'codigo', 'habilitada', 'preparacion', 'transito', 'desfase'],
   simulacion: ['codigo', 'zona', 'servicio', 'entrega', 'dias'],
   reporte: ['codigo', 'jornada', 'fecha', 'asignado', 'ocupado', 'disponible', 'uso'],
+  entidad: ['codigo', 'tipo', 'pais'],
+  servicio: ['codigo', 'metodo', 'fase', 'origen'],
 };
 const columnasDe = (f: Fila) => COLUMNAS[f.clase] ?? ['codigo'];
 function celda(f: Fila, c: string): string | number {

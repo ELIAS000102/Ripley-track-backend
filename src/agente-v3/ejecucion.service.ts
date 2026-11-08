@@ -8,6 +8,13 @@ import { SimulacionAgenteService } from '../agente/consultas/simulacion/simulaci
 import { TipoServicioAgenteService } from '../agente/consultas/tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from '../agente/consultas/transferencia/transferencia.service.js';
 import { POR_VEZ } from '../agente/constantes/limites.constants.js';
+import { EditarCapacidadAgenteService } from '../agente/edicion/capacidad/capacidad.service.js';
+import { EditarCdAgenteService } from '../agente/edicion/cd/cd.service.js';
+import { EditarMasivoAgenteService } from '../agente/edicion/masivo/masivo.service.js';
+import { ReasignarCapacidadAgenteService } from '../agente/edicion/reasignar/reasignar.service.js';
+import { EditarTipoServicioAgenteService } from '../agente/edicion/tipo-servicio/tipo-servicio.service.js';
+import { EditarTransferenciaAgenteService } from '../agente/edicion/transferencia/transferencia.service.js';
+import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
@@ -17,6 +24,7 @@ import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from '
 import { herramienta } from './herramientas.js';
 import type { ContextoTurno, PasoEjecutado, PasoPlan, PlanV3 } from './interfaces/agente-v3.interface.js';
 import { resumenDelPaso, type FilaAtajo } from './respuesta/armar.js';
+import { filasDelCambio } from './respuesta/cambio.js';
 
 /**
  * Etapa 6 · Ejecutar: un paso del plan, con los services del backend en el
@@ -35,8 +43,15 @@ export function queEs(p: PasoPlan): string {
   switch (p.herramienta) {
     case 'ejecutar_atajo': return `Atajo «${String(x.nombre)}»`;
     case 'saber_atajos': return 'Los atajos guardados';
-    case 'saber_servicios': return `Los servicios guardados de ${pais}`;
-    case 'saber_entidades': return `Los ${x.es_cd ? 'CDs' : x.tipo === 'opl' ? 'OPL' : x.tipo === 'almacen' ? 'almacenes' : 'tiendas'} guardados de ${pais}`;
+    case 'saber_fases': return `La fase ${String(x.fase)}`;
+    case 'saber_servicios': return x.servicio ? `Lo que sé de ${lista(x.servicio).join(', ')}` : `Los servicios guardados de ${pais}`;
+    case 'saber_entidades': {
+      if (x.codigo) return `Lo que sé de ${lista(x.codigo).join(', ')}`;
+      if (x.es_cd) return `Los CDs guardados de ${pais}`;
+      if (x.tipo === 'opl') return `Los OPL guardados de ${pais}`;
+      if (x.tipo === 'almacen') return `Los almacenes guardados de ${pais}`;
+      return `Las tiendas guardadas de ${pais}`;
+    }
     case 'consultar_capacidad': return `Capacidad de ${x.tipo} de ${cods(x.codigo)}${x.servicio ? ` (${lista(x.servicio).join(', ')})` : ''}`;
     case 'consultar_reporte_cds': return `Reporte de ${x.cd ? `el CD ${x.cd}` : 'los CDs'}`;
     case 'consultar_transferencia': return `Transferencia${x.origen ? ` desde ${x.origen}` : ''}${x.destino ? ` a ${cods(x.destino)}` : ''}`;
@@ -44,6 +59,13 @@ export function queEs(p: PasoPlan): string {
     case 'busqueda_masiva': return `Búsqueda masiva de ${lista(x.servicio).join(', ')}`;
     case 'simular_entrega': return `Simulación${x.servicio ? ` ${x.servicio}` : ''} en ${cods(x.operador)}`;
     case 'calcular': return 'Cálculo con lo del mensaje anterior';
+    case 'editar_capacidad': return `Vista previa: ${x.activa === false ? 'cerrar' : x.activa === true ? 'abrir' : 'cambiar'} ${x.tipo} de ${cods(x.codigo)}${x.servicio ? ` (${String(x.servicio)})` : ''}`;
+    case 'editar_capacidad_transferencia': return `Vista previa: capacidad de transferencia${x.origen ? ` de ${String(x.origen)}` : ''}${x.destino ? ` a ${String(x.destino)}` : ''}`;
+    case 'cortar_reabrir_cd': return `Vista previa: ${x.activa ? 'reabrir' : 'cortar'} ${x.cd ? `el CD ${String(x.cd)}` : 'los CDs'}`;
+    case 'reasignar_capacidad': return `Vista previa: pasar ${String(x.unidades)} de ${String(x.origen)} a ${String(x.destino)} en el ${String(x.cd)}`;
+    case 'editar_servicio_opl': return `Vista previa: ${lista(x.servicio).join(', ')} de ${cods(x.opl)}`;
+    case 'editar_masivo': return `Vista previa: ${String(x.servicio)} en bloque`;
+    case 'editar_transferencia': return `Vista previa: transferencia a ${cods(x.destino)}`;
     default: return p.herramienta;
   }
 }
@@ -61,7 +83,13 @@ function juntar(partes: Array<Record<string, unknown>>): Record<string, unknown>
   const [primera] = partes;
   const unir = (k: string) => partes.flatMap((p) => (Array.isArray(p[k]) ? (p[k] as unknown[]) : []));
   const salida: Record<string, unknown> = { ...primera };
-  for (const k of ['oficinas', 'agendas', 'busquedas', 'opls', 'destinos', 'resultados', 'cds', 'sinDatos']) if (Array.isArray(primera[k])) salida[k] = unir(k);
+  for (const k of ['oficinas', 'agendas', 'busquedas', 'opls', 'destinos', 'resultados', 'cds', 'sinDatos', 'servicios', 'cambiadas', 'jornadas']) if (Array.isArray(primera[k])) salida[k] = unir(k);
+  // Los totales de un cambio partido en tandas se suman
+  if (primera.resumen && typeof primera.resumen === 'object') {
+    const suma: Record<string, unknown> = { ...(primera.resumen as Record<string, unknown>) };
+    for (const [k, v] of Object.entries(suma)) if (typeof v === 'number') suma[k] = partes.reduce((t, p) => t + Number((p.resumen as Record<string, unknown> | undefined)?.[k] ?? 0), 0);
+    salida.resumen = suma;
+  }
   return salida;
 }
 
@@ -77,6 +105,13 @@ export class EjecucionV3Service {
     private readonly tipoServicio: TipoServicioAgenteService,
     private readonly masivo: BusquedaMasivaAgenteService,
     private readonly simulacion: SimulacionAgenteService,
+    private readonly auditoria: ContextoAuditoria,
+    private readonly editarCapacidad: EditarCapacidadAgenteService,
+    private readonly editarCd: EditarCdAgenteService,
+    private readonly reasignar: ReasignarCapacidadAgenteService,
+    private readonly editarTipoServicio: EditarTipoServicioAgenteService,
+    private readonly editarMasivo: EditarMasivoAgenteService,
+    private readonly editarTransferencia: EditarTransferenciaAgenteService,
   ) {}
 
   async ejecutar(usuario: UsuarioAutenticado, plan: PlanV3, k: number, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<PasoEjecutado> {
@@ -90,6 +125,8 @@ export class EjecucionV3Service {
       if (ref && hechos[ref.n - 1]?.estado === 'error') throw new Error(`no se hizo: dependía del paso ${ref.n}, que falló`);
 
       let datos = paso.herramienta === 'calcular' ? this.calcular(plan, contexto) : await this.correr(usuario, paso, hechos, contexto);
+      // Un cambio: las filas "dónde · día · ahora · quedaría" van con los datos (el panel las dibuja tal cual)
+      if (herramienta(paso.herramienta)?.edicion && datos && typeof datos === 'object') datos = { ...(datos as object), vista: filasDelCambio(paso.herramienta, datos) };
       const salida: Partial<PasoEjecutado> = {};
       const filas = filasDe(paso.herramienta, datos, contexto.hoy);
       if (paso.condicion) {
@@ -138,21 +175,46 @@ export class EjecucionV3Service {
       case 'saber_atajos':
         return contexto.atajos.map((a): FilaAtajo => ({ nombre: a.nombre, descripcion: a.descripcion, tipos: a.tipos, pais: a.pais }));
       case 'saber_entidades': {
-        let q = this.supabase.admin.from('agente_entidades').select('codigo, nombre, tipo, es_cd, pais, fuente').eq('pais', String(p.pais ?? contexto.pais));
+        // Por código, en los dos países (un código se busca donde esté); si no, los de ese país y tipo
+        let q = this.supabase.admin.from('agente_entidades').select('codigo, nombre, tipo, es_cd, pais, fuente');
+        if (p.codigo) q = q.in('codigo', lista(p.codigo));
+        else q = q.eq('pais', String(p.pais ?? contexto.pais));
         if (p.tipo) q = q.eq('tipo', String(p.tipo));
         if (p.es_cd) q = q.eq('es_cd', true);
         const { data, error } = await q.order('codigo').limit(500);
         if (error) throw new Error(`No pude leer el directorio: ${error.message}`);
         return data ?? [];
       }
-      case 'saber_servicios': {
-        const { data, error } = await this.supabase.admin.from('agente_servicios').select('pais, codigo, nombre, metodo_entrega, fase').eq('pais', String(p.pais ?? contexto.pais)).order('codigo');
-        if (error) throw new Error(`No pude leer los servicios: ${error.message}`);
-        return data ?? [];
+      case 'saber_servicios':
+        return this.serviciosGuardados(String(p.pais ?? contexto.pais), { servicio: lista(p.servicio), fase: p.fase ? String(p.fase) : null, metodo: p.metodo ? String(p.metodo) : null });
+      case 'saber_fases': {
+        const pais = String(p.pais ?? contexto.pais);
+        const { data, error } = await this.supabase.admin.from('agente_fases').select('codigo, metodo_entrega, nombre, recorrido, descripcion').eq('codigo', String(p.fase));
+        if (error) throw new Error(`No pude leer las fases: ${error.message}`);
+        return { fase: (data ?? [])[0] ?? null, pais, servicios: await this.serviciosGuardados(pais, { servicio: [], fase: String(p.fase), metodo: null }) };
       }
       default:
         return this.consultar(usuario, paso, hechos, contexto);
     }
+  }
+
+  /**
+   * Los servicios guardados, con lo aprendido (origen de stock, descripción,
+   * quién lo enseñó) si ya existen esas columnas (agente-v3/sql/02); si no, sin ello.
+   */
+  async serviciosGuardados(pais: string, f: { servicio: string[]; fase: string | null; metodo: string | null }): Promise<Array<Record<string, unknown>>> {
+    const leer = (campos: string) => {
+      let q = this.supabase.admin.from('agente_servicios').select(campos).eq('pais', pais);
+      if (f.servicio.length) q = q.in('codigo', f.servicio);
+      if (f.fase) q = q.eq('fase', f.fase);
+      if (f.metodo) q = q.eq('metodo_entrega', f.metodo);
+      return q.order('codigo');
+    };
+    const base = 'pais, codigo, nombre, metodo_entrega, fase, fuente';
+    let { data, error } = await leer(`${base}, origen, descripcion, ensenado_por, ensenado_en`);
+    if (error && /column|does not exist|42703/i.test(`${error.code ?? ''} ${error.message}`)) ({ data, error } = await leer(base));
+    if (error) throw new Error(`No pude leer los servicios: ${error.message}`);
+    return (data ?? []) as unknown as Array<Record<string, unknown>>;
   }
 
   /** 1b: una consulta del catálogo, validada con el DTO de su ruta y partida en tandas si hace falta */
@@ -208,6 +270,14 @@ export class EjecucionV3Service {
   }
 
   private llamar(usuario: UsuarioAutenticado, id: string, dto: object): Promise<unknown> {
+    // Un CAMBIO de la v3 es solo una vista previa: la petición entera pasa a
+    // simulacro (no tiene vuelta atrás) y, si por lo que sea no lo está, no se
+    // llama. Así lo que escribiría se queda en el cliente de Ripley.
+    if (herramienta(id)?.edicion) {
+      this.auditoria.activarSimulacro();
+      if (!this.auditoria.enSimulacro()) return Promise.reject(new Error('no pude poner la petición en simulacro: no enseño el cambio para no aplicarlo'));
+      return this.vistaPrevia(usuario, id, dto);
+    }
     switch (id) {
       case 'consultar_capacidad': return this.capacidad.consultar(dto as never);
       case 'consultar_reporte_cds': return this.reporte.consultar(usuario, dto as never);
@@ -216,6 +286,20 @@ export class EjecucionV3Service {
       case 'busqueda_masiva': return this.masivo.buscar(usuario, dto as never);
       case 'simular_entrega': return this.simulacion.simular(usuario, dto as never);
       default: throw new Error(`La v3 no sabe usar «${id}»`);
+    }
+  }
+
+  /** Los cambios, siempre en simulacro (ver `llamar`) */
+  private vistaPrevia(usuario: UsuarioAutenticado, id: string, dto: object): Promise<unknown> {
+    switch (id) {
+      case 'editar_capacidad': return this.editarCapacidad.editarCapacidad(usuario, dto as never);
+      case 'editar_capacidad_transferencia': return this.editarCapacidad.editarTransferencia(usuario, dto as never);
+      case 'cortar_reabrir_cd': return this.editarCd.editar(usuario, dto as never);
+      case 'reasignar_capacidad': return this.reasignar.reasignar(usuario, dto as never);
+      case 'editar_servicio_opl': return this.editarTipoServicio.editar(usuario, dto as never);
+      case 'editar_masivo': return this.editarMasivo.editar(usuario, dto as never);
+      case 'editar_transferencia': return this.editarTransferencia.editar(usuario, dto as never);
+      default: return Promise.reject(new Error(`La v3 no sabe usar «${id}»`));
     }
   }
 }

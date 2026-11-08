@@ -33,10 +33,15 @@ export function fechaIso(v: unknown, hoy: string): string | null {
   return null;
 }
 
-/** Los códigos que se pueden usar: los del mensaje, los de las aclaraciones y la fuente por defecto */
+/**
+ * Los códigos que se pueden usar: los del mensaje, los de las aclaraciones y
+ * el origen de stock guardado de los servicios del país (lo aprendido: "la SG
+ * sale siempre del 20096"). La fuente por defecto se mira aparte.
+ */
 export function codigosPermitidos(contexto: ContextoTurno, mensaje: string): Set<string> {
   const del = (t: string) => [...t.matchAll(/\b(\d{3,6})\b/g)].map((m) => m[1]);
-  return new Set([...codigosDichos(contexto.entidades), ...del(mensaje), ...contexto.aclaraciones.flatMap(del)]);
+  const origenes = contexto.servicios.map((s) => s.origen).filter((o): o is string => Boolean(o));
+  return new Set([...codigosDichos(contexto.entidades), ...del(mensaje), ...contexto.aclaraciones.flatMap(del), ...origenes]);
 }
 
 type Valor = { ok: true; v: unknown } | { ok: false; motivo: string };
@@ -116,7 +121,12 @@ function condicionDe(c: unknown, conCuantos: boolean): { ok: true; v: Record<str
   return { ok: true, v };
 }
 
-export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string): Lectura<PlanLeido> {
+/**
+ * `cambio`: la persona pidió un CAMBIO. Solo entonces valen las herramientas
+ * de edición (se ejecutan en simulacro: la vista previa), y el plan trae una
+ * y solo una; sin cambio, una edición no vale.
+ */
+export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false): Lectura<PlanLeido> {
   const j = primerJson(texto);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
   const faltan = Array.isArray(j.faltan) ? j.faltan.map((f) => String(f).trim()).filter(Boolean).slice(0, 3) : [];
@@ -131,6 +141,8 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     const x = (crudo ?? {}) as Record<string, unknown>;
     const h = herramienta(String(x.herramienta ?? ''));
     if (!h) return { ok: false, motivo: `paso ${n}: herramienta que no existe (${JSON.stringify(x.herramienta)})` };
+    if (h.edicion && !cambio) return { ok: false, motivo: `paso ${n}: ${h.id} es un cambio, y no se pidió ningún cambio` };
+    if (h.edicion && pasos.some((p) => herramienta(p.herramienta)?.edicion)) return { ok: false, motivo: `paso ${n}: un solo cambio por mensaje` };
     const param = (x.param && typeof x.param === 'object' ? x.param : {}) as Record<string, unknown>;
     const limpio: Record<string, unknown> = {};
 
@@ -158,6 +170,7 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     pasos.push({ herramienta: h.id, param: limpio, ...(cond.v ? { condicion: cond.v as never } : {}), ...(comp.v ? { comprobar: comp.v as never } : {}) });
   }
 
+  if (cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion)) return { ok: false, motivo: 'se pidió un cambio y el plan no trae ninguno' };
   const ver = typeof j.ver === 'string' && VER.has(j.ver) ? j.ver : null;
-  return { ok: true, valor: { plan: { origen: 'armar', pasos, ver }, faltan } };
+  return { ok: true, valor: { plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver }, faltan } };
 }

@@ -78,15 +78,17 @@ function armar({ ejecucion = SIMULACION_SE, interrumpida = false } = {}) {
     obtener: vi.fn(async (id: string) => structuredClone(filas.get(id)!)),
     actualizar: vi.fn(async (id: string, c: Partial<Turno>) => { filas.set(id, { ...filas.get(id)!, ...structuredClone(c) }); }),
   };
-  const contexto = { comprobarChat: vi.fn(async () => undefined), armar: vi.fn(async () => structuredClone(CTX)) };
+  // Pasar a otro país: el doble cambia el país y avisa (el de verdad, además, vuelve a mirar sus servicios y nombres)
+  const cambiarPais = vi.fn(async (c: ContextoTurno, _m: string, pais: 'PE' | 'CL', motivo: string) => ({ ...c, pais, motivo_pais: motivo, avisos: [...(c.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`] }));
+  const contexto = { comprobarChat: vi.fn(async () => undefined), armar: vi.fn(async () => structuredClone(CTX)), cambiarPais };
   const rpc = vi.fn(async (_funcion: string, _args: { p: Record<string, unknown> }) => ({ data: 'mensaje-1', error: null }));
   const supabase = { admin: { rpc } };
   const porNombre = vi.fn(async (nombre: string) => ({ id: 'a1', nombre }));
   const ejecutar = vi.fn(async () => structuredClone(ejecucion));
-  const ejec = new EjecucionV3Service(supabase as never, { porNombre } as never, { ejecutar } as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const ejec = new EjecucionV3Service(supabase as never, { porNombre } as never, { ejecutar } as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   const interrupcion = { registrar: vi.fn(), estaInterrumpida: vi.fn(() => interrumpida) };
-  const servicio = new AgenteV3Service(turnos as never, contexto as never, ejec, interrupcion as never, supabase as never);
-  return { servicio, filas, turnos, rpc, porNombre, ejecutar, interrupcion };
+  const servicio = new AgenteV3Service(turnos as never, contexto as never, ejec, interrupcion as never, supabase as never, {} as never);
+  return { servicio, filas, turnos, rpc, porNombre, ejecutar, interrupcion, cambiarPais };
 }
 
 const clasif = (o: Record<string, unknown>) => JSON.stringify({ depende_del_anterior: false, atajo: '(ninguno)', motivo: '', ...o });
@@ -139,12 +141,23 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
     expect(filas.get(t.turno_id)!.modelos).toEqual([expect.objectContaining({ ok: false, motivo: 'no devolvió un JSON' })]);
   });
 
-  it('un atajo de Chile en un chat de Perú (sin que el mensaje diga Chile) no vale', async () => {
-    const { servicio, filas } = armar();
+  it('un atajo de Chile en un chat de Perú (sin que el mensaje diga Perú): el turno pasa a Chile y lo avisa', async () => {
+    const { servicio, filas, cambiarPais } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'dame el picking de las tiendas RT', chat_id: 'c' });
     const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    expect(c.camino).toBe('ejecutar');
+    expect(cambiarPais).toHaveBeenCalledWith(expect.anything(), 'dame el picking de las tiendas RT', 'CL', 'el atajo «Tiendas RT chile» es de Chile');
+    expect(filas.get(t.turno_id)!.contexto!.pais).toBe('CL');
+    const r = await servicio.ejecutar(USUARIO, t.turno_id);
+    expect(r.respuesta!.avisos).toContain('Paso a Chile: el atajo «Tiendas RT chile» es de Chile.');
+  });
+
+  it('…pero si el mensaje DICE Perú, el atajo de Chile no vale: otro modelo', async () => {
+    const { servicio, filas } = armar();
+    const t = await servicio.crear(USUARIO, { mensaje: 'dame el picking de las tiendas RT de peru', chat_id: 'c' });
+    const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
     expect(c.camino).toBe('clasificar');
-    expect(filas.get(t.turno_id)!.modelos[0].motivo).toBe('«Tiendas RT chile» es de Chile y el chat está en Perú');
+    expect(filas.get(t.turno_id)!.modelos[0]).toMatchObject({ motivo: '«Tiendas RT chile» es de Chile y el mensaje dice Perú', clase: 'respuesta' });
   });
 
   it('sin ningún modelo que responda: un mensaje que nombra UN atajo se ejecuta igual', async () => {
@@ -165,7 +178,8 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
       r = await servicio.clasificacion(USUARIO, t.turno_id, { error: '429 RESOURCE_EXHAUSTED', modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre } });
     }
     expect(r.camino).toBe('responder');
-    expect(r.respuesta!.frase).toMatch(/^No pude entender el mensaje: los modelos no respondieron/);
+    // La causa real: la cuota gratis del día
+    expect(r.respuesta!.frase).toBe('No pude entender el mensaje: se acabó la cuota gratis de los modelos por hoy (429): vuelve a intentarlo más tarde.');
   });
 });
 

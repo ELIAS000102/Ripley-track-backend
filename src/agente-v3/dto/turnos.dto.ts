@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
-import { CUENTAS, LIMITES, MODELOS } from '../constantes.js';
+import { CUENTAS, LIMITES, TODOS_LOS_MODELOS } from '../constantes.js';
 
 /** POST /agente/v3/turnos — lo que manda n8n al recibir un mensaje del chat */
 export class CrearTurnoDto {
@@ -39,7 +39,7 @@ export class ModeloUsadoDto {
   @Max(CUENTAS.length)
   cuenta: number;
 
-  @IsIn(MODELOS as unknown as string[])
+  @IsIn(TODOS_LOS_MODELOS as unknown as string[])
   nombre: string;
 }
 

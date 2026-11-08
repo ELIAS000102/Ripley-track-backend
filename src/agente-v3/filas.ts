@@ -6,7 +6,7 @@
  * otro. Sin IA: las cifras salen de los datos y de nada más.
  */
 
-export type Clase = 'capacidad' | 'masiva' | 'servicio_opl' | 'transferencia' | 'simulacion' | 'reporte';
+export type Clase = 'capacidad' | 'masiva' | 'servicio_opl' | 'transferencia' | 'simulacion' | 'reporte' | 'entidad' | 'servicio';
 
 export interface Fila {
   clase: Clase;
@@ -33,6 +33,11 @@ export interface Fila {
   calculo?: string;
   holgura?: number | null;
   jornada?: string;
+  /** Lo guardado (directorio y servicios): tienda, almacén, CD u OPL; la fase y el método */
+  tipo?: string;
+  fase?: string | null;
+  metodo?: string | null;
+  pais?: string;
 }
 
 export interface Condicion {
@@ -66,7 +71,7 @@ export function isoDe(fecha: string, hoy: string): string {
 }
 
 const CLASE_DEL_BLOQUE: Record<string, Clase> = { picking: 'capacidad', despacho: 'capacidad', recepcion: 'capacidad', masivo: 'masiva', opl: 'servicio_opl', transferencia: 'transferencia', simulacion: 'simulacion' };
-const CLASE_DE: Record<string, Clase> = { consultar_capacidad: 'capacidad', busqueda_masiva: 'masiva', consultar_servicios_opl: 'servicio_opl', consultar_transferencia: 'transferencia', simular_entrega: 'simulacion', consultar_reporte_cds: 'reporte' };
+const CLASE_DE: Record<string, Clase> = { consultar_capacidad: 'capacidad', busqueda_masiva: 'masiva', consultar_servicios_opl: 'servicio_opl', consultar_transferencia: 'transferencia', simular_entrega: 'simulacion', consultar_reporte_cds: 'reporte', saber_entidades: 'entidad', saber_servicios: 'servicio', saber_fases: 'servicio' };
 
 /** Las filas de lo que devolvió una herramienta (un atajo: las de cada bloque, según su tipo) */
 export function filasDe(herramienta: string, datos: unknown, hoy = ''): Fila[] {
@@ -75,6 +80,9 @@ export function filasDe(herramienta: string, datos: unknown, hoy = ''): Fila[] {
       b.items.filter((i) => i.resultado).flatMap((i) => filasDeClase(CLASE_DEL_BLOQUE[b.tipo], i.resultado, hoy)),
     );
   }
+  // Lo guardado: una lista de filas (la fase, sus servicios)
+  if (herramienta === 'saber_fases') return filasDeClase('servicio', (datos as Datos)?.servicios ?? [], hoy);
+  if (herramienta === 'saber_entidades' || herramienta === 'saber_servicios') return filasDeClase(CLASE_DE[herramienta], datos, hoy);
   // La v2 guardaba los datos por tandas (una lista de respuestas)
   if (Array.isArray(datos)) return datos.flatMap((d) => filasDe(herramienta, d, hoy));
   return filasDeClase(CLASE_DE[herramienta], datos, hoy);
@@ -114,6 +122,14 @@ function filasDeClase(clase: Clase | undefined, datos: unknown, hoy: string): Fi
         c.jornadas.flatMap((j) => j.dias.map((x, i) => ({ clase, codigo: partirOficina(c.cd).codigo, nombre: c.nombre, jornada: j.jornada, servicio: j.jornada, fecha: fechas[i], asignado: x[0], ocupado: x[1], disponible: x[2], uso: x[3], activa: x[4] === 1 }))),
       );
     }
+    case 'entidad':
+      return arr<{ codigo: string; nombre: string | null; tipo: string; es_cd: boolean; pais: string }>(datos).map((e) => ({
+        clase, codigo: e.codigo, nombre: String(e.nombre ?? '').replace(/^ripley\s+/i, ''), tipo: e.es_cd ? 'CD' : e.tipo, pais: e.pais,
+      }));
+    case 'servicio':
+      return arr<{ codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null; origen?: string | null; pais?: string }>(datos).map((s) => ({
+        clase, codigo: s.codigo, nombre: s.nombre ?? '', servicio: s.codigo, metodo: s.metodo_entrega, fase: s.fase, origen: s.origen ?? undefined, pais: s.pais,
+      }));
     default:
       return [];
   }

@@ -128,6 +128,9 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
     EditarTipoServicioAgenteService,
     EditarMasivoAgenteService,
     EditarTransferenciaAgenteService,
+    // La v3 los usa para la vista previa de un cambio (siempre en simulacro)
+    EditarCdAgenteService,
+    ReasignarCapacidadAgenteService,
   ],
 })
 export class AgenteModule {}
