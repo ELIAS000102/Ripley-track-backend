@@ -34,7 +34,7 @@ function editarMasivo(dto: { servicio: string; opls?: string; activo?: boolean }
   return { servicio: dto.servicio, opls: dto.opls, cambiadas, resumen: { encontradas: agendas.length, alcanzadas: agendas.length, cambiadas: cambiadas.length, sinCambiar: agendas.length - cambiadas.length } };
 }
 
-function armar() {
+function armar(editar: (dto: { servicio: string; opls?: string; activo?: boolean; maximo?: number }) => unknown = editarMasivo) {
   const filas = new Map<string, Turno>();
   const turnos = {
     crear: vi.fn(async (d: Partial<Turno>) => {
@@ -50,7 +50,7 @@ function armar() {
   const masivo = { buscar: vi.fn(async (_u: unknown, dto: { servicio: string }) => structuredClone(MASIVA[dto.servicio])) };
   let simulacro = false;
   const auditoria = { activarSimulacro: vi.fn(() => { simulacro = true; }), enSimulacro: vi.fn(() => simulacro) };
-  const edicion = { editar: vi.fn(async (_u: unknown, dto: { servicio: string; opls?: string; activo?: boolean }) => { expect(simulacro).toBe(true); return editarMasivo(dto); }) };
+  const edicion = { editar: vi.fn(async (_u: unknown, dto: { servicio: string; opls?: string; activo?: boolean; maximo?: number }) => { expect(simulacro).toBe(true); return editar(dto); }) };
   const ejecucion = new EjecucionV3Service(supabase as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, masivo as never, {} as never,
     auditoria as never, {} as never, {} as never, {} as never, {} as never, edicion as never, {} as never);
   const servicio = new AgenteV3Service(turnos as never, ctxServ as never, ejecucion, { registrar: vi.fn(), estaInterrumpida: () => false } as never, supabase as never, {} as never);
@@ -104,5 +104,43 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
     const malo = { pasos: [PLAN.pasos[0], { herramienta: 'editar_masivo', param: { servicio: 'ST', opls: { ref: 'paso', n: 1, sin: 2 }, activo: true } }] };
     expect(leerPlan(JSON.stringify(malo), CTX, MENSAJE, true)).toMatchObject({ ok: false, motivo: 'paso 2 (editar_masivo): opls: "sin" tiene que ser otro paso anterior ({"ref":"paso","n":1,"sin":2})' });
     expect(leerPlan(JSON.stringify(PLAN), CTX, MENSAJE, true)).toMatchObject({ ok: true, valor: { plan: { origen: 'cambio' } } });
+  });
+});
+
+describe('La vista previa de la edición masiva, sin el tope de 30', () => {
+  const unPaso = (servicio: string, activo: boolean) => JSON.stringify({ pasos: [{ herramienta: 'editar_masivo', param: { servicio, activo } }] });
+  async function hasta(servicio: AgenteV3Service, plan: string) {
+    const t = await servicio.crear(USUARIO, { mensaje: 'desactiva la ST', chat_id: 'c' });
+    const a = await servicio.clasificacion(USUARIO, t.turno_id, { salida: JSON.stringify({ tipo: 'cambio', depende_del_anterior: false, atajo: '(ninguno)', motivo: '' }), modelo: M });
+    await servicio.armado(USUARIO, t.turno_id, { salida: plan, modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
+    let r = await servicio.ejecutar(USUARIO, t.turno_id);
+    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    return r;
+  }
+
+  it('32 agendas: la v2 se negaría (máximo 30); la vista previa las enseña todas', async () => {
+    const muchas = Array.from({ length: 32 }, (_, i) => agenda(String(20100 + i), `Tienda ${i}`, true));
+    const { servicio, edicion } = armar((dto) => {
+      // Lo que hace la edición masiva de la v2 con su tope
+      if ((dto.maximo ?? 30) < muchas.length) throw new Error(`La búsqueda alcanza ${muchas.length} agendas y el máximo por vez es 30.`);
+      return { servicio: dto.servicio, opls: 'todos', cambiadas: muchas.map((a) => ({ opl: a.opl, agenda: a.agenda, zona: a.zona, antes: { activo: true, enCheckout: true }, despues: { activo: false, enCheckout: true } })), resumen: { encontradas: 32, alcanzadas: 32, cambiadas: 32, sinCambiar: 0 } };
+    });
+    const r = await hasta(servicio, unPaso('ST', false));
+    expect(edicion.editar).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ maximo: Number.MAX_SAFE_INTEGER }));
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 32 de 32\. No apliqué nada/);
+  });
+
+  it('"ya estaban así" no es un error: no cambiaría nada', async () => {
+    const { servicio } = armar(() => { throw new Error('Las 21 agendas ya estaban así. No he cambiado nada.'); });
+    const r = await hasta(servicio, unPaso('ST', true));
+    expect(r.respuesta!.pasos[0].estado).toBe('vacio');
+    expect(r.respuesta!.frase).toBe('No cambiaría nada: las 21 agendas ya están así. No apliqué nada: es solo una vista previa. Para aplicarlo, pídeselo al agente v2 con el modo editor.');
+  });
+
+  it('el prompt dice cómo es "las de la ST que coinciden con las de la SE"', async () => {
+    const { servicio } = armar();
+    const t = await servicio.crear(USUARIO, { mensaje: MENSAJE, chat_id: 'c' });
+    const a = await servicio.clasificacion(USUARIO, t.turno_id, { salida: JSON.stringify({ tipo: 'cambio', depende_del_anterior: false, atajo: '(ninguno)', motivo: '' }), modelo: M });
+    expect(a.prompt!.sistema).toContain('"Las de la ST que coinciden con las de la SE" es editar_masivo de la ST con opls = las de la SE');
   });
 });

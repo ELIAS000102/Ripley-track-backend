@@ -339,9 +339,30 @@ export class EjecucionV3Service {
       case 'cortar_reabrir_cd': return this.editarCd.editar(usuario, dto as never);
       case 'reasignar_capacidad': return this.reasignar.reasignar(usuario, dto as never);
       case 'editar_servicio_opl': return this.editarTipoServicio.editar(usuario, dto as never);
-      case 'editar_masivo': return this.editarMasivo.editar(usuario, dto as never);
+      case 'editar_masivo': return this.masivoSinTope(usuario, dto as Record<string, unknown>);
       case 'editar_transferencia': return this.editarTransferencia.editar(usuario, dto as never);
       default: return Promise.reject(new Error(`La v3 no sabe usar «${id}»`));
+    }
+  }
+
+  /**
+   * La edición masiva de la v2 se niega a pasar de 30 agendas: es lo que una
+   * persona puede revisar antes de decir que sí a un cambio REAL, y en la v2
+   * sigue igual. La vista previa de la v3 no escribe nada (va en simulacro),
+   * así que aquí no hay tope (decisión del usuario, 2026-11-08). Y "ya
+   * estaban así" no es un error: es que no cambiaría nada.
+   */
+  private async masivoSinTope(usuario: UsuarioAutenticado, dto: Record<string, unknown>): Promise<unknown> {
+    if (!this.auditoria.enSimulacro()) throw new Error('la vista previa sin tope solo va en simulacro');
+    dto.maximo = Number.MAX_SAFE_INTEGER;
+    try {
+      return await this.editarMasivo.editar(usuario, dto as never);
+    } catch (e) {
+      const m = (e as Error).message ?? '';
+      const iguales = /^Las (\d+) agendas ya estaban así/.exec(m);
+      if (iguales) return { servicio: dto.servicio, opls: dto.opls ?? 'todos', cambiadas: [], resumen: { alcanzadas: Number(iguales[1]), cambiadas: 0, sinCambiar: Number(iguales[1]) }, yaEstaban: Number(iguales[1]) };
+      if (/no alcanzó ninguna agenda/.test(m)) return { servicio: dto.servicio, opls: dto.opls ?? 'todos', cambiadas: [], resumen: { alcanzadas: 0, cambiadas: 0, sinCambiar: 0 }, yaEstaban: 0 };
+      throw e;
     }
   }
 }

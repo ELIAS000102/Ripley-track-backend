@@ -119,6 +119,9 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
   const cambian = filas.filter(cambiaria);
   const errores = filas.filter((f) => f.error);
   const iguales = filas.length - cambian.length - errores.length;
+  // La edición masiva dice cuántas ya estaban así (no cambiaría ninguna)
+  const yaEstaban = (datos as { yaEstaban?: number } | null)?.yaEstaban;
+  if (!filas.length && yaEstaban) return { estado: 'vacio', resumen: `No cambiaría nada: ${yaEstaban === 1 ? 'la agenda ya está así' : `las ${yaEstaban} agendas ya están así`}. ${NO_APLICADO}` };
   if (!filas.length) return { estado: 'vacio', resumen: `No encontré nada a lo que aplicar el cambio. ${NO_APLICADO}` };
   // Las notas del paso ("agenda: …; sin ella: 1007, 1021") dicen a qué se aplicaría: van en la frase
   const notas = ((datos as { notas?: unknown[] } | null)?.notas ?? []).map(String).filter((x) => x.trim());
