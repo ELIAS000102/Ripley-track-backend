@@ -286,7 +286,7 @@ export class EjecucionV3Service {
     }
     let datos: Record<string, unknown> = juntar(partes);
     // Las que eligió Armar, por su nombre exacto (sin él, por la parte que se dijo)
-    if (nombres) { despues.agenda = undefined; despues.exactas = nombres; }
+    if (nombres && h.id === 'consultar_capacidad') { despues.agenda = undefined; despues.exactas = nombres; }
 
     if (despues.servicios || despues.agenda || despues.exactas) {
       datos = {

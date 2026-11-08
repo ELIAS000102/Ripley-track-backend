@@ -340,6 +340,12 @@ describe('Agendas: el modelo las empareja, el código las comprueba', () => {
     expect(editarCapacidad.editarCapacidad).toHaveBeenCalledTimes(1);
     expect(editarCapacidad.editarCapacidad).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ codigo: '1100', zona: 'Centralizado HUB San Luis', agenda: 'Centralizado HUB San Luis', fecha: '2026-11-12', activa: false }));
     expect((r.respuesta!.resultados[0].datos as { notas: string[] }).notas).toEqual(['agenda: Centralizado HUB San Luis; sin ella: 1007, 1008']);
+    // (El doble de la edición contesta siempre EDICION.) A qué se aplicaría, en la frase; el día como en el panel
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiaría 1 de 2 \(agenda: Centralizado HUB San Luis; sin ella: 1007, 1008\); 1 ya estaba así\. No apliqué nada/);
+    expect(r.respuesta!.markdown).toContain('| 1100 · Lima metropolitana · Centralizado HUB Surquillo | 08/11 |');
+    // La zona no se repite si se llama como la agenda
+    expect(filasDelCambio('editar_capacidad', { oficinas: [{ oficina: '1100', agendas: [{ agenda: 'Centralizado HUB San Luis', zona: 'Centralizado HUB San Luis', dias: [{ fecha: MANANA, antes: null, despues: null }] }, { agenda: 'Agenda 1007', zona: 'Zona 1007', dias: [{ fecha: MANANA, antes: null, despues: null }] }] }] }).map((f) => f.donde))
+      .toEqual(['1100 · Centralizado HUB San Luis', '1100 · Agenda 1007 (Zona 1007)']);
   });
 
   it('sin nada que la conozca: el backend busca las agendas de esas oficinas (solo leer) y Armar vuelve a elegir, viéndolas', async () => {

@@ -17,6 +17,14 @@ export interface FilaCambio {
 
 /** "1100 - Lima metropolitana" → "1100 · Lima metropolitana" */
 const oficina = (s: unknown) => { const o = partirOficina(s); return o.nombre && o.nombre !== o.codigo ? `${o.codigo} · ${o.nombre}` : o.codigo; };
+/** "Agenda (Zona)", y la zona solo si se llama distinto (en despacho suelen ser el mismo nombre) */
+const conZona = (agenda: unknown, zona: unknown) => {
+  const a = String(agenda ?? '').trim();
+  const z = String(zona ?? '').trim();
+  return z && z.toLowerCase() !== a.toLowerCase() ? `${a} (${z})` : a;
+};
+/** "2026-11-12" → "12/11" */
+const ddmm = (f: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f ?? '')); return m ? `${m[3]}/${m[2]}` : String(f ?? ''); };
 const si = (b: boolean | null | undefined, s: string, n: string) => (b === null || b === undefined ? '—' : b ? s : n);
 type R = Record<string, unknown>;
 const arr = (v: unknown): R[] => (Array.isArray(v) ? (v as R[]) : []);
@@ -51,7 +59,7 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
         : arr(o.agendas).flatMap((a) => (a.error && !arr(a.dias).length
           ? [{ donde: `${oficina(o.oficina)} · ${String(a.agenda)}`, dia: '', antes: '—', despues: '—', error: String(a.error) }]
           : arr(a.dias).map((x) => ({
-            donde: `${oficina(o.oficina)} · ${String(a.agenda)}${a.zona ? ` (${String(a.zona)})` : ''}`,
+            donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`,
             dia: String(x.fecha),
             antes: estadoDia(x.antes as R | null),
             despues: estadoDia(x.despues as R | null),
@@ -74,7 +82,7 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
       }));
     case 'editar_servicio_opl':
       return arr(d.servicios).map((s) => ({
-        donde: `${oficina(s.opl)} · ${String(s.agenda)}${s.zona ? ` (${String(s.zona)})` : ''} · ${String(s.servicio)}`,
+        donde: `${oficina(s.opl)} · ${conZona(s.agenda, s.zona)} · ${String(s.servicio)}`,
         dia: '',
         antes: estadoServicio(s.antes as R | null),
         despues: estadoServicio(s.despues as R | null),
@@ -82,7 +90,7 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
       }));
     case 'editar_masivo':
       return arr(d.cambiadas).map((c) => ({
-        donde: `${oficina(c.opl)} · ${String(c.agenda)}${c.zona ? ` (${String(c.zona)})` : ''}`,
+        donde: `${oficina(c.opl)} · ${conZona(c.agenda, c.zona)}`,
         dia: '',
         antes: estadoServicio(c.antes as R),
         despues: estadoServicio(c.despues as R),
@@ -111,8 +119,11 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
   const errores = filas.filter((f) => f.error);
   const iguales = filas.length - cambian.length - errores.length;
   if (!filas.length) return { estado: 'vacio', resumen: `No encontré nada a lo que aplicar el cambio. ${NO_APLICADO}` };
+  // Las notas del paso ("agenda: …; sin ella: 1007, 1021") dicen a qué se aplicaría: van en la frase
+  const notas = ((datos as { notas?: unknown[] } | null)?.notas ?? []).map(String).filter((x) => x.trim());
+  const aQue = notas.length ? ` (${notas.join('; ')})` : '';
   const partes = [
-    cambian.length ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}` : `No cambiaría nada: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
+    cambian.length ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}${aQue}` : `No cambiaría nada${aQue}: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
     iguales && cambian.length ? `${iguales} ya ${iguales === 1 ? 'estaba' : 'estaban'} así` : null,
     errores.length ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${[...new Set(errores.map((e) => e.error))].slice(0, 2).join('; ')})` : null,
   ].filter(Boolean);
@@ -126,6 +137,6 @@ export function markdownCambio(herramienta: string, datos: unknown): string {
   if (!filas.length) return '';
   const conDia = filas.some((f) => f.dia);
   const cab = ['Dónde', ...(conDia ? ['Día'] : []), 'Ahora', 'Quedaría'];
-  const fila = (f: FilaCambio) => [f.donde, ...(conDia ? [f.dia] : []), f.antes, f.error ? `no se puede: ${f.error}` : f.despues === f.antes ? 'igual' : f.despues];
+  const fila = (f: FilaCambio) => [f.donde, ...(conDia ? [ddmm(f.dia)] : []), f.antes, f.error ? `no se puede: ${f.error}` : f.despues === f.antes ? 'igual' : f.despues];
   return [`| ${cab.join(' | ')} |`, `| ${cab.map(() => '---').join(' | ')} |`, ...filas.slice(0, 60).map((f) => `| ${fila(f).map(celda).join(' | ')} |`), ...(filas.length > 60 ? [`\n…y ${filas.length - 60} más`] : [])].join('\n');
 }
