@@ -25,6 +25,11 @@ const CTX: ContextoTurno = {
     { nombre: 'Tiendas RT chile', descripcion: 'picking RT de chile', tipos: ['picking'], pais: 'CL' },
   ],
   anterior: null,
+  entidades: [],
+  servicios: [],
+  aclaraciones: [],
+  pregunta: null,
+  rondas: 0,
 };
 
 const SIMULACION_SE: Ejecucion = {
@@ -78,7 +83,7 @@ function armar({ ejecucion = SIMULACION_SE, interrumpida = false } = {}) {
   const supabase = { admin: { rpc } };
   const porNombre = vi.fn(async (nombre: string) => ({ id: 'a1', nombre }));
   const ejecutar = vi.fn(async () => structuredClone(ejecucion));
-  const ejec = new EjecucionV3Service(supabase as never, { porNombre } as never, { ejecutar } as never);
+  const ejec = new EjecucionV3Service(supabase as never, { porNombre } as never, { ejecutar } as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   const interrupcion = { registrar: vi.fn(), estaInterrumpida: vi.fn(() => interrumpida) };
   const servicio = new AgenteV3Service(turnos as never, contexto as never, ejec, interrupcion as never, supabase as never);
   return { servicio, filas, turnos, rpc, porNombre, ejecutar, interrupcion };
@@ -164,13 +169,14 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
   });
 });
 
-describe('Lo que todavía no hace la v3, y Detener', () => {
-  it('una consulta a mano: responde que llega en la parte 1b, y no ejecuta nada', async () => {
+describe('Las consultas van a Armar, y Detener', () => {
+  it('una consulta a mano: va a Armar, con su prompt y su modelo', async () => {
     const { servicio, ejecutar } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'dame el despacho de la 1401', chat_id: 'c' });
     const r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'consulta' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
-    expect(r.camino).toBe('responder');
-    expect(r.respuesta!.frase).toContain('1b');
+    expect(r.camino).toBe('armar');
+    expect(r.modelo?.rol).toBe('armar');
+    expect(r.prompt?.sistema).toContain('CATÁLOGO DE HERRAMIENTAS');
     expect(ejecutar).not.toHaveBeenCalled();
   });
 

@@ -23,12 +23,14 @@ Devuelve:
   · "calculo": se contesta con lo que YA TRAJO el mensaje anterior, sin consultar: sumar, contar, el máximo, un porcentaje, filtrar ("solo las inactivas", "y los activos"), explicar o detallar una fila, enseñarlo "en un cuadro" o resumido. También si nombra un código que ya está en lo que trajo el anterior.
   · "saber": lo que el agente tiene guardado (qué tiendas, OPL o CDs conoce, qué atajos hay, qué es un servicio).
   · "repetir": volver a hacer lo del anterior ("vuelve a intentarlo", "simula de nuevo", "vuelve a consultar").
+  · "charla": no pide datos: un saludo, un gracias, una despedida, "¿qué puedes hacer?", un comentario. Contéstale en "respuesta".
 - depende_del_anterior: true SOLO si sin el mensaje anterior no se sabe qué se pide ("su transferencia", "de esos", "la suma de los tres centralizados", "en un cuadro", "explícame cómo es"). Un mensaje que dice todo lo que pide NO depende, aunque hable de lo mismo que el anterior: "simula la SE", "dame los opls de la ST", "dame el despacho de la 1403" se entienden solos.
 - atajo: el atajo que se ejecuta (también el primero de una consulta encadenada), con su nombre exacto de la lista; "${SIN_ATAJO}" si no hay. Si el mensaje usa lo que YA TRAJO el anterior ("su transferencia" después de un atajo), ese atajo no se vuelve a ejecutar: "${SIN_ATAJO}". Solo atajos del país del chat, salvo que el mensaje nombre otro país.
 - motivo: una frase corta.
+- respuesta: SOLO en "charla": lo que le contestas a la persona, en una o dos frases, en español, de tú, cercano y breve. Sin cifras, códigos ni datos de la operación (esos salen de las consultas, nunca de ti). En los demás tipos, null.
 
 Responde SOLO con un JSON de una línea, sin texto alrededor:
-{"tipo": "...", "depende_del_anterior": true|false, "atajo": "...", "motivo": "..."}
+{"tipo": "...", "depende_del_anterior": true|false, "atajo": "...", "motivo": "...", "respuesta": null}
 
 VOCABULARIO DE LA OPERACIÓN
 ${VOCABULARIO.map((v) => `- ${v}`).join('\n')}`;

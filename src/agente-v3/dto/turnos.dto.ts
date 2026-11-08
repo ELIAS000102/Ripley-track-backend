@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CUENTAS, LIMITES, MODELOS } from '../constantes.js';
 
 /** POST /agente/v3/turnos — lo que manda n8n al recibir un mensaje del chat */
@@ -58,4 +58,28 @@ export class SalidaModeloDto {
   @ValidateNested()
   @Type(() => ModeloUsadoDto)
   modelo: ModeloUsadoDto;
+}
+
+/**
+ * Lo que contestó la persona a una pregunta (1d), tal como lo reenvía n8n al
+ * reanudar el Wait: una opción por duda, texto, o cancelar. "caducada": nadie
+ * contestó en 10 minutos.
+ */
+export class RespuestaPersonaDto {
+  @IsOptional()
+  @IsObject()
+  respuestas?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  texto?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  cancelar?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  caducada?: boolean;
 }

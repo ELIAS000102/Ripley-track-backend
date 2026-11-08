@@ -1,7 +1,8 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
-import type { AtajoDelContexto, ContextoTurno, MensajeAnterior, Pais, PasoPlan } from './interfaces/agente-v3.interface.js';
+import { mencionesDe, type EntidadDirectorio } from './entidades.js';
+import type { AtajoDelContexto, ContextoTurno, MensajeAnterior, Pais, PasoPlan, ResultadoAnterior } from './interfaces/agente-v3.interface.js';
 
 /**
  * Etapa 1 · Contexto: todo lo que se sabe del mensaje SIN la IA. Una sola
@@ -27,6 +28,17 @@ interface FilaMensaje {
   frase: string | null;
   plan: Record<string, unknown> | null;
   pais: Pais | null;
+  resultados: Array<Record<string, unknown>> | null;
+}
+
+/** Lo que trajo un mensaje guardado (v3: `datos`; v2: `datos` por tandas), sin las filas si ya no se guardan */
+export function resultadosGuardados(resultados: Array<Record<string, unknown>> | null): ResultadoAnterior[] {
+  return (resultados ?? []).map((r) => ({
+    herramienta: String(r.herramienta ?? ''),
+    titulo: String(r.descripcion ?? r.titulo ?? r.herramienta ?? ''),
+    datos: r.datos ?? null,
+    ...(Array.isArray(r.cumplen) ? { cumplen: (r.cumplen as unknown[]).map(String) } : {}),
+  })).filter((r) => r.herramienta);
 }
 
 /** El día de hoy en la zona del país */
@@ -62,6 +74,9 @@ export function planGuardado(plan: Record<string, unknown> | null): { version: 2
 export class ContextoV3Service {
   private readonly logger = new Logger(ContextoV3Service.name);
 
+  /** El directorio de los dos países, leído como mucho cada 5 minutos */
+  private directorio: { cuando: number; filas: EntidadDirectorio[] } | null = null;
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly atajos: AtajosService,
@@ -77,7 +92,7 @@ export class ContextoV3Service {
   }
 
   async armar(mensaje: string, chatId: string, usuarioId: string, respondeA: string | null): Promise<ContextoTurno> {
-    const [mensajes, atajos] = await Promise.all([this.mensajesDelChat(chatId, usuarioId, respondeA), this.atajosConPais()]);
+    const [mensajes, atajos, directorio] = await Promise.all([this.mensajesDelChat(chatId, usuarioId, respondeA), this.atajosConPais(), this.leerDirectorio()]);
     const ultimo = mensajes.ultimo;
     const elegido = mensajes.elegido;
     const fila = elegido ?? ultimo;
@@ -92,6 +107,7 @@ export class ContextoV3Service {
         frase: fila.frase,
         herramientas: pasos.map((p) => p.herramienta ?? '').filter(Boolean),
         plan: guardado.pasos ? { origen: 'repetir', pasos: guardado.pasos } : null,
+        resultados: resultadosGuardados(fila.resultados),
         version: guardado.version,
         elegido: Boolean(elegido),
       };
@@ -101,11 +117,34 @@ export class ContextoV3Service {
     const pais: Pais = dicho ?? ultimo?.pais ?? 'PE';
     const motivo_pais = dicho ? `el mensaje dice ${dicho === 'CL' ? 'Chile' : 'Perú'}` : ultimo?.pais ? 'el del último mensaje del chat' : 'un chat nuevo es de Perú';
 
-    return { hoy: hoyEn(pais), pais, motivo_pais, atajos, anterior };
+    const servicios = await this.serviciosDe(pais);
+    return {
+      hoy: hoyEn(pais), pais, motivo_pais, atajos, anterior,
+      entidades: mencionesDe(mensaje, directorio, pais),
+      servicios,
+      aclaraciones: [], pregunta: null, rondas: 0,
+    };
+  }
+
+  private async leerDirectorio(): Promise<EntidadDirectorio[]> {
+    if (this.directorio && Date.now() - this.directorio.cuando < 5 * 60000) return this.directorio.filas;
+    const { data, error } = await this.supabase.admin.from('agente_entidades').select('pais, codigo, tipo, es_cd, nombre, alias').limit(5000);
+    if (error) {
+      this.logger.warn(`No se pudo leer el directorio: ${error.message}`);
+      return this.directorio?.filas ?? [];
+    }
+    this.directorio = { cuando: Date.now(), filas: (data ?? []) as EntidadDirectorio[] };
+    return this.directorio.filas;
+  }
+
+  private async serviciosDe(pais: Pais): Promise<ContextoTurno['servicios']> {
+    const { data, error } = await this.supabase.admin.from('agente_servicios').select('codigo, nombre, metodo_entrega, fase').eq('pais', pais).order('codigo');
+    if (error) this.logger.warn(`No se pudieron leer los servicios: ${error.message}`);
+    return (data ?? []) as ContextoTurno['servicios'];
   }
 
   private async mensajesDelChat(chatId: string, usuarioId: string, respondeA: string | null) {
-    const campos = 'id, usuario_id, n, persona, frase, plan, pais';
+    const campos = 'id, usuario_id, n, persona, frase, plan, pais, resultados';
     const { data, error } = await this.supabase.admin
       .from('agente_mensajes')
       .select(campos)

@@ -47,5 +47,7 @@ export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clas
   if (tipo === 'atajo' && !atajo) return { ok: false, motivo: 'dijo "atajo" sin decir cuál' };
 
   const motivo = typeof j.motivo === 'string' ? j.motivo.slice(0, 300) : '';
-  return { ok: true, valor: { tipo, dep, atajo, motivo } };
+  // La respuesta de una charla se revisa al usarla (respuestaDeCharla): aquí solo se lee
+  const respuesta = tipo === 'charla' && typeof j.respuesta === 'string' && j.respuesta.trim() ? j.respuesta.trim().slice(0, 600) : null;
+  return { ok: true, valor: { tipo, dep, atajo, motivo, ...(tipo === 'charla' ? { respuesta } : {}) } };
 }

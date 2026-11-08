@@ -18,6 +18,11 @@ const CTX: ContextoTurno = {
   motivo_pais: 'un chat nuevo es de Perú',
   atajos: ATAJOS.map((nombre) => ({ nombre, descripcion: null, tipos: [], pais: /chile/i.test(nombre) ? 'CL' : 'PE' })),
   anterior: null,
+  entidades: [],
+  servicios: [],
+  aclaraciones: [],
+  pregunta: null,
+  rondas: 0,
 };
 
 describe('Qué modelo usa cada llamada', () => {
@@ -91,7 +96,7 @@ describe('Lo que devuelve Clasificar: se lee, no se arregla', () => {
   it('el prompt lleva el país del chat, cada atajo con el suyo, y el mensaje anterior', () => {
     const p = promptClasificar('simula la se', {
       ...CTX,
-      anterior: { id: 'm1', persona: 'dame los opls de la SE', frase: '«OPLS de la SE»: SE, las 11 agendas activas.', herramientas: ['ejecutar_atajo'], plan: null, version: 2, elegido: false },
+      anterior: { id: 'm1', persona: 'dame los opls de la SE', frase: '«OPLS de la SE»: SE, las 11 agendas activas.', herramientas: ['ejecutar_atajo'], plan: null, resultados: [], version: 2, elegido: false },
     });
     expect(p.mensaje).toContain('PAÍS DEL CHAT: Perú');
     expect(p.mensaje).toContain('«Tiendas RT chile» (sin bloques; Chile)');
@@ -109,13 +114,13 @@ describe('El plan que sale de la clasificación, sin otra llamada al modelo', ()
   });
 
   it('repetir: el plan del anterior; sin anterior o sin plan que repetir, se dice', () => {
-    const conPlan = { ...CTX, anterior: { id: 'm1', persona: 'simula la sd', frase: null, herramientas: ['ejecutar_atajo'], plan: { origen: 'repetir' as const, pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: 'Simulación SD' } }] }, version: 2 as const, elegido: false } };
+    const conPlan = { ...CTX, anterior: { id: 'm1', persona: 'simula la sd', frase: null, herramientas: ['ejecutar_atajo'], plan: { origen: 'repetir' as const, pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: 'Simulación SD' } }] }, resultados: [], version: 2 as const, elegido: false } };
     expect(planDe(c('repetir'), conPlan, 'simula de nuevo')).toMatchObject({ ok: true, plan: { origen: 'repetir', pasos: [{ param: { nombre: 'Simulación SD' } }] } });
     expect(planDe(c('repetir'), CTX, 'otra vez').ok).toBe(false);
   });
 
   it('lo guardado: qué parte, por sus palabras', () => {
-    const pasos = (m: string) => { const r = planDe(c('saber'), CTX, m); return r.ok ? r.plan.pasos : null; };
+    const pasos = (m: string) => { const r = planDe(c('saber'), CTX, m); return r.ok && 'plan' in r ? r.plan.pasos : null; };
     expect(pasos('QUE TIENDAS CONOCES')).toEqual([{ herramienta: 'saber_entidades', param: { pais: 'PE', tipo: 'tienda' } }]);
     expect(pasos('Y QUE OPLS CONOCES')).toEqual([{ herramienta: 'saber_entidades', param: { pais: 'PE', tipo: 'opl' } }]);
     expect(pasos('qué CDs de chile tienes')).toEqual([{ herramienta: 'saber_entidades', param: { pais: 'CL', tipo: 'almacen', es_cd: true } }]);
@@ -123,9 +128,12 @@ describe('El plan que sale de la clasificación, sin otra llamada al modelo', ()
     expect(pasos('qué sabes')).toBeNull();
   });
 
-  it('una consulta a mano o un cálculo: todavía no (partes 1b y 1c)', () => {
-    expect(planDe(c('consulta'), CTX, 'dame el despacho de la 1401')).toMatchObject({ ok: false, motivo: expect.stringContaining('1b') });
-    expect(planDe(c('calculo'), CTX, 'en un cuadro')).toMatchObject({ ok: false, motivo: expect.stringContaining('1c') });
+  it('una consulta va a Armar; la charla se contesta ya; un cálculo sin anterior con datos no se puede', () => {
+    expect(planDe(c('consulta'), CTX, 'dame el despacho de la 1401')).toEqual({ ok: true, armar: true });
+    expect(planDe(c('charla'), CTX, 'hola')).toEqual({ ok: true, charla: true });
+    expect(planDe(c('calculo'), CTX, 'en un cuadro')).toMatchObject({ ok: false, motivo: expect.stringContaining('anterior') });
+    const conDatos = { ...CTX, anterior: { id: 'm', persona: 'x', frase: 'y', herramientas: [], plan: null, resultados: [{ herramienta: 'busqueda_masiva', titulo: 't', datos: { agendas: [] } }], version: 3 as const, elegido: false } };
+    expect(planDe(c('calculo'), conDatos, 'en un cuadro')).toEqual({ ok: true, calcular: true });
   });
 });
 

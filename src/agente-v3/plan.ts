@@ -1,17 +1,22 @@
 import type { Clasificacion, ContextoTurno, PlanV3 } from './interfaces/agente-v3.interface.js';
 
 /**
- * El plan que sale de la clasificación SIN otra llamada al modelo: un atajo,
- * repetir lo del anterior o mirar lo guardado (~60 % de los mensajes reales).
- * Las consultas a mano y los cálculos llegan en las partes 1b y 1c: hasta
- * entonces se contesta que todavía no.
+ * Lo que sigue después de clasificar. Un atajo, repetir lo del anterior o mirar
+ * lo guardado tienen el plan hecho SIN otra llamada al modelo (~60 % de los
+ * mensajes reales); la charla se contesta ya; una consulta pasa por Armar (1b)
+ * y un cálculo por Qué calcular (1c).
  */
 
-export type PlanDe = { ok: true; plan: PlanV3 } | { ok: false; motivo: string };
+export type QueSigue =
+  | { ok: true; plan: PlanV3 }
+  | { ok: true; armar: true }
+  | { ok: true; calcular: true }
+  | { ok: true; charla: true }
+  | { ok: false; motivo: string };
 
 const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: string): PlanDe {
+export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: string): QueSigue {
   switch (c.tipo) {
     case 'atajo':
       return { ok: true, plan: { origen: 'atajo', pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: c.atajo } }] } };
@@ -19,8 +24,8 @@ export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: strin
     case 'repetir': {
       const ant = contexto.anterior;
       if (!ant) return { ok: false, motivo: 'No hay un mensaje anterior que repetir.' };
-      if (!ant.plan?.pasos.length) return { ok: false, motivo: 'Todavía no sé repetir lo que hizo ese mensaje: pídemelo con sus palabras.' };
-      return { ok: true, plan: { origen: 'repetir', pasos: ant.plan.pasos } };
+      if (!ant.plan?.pasos.length) return { ok: false, motivo: 'No sé repetir lo que hizo ese mensaje: pídemelo con sus palabras.' };
+      return { ok: true, plan: { origen: 'repetir', pasos: ant.plan.pasos, ...(ant.plan.calculo ? { calculo: ant.plan.calculo } : {}) } };
     }
 
     case 'saber': {
@@ -29,11 +34,18 @@ export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: strin
       return { ok: true, plan: { origen: 'saber', pasos } };
     }
 
-    case 'consulta':
-      return { ok: false, motivo: 'Las consultas a mano (sin un atajo) todavía no las hace la v3: llegan en la parte 1b.' };
+    case 'charla':
+      return { ok: true, charla: true };
 
-    case 'calculo':
-      return { ok: false, motivo: 'Calcular con lo que trajo el mensaje anterior todavía no lo hace la v3: llega en la parte 1c.' };
+    case 'consulta':
+      return { ok: true, armar: true };
+
+    case 'calculo': {
+      const ant = contexto.anterior;
+      if (!ant) return { ok: false, motivo: 'No hay un mensaje anterior con datos sobre los que calcular.' };
+      if (!ant.resultados.some((r) => r.datos)) return { ok: false, motivo: 'Ese mensaje ya no tiene sus datos guardados (solo los 5 más recientes del chat los guardan): pídemelo de nuevo y lo consulto.' };
+      return { ok: true, calcular: true };
+    }
   }
 }
 

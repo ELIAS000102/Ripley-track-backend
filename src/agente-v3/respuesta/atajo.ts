@@ -5,6 +5,7 @@ import type {
   BusquedaMasivaVarias,
   CapacidadRespuesta,
   OficinaCapacidad,
+  ReporteRespuesta,
   SimulacionRespuesta,
   TipoServicioRespuesta,
   TransferenciaRespuesta,
@@ -238,4 +239,52 @@ export function markdownAtajo(e: Ejecucion): string {
 /** Si el atajo no trajo nada de nada */
 export function atajoVacio(e: Ejecucion): boolean {
   return e.resumen.items === 0 || e.resumen.correctas === 0;
+}
+
+// ───────────── Una consulta suelta (1b): como un bloque de un atajo ─────────────
+
+const TIPO_DE: Record<string, string> = { busqueda_masiva: 'masivo', consultar_servicios_opl: 'opl', consultar_transferencia: 'transferencia', simular_entrega: 'simulacion' };
+
+function comoBloque(herramienta: string, datos: unknown): BloqueEjecutado {
+  const tipo = herramienta === 'consultar_capacidad' ? String((datos as CapacidadRespuesta)?.tipo ?? 'picking') : TIPO_DE[herramienta] ?? herramienta;
+  return { orden: 1, tipo: tipo as BloqueEjecutado['tipo'], accion: 'consultar', nota: null, items: [{ orden: 1, nota: null, resultado: datos }] };
+}
+
+/** La frase de una consulta, sin IA */
+export function fraseConsulta(herramienta: string, datos: unknown, hoy: string): string {
+  if (herramienta === 'consultar_reporte_cds') return fraseReporte(datos as ReporteRespuesta);
+  return fraseBloque(comoBloque(herramienta, datos), hoy);
+}
+
+export function markdownConsulta(herramienta: string, datos: unknown): string {
+  if (herramienta === 'consultar_reporte_cds') return markdownReporte(datos as ReporteRespuesta);
+  return markdownBloque(comoBloque(herramienta, datos));
+}
+
+// ───────────── Reporte de CDs ─────────────
+
+function fraseReporte(r: ReporteRespuesta | null): string {
+  const cds = r?.cds ?? [];
+  if (!cds.length) return 'sin datos';
+  const rango = r!.fechas.length > 1 ? ` del ${r!.fechas[0]} al ${r!.fechas.at(-1)}` : r!.fechas[0] ? ` el ${r!.fechas[0]}` : '';
+  const partes = cds.map((c) => {
+    const nombre = `${partirCodigo(c.cd)} · ${c.nombre.replace(/^ripley\s+/i, '')}`;
+    return c.masCargada ? `${nombre}: lo más cargado, ${c.masCargada.jornada} el ${ddmm(c.masCargada.fecha)} (${c.masCargada.uso} %)` : `${nombre}: sin capacidad en el rango`;
+  });
+  return `${cds.length === 1 ? '1 CD' : `${cds.length} CDs`}${rango}. ${partes.join('; ')}`;
+}
+
+const partirCodigo = (s: string) => /^(\d{3,6})/.exec(String(s))?.[1] ?? String(s);
+
+function markdownReporte(r: ReporteRespuesta | null): string {
+  if (!r?.cds?.length) return '';
+  return r.cds
+    .map((c) => {
+      const filas = [...c.jornadas.map((j) => [j.jornada, j.dias] as const), ['Total', c.total] as const].map(([nombre, dias]) => [
+        nombre,
+        ...dias.map((d) => `${d[0]} / ${d[1]} / ${d[2]} · ${d[3]} %${d[4] ? '' : ' CERRADA'}`),
+      ]);
+      return `**${partirCodigo(c.cd)} · ${c.nombre.replace(/^ripley\s+/i, '')}**\n\n${tabla(['Jornada', ...r.fechas.map((f) => `${f} (asig./ocup./disp. · uso)`)], filas)}`;
+    })
+    .join('\n\n');
 }
