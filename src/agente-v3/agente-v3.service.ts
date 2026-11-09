@@ -21,6 +21,7 @@ import { claseDeFallo, elegirModelo } from './modelos.js';
 import { planDe, serviciosNombrados, type QueSigue } from './plan.js';
 import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAprender } from './preguntas.js';
 import { armarRespuesta, intermedios, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
+import { atajoEsperado, atajosNombrados } from './atajos.js';
 import { leerPresentacion, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
 import { TurnosService } from './turnos.service.js';
 import { queEs } from './que.js';
@@ -91,7 +92,9 @@ export function serviciosSinDatos(mensaje: string, contexto: ContextoTurno): str
  */
 export function otrosSinDatos(mensaje: string, contexto: ContextoTurno): string[] {
   const res = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
-  const atajo = atajoPorNombre(mensaje, contexto.atajos.map((a) => a.nombre));
+  // Por su nombre o su apodo ("el bt lima" = «Big Ticket Lima»)
+  const nombrados = atajosNombrados(mensaje, contexto.atajos, contexto.pais);
+  const atajo = nombrados.length === 1 ? nombrados[0].nombre : atajoPorNombre(mensaje, contexto.atajos.map((a) => a.nombre));
   const usados = new Set(res.map((r) => /^Atajo «(.+)»$/.exec(r.titulo)?.[1]).filter(Boolean));
   const { filas } = filasDelAnterior(contexto);
   const codigos = new Set(filas.map((f) => f.codigo));
@@ -332,7 +335,7 @@ export class AgenteV3Service {
     if (turno.etapa !== 'armar' || turno.estado !== 'en_curso') return this.comoEsta(turno);
     const contexto = turno.contexto!;
     const cambio = turno.clasificacion?.tipo === 'cambio';
-    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio) : null;
+    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio, atajoEsperado(mensajeDe(turno), contexto.atajos, turno.clasificacion?.atajo, contexto.pais)) : null;
     this.anotar(turno, 'armar', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'armar', leida && !leida.ok ? leida.motivo : undefined);
     const { plan, faltan, buscar, sinCambio } = leida.valor;

@@ -166,7 +166,7 @@ export function serviciosSinUsar(pasos: PasoPlan[], mensaje: string, contexto: C
  * de edición (se ejecutan en simulacro: la vista previa), y el plan trae al
  * menos una y como mucho MAX_CAMBIOS; sin cambio, una edición no vale.
  */
-export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false): Lectura<PlanLeido> {
+export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false, atajo: string | null = null): Lectura<PlanLeido> {
   const j = primerJson(texto);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
   const faltan = Array.isArray(j.faltan) ? j.faltan.map((f) => String(f).trim()).filter(Boolean).slice(0, 3) : [];
@@ -231,6 +231,10 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
       : { herramienta: h.id, param: limpio };
     pasos.push({ ...real, ...(cond.v ? { condicion: cond.v as never } : {}), ...(comp.v ? { comprobar: comp.v as never } : {}) });
   }
+
+  // El atajo que nombra el mensaje (o que identificó Clasificar) es el que se ejecuta: "el bt lima" no es «Paqueteria Lima»
+  const ejecutados = pasos.filter((p) => p.herramienta === 'ejecutar_atajo').map((p) => String(p.param.nombre));
+  if (atajo && ejecutados.length && !ejecutados.includes(atajo)) return { ok: false, motivo: `el mensaje nombra el atajo «${atajo}» y el plan ejecuta «${ejecutados.join('», «')}»: usa «${atajo}»` };
 
   // Lo que nombra el mensaje está en el plan: "la RT y la RE" no puede quedarse en la RT sin decirlo
   const faltanServicios = serviciosSinUsar(pasos, mensaje, contexto);
