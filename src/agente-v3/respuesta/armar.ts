@@ -1,7 +1,8 @@
 import type { Ejecucion } from '../../configuracion/atajos/interfaces/atajos.interface.js';
 import type { ResultadoCalculo } from '../calcular/calcular.js';
 import type { Condicion } from '../filas.js';
-import type { Pais, PasoEjecutado, Pregunta, RespuestaPanel, ResultadoPanel, Turno } from '../interfaces/agente-v3.interface.js';
+import type { Pais, PasoEjecutado, Pregunta, RespuestaPanel, ResultadoPanel, Turno, Vista } from '../interfaces/agente-v3.interface.js';
+import { vistasDe } from '../presentar/prompt.js';
 import { herramienta as herramientaDe } from '../herramientas.js';
 import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto } from './atajo.js';
 import { fraseDeCambios, markdownCambio, resumenCambio } from './cambio.js';
@@ -180,11 +181,11 @@ function base(turno: Turno, ahora: Date): Omit<RespuestaPanel, 'tipo' | 'frase' 
 }
 
 /**
- * Los pasos que CONTESTAN algo: los que ningún otro paso usa. Los que dan sus
- * códigos al siguiente ("las tiendas" para "su picking") son intermedios.
- * "Fíjate que la RE esté inactiva y dame el total de la RT" son dos respuestas.
+ * Los pasos INTERMEDIOS: los que otro paso usa (dan sus códigos al siguiente:
+ * "las tiendas" para "su picking"). Los demás CONTESTAN algo: "fíjate que la
+ * RE esté inactiva y dame el total de la RT" son dos respuestas.
  */
-function pasosQueContestan(turno: Turno): PasoEjecutado[] {
+export function intermedios(turno: Pick<Turno, 'plan'>): Set<number> {
   const usados = new Set<number>();
   for (const p of turno.plan?.pasos ?? []) {
     for (const v of Object.values(p.param)) {
@@ -195,10 +196,26 @@ function pasosQueContestan(turno: Turno): PasoEjecutado[] {
       }
     }
   }
-  return (turno.pasos ?? []).filter((p) => !usados.has(p.n) && p.estado !== 'error');
+  return usados;
 }
 
 const conPunto = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+
+/**
+ * La vista de un resultado sin Presentar (o lo que Presentar no dijo): lo
+ * intermedio y lo que no contesta, plegado; una comprobación junto a otras
+ * respuestas, en la frase (plegada); "el total" manda sobre "cuadro".
+ */
+function vistaPorDefecto(p: PasoEjecutado, contesta: boolean, varias: boolean, turno: Turno): Vista {
+  if (!contesta) return 'plegado';
+  if (p.comprobacion && varias) return 'plegado';
+  const ver = turno.plan?.ver;
+  const mensaje = turno.contexto?.mensaje_efectivo ?? turno.mensaje;
+  const pideTotal = ver === 'totales' || (ver === 'cuadro' && /\b(total(es)?|cu[aá]nt[oa]s)\b/i.test(mensaje));
+  if (pideTotal && vistasDe(p.herramienta).includes('totales')) return 'totales';
+  if (ver === 'uso' && vistasDe(p.herramienta).includes('uso')) return 'uso';
+  return 'detalle';
+}
 
 export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel {
   const pasos = turno.pasos ?? [];
@@ -207,29 +224,38 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
   const cambios = pasos.filter((p) => herramientaDe(p.herramienta)?.edicion);
   const varios = cambios.length > 1 && cambios.some((p) => p.estado !== 'error');
   // Varias preguntas en un mensaje: cada respuesta en la frase y con su tabla a la vista
-  const contestan = varios ? [] : pasosQueContestan(turno);
+  const usados = intermedios(turno);
+  const contestan = varios ? [] : pasos.filter((p) => !usados.has(p.n) && p.estado !== 'error');
   const variasRespuestas = contestan.length > 1;
   const fallidos = pasos.filter((p) => p.estado === 'error');
-  const texto = varios
+  const delCodigo = varios
     ? fraseDeCambios(cambios)
     : variasRespuestas
       ? `${contestan.map((p) => conPunto(p.resumen)).join(' ')}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}`
       : frase(pasos, principal);
-  const resultados: ResultadoPanel[] = pasos
+  // Lo que decidió Presentar (la frase natural y la vista de cada uno); si no, lo del código
+  const pres = turno.contexto?.presentacion ?? null;
+  const texto = pres?.frase ? `${pres.frase}${fallidos.length && !varios ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}` : delCodigo;
+  const esPrincipal = (p: PasoEjecutado) => (varios ? cambios.includes(p) : variasRespuestas ? contestan.includes(p) : p === principal);
+  const vistaDe = (p: PasoEjecutado): Vista => pres?.vistas[String(p.n)] ?? vistaPorDefecto(p, esPrincipal(p), variasRespuestas, turno);
+  const orden = pres?.orden ?? pasos.map((p) => p.n);
+  const enOrden = [...pasos].sort((a, b) => (orden.indexOf(a.n) + 1 || 99) - (orden.indexOf(b.n) + 1 || 99));
+  const resultados: ResultadoPanel[] = enOrden
     .filter((p) => p.estado !== 'error')
     .map((p) => ({
       n: p.n,
       herramienta: p.herramienta,
       ...(p.herramienta === 'ejecutar_atajo' ? { atajo: (p.datos as Ejecucion).atajo } : {}),
       titulo: p.que,
-      principal: variasRespuestas ? contestan.includes(p) : p === principal,
+      principal: esPrincipal(p),
       datos: p.datos,
+      vista: vistaDe(p),
       ...(p.total !== undefined ? { total: p.total } : {}),
     }));
   const aLaVista = varios ? cambios : variasRespuestas ? contestan : null;
   const cuerpo = aLaVista
-    ? [...aLaVista.map((p) => `**${p.que}**\n\n${markdownDelPaso(p)}`), ...pasos.filter((p) => !aLaVista.includes(p)).map((p) => markdownDelPaso(p))].filter((s) => s.trim())
-    : [principal, ...pasos.filter((p) => p !== principal)].filter(Boolean).map((p) => markdownDelPaso(p!)).filter((s) => s.trim());
+    ? [...enOrden.filter((p) => aLaVista.includes(p) && vistaDe(p) !== 'frase').map((p) => `**${p.que}**\n\n${markdownDelPaso(p)}`), ...enOrden.filter((p) => !aLaVista.includes(p)).map((p) => markdownDelPaso(p))].filter((s) => s.trim())
+    : [principal, ...enOrden.filter((p) => p !== principal)].filter(Boolean).filter((p) => vistaDe(p!) !== 'frase').map((p) => markdownDelPaso(p!)).filter((s) => s.trim());
   const ver = turno.plan?.ver;
   return {
     ...base(turno, ahora),

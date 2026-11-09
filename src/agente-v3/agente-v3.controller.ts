@@ -53,6 +53,14 @@ export class AgenteV3Controller {
     return this.agente.calculo(usuario, id, body);
   }
 
+  /** POST /agente/v3/turnos/:id/presentacion — lo que devolvió Presentar (cómo enseñar cada resultado y la frase), o su error */
+  @PermitidoAgente()
+  @Post(':id/presentacion')
+  @HttpCode(200)
+  presentacion(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+    return this.agente.presentado(usuario, id, body);
+  }
+
   /** POST /agente/v3/turnos/:id/aprendizaje — lo que devolvió Aprender (lo enseñado, limpio), o su error */
   @PermitidoAgente()
   @Post(':id/aprendizaje')

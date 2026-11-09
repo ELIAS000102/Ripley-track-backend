@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { seguir } from './ayuda.js';
 import { AgenteV3Service } from '../../src/agente-v3/agente-v3.service.js';
 import { AprendizajeService } from '../../src/agente-v3/aprender/aprendizaje.service.js';
 import { hechoEnPalabras, leerAprendido } from '../../src/agente-v3/aprender/prompt.js';
@@ -84,7 +85,7 @@ function armar(contexto: ContextoTurno = CTX) {
 const clasif = (tipo: string) => JSON.stringify({ tipo, depende_del_anterior: false, atajo: '(ninguno)', motivo: '' });
 async function hastaElFinal(servicio: AgenteV3Service, id: string) {
   let r = await servicio.ejecutar(USUARIO, id);
-  for (let i = 0; i < 6 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, id);
+  r = await seguir(servicio, id, r);
   return r;
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { seguir } from './ayuda.js';
 import { AgenteV3Service, repiteMotivo, serviciosSinDatos } from '../../src/agente-v3/agente-v3.service.js';
 import { leerPlan, serviciosSinUsar } from '../../src/agente-v3/armar/leer.js';
 import { promptClasificar } from '../../src/agente-v3/clasificar/prompt.js';
@@ -82,7 +83,7 @@ describe('"Cierra la fecha 11-11 para los tres": las agendas que se vieron', () 
     const { t, a } = await hastaArmar(servicio, 'cierra la fecha 11-11 para los tres');
     await servicio.armado(USUARIO, t.turno_id, { salida: cerrar({ ref: 'anterior' }), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
-    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    r = await seguir(servicio, t.turno_id, r);
     expect(r.camino).toBe('responder');
     expect(editarCapacidad.editarCapacidad.mock.calls.map(([, d]) => [d.codigo, d.zona, d.agenda])).toEqual([
       ['1401', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana'],
@@ -182,7 +183,7 @@ describe('Un cálculo sin sus datos pasa a consulta (y se avisa)', () => {
     expect(filas.get(t.turno_id)!.clasificacion!.tipo).toBe('consulta');
     await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify({ pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: ['RE'] } }], ver: 'totales' }), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
-    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    r = await seguir(servicio, t.turno_id, r);
     expect(r.respuesta!.avisos).toContain('RE no estaba en lo que traje antes: lo consulté.');
   });
 });
@@ -198,7 +199,7 @@ describe('Dos preguntas en un mensaje: las dos en la respuesta', () => {
     ], ver: 'totales' };
     await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(plan), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
-    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    r = await seguir(servicio, t.turno_id, r);
     const resp = r.respuesta!;
     // La comprobación de la RE (lo que se pedía primero) y el total de la RT, las dos en la frase
     expect(resp.frase).toMatch(/^Sí: .* inactivas\. RE, .*\. RT, /);
@@ -213,7 +214,7 @@ describe('Dos preguntas en un mensaje: las dos en la respuesta', () => {
     const plan = { pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: ['RE'] } }, { herramienta: 'busqueda_masiva', param: { servicio: ['RE'], origenes: { ref: 'paso', n: 1 } } }] };
     await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(plan), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
-    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    r = await seguir(servicio, t.turno_id, r);
     expect(r.respuesta!.resultados.map((x) => x.principal)).toEqual([false, true]);
   });
 });

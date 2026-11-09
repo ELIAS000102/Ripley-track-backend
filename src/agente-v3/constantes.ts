@@ -23,7 +23,7 @@ export const nombreDelNodo = (modelo: string, cuenta: number) =>
   `${modelo.replace('gemini-', 'Gemini ').replace('-flash-lite', ' Flash-Lite').replace('-flash', ' Flash')} · cuenta ${cuenta}`;
 
 /** Cuántas veces se prueba un modelo distinto en cada rol antes de seguir sin IA */
-export const INTENTOS_POR_ROL = { clasificar: 4, armar: 4, calcular: 3, aprender: 4, redactar: 3 } as const;
+export const INTENTOS_POR_ROL = { clasificar: 4, armar: 4, calcular: 3, aprender: 4, presentar: 2, redactar: 3 } as const;
 
 /** Lo que decidió el usuario sobre las palabras de la operación */
 export const VOCABULARIO = [

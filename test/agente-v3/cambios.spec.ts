@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { seguir } from './ayuda.js';
 import { AgenteV3Service } from '../../src/agente-v3/agente-v3.service.js';
 import { leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { EjecucionV3Service } from '../../src/agente-v3/ejecucion.service.js';
@@ -83,7 +84,7 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
       'Búsqueda masiva de ST',
       'Vista previa: activar ST en lo del paso 4 menos lo del paso 1',
     ]);
-    for (let i = 0; i < 8 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    r = await seguir(servicio, t.turno_id, r);
 
     expect(edicion.editar.mock.calls.map(([, dto]) => [dto.servicio, dto.opls, dto.activo])).toEqual([
       ['SE', '20021,20048', true],
@@ -114,7 +115,7 @@ describe('La vista previa de la edición masiva, sin el tope de 30', () => {
     const a = await servicio.clasificacion(USUARIO, t.turno_id, { salida: JSON.stringify({ tipo: 'cambio', depende_del_anterior: false, atajo: '(ninguno)', motivo: '' }), modelo: M });
     await servicio.armado(USUARIO, t.turno_id, { salida: plan, modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
-    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    r = await seguir(servicio, t.turno_id, r);
     return r;
   }
 

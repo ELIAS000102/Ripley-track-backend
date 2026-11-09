@@ -15,11 +15,12 @@ import type { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from './dto/
 import { EjecucionV3Service } from './ejecucion.service.js';
 import { ambiguas } from './entidades.js';
 import { filasDe, type Fila } from './filas.js';
-import type { Clasificacion, ContextoTurno, Ensenanza, IntentoModelo, Pais, PlanV3, Pregunta, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
+import type { Clasificacion, ContextoTurno, Ensenanza, IntentoModelo, Pais, PlanV3, Pregunta, Presentacion, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
 import { claseDeFallo, elegirModelo } from './modelos.js';
 import { planDe, serviciosNombrados, type QueSigue } from './plan.js';
 import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAprender } from './preguntas.js';
-import { armarRespuesta, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
+import { armarRespuesta, intermedios, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
+import { leerPresentacion, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
 import { TurnosService } from './turnos.service.js';
 import { queEs } from './que.js';
 import { preguntaDeZonas, zonasDeLaRespuesta } from './zonas.js';
@@ -282,12 +283,14 @@ export class AgenteV3Service {
   }
 
   /** El prompt del rol con el modelo que toca; sin modelo, se pregunta o se dice por qué */
-  private async pedirModelo(usuario: UsuarioAutenticado, turno: Turno, rol: 'armar' | 'calcular' | 'aprender', ultimoMotivo?: string): Promise<SalidaRuta> {
+  private async pedirModelo(usuario: UsuarioAutenticado, turno: Turno, rol: 'armar' | 'calcular' | 'aprender' | 'presentar', ultimoMotivo?: string): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
     // El mismo motivo dos veces seguidas: otro intento no lo va a arreglar (se pregunta o se dice)
     const modelo = repiteMotivo(this.intentos(turno), rol) ? null : elegirModelo(rol, turno.id, this.intentos(turno));
     if (!modelo) {
       if (rol === 'aprender') return this.sinAprender(usuario, turno);
+      // Sin Presentar, la respuesta del código (sin más intentos)
+      if (rol === 'presentar') return this.trasPresentar(usuario, turno, null);
       const que = rol === 'armar' ? (turno.clasificacion?.tipo === 'cambio' ? 'preparar el cambio' : 'armar la consulta') : 'preparar el cálculo';
       if (esFalloDeCupo(this.intentos(turno), rol)) {
         return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude ${que}: ${porQueSinModelo(this.intentos(turno), rol)}.`), 'error');
@@ -303,6 +306,7 @@ export class AgenteV3Service {
     // Al reintentar, el modelo ve por qué no valió lo anterior ("«centralizado de San Luis» no es ninguna de…")
     if (rol === 'armar') prompt = promptArmar(mensaje, contexto, turno.clasificacion, ultimoMotivo);
     else if (rol === 'calcular') { const { filas, deDonde } = filasDelAnterior(contexto); prompt = promptCalcular(mensaje, contexto, filas, deDonde); }
+    else if (rol === 'presentar') prompt = promptPresentar(mensaje, turno.pasos ?? [], intermedios(turno), armarRespuesta({ ...turno, contexto: { ...contexto, presentacion: null } }).frase);
     else {
       const [sabido, fases] = await Promise.all([this.aprendizaje.sabido(contexto, mensaje), this.aprendizaje.fases()]);
       prompt = promptAprender(mensaje, contexto, sabido, fases);
@@ -398,6 +402,40 @@ export class AgenteV3Service {
       return this.terminar(usuario, turno, callar ? r : { ...r, avisos: [...r.avisos, texto] }, 'terminado');
     }
     return this.terminar(usuario, turno, respuestaSinPlan(turno, texto), 'terminado');
+  }
+
+  // ───────────── 6' · Presentar ─────────────
+
+  /**
+   * Presentar solo si hace falta (decisión del usuario, 2026-11-09): varios
+   * resultados, o el mensaje pide una forma ("en un cuadro", "el total", "solo…").
+   */
+  private tocaPresentar(turno: Turno): boolean {
+    if (turno.contexto?.presentado) return false;
+    const conDatos = (turno.pasos ?? []).filter((p) => p.estado !== 'error');
+    if (!conDatos.length) return false;
+    return conDatos.length > 1 || PIDE_FORMA.test(mensajeDe(turno));
+  }
+
+  /** Cómo enseñar cada resultado y la frase natural, validados; si no vale, otro intento; agotados, lo del código */
+  async presentado(usuario: UsuarioAutenticado, id: string, dto: SalidaModeloDto): Promise<SalidaRuta> {
+    const turno = await this.turnos.obtener(id, usuario.id);
+    if (turno.etapa !== 'presentar' || turno.estado !== 'en_curso') return this.comoEsta(turno);
+    const pasos = turno.pasos ?? [];
+    // Las cifras que puede usar la frase: las de lo que dijeron los resultados y la frase del código
+    const delCodigo = armarRespuesta({ ...turno, contexto: { ...turno.contexto!, presentacion: null } });
+    const material = [delCodigo.frase, ...pasos.map((p) => `${p.que} ${p.resumen}`), mensajeDe(turno)].join(' ');
+    const leida = !dto.error && dto.salida !== undefined ? leerPresentacion(dto.salida, pasos, material) : null;
+    this.anotar(turno, 'presentar', dto, leida && !leida.ok ? leida.motivo : null);
+    if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'presentar');
+    return this.trasPresentar(usuario, turno, leida.valor);
+  }
+
+  /** Después de Presentar (o sin él): "¿lo guardo?" si se enseñó algo; si no, la respuesta */
+  private trasPresentar(usuario: UsuarioAutenticado, turno: Turno, presentacion: Presentacion | null): Promise<SalidaRuta> {
+    turno.contexto = { ...turno.contexto!, presentacion, presentado: true };
+    if (this.tocaAprender(turno)) return this.pedirModelo(usuario, turno, 'aprender');
+    return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
   }
 
   /** Lo pidió y además enseñó algo: se aprende al final, con la respuesta ya hecha */
@@ -583,6 +621,7 @@ export class AgenteV3Service {
       await this.turnos.actualizar(turno.id, { pasos: turno.pasos });
     }
     if (turno.pasos.length < plan.pasos.length) return this.salida(turno, 'avisar', { progreso: this.conAvisos(turno, respuestaProgreso(turno)) });
+    if (this.tocaPresentar(turno)) return this.pedirModelo(usuario, turno, 'presentar');
     if (this.tocaAprender(turno)) return this.pedirModelo(usuario, turno, 'aprender');
     return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
   }

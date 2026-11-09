@@ -21,6 +21,7 @@ export type Camino =
   | 'armar'
   | 'calcular'
   | 'aprender'
+  | 'presentar'
   | 'ejecutar'
   | 'avisar'
   | 'redactar'
@@ -29,7 +30,20 @@ export type Camino =
   | 'fin';
 
 /** Para qué se llama a un modelo */
-export type RolModelo = 'clasificar' | 'armar' | 'calcular' | 'aprender' | 'redactar';
+export type RolModelo = 'clasificar' | 'armar' | 'calcular' | 'aprender' | 'presentar' | 'redactar';
+
+/** Cómo se enseña un resultado (lo elige Presentar; si no, el código) */
+export type Vista = 'totales' | 'detalle' | 'uso' | 'frase' | 'plegado';
+
+/** Lo que decidió Presentar, ya validado */
+export interface Presentacion {
+  /** La vista de cada paso, por su número */
+  vistas: Record<string, Vista>;
+  /** El orden en que se enseñan los pasos */
+  orden: number[];
+  /** La frase en lenguaje natural (con cada cifra comprobada en los datos); null: la del código */
+  frase: string | null;
+}
 
 /** Uno de los nodos Gemini del flujo: un modelo de una cuenta */
 export interface ModeloElegido {
@@ -180,6 +194,9 @@ export interface ContextoTurno {
   buscadas?: string[];
   /** Las zonas que eligió la persona, por paso: { "2": { "1401": "Zona 1401 - …", "*": "todas" } } */
   zonas_elegidas?: Record<string, Record<string, string>>;
+  /** Lo que decidió Presentar (o null si no hizo falta o no se pudo); `presentado`: ya se pasó por ahí */
+  presentacion?: Presentacion | null;
+  presentado?: boolean;
   /** Ya se avisó a la persona del plan antes de su primer paso */
   anunciado?: boolean;
 }
@@ -271,6 +288,8 @@ export interface ResultadoPanel {
   datos: unknown;
   /** Con condición: cuántos había antes de quedarse con los que la cumplen */
   total?: number;
+  /** Cómo se enseña: totales, detalle, uso, solo la frase o plegado */
+  vista?: Vista;
 }
 
 /** Una duda, como la entiende el panel (el mismo formato que la v2) */

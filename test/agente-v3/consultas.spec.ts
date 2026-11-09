@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { seguir } from './ayuda.js';
 import { AgenteV3Service } from '../../src/agente-v3/agente-v3.service.js';
 import { fechaIso, leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { calcular } from '../../src/agente-v3/calcular/calcular.js';
@@ -203,7 +204,7 @@ const clasif = (tipo: string, extra: Record<string, unknown> = {}) => JSON.strin
 
 async function hastaResponder(servicio: AgenteV3Service, id: string) {
   let r = await servicio.ejecutar(USUARIO, id);
-  for (let i = 0; i < 6 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, id);
+  r = await seguir(servicio, id, r);
   return r;
 }
 
@@ -234,7 +235,7 @@ describe('Un turno de consulta, de punta a punta', () => {
     expect(uno.camino).toBe('avisar');
     expect(uno.progreso!.pasos[0].resumen).toBe('2 de 3 inactivas: 20021, 20066.');
     expect(uno.progreso!.pasos[1].estado).toBe('en_curso');
-    const dos = await servicio.ejecutar(USUARIO, t.turno_id);
+    const dos = await seguir(servicio, t.turno_id, await servicio.ejecutar(USUARIO, t.turno_id));
     expect(transferencia.consultar).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ origen: '20026', destino: '20021,20066' }));
     expect(dos.respuesta!.frase).toBe('2 de 2 transferencias habilitadas.');
   });

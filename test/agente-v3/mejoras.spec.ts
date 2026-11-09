@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { seguir } from './ayuda.js';
 import { AgenteV3Service, porQueSinModelo } from '../../src/agente-v3/agente-v3.service.js';
 import { hechoEnPalabras, leerAprendido, SISTEMA_APRENDER } from '../../src/agente-v3/aprender/prompt.js';
 import { leerPlan } from '../../src/agente-v3/armar/leer.js';
@@ -95,7 +96,7 @@ function armarServicio(contexto: ContextoTurno, { simulacro = true, capacidadDat
 const clasif = (tipo: string, extra: Record<string, unknown> = {}) => JSON.stringify({ tipo, depende_del_anterior: false, atajo: '(ninguno)', motivo: '', ...extra });
 async function hastaElFinal(servicio: AgenteV3Service, id: string) {
   let r = await servicio.ejecutar(USUARIO, id);
-  for (let i = 0; i < 6 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, id);
+  r = await seguir(servicio, id, r);
   return r;
 }
 
