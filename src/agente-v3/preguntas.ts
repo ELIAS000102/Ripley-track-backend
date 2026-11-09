@@ -25,9 +25,17 @@ export function preguntaDeNombre(m: EntidadMencion): Pregunta {
   };
 }
 
-/** Lo que el modelo dice que falta, o por qué no se pudo armar */
+/** Lo que el modelo dice que falta ("¿qué es un flujo de picking?") */
 export function preguntaAbierta(etapa: Pregunta['etapa'], texto: string): Pregunta {
   return { id: `${etapa}:abierta`, etapa, texto, opciones: [], libre: 'Escríbelo aquí' };
+}
+
+/**
+ * "No pude…: ¿me lo dices de otra forma?": lo que se escriba es la petición
+ * NUEVA (se vuelve a clasificar), no una aclaración de la que falló.
+ */
+export function preguntaOtraForma(etapa: Pregunta['etapa'], texto: string): Pregunta {
+  return { id: `${etapa}:otra-forma`, etapa, texto, opciones: [], libre: 'Escríbelo de otra forma' };
 }
 
 /**

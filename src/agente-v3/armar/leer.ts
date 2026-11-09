@@ -1,5 +1,6 @@
 import { agendasConocidas, CON_AGENDA, codigosDelAnterior, deLasOficinas, lasQueEncajan } from '../agendas.js';
 import { primerJson, type Lectura } from '../clasificar/leer.js';
+import { serviciosNombrados } from '../plan.js';
 import { codigosDichos } from '../entidades.js';
 import { FUENTE_POR_DEFECTO, herramienta, type ParamDef } from '../herramientas.js';
 import type { ContextoTurno, PasoPlan, PlanV3 } from '../interfaces/agente-v3.interface.js';
@@ -19,6 +20,8 @@ export interface PlanLeido {
    * las busca y Armar vuelve a elegir, viéndolas
    */
   buscar?: Array<{ herramienta: string; tipo: string | null; codigos: string[] }>;
+  /** Clasificar dijo "cambio" y Armar, con el mensaje delante, armó una consulta válida: vale como consulta */
+  sinCambio?: boolean;
 }
 
 const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
@@ -136,6 +139,29 @@ function condicionDe(c: unknown, conCuantos: boolean): { ok: true; v: Record<str
 }
 
 /**
+ * Los servicios que nombra el mensaje y no usa ningún paso (ni un atajo que
+ * los lleve en su nombre o descripción). Solo si el plan tiene algún paso que
+ * podría llevarlos: el reporte de CDs, por ejemplo, no tiene servicio.
+ */
+export function serviciosSinUsar(pasos: PasoPlan[], mensaje: string, contexto: ContextoTurno): string[] {
+  const nombrados = serviciosNombrados(mensaje, contexto.servicios.map((s) => s.codigo));
+  if (!nombrados.length) return [];
+  const conServicio = (p: PasoPlan) => herramienta(p.herramienta)?.params.filter((d) => d.tipo === 'servicio' || d.tipo === 'servicios') ?? [];
+  if (!pasos.some((p) => conServicio(p).length || p.herramienta === 'saber_servicios')) return [];
+  const usados = new Set<string>();
+  for (const p of pasos) {
+    for (const d of conServicio(p)) for (const v of [p.param[d.nombre]].flat()) if (v) usados.add(String(v).toUpperCase());
+    for (const v of [p.param.servicio].flat()) if (v) usados.add(String(v).toUpperCase());
+    if (p.comprobar?.servicio) usados.add(p.comprobar.servicio.toUpperCase());
+  }
+  const atajos = pasos.filter((p) => p.herramienta === 'ejecutar_atajo').map((p) => {
+    const a = contexto.atajos.find((x) => x.nombre === p.param.nombre);
+    return `${a?.nombre ?? ''} ${a?.descripcion ?? ''}`;
+  });
+  return nombrados.filter((s) => !usados.has(s) && !atajos.some((t) => new RegExp(`\\b${s}\\b`, 'i').test(t)));
+}
+
+/**
  * `cambio`: la persona pidió un CAMBIO. Solo entonces valen las herramientas
  * de edición (se ejecutan en simulacro: la vista previa), y el plan trae al
  * menos una y como mucho MAX_CAMBIOS; sin cambio, una edición no vale.
@@ -206,7 +232,13 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     pasos.push({ ...real, ...(cond.v ? { condicion: cond.v as never } : {}), ...(comp.v ? { comprobar: comp.v as never } : {}) });
   }
 
-  if (cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion)) return { ok: false, motivo: 'se pidió un cambio y el plan no trae ninguno' };
+  // Lo que nombra el mensaje está en el plan: "la RT y la RE" no puede quedarse en la RT sin decirlo
+  const faltanServicios = serviciosSinUsar(pasos, mensaje, contexto);
+  if (faltanServicios.length) return { ok: false, motivo: `el mensaje nombra ${faltanServicios.join(' y ')} y el plan no ${faltanServicios.length === 1 ? 'lo' : 'los'} usa: pon todo lo que pide` };
+
+  // "Fíjate que estén inactivas" no es un cambio: si Armar armó una consulta válida, vale como consulta
+  const sinCambio = cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion);
+  if (sinCambio) cambio = false;
   const ver = typeof j.ver === 'string' && VER.has(j.ver) ? j.ver : null;
-  return { ok: true, valor: { plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver }, faltan, ...(buscar.length ? { buscar } : {}) } };
+  return { ok: true, valor: { plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver }, faltan, ...(buscar.length ? { buscar } : {}), ...(sinCambio ? { sinCambio } : {}) } };
 }

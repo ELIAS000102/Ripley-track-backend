@@ -21,6 +21,7 @@ import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
 import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
 import { calcular } from './calcular/calcular.js';
+import { agendasDelAnterior, esDelAnterior, oficinasConVariasZonas, porLoQueSeVio, porZonaElegida, tipoConZona, type Grupo } from './zonas.js';
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
 import { queEs } from './que.js';
@@ -67,8 +68,6 @@ function juntar(partes: Array<Record<string, unknown>>): Record<string, unknown>
 export function enClaro(error: string): string {
   return error.replace(/^No se cambió nada de lo \d+ pedido\. Motivos: /, '').split(' · ').join('; ');
 }
-
-interface Grupo { codigos: string[]; extra: Record<string, unknown>; exacta: boolean }
 
 /**
  * Con una agenda (o zona) en el paso y agendas conocidas de esas oficinas: un
@@ -154,6 +153,40 @@ export class EjecucionV3Service {
       const error = enClaro((e as Error).message || 'falló');
       return { ...base, estado: 'error', resumen: error, error, ms: Date.now() - t0 };
     }
+  }
+
+  /**
+   * Antes de un cambio de despacho o de OPL sin zona: las oficinas con varias
+   * zonas de las que no se sabe cuál (ni se vio en el anterior ni se eligió).
+   * Las zonas salen de lo conocido o de una consulta que solo lee.
+   */
+  async zonasPorElegir(usuario: UsuarioAutenticado, plan: PlanV3, k: number, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<Array<{ codigo: string; zonas: string[] }>> {
+    const paso = plan.pasos[k];
+    const h = herramienta(paso.herramienta);
+    const tipo = h?.edicion ? tipoConZona(paso.herramienta, paso.param) : null;
+    if (!h?.lista || !tipo || paso.param.zona || paso.param.agenda || paso.param.atajo) return [];
+    const v = paso.param[h.lista];
+    let codigos: string[];
+    try {
+      codigos = v && typeof v === 'object' && !Array.isArray(v) ? this.codigosDe(v, hechos, contexto) : lista(v);
+    } catch {
+      return [];
+    }
+    // Lo que se vio en el anterior manda (porLoQueSeVio)
+    if (esDelAnterior(v) && porLoQueSeVio(paso.herramienta, paso.param, codigos, agendasDelAnterior(contexto))) return [];
+    const elegidas = contexto.zonas_elegidas?.[String(k + 1)] ?? {};
+    codigos = codigos.filter((c) => !elegidas[c] && !elegidas['*']);
+    if (!codigos.length) return [];
+    let conocidas = deLasOficinas(agendasConocidas(contexto), codigos, tipo);
+    const sinSaber = codigos.filter((c) => !conocidas.some((a) => a.codigo === c));
+    if (sinSaber.length) {
+      try {
+        conocidas = [...conocidas, ...deLasOficinas(await this.buscarAgendas(usuario, contexto, { herramienta: paso.herramienta, tipo, codigos: sinSaber }), sinSaber, tipo)];
+      } catch {
+        // Sin poder leerlas, la edición dirá lo que haga falta
+      }
+    }
+    return oficinasConVariasZonas(conocidas, codigos);
   }
 
   /**
@@ -279,7 +312,10 @@ export class EjecucionV3Service {
     if (h.lista && plano0[h.lista] !== undefined && !codigos.length) throw new Error('no hay ningún código que consultar (lo que debía traerlos vino vacío)');
 
     // La agenda que eligió Armar, con su nombre y su zona exactos, solo en las oficinas que la tienen
-    const { grupos, notas: deAgenda, nombres } = porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
+    // Un cambio sobre lo del anterior: a las agendas que se vieron; si no, a la zona que eligió la persona; si no, por agenda
+    const delAnterior = h.edicion && esDelAnterior(h.lista ? paso.param[h.lista] : undefined) ? porLoQueSeVio(h.id, plano0, codigos, agendasDelAnterior(contexto)) : null;
+    const elegida = !delAnterior && h.edicion && !plano0.zona && !plano0.agenda ? porZonaElegida(codigos, contexto.zonas_elegidas?.[String(hechos.length + 1)]) : null;
+    const { grupos, notas: deAgenda, nombres }: { grupos: Grupo[]; notas: string[]; nombres?: string[] } = delAnterior ?? elegida ?? porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
     notas = [...notas, ...deAgenda];
     const partes: Array<Record<string, unknown>> = [];
     for (const g of grupos) {

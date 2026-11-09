@@ -228,16 +228,22 @@ export function respuestaCharla(turno: Turno, texto: string, ahora = new Date())
  * persona tenga su respuesta aunque no conteste.
  */
 export function respuestaPregunta(turno: Turno, p: Pregunta, ahora = new Date()): RespuestaPanel {
+  // Varias dudas (una por oficina): cada una con sus opciones; el texto general va en la frase
+  const dudas = p.dudas?.length
+    ? p.dudas.map((d) => ({ id: d.id, pregunta: d.texto, opciones: d.opciones, libre: null }))
+    : [{ id: p.id, pregunta: p.texto, opciones: p.opciones, libre: p.libre }];
   if (p.etapa === 'aprender' && (turno.pasos ?? []).length) {
     const r = armarRespuesta(turno, ahora);
-    return { ...r, tipo: 'pregunta', markdown: `${r.markdown}\n\n${p.texto}`, dudas: [{ id: p.id, pregunta: p.texto, opciones: p.opciones, libre: p.libre }] };
+    return { ...r, tipo: 'pregunta', markdown: `${r.markdown}\n\n${p.texto}`, dudas };
   }
   return {
     ...base(turno, ahora),
     tipo: 'pregunta',
     frase: p.texto,
-    markdown: p.texto,
-    dudas: [{ id: p.id, pregunta: p.texto, opciones: p.opciones, libre: p.libre }],
+    markdown: [p.texto, ...(p.dudas ?? []).map((d) => `- ${d.texto} ${d.opciones.map((o) => o.texto).join(' · ')}`)].join('\n'),
+    dudas,
+    // Lo hecho hasta aquí (la pregunta de zona llega a mitad de la ejecución)
+    pasos: (turno.pasos ?? []).map(({ n, que, estado, resumen, ms }) => ({ n, que, estado, resumen, ms })),
   };
 }
 

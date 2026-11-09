@@ -187,7 +187,7 @@ function armarServicio(contexto: ContextoTurno) {
     obtener: vi.fn(async (id: string) => structuredClone(filas.get(id)!)),
     actualizar: vi.fn(async (id: string, c: Partial<Turno>) => { filas.set(id, { ...filas.get(id)!, ...structuredClone(c) }); }),
   };
-  const ctxServ = { comprobarChat: vi.fn(async () => undefined), armar: vi.fn(async () => structuredClone(contexto)) };
+  const ctxServ = { comprobarChat: vi.fn(async () => undefined), armar: vi.fn(async () => structuredClone(contexto)), rebuscar: vi.fn(async (m: string) => mencionesDe(m, DIRECTORIO, 'PE')) };
   const supabase = { admin: { rpc: vi.fn(async () => ({ data: 'm-1', error: null })) } };
   const capacidad = { consultar: vi.fn(async (dto: { codigo: string }) => ({ ...CAPACIDAD, oficinas: CAPACIDAD.oficinas.filter((o) => dto.codigo.split(',').some((c) => o.oficina.startsWith(c))) })) };
   const masivo = { buscar: vi.fn(async () => MASIVA) };
@@ -226,10 +226,10 @@ describe('Un turno de consulta, de punta a punta', () => {
     const t = await servicio.crear(USUARIO, { mensaje: 'la transferencia de los opls de la SE', chat_id: 'c' });
     await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('consulta'), modelo: M });
     // El atajo de este doble es una búsqueda masiva: se ejecuta con el servicio de búsqueda
-    const plan = { pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: 'RE' }, condicion: { campo: 'activa', op: '=', valor: false } }, { herramienta: 'consultar_transferencia', param: { origen: '20026', destino: { ref: 'paso', n: 1 } } }] };
+    const plan = { pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: 'SE' }, condicion: { campo: 'activa', op: '=', valor: false } }, { herramienta: 'consultar_transferencia', param: { origen: '20026', destino: { ref: 'paso', n: 1 } } }] };
     await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(plan), modelo: M });
     const cero = await servicio.ejecutar(USUARIO, t.turno_id);
-    expect(cero.progreso!.pasos.map((p) => [p.descripcion, p.estado])).toEqual([['Búsqueda masiva de RE', 'en_curso'], ['Transferencia desde 20026 a lo del paso 1', 'pendiente']]);
+    expect(cero.progreso!.pasos.map((p) => [p.descripcion, p.estado])).toEqual([['Búsqueda masiva de SE', 'en_curso'], ['Transferencia desde 20026 a lo del paso 1', 'pendiente']]);
     const uno = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(uno.camino).toBe('avisar');
     expect(uno.progreso!.pasos[0].resumen).toBe('2 de 3 inactivas: 20021, 20066.');
@@ -248,7 +248,7 @@ describe('Un turno de consulta, de punta a punta', () => {
     expect(r.respuesta!.frase).toBe('No: 1 de 3 no están inactivas: 20048. RE, 1 activas y 2 inactivas de 3 agendas.');
   });
 
-  it('un plan que no vale: otro modelo; agotados, se pregunta con el motivo; y la respuesta vuelve a Armar', async () => {
+  it('un plan que no vale: otro modelo; agotados, "¿de otra forma?"; lo que se escribe es la petición nueva (desde Clasificar)', async () => {
     const { servicio } = armarServicio(ctx('el picking de chorrillos'));
     const t = await servicio.crear(USUARIO, { mensaje: 'el picking de chorrillos', chat_id: 'c' });
     let r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('consulta'), modelo: M });
@@ -256,11 +256,15 @@ describe('Un turno de consulta, de punta a punta', () => {
     for (let i = 0; i < 6 && r.camino === 'armar'; i++) r = await servicio.armado(USUARIO, t.turno_id, { salida: malo, modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre } });
     expect(r.camino).toBe('preguntar');
     expect(r.pregunta!.dudas![0].pregunta).toContain('20030 no los dijo nadie');
-    const otra = await servicio.respuesta(USUARIO, t.turno_id, { texto: 'la tienda de chorrillos, picking de RT' });
-    expect(otra.camino).toBe('armar');
-    expect(otra.prompt!.mensaje).toContain('LO QUE ACLARÓ LA PERSONA\n- la tienda de chorrillos, picking de RT');
-    // Con la respuesta el turno vuelve a "en_curso": Armar acepta el plan nuevo (antes se quedaba en "pregunta")
-    const plan = await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'picking', codigo: ['20021'], servicio: ['RT'] } }] }), modelo: { cuenta: otra.modelo!.cuenta, nombre: otra.modelo!.nombre } });
+    expect(r.pregunta!.dudas![0].id).toBe('armar:otra-forma');
+    const otra = await servicio.respuesta(USUARIO, t.turno_id, { texto: 'el picking RT de la tienda de chorrillos' });
+    expect(otra.camino).toBe('clasificar');
+    expect(otra.prompt!.mensaje).toContain('«el picking RT de la tienda de chorrillos»');
+    expect(otra.prompt!.mensaje).not.toContain('LO QUE ACLARÓ');
+    // Con la respuesta el turno vuelve a "en_curso": clasifica y Armar acepta el plan nuevo
+    const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('consulta'), modelo: { cuenta: otra.modelo!.cuenta, nombre: otra.modelo!.nombre } });
+    expect(c.camino).toBe('armar');
+    const plan = await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'picking', codigo: ['20021'], servicio: ['RT'] } }] }), modelo: { cuenta: c.modelo!.cuenta, nombre: c.modelo!.nombre } });
     expect(plan.camino).toBe('ejecutar');
   });
 

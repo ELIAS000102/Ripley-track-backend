@@ -135,12 +135,16 @@ export interface Ensenanza {
 export interface Pregunta {
   id: string;
   /** La etapa que preguntó: ahí sigue el turno con la respuesta */
-  etapa: 'entidades' | 'armar' | 'calcular' | 'aprender';
+  etapa: 'entidades' | 'armar' | 'calcular' | 'aprender' | 'zona';
   texto: string;
   opciones: Array<{ id: string; texto: string }>;
   libre: string | null;
   /** Para "entidades": el nombre que se aclara */
   nombre?: string;
+  /** Para "zona": el paso que espera la elección */
+  paso?: number;
+  /** Varias dudas a la vez (una por oficina): el panel manda la respuesta cuando están todas */
+  dudas?: Array<{ id: string; texto: string; opciones: Array<{ id: string; texto: string }> }>;
 }
 
 export interface ContextoTurno {
@@ -174,6 +178,8 @@ export interface ContextoTurno {
   agendas?: AgendaConocida[];
   /** Las oficinas cuyas agendas ya se buscaron ("tipo:código"): no se vuelven a buscar */
   buscadas?: string[];
+  /** Las zonas que eligió la persona, por paso: { "2": { "1401": "Zona 1401 - …", "*": "todas" } } */
+  zonas_elegidas?: Record<string, Record<string, string>>;
   /** Ya se avisó a la persona del plan antes de su primer paso */
   anunciado?: boolean;
 }
