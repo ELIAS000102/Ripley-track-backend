@@ -186,3 +186,34 @@ describe('Un cálculo sin sus datos pasa a consulta (y se avisa)', () => {
     expect(r.respuesta!.avisos).toContain('RE no estaba en lo que traje antes: lo consulté.');
   });
 });
+
+describe('Dos preguntas en un mensaje: las dos en la respuesta', () => {
+  it('"fíjate que la RE se mantenga inactiva y dame el total de la RT": la frase y las tablas de las dos', async () => {
+    const m = 'fijate que las sucursales de la RE se mantengan inactivas y en un cuadro solo dame el total de sucursales activas e inactivas de la RT';
+    const { servicio } = armar(ctx());
+    const { t, a } = await hastaArmar(servicio, m, 'consulta');
+    const plan = { pasos: [
+      { herramienta: 'busqueda_masiva', param: { servicio: ['RE'] }, comprobar: { campo: 'activa', op: '=', valor: false, cuantos: 'todos' } },
+      { herramienta: 'busqueda_masiva', param: { servicio: ['RT'] } },
+    ], ver: 'totales' };
+    await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(plan), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
+    let r = await servicio.ejecutar(USUARIO, t.turno_id);
+    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    const resp = r.respuesta!;
+    // La comprobación de la RE (lo que se pedía primero) y el total de la RT, las dos en la frase
+    expect(resp.frase).toMatch(/^Sí: .* inactivas\. RE, .*\. RT, /);
+    expect(resp.resultados.map((x) => [x.titulo, x.principal])).toEqual([['Búsqueda masiva de RE', true], ['Búsqueda masiva de RT', true]]);
+    expect(resp.markdown).toContain('**Búsqueda masiva de RE**');
+    expect(resp.markdown).toContain('**Búsqueda masiva de RT**');
+  });
+
+  it('encadenados ("las tiendas" → "su picking"), solo contesta el último', async () => {
+    const { servicio } = armar(ctx());
+    const { t, a } = await hastaArmar(servicio, 'la transferencia de los opl de la RE', 'consulta');
+    const plan = { pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: ['RE'] } }, { herramienta: 'busqueda_masiva', param: { servicio: ['RE'], origenes: { ref: 'paso', n: 1 } } }] };
+    await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(plan), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
+    let r = await servicio.ejecutar(USUARIO, t.turno_id);
+    for (let i = 0; i < 4 && r.camino === 'avisar'; i++) r = await servicio.ejecutar(USUARIO, t.turno_id);
+    expect(r.respuesta!.resultados.map((x) => x.principal)).toEqual([false, true]);
+  });
+});

@@ -179,13 +179,42 @@ function base(turno: Turno, ahora: Date): Omit<RespuestaPanel, 'tipo' | 'frase' 
   };
 }
 
+/**
+ * Los pasos que CONTESTAN algo: los que ningún otro paso usa. Los que dan sus
+ * códigos al siguiente ("las tiendas" para "su picking") son intermedios.
+ * "Fíjate que la RE esté inactiva y dame el total de la RT" son dos respuestas.
+ */
+function pasosQueContestan(turno: Turno): PasoEjecutado[] {
+  const usados = new Set<number>();
+  for (const p of turno.plan?.pasos ?? []) {
+    for (const v of Object.values(p.param)) {
+      const r = v as { ref?: string; n?: number; sin?: number } | null;
+      if (r && typeof r === 'object' && r.ref === 'paso') {
+        if (r.n) usados.add(r.n);
+        if (r.sin) usados.add(r.sin);
+      }
+    }
+  }
+  return (turno.pasos ?? []).filter((p) => !usados.has(p.n) && p.estado !== 'error');
+}
+
+const conPunto = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+
 export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel {
   const pasos = turno.pasos ?? [];
   const principal = [...pasos].reverse().find((p) => p.estado === 'ok') ?? [...pasos].reverse().find((p) => p.estado === 'vacio');
   // Varios cambios: la frase los dice todos y cada uno lleva su tabla con su título
   const cambios = pasos.filter((p) => herramientaDe(p.herramienta)?.edicion);
   const varios = cambios.length > 1 && cambios.some((p) => p.estado !== 'error');
-  const texto = varios ? fraseDeCambios(cambios) : frase(pasos, principal);
+  // Varias preguntas en un mensaje: cada respuesta en la frase y con su tabla a la vista
+  const contestan = varios ? [] : pasosQueContestan(turno);
+  const variasRespuestas = contestan.length > 1;
+  const fallidos = pasos.filter((p) => p.estado === 'error');
+  const texto = varios
+    ? fraseDeCambios(cambios)
+    : variasRespuestas
+      ? `${contestan.map((p) => conPunto(p.resumen)).join(' ')}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}`
+      : frase(pasos, principal);
   const resultados: ResultadoPanel[] = pasos
     .filter((p) => p.estado !== 'error')
     .map((p) => ({
@@ -193,12 +222,13 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
       herramienta: p.herramienta,
       ...(p.herramienta === 'ejecutar_atajo' ? { atajo: (p.datos as Ejecucion).atajo } : {}),
       titulo: p.que,
-      principal: p === principal,
+      principal: variasRespuestas ? contestan.includes(p) : p === principal,
       datos: p.datos,
       ...(p.total !== undefined ? { total: p.total } : {}),
     }));
-  const cuerpo = varios
-    ? [...cambios.map((p) => `**${p.que}**\n\n${markdownDelPaso(p)}`), ...pasos.filter((p) => !cambios.includes(p)).map((p) => markdownDelPaso(p))].filter((s) => s.trim())
+  const aLaVista = varios ? cambios : variasRespuestas ? contestan : null;
+  const cuerpo = aLaVista
+    ? [...aLaVista.map((p) => `**${p.que}**\n\n${markdownDelPaso(p)}`), ...pasos.filter((p) => !aLaVista.includes(p)).map((p) => markdownDelPaso(p))].filter((s) => s.trim())
     : [principal, ...pasos.filter((p) => p !== principal)].filter(Boolean).map((p) => markdownDelPaso(p!)).filter((s) => s.trim());
   const ver = turno.plan?.ver;
   return {
