@@ -306,7 +306,7 @@ describe('Un turno de consulta, de punta a punta', () => {
     await servicio.calculo(USUARIO, t.turno_id, { salida: '{"operacion":"suma","campo":"ocupado","filtro":{"agenda":"centralizado"},"agrupar":["fecha"]}', modelo: M });
     const r = await hastaResponder(servicio, t.turno_id);
     expect(capacidad.consultar).not.toHaveBeenCalled();
-    expect(r.respuesta!.frase).toBe('Suma del ocupado (agendas «centralizado»): 07/11, 50 unidades; 08/11, 100 unidades. Con los datos de «Paqueteria Lima».');
+    expect(r.respuesta!.frase).toBe('Suma del ocupado (agendas «centralizado»): 07/11, 50 unidades; 08/11, 100 unidades. Con lo que traje antes.');
     expect(r.respuesta!.resultados[0]).toMatchObject({ herramienta: 'calcular', datos: { columnas: ['fecha', 'ocupado'], filas: [['07/11', 50], ['08/11', 100]] } });
   });
 });

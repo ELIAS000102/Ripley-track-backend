@@ -230,6 +230,8 @@ export interface Calculo {
   agrupar: string[];
   orden?: 'asc' | 'desc';
   distintos?: boolean;
+  /** Agrupado por servicio porque los datos traían varios: con una fila más del total */
+  conTotal?: boolean;
 }
 
 export interface PlanV3 {

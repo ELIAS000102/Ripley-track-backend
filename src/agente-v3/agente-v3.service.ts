@@ -6,6 +6,7 @@ import { AprendizajeService } from './aprender/aprendizaje.service.js';
 import { leerAprendido, promptAprender } from './aprender/prompt.js';
 import { leerPlan } from './armar/leer.js';
 import { promptArmar } from './armar/prompt.js';
+import { fuenteDe } from './calcular/calcular.js';
 import { leerCalculo, promptCalcular } from './calcular/prompt.js';
 import { respuestaDeCharla } from './charla.js';
 import { leerClasificacion } from './clasificar/leer.js';
@@ -52,7 +53,7 @@ export function atajoPorNombre(mensaje: string, atajos: string[]): string | null
 /** Las filas de lo que trajo el anterior (para calcular) y de dónde salen */
 function filasDelAnterior(contexto: ContextoTurno): { filas: Fila[]; deDonde: string } {
   const res = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
-  return { filas: res.flatMap((r) => filasDe(r.herramienta, r.datos, contexto.hoy)), deDonde: res.map((r) => r.titulo).join(' + ') };
+  return { filas: res.flatMap((r) => filasDe(r.herramienta, r.datos, contexto.hoy)), deDonde: fuenteDe(res.map((r) => r.titulo)) };
 }
 
 /** Lo que se pide de verdad: el mensaje, o, al retomar uno que falló, aquel con lo que se aclara ahora */
@@ -82,6 +83,20 @@ export function serviciosSinDatos(mensaje: string, contexto: ContextoTurno): str
   if (filas.length && !filas.some((f) => f.servicio)) return [];
   const presentes = new Set(filas.map((f) => String(f.servicio ?? '').toUpperCase()));
   return nombrados.filter((s) => !presentes.has(s));
+}
+
+/**
+ * Otras cosas que nombra el mensaje y no estaban en lo anterior: un atajo
+ * (por su nombre entero) o un código. Con ellas no hay con qué calcular.
+ */
+export function otrosSinDatos(mensaje: string, contexto: ContextoTurno): string[] {
+  const res = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
+  const atajo = atajoPorNombre(mensaje, contexto.atajos.map((a) => a.nombre));
+  const usados = new Set(res.map((r) => /^Atajo «(.+)»$/.exec(r.titulo)?.[1]).filter(Boolean));
+  const { filas } = filasDelAnterior(contexto);
+  const codigos = new Set(filas.map((f) => f.codigo));
+  const sinCodigo = contexto.entidades.flatMap((e) => (e.porNombre ? (e.candidatos.length === 1 ? [e.candidatos[0].codigo] : []) : [e.texto])).filter((c) => !codigos.has(c));
+  return [...(atajo && !usados.has(atajo) ? [`«${atajo}»`] : []), ...sinCodigo];
 }
 
 /** Los dos últimos intentos del rol fallaron por lo mismo (lo que dijo el modelo no valía, igual) */
@@ -264,12 +279,8 @@ export class AgenteV3Service {
     }
     if ('calcular' in r) {
       // Calcular sobre lo que el anterior NO trajo daría cifras de otra cosa: se consulta, y se avisa
-      const sinDatos = serviciosSinDatos(mensajeDe(turno), contexto);
-      if (sinDatos.length) {
-        turno.clasificacion = { ...turno.clasificacion!, tipo: 'consulta', motivo: `${turno.clasificacion?.motivo ?? ''} (lo anterior no traía ${sinDatos.join(' ni ')})`.slice(0, 300) };
-        turno.contexto = { ...contexto, avisos: [...(contexto.avisos ?? []), `${sinDatos.join(' y ')} no ${sinDatos.length === 1 ? 'estaba' : 'estaban'} en lo que traje antes: lo consulté.`] };
-        return this.seguir(usuario, turno, { ok: true, armar: true });
-      }
+      const sinDatos = [...serviciosSinDatos(mensajeDe(turno), contexto), ...otrosSinDatos(mensajeDe(turno), contexto)];
+      if (sinDatos.length) return this.aConsulta(usuario, turno, `${sinDatos.join(' y ')} no ${sinDatos.length === 1 ? 'estaba' : 'estaban'} en lo que traje antes: lo consulté.`);
       return this.pedirModelo(usuario, turno, 'calcular');
     }
     return this.aEjecutar(turno, r.plan);
@@ -357,7 +368,17 @@ export class AgenteV3Service {
     const { filas } = filasDelAnterior(contexto);
     const leida = !dto.error && dto.salida !== undefined ? leerCalculo(dto.salida, contexto, filas) : null;
     this.anotar(turno, 'calcular', dto, leida && !leida.ok ? leida.motivo : null);
+    // Lo que pide no está en lo que trajo el anterior ("no tiene «ocupado»"): no es un cálculo, se consulta
+    if (leida && !leida.ok && /no tiene|no están en los datos/.test(leida.motivo)) return this.aConsulta(usuario, turno, 'Eso no estaba en lo que traje antes: lo consulté.');
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'calcular', leida && !leida.ok ? leida.motivo : undefined);
+    // Varios servicios en los datos y no pidió "todo junto": por servicio, con el total
+    if ('calculo' in leida.valor) {
+      const servicios = new Set(filas.map((f) => f.servicio).filter(Boolean));
+      const k = leida.valor.calculo;
+      if (servicios.size > 1 && !k.agrupar.includes('servicio') && ['contar', 'suma', 'porcentaje'].includes(k.operacion) && !/\b(en total|todo junto|tod[oa]s? juntos?|sumad[oa]s?)\b/i.test(mensajeDe(turno))) {
+        leida.valor.calculo = { ...k, agrupar: ['servicio', ...k.agrupar.filter((a) => a !== 'total')], conTotal: true };
+      }
+    }
     if ('falta' in leida.valor) {
       const { deDonde } = filasDelAnterior(contexto);
       turno.plan = { origen: 'calcular', pasos: [] };
@@ -553,6 +574,14 @@ export class AgenteV3Service {
     const duda = ambiguas(turno.contexto.entidades)[0];
     if (duda) return this.preguntar(usuario, turno, preguntaDeNombre(duda));
     return this.pedirModelo(usuario, turno, 'armar');
+  }
+
+  /** No era un cálculo (lo anterior no tiene con qué): pasa a Armar como consulta, y se avisa */
+  private aConsulta(usuario: UsuarioAutenticado, turno: Turno, aviso: string): Promise<SalidaRuta> {
+    const contexto = turno.contexto!;
+    turno.clasificacion = { ...turno.clasificacion!, tipo: 'consulta', motivo: `${turno.clasificacion?.motivo ?? ''} (lo anterior no tenía con qué calcularlo)`.slice(0, 300) };
+    turno.contexto = { ...contexto, avisos: [...(contexto.avisos ?? []), aviso] };
+    return this.seguir(usuario, turno, { ok: true, armar: true });
   }
 
   /** La petición dicha de otra forma: el mismo turno vuelve a empezar por Clasificar, con el mensaje nuevo */

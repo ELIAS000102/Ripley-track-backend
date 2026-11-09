@@ -19,7 +19,7 @@ Para cada resultado elige su "vista" (solo de las que tiene permitidas):
 - "plegado": la tabla se guarda plegada, para quien la quiera ver (lo intermedio, lo que no pidió ver).
 Y el "orden": primero lo que pidió primero.
 
-La "frase": una o dos oraciones naturales, en español claro y cercano, que contesten lo que pidió en su orden. USA SOLO las cifras, códigos y nombres que aparecen en lo que dicen los resultados: no calcules, no redondees, no inventes, no añadas datos. Sin tablas ni listas.
+La "frase": una o dos oraciones naturales, en español claro y cercano, que contesten lo que pidió en su orden. USA SOLO las cifras, códigos y nombres que aparecen en lo que dicen los resultados: no calcules, no redondees, no inventes, no añadas datos. Sin tablas ni listas. No nombres los pasos por dentro («Búsqueda masiva de…», «Cálculo con lo del mensaje anterior»): di de qué es (la RE, la RT, el Big Ticket Lima) o "lo que te traje antes".
 
 Responde SOLO con un JSON, sin texto alrededor:
 {"resultados": [{"n": 1, "vista": "..."}], "orden": [1], "frase": "..."}`;
@@ -28,6 +28,8 @@ Responde SOLO con un JSON, sin texto alrededor:
 export function vistasDe(herramienta: string): Vista[] {
   if (herramienta === 'consultar_capacidad') return ['totales', 'detalle', 'uso', 'frase', 'plegado'];
   if (herramienta === 'busqueda_masiva') return ['totales', 'detalle', 'frase', 'plegado'];
+  // Un atajo de capacidad puede enseñar el consumo en % ("el consumo del bt lima en porcentaje")
+  if (herramienta === 'ejecutar_atajo') return ['detalle', 'uso', 'frase', 'plegado'];
   return ['detalle', 'frase', 'plegado'];
 }
 

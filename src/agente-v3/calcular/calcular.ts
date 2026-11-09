@@ -69,6 +69,18 @@ function claveDe(x: Fila, agrupar: string[]): { clave: string; etiqueta: string 
   return { clave: partes.map((p) => p[0]).join('|'), etiqueta: partes.map((p) => p[1]).filter(Boolean).join(' · ') };
 }
 
+/**
+ * De dónde salen los datos, para la frase: el nombre de un atajo («Paquetería
+ * Lima») sí dice algo; los títulos internos de los pasos ("Búsqueda masiva de
+ * RE + …"), no: entonces "lo que traje antes".
+ */
+export const LO_ANTERIOR = 'lo que traje antes';
+export function fuenteDe(titulos: string[]): string {
+  const atajos = titulos.map((t) => /^Atajo «(.+)»$/.exec(t)?.[1] ?? null);
+  return titulos.length && atajos.every(Boolean) ? atajos.join(' + ') : LO_ANTERIOR;
+}
+const enPalabras = (d: string) => (d === LO_ANTERIOR ? d : `«${d}»`);
+
 export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoCalculo {
   const filas = filtrar(todas, k.filtro ?? {});
   const acota = [
@@ -83,7 +95,7 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
   ].filter(Boolean).join(', ');
   const base = { notas: [] as string[], usadas: filas.length };
   if (!filas.length) {
-    return { ...base, titulo: deDonde, columnas: [], filas: [], valor: null, frase: `Ninguna fila de «${deDonde}» cumple lo pedido${acota ? ` (${acota})` : ''}.` };
+    return { ...base, titulo: deDonde, columnas: [], filas: [], valor: null, frase: `Ninguna fila de ${enPalabras(deDonde)} cumple lo pedido${acota ? ` (${acota})` : ''}.` };
   }
 
   // Explicar o filtrar: las filas tal cual (las primeras 30), con lo que significa cada campo
@@ -92,8 +104,8 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
     const tabla = filas.slice(0, 30).map((f) => columnas.map((c) => celda(f, c)));
     const glosario = columnas.map((c) => GLOSARIO[c]).filter(Boolean);
     const frase = k.operacion === 'filtrar'
-      ? `${cuantasFilas(filas, todas)}${acota ? ` (${acota})` : ''}, según «${deDonde}».`
-      : `Lo que trajo «${deDonde}»${acota ? ` (${acota})` : ''}: ${glosario.join('; ') || 'en la tabla'}.`;
+      ? `${cuantasFilas(filas, todas)}${acota ? ` (${acota})` : ''}, según ${enPalabras(deDonde)}.`
+      : `Lo que trajo ${enPalabras(deDonde)}${acota ? ` (${acota})` : ''}: ${glosario.join('; ') || 'en la tabla'}.`;
     const notas = filas.length > 30 ? [`En la tabla, las primeras 30 de ${filas.length}.`] : [];
     return { ...base, notas, titulo: deDonde, columnas: columnas.map((c) => NOMBRE_CAMPO[c] ?? c), filas: tabla, valor: null, frase };
   }
@@ -125,6 +137,18 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
   if (k.operacion === 'maximo' || (k.operacion === 'ordenar' && k.orden !== 'asc')) tabla.sort((a, b) => b.valor - a.valor);
   if (k.operacion === 'minimo' || (k.operacion === 'ordenar' && k.orden === 'asc')) tabla.sort((a, b) => a.valor - b.valor);
   tabla = tabla.slice(0, 60);
+  // Por servicio (porque los datos traían varios): además, el total de todos
+  if (k.conTotal && (k.agrupar ?? []).includes('servicio')) {
+    const sinServicio = (k.agrupar ?? []).filter((a) => a !== 'servicio');
+    const totales = new Map<string, { etiqueta: string; filas: Fila[] }>();
+    for (const f of filas) {
+      if (campo && sinCapacidad(f)) continue;
+      const { clave, etiqueta } = claveDe(f, sinServicio.length ? sinServicio : ['total']);
+      if (!totales.has(clave)) totales.set(clave, { etiqueta, filas: [] });
+      totales.get(clave)!.filas.push(f);
+    }
+    tabla.push(...[...totales.values()].map((g) => ({ etiqueta: g.etiqueta === 'Total' ? 'Total' : `Total · ${g.etiqueta}`, valor: valorDe(g.filas), n: g.filas.length })));
+  }
 
   const unidad = k.operacion === 'contar' ? '' : UNIDAD[campo ?? ''] ?? '';
   const conUnidad = (v: number) => (unidad === '%' ? `${v} %` : unidad ? `${v} ${unidad}` : String(v));
@@ -138,7 +162,7 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
     columnas: [(k.agrupar ?? []).filter((a) => a !== 'total').join(' · ') || ' ', unidad === '%' ? 'uso (%)' : NOMBRE_CAMPO[campo ?? ''] ?? (k.operacion === 'contar' ? 'cuántas' : 'valor')],
     filas: tabla.map((g) => [g.etiqueta, g.valor]),
     valor: tabla.length === 1 ? tabla[0].valor : null,
-    frase: `${que}${acota ? ` (${acota})` : ''}: ${cuerpo}. Con los datos de «${deDonde}».`,
+    frase: `${que}${acota ? ` (${acota})` : ''}: ${cuerpo}. ${deDonde === LO_ANTERIOR ? 'Con lo que traje antes.' : `Con los datos de «${deDonde}».`}`,
   };
 }
 

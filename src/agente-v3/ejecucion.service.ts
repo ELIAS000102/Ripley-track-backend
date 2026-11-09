@@ -20,7 +20,7 @@ import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
 import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
-import { calcular } from './calcular/calcular.js';
+import { calcular, fuenteDe } from './calcular/calcular.js';
 import { agendasDelAnterior, esDelAnterior, oficinasConVariasZonas, porLoQueSeVio, porZonaElegida, tipoConZona, type Grupo } from './zonas.js';
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
@@ -208,7 +208,7 @@ export class EjecucionV3Service {
     const conDatos = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
     if (!plan.calculo || !conDatos.length) throw new Error('no hay datos del mensaje anterior con los que calcular');
     const filas: Fila[] = conDatos.flatMap((r) => filasDe(r.herramienta, r.datos, contexto.hoy));
-    const deDonde = conDatos.map((r) => r.titulo).join(' + ');
+    const deDonde = fuenteDe(conDatos.map((r) => r.titulo));
     return { ...calcular(filas, plan.calculo, deDonde), operacion: plan.calculo.operacion };
   }
 
