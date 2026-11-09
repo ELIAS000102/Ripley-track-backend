@@ -199,7 +199,11 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     if (!cond.ok) return { ok: false, motivo: `paso ${n}: ${cond.motivo}` };
     const comp = condicionDe(x.comprobar, true);
     if (!comp.ok) return { ok: false, motivo: `paso ${n}: ${comp.motivo}` };
-    pasos.push({ herramienta: h.id, param: limpio, ...(cond.v ? { condicion: cond.v as never } : {}), ...(comp.v ? { comprobar: comp.v as never } : {}) });
+    // Listar oficinas es leer el directorio: lo mismo que "¿qué tiendas conoces?" (saber_entidades)
+    const real = h.id === 'listar_oficinas'
+      ? { herramienta: 'saber_entidades', param: limpio.tipo === 'cd' ? { tipo: 'almacen', es_cd: true } : { tipo: limpio.tipo } }
+      : { herramienta: h.id, param: limpio };
+    pasos.push({ ...real, ...(cond.v ? { condicion: cond.v as never } : {}), ...(comp.v ? { comprobar: comp.v as never } : {}) });
   }
 
   if (cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion)) return { ok: false, motivo: 'se pidió un cambio y el plan no trae ninguno' };

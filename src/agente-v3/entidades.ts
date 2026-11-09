@@ -41,6 +41,12 @@ export function almacenesDe(directorio: EntidadDirectorio[], pais: string): Arra
     .map((e) => ({ codigo: e.codigo, nombre: e.nombre, es_cd: e.es_cd, alias: e.alias ?? [] }));
 }
 
+/** Las palabras que enseñó el equipo, para los prompts ("- «flujo de picking»: una jornada de picking") */
+export function vocabularioParaPrompt(vocabulario: Array<{ termino: string; significa: string }> | undefined): string {
+  const l = (vocabulario ?? []).map((v) => `- «${v.termino}»: ${v.significa}`);
+  return l.length ? `\nPALABRAS QUE ENSEÑÓ EL EQUIPO (valen como el vocabulario)\n${l.join('\n')}\n` : '';
+}
+
 /** "- 20026 · Ripley Fulfillment (CD) · también «cd villa el salvador»" */
 export function almacenesParaPrompt(almacenes: Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }> | undefined): string[] {
   return (almacenes ?? []).map((a) => `- ${a.codigo} · ${a.nombre ?? ''} (${a.es_cd ? 'CD' : 'almacén'})${a.alias.length ? ` · también «${a.alias.join('», «')}»` : ''}`);

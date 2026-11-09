@@ -98,9 +98,12 @@ export interface AgendaConocida {
 
 /** Algo que se aprende (lo deja limpio el rol «aprender» y se guarda con un "sí") */
 export interface Hecho {
-  tipo: 'servicio' | 'entidad';
+  tipo: 'servicio' | 'entidad' | 'termino';
   pais: Pais;
+  /** El código; en un término, la palabra ("flujo de picking") */
   codigo: string;
+  /** término: lo que quiere decir en la operación */
+  significa?: string | null;
   nombre?: string | null;
   /** servicio */
   metodo_entrega?: 'RT' | 'DP' | null;
@@ -161,6 +164,10 @@ export interface ContextoTurno {
   mensaje_efectivo?: string | null;
   /** Lo que se está aprendiendo: se pregunta al final */
   ensenanza?: Ensenanza | null;
+  /** Las palabras de la operación que enseñó el equipo (agente_vocabulario): van en los prompts */
+  vocabulario?: Array<{ termino: string; significa: string }>;
+  /** Se preguntó qué quería decir una palabra y la persona lo explicó: al final se ofrece aprenderlo */
+  aprender_aclaracion?: boolean;
   /** Los CDs y almacenes del país, con sus alias: el modelo elige cuál nombra la persona ("el cd villa" → 20026) */
   almacenes?: Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }>;
   /** Las agendas que buscó el backend porque el plan nombraba una que no conocía (las del anterior se leen de él) */

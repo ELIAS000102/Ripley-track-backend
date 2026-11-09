@@ -1,4 +1,5 @@
 import { SIN_ATAJO, VOCABULARIO } from '../constantes.js';
+import { vocabularioParaPrompt } from '../entidades.js';
 import type { ContextoTurno } from '../interfaces/agente-v3.interface.js';
 
 /**
@@ -24,7 +25,7 @@ Devuelve:
   · "saber": lo que el agente tiene guardado (qué tiendas, OPL o CDs conoce, qué atajos hay, qué es un servicio o una fase, qué es un código).
   · "repetir": volver a hacer lo del anterior ("vuelve a intentarlo", "simula de nuevo", "vuelve a consultar").
   · "cambio": pide CAMBIAR algo en Ripley: cerrar o abrir una fecha, activar o desactivar, cortar o reabrir una jornada, reasignar capacidad, cambiar el asignado, el desfase, la holgura o la hora de corte. Aunque nombre datos del anterior, es "cambio", no "calculo".
-  · "enseñar": SOLO enseña algo, sin pedir nada ("la SG es el site to store de gran volumen y sale siempre del CD Aldeas 20096", "el 1439 se llama BT_F.E_Trujillo").
+  · "enseñar": SOLO enseña algo, sin pedir nada ("la SG es el site to store de gran volumen y sale siempre del CD Aldeas 20096", "el 1439 se llama BT_F.E_Trujillo", "un flujo de picking es una jornada", "PQT es paquetería").
   · "charla": no pide datos: un saludo, un gracias, una despedida, "¿qué puedes hacer?", un comentario. Contéstale en "respuesta".
 - depende_del_anterior: true SOLO si sin el mensaje anterior no se sabe qué se pide ("su transferencia", "de esos", "la suma de los tres centralizados", "en un cuadro", "explícame cómo es"). Un mensaje que dice todo lo que pide NO depende, aunque hable de lo mismo que el anterior: "simula la SE", "dame los opls de la ST", "dame el despacho de la 1403" se entienden solos.
 - atajo: el atajo que se ejecuta (también el primero de una consulta encadenada), con su nombre exacto de la lista; "${SIN_ATAJO}" si no hay. Si el mensaje usa lo que YA TRAJO el anterior ("su transferencia" después de un atajo), ese atajo no se vuelve a ejecutar: "${SIN_ATAJO}". Solo atajos del país del chat, salvo que el mensaje nombre otro país.
@@ -54,7 +55,7 @@ HOY: ${contexto.hoy}
 
 ATAJOS GUARDADOS
 ${atajos || '(ninguno)'}
-
+${vocabularioParaPrompt(contexto.vocabulario)}
 EL MENSAJE ANTERIOR DEL CHAT
 ${anterior}
 

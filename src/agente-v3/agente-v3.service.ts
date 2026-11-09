@@ -340,10 +340,16 @@ export class AgenteV3Service {
     if (turno.etapa !== 'aprender' || turno.estado !== 'en_curso') return this.comoEsta(turno);
     const contexto = turno.contexto!;
     const texto = mensajeDe(turno);
-    const leida = !dto.error && dto.salida !== undefined ? leerAprendido(dto.salida, contexto, texto) : null;
+    // Tras una aclaración puede no haber nada que aprender ("la 20048"): entonces se responde sin preguntar
+    const deLaAclaracion = this.soloPorLaAclaracion(turno);
+    const leida = !dto.error && dto.salida !== undefined ? leerAprendido(dto.salida, contexto, texto, deLaAclaracion) : null;
     this.anotar(turno, 'aprender', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'aprender');
     const { hechos, dudas } = leida.valor;
+    if (deLaAclaracion && !hechos.length) {
+      turno.contexto = { ...contexto, ensenanza: { texto, hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' } };
+      return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
+    }
     const { choques, intocables } = await this.aprendizaje.revisar(hechos);
     const ensenanza: Ensenanza = { texto, hechos, dudas, choques, intocables };
     turno.contexto = { ...contexto, ensenanza };
@@ -354,17 +360,24 @@ export class AgenteV3Service {
   private sinAprender(usuario: UsuarioAutenticado, turno: Turno): Promise<SalidaRuta> {
     const texto = `No pude entender lo que me enseñas (${porQueSinModelo(this.intentos(turno), 'aprender')}): no guardé nada.`;
     const contexto = turno.contexto!;
+    const callar = this.soloPorLaAclaracion(turno);
     turno.contexto = { ...contexto, ensenanza: { texto: mensajeDe(turno), hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' } };
     if ((turno.pasos ?? []).length) {
       const r = armarRespuesta(turno);
-      return this.terminar(usuario, turno, { ...r, avisos: [...r.avisos, texto] }, 'terminado');
+      // Si nadie pidió enseñar nada (solo se ofrecía por la aclaración), no hace falta decirlo
+      return this.terminar(usuario, turno, callar ? r : { ...r, avisos: [...r.avisos, texto] }, 'terminado');
     }
     return this.terminar(usuario, turno, respuestaSinPlan(turno, texto), 'terminado');
   }
 
   /** Lo pidió y además enseñó algo: se aprende al final, con la respuesta ya hecha */
   private tocaAprender(turno: Turno): boolean {
-    return Boolean(turno.clasificacion?.ensena) && !turno.contexto?.ensenanza;
+    return Boolean(turno.clasificacion?.ensena || turno.contexto?.aprender_aclaracion) && !turno.contexto?.ensenanza;
+  }
+
+  /** Se aprende solo porque la persona explicó algo al contestar (no porque enseñara en su mensaje) */
+  private soloPorLaAclaracion(turno: Turno): boolean {
+    return Boolean(turno.contexto?.aprender_aclaracion) && !turno.clasificacion?.ensena;
   }
 
   /** "¿Lo guardo?": sí → al directorio común; «No ahora» → nada; escribir → se vuelve a entender con la corrección */
@@ -446,6 +459,7 @@ export class AgenteV3Service {
     }
     if (etapa === 'aprender') return this.contestarAprender(usuario, turno, dto);
 
+    const preguntada = turno.contexto!.pregunta;
     const r = aplicarRespuesta(turno.contexto!, dto);
     turno.estado = 'en_curso';
     if ('cancelar' in r) return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Cancelado: no hice nada.'), tipo: 'cancelada' }, 'cancelado');
@@ -454,6 +468,10 @@ export class AgenteV3Service {
       return this.preguntar(usuario, turno, turno.contexto.pregunta ?? preguntaAbierta('armar', '¿Me lo dices de otra forma?'));
     }
     turno.contexto = { ...r.contexto, rondas: turno.contexto!.rondas + 1 };
+    // Armar preguntó qué faltaba ("¿qué es un flujo de picking?") y la persona lo EXPLICÓ con sus palabras:
+    // al final, con la respuesta hecha, se le ofrece guardarlo ("un flujo de picking es una jornada")
+    const explicado = String(dto.texto ?? '').trim();
+    if (preguntada?.etapa === 'armar' && !preguntada.opciones.length && explicado.split(/\s+/).length >= 3) turno.contexto = { ...turno.contexto, aprender_aclaracion: true };
     // La aclaración dice el país ("es de Chile"): el turno pasa a ese país
     const ultima = turno.contexto.aclaraciones.at(-1) ?? '';
     const dicho = paisDelMensaje(ultima);

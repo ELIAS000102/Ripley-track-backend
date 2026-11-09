@@ -1,6 +1,6 @@
 import { agendasParaPrompt } from '../agendas.js';
 import { VOCABULARIO } from '../constantes.js';
-import { almacenesParaPrompt } from '../entidades.js';
+import { almacenesParaPrompt, vocabularioParaPrompt } from '../entidades.js';
 import { codigosQueCumplen, filasDe } from '../filas.js';
 import { catalogoParaPrompt, FUENTE_POR_DEFECTO } from '../herramientas.js';
 import type { Clasificacion, ContextoTurno } from '../interfaces/agente-v3.interface.js';
@@ -33,6 +33,7 @@ const REGLAS = `REGLAS
 - CONDICIÓN y COMPROBAR: "solo las inactivas", "las que están sin cupo" → "condicion" en ese paso ({"campo": "activa", "op": "=", "valor": false}; {"campo": "disponible", "op": "<=", "valor": 0}). "Fíjate que todas estén inactivas", "¿están todos activos?" → "comprobar" ({"campo": "activa", "op": "=", "valor": false, "cuantos": "todos", "servicio": "RE"}). "Activos e inactivos" no lleva condición. Campos: activa, enCheckout, habilitada, asignado, ocupado, disponible, uso, desfase, transito, preparacion, dias, jornadas (cuántas jornadas tiene cada oficina; "un flujo" = una jornada).
 - SIGUE LA CONVERSACIÓN: si el mensaje depende del anterior ("¿y de Chile?", "¿y mañana?", "lo mismo para la 20027"), repite el PLAN DEL ANTERIOR cambiando solo lo que dice el mensaje (el país ya viene resuelto en "PAÍS").
 - "ver": "totales" si pide solo los totales, un resumen o un cuadro de totales; "cuadro" si pide un cuadro; "uso" si pide porcentajes de consumo; si no, null.
+- NO CAMBIES LA PREGUNTA: el plan contesta EXACTAMENTE lo que se pide. Si no sabes cómo, o no entiendes una palabra ("flujo", "PQT"), no la sustituyas por otra consulta que se le parezca: ponlo en "faltan" y pregúntalo ("¿Qué es un flujo de picking?"). "Todas las tiendas" (los almacenes, los CDs, los OPL) salen de listar_oficinas.
 - Si falta un dato imprescindible que no está en ningún sitio, no lo inventes: ponlo en "faltan" (en palabras, para preguntárselo a la persona) y deja "pasos" vacío.
 - NO AMPLÍES: si la persona nombra un CD, una tienda o un OPL y no sabes cuál es su código, NO lo quites del plan (sin él la consulta sería de todos): ponlo en "faltan" ("¿Qué código es el CD Villa?").
 
@@ -91,7 +92,7 @@ ${servicios || '(no los tengo)'}
 
 ATAJOS GUARDADOS
 ${atajos || '(ninguno)'}
-${agendas.length ? `\nAGENDAS QUE CONOZCO (oficina · tipo · zona › agenda · servicio)\n${agendas.join('\n')}\n` : ''}
+${vocabularioParaPrompt(contexto.vocabulario)}${agendas.length ? `\nAGENDAS QUE CONOZCO (oficina · tipo · zona › agenda · servicio)\n${agendas.join('\n')}\n` : ''}
 EL MENSAJE ANTERIOR
 ${anterior}
 ${contexto.aclaraciones.length ? `\nLO QUE ACLARÓ LA PERSONA\n${contexto.aclaraciones.map((a) => `- ${a}`).join('\n')}\n` : ''}

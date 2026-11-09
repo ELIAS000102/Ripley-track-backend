@@ -129,6 +129,12 @@ export const HERRAMIENTAS: Herramienta[] = [
     ],
   },
   {
+    id: 'listar_oficinas',
+    descripcion: 'Las oficinas del país que tiene el directorio: "todas las tiendas", "los almacenes", "los CDs", "los OPL". Para encadenar ("las tiendas con un solo flujo de picking" = listar_oficinas tienda + consultar_capacidad picking con codigo {"ref": "paso", "n": 1} y condición jornadas = 1).',
+    dto: Object as unknown as new () => object,
+    params: [{ nombre: 'tipo', tipo: 'opcion', requerido: true, opciones: ['tienda', 'almacen', 'cd', 'opl'], descripcion: '"tienda", "almacen", "cd" u "opl"' }],
+  },
+  {
     id: 'ejecutar_atajo',
     descripcion: 'Ejecuta un atajo guardado por su nombre exacto.',
     dto: Object as unknown as new () => object,

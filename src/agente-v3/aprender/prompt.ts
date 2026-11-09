@@ -14,7 +14,7 @@ const NOMBRE_PAIS = { PE: 'Perú', CL: 'Chile' } as const;
 
 export const SISTEMA_APRENDER = `Pasas a datos LIMPIOS lo que una persona le enseña al asistente de la operación logística de Ripley (Perú y Chile), para guardarlo y que lo use todo el equipo. No contestas a la persona.
 
-Devuelve "hechos" (uno por servicio o por código del que se enseña algo) y "dudas":
+Devuelve "hechos" (uno por servicio, por código o por palabra de la que se enseña algo) y "dudas":
 - Un SERVICIO: {"tipo": "servicio", "codigo": "SG", "nombre": "Site to Store Gran Volumen", "metodo_entrega": "RT" | "DP", "fase": "F1" | "F2" | "F3" | "DD", "origen": "20096", "descripcion": "…"}
   · nombre: el nombre del servicio bien escrito (mayúsculas donde toca), sin el código.
   · metodo_entrega: "RT" si se retira en tienda; "DP" si se despacha a domicilio.
@@ -23,6 +23,10 @@ Devuelve "hechos" (uno por servicio o por código del que se enseña algo) y "du
   · descripcion: una o dos frases en buen español que expliquen el recorrido y lo que lo distingue (sin repetir el nombre ni el origen), corrigiendo faltas y muletillas.
 - Un CÓDIGO (tienda, almacén/CD u OPL): {"tipo": "entidad", "codigo": "1439", "clase": "tienda" | "almacen" | "opl", "es_cd": true | false, "nombre": "BT F.E Trujillo", "alias": ["…"]}
   · alias: otra forma de llamarlo ("el cd villa es el 20026" → {"tipo": "entidad", "codigo": "20026", "alias": ["cd villa"]}). Si solo enseña un apodo, pon solo el alias: el nombre y la clase en null.
+- Una PALABRA de la operación (qué quiere decir): {"tipo": "termino", "termino": "flujo de picking", "significa": "una jornada de picking: «un solo flujo» es una sola jornada"}
+  · termino: la palabra o expresión, en minúsculas y sin artículo.
+  · significa: qué es en la operación, en una frase clara (con el ejemplo de uso si ayuda).
+  · Solo si se EXPLICA lo que quiere decir ("un flujo es una jornada", "PQT es paquetería"); no por usarla.
 Reglas:
 - Lo que no se dijo va null: no inventes nada. Ningún código que no esté en el mensaje o en CÓDIGOS DEL MENSAJE.
 - Si algo no queda claro (¿qué CD es "el de Aldeas"?, ¿es retiro o despacho?), ponlo en "dudas" como una pregunta corta.
@@ -67,12 +71,13 @@ const texto = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? 
  * fase que no existe o una fase que no cuadra con el método no vale: el turno
  * prueba otro modelo (no se arregla en silencio).
  */
-export function leerAprendido(salida: string, contexto: ContextoTurno, ensena: string): Lectura<{ hechos: Hecho[]; dudas: string[] }> {
+export function leerAprendido(salida: string, contexto: ContextoTurno, ensena: string, vacioVale = false): Lectura<{ hechos: Hecho[]; dudas: string[] }> {
   const j = primerJson(salida);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
   const crudos = Array.isArray(j.hechos) ? j.hechos : [];
   const dudas = Array.isArray(j.dudas) ? j.dudas.map((d) => texto(d, 200)).filter((d): d is string => Boolean(d)).slice(0, 3) : [];
-  if (!crudos.length && !dudas.length) return { ok: false, motivo: 'no sacó nada de lo que se enseña' };
+  // Tras una aclaración puede no haber nada que aprender ("la 20048"): entonces no es un fallo
+  if (!crudos.length && !dudas.length) return vacioVale ? { ok: true, valor: { hechos: [], dudas: [] } } : { ok: false, motivo: 'no sacó nada de lo que se enseña' };
   if (crudos.length > 6) return { ok: false, motivo: 'demasiados hechos de una vez' };
   const permitidos = codigosPermitidos(contexto, ensena);
   const hechos: Hecho[] = [];
@@ -100,8 +105,14 @@ export function leerAprendido(salida: string, contexto: ContextoTurno, ensena: s
       if (es_cd && clase && clase !== 'almacen') return { ok: false, motivo: `hecho ${n}: un CD es un almacén` };
       const alias = Array.isArray(h.alias) ? h.alias.map((a) => texto(a, 60)).filter((a): a is string => Boolean(a)).slice(0, 5) : [];
       hechos.push({ tipo: 'entidad', pais: contexto.pais, codigo, nombre: texto(h.nombre, 80), clase: (es_cd ? 'almacen' : clase) as Hecho['clase'], es_cd, alias });
+    } else if (h.tipo === 'termino') {
+      const palabra = texto(h.termino, 40)?.toLowerCase().replace(/^(el|la|los|las|un|una)\s+/, '') ?? null;
+      const significa = texto(h.significa, 240);
+      if (!palabra || palabra.length < 2) return { ok: false, motivo: `hecho ${n}: un término sin la palabra` };
+      if (!significa || significa.length < 4) return { ok: false, motivo: `hecho ${n}: «${palabra}» sin lo que significa` };
+      hechos.push({ tipo: 'termino', pais: contexto.pais, codigo: palabra, significa });
     } else {
-      return { ok: false, motivo: `hecho ${n}: tipo "${String(h.tipo)}" (es servicio o entidad)` };
+      return { ok: false, motivo: `hecho ${n}: tipo "${String(h.tipo)}" (es servicio, entidad o termino)` };
     }
   }
   return { ok: true, valor: { hechos, dudas } };
@@ -109,6 +120,7 @@ export function leerAprendido(salida: string, contexto: ContextoTurno, ensena: s
 
 /** Un hecho en palabras, para la pregunta "¿lo guardo?" */
 export function hechoEnPalabras(h: Hecho): string {
+  if (h.tipo === 'termino') return `«${h.codigo}»: ${h.significa ?? ''}${/[.!?]$/.test(h.significa ?? '') ? '' : '.'}`;
   if (h.tipo === 'servicio') {
     const partes = [
       h.metodo_entrega ? (h.metodo_entrega === 'RT' ? 'retiro en tienda' : 'despacho a domicilio') : null,

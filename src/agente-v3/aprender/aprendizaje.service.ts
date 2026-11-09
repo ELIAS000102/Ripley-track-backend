@@ -64,6 +64,19 @@ export class AprendizajeService {
     ];
   }
 
+  /** Las palabras que enseñó el equipo, para los prompts. Sin la tabla (falta el sql/03), ninguna */
+  async vocabulario(pais: string): Promise<Array<{ termino: string; significa: string }>> {
+    const { data, error } = await this.supabase.admin.from('agente_vocabulario').select('termino, significa').eq('pais', pais).order('termino').limit(80);
+    if (error) return [];
+    return (data ?? []) as Array<{ termino: string; significa: string }>;
+  }
+
+  private async terminosActuales(pais: string, terminos: string[]): Promise<Array<{ termino: string; significa: string; fuente: string }>> {
+    if (!terminos.length) return [];
+    const { data, error } = await this.supabase.admin.from('agente_vocabulario').select('termino, significa, fuente').eq('pais', pais).in('termino', terminos);
+    return error ? [] : ((data ?? []) as Array<{ termino: string; significa: string; fuente: string }>);
+  }
+
   /** Lo que cambiaría (choques) y lo que no se puede tocar desde el chat (intocables) */
   async revisar(hechos: Hecho[]): Promise<{ choques: string[]; intocables: string[] }> {
     const choques: string[] = [];
@@ -71,7 +84,14 @@ export class AprendizajeService {
     const pais = hechos[0]?.pais ?? 'PE';
     const servicios = await this.serviciosActuales(pais, hechos.filter((h) => h.tipo === 'servicio').map((h) => h.codigo));
     const entidades = await this.entidadesActuales(hechos.filter((h) => h.tipo === 'entidad').map((h) => h.codigo));
+    const terminos = await this.terminosActuales(pais, hechos.filter((h) => h.tipo === 'termino').map((h) => h.codigo));
     for (const h of hechos) {
+      if (h.tipo === 'termino') {
+        const t = terminos.find((x) => x.termino === h.codigo);
+        if (t?.fuente === 'manual') intocables.push(`«${h.codigo}» lo puso a mano el administrador: no lo cambio desde el chat.`);
+        else if (t && plano(t.significa) !== plano(h.significa)) choques.push(`Tenía «${h.codigo}» como «${t.significa}»; pasaría a «${h.significa}».`);
+        continue;
+      }
       if (h.tipo === 'servicio') {
         const s = servicios.find((x) => x.codigo === h.codigo);
         if (!s) continue;
@@ -105,8 +125,23 @@ export class AprendizajeService {
     const pais = hechos[0]?.pais ?? 'PE';
     const servicios = await this.serviciosActuales(pais, hechos.filter((h) => h.tipo === 'servicio').map((h) => h.codigo));
     const entidades = await this.entidadesActuales(hechos.filter((h) => h.tipo === 'entidad').map((h) => h.codigo));
+    const terminos = await this.terminosActuales(pais, hechos.filter((h) => h.tipo === 'termino').map((h) => h.codigo));
 
     for (const h of hechos) {
+      if (h.tipo === 'termino') {
+        if (terminos.find((x) => x.termino === h.codigo)?.fuente === 'manual') { omitidos.push(`«${h.codigo}» (puesto a mano)`); continue; }
+        const { error } = await this.supabase.admin.from('agente_vocabulario').upsert(
+          { pais: h.pais, termino: h.codigo, significa: h.significa, fuente: 'usuario', ensenado_por: email, ensenado_en: ahora },
+          { onConflict: 'pais,termino' },
+        );
+        if (error) {
+          this.logger.warn(`No se pudo guardar el término ${h.codigo}: ${error.message}`);
+          omitidos.push(/relation|does not exist|42P01/i.test(`${error.code ?? ''} ${error.message}`) ? `«${h.codigo}» (falta correr agente-v3/sql/03)` : `«${h.codigo}» (${error.message})`);
+          continue;
+        }
+        guardados.push(`«${h.codigo}»`);
+        continue;
+      }
       if (h.tipo === 'servicio') {
         const actual = servicios.find((x) => x.codigo === h.codigo);
         if (actual?.fuente === 'manual') { omitidos.push(`${h.codigo} (puesto a mano)`); continue; }

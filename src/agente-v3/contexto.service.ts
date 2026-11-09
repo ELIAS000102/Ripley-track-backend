@@ -143,6 +143,7 @@ export class ContextoV3Service {
       hoy: hoyEn(pais), pais, motivo_pais, atajos, anterior,
       entidades: mencionesDe(mensaje, directorio, pais),
       almacenes: almacenesDe(directorio, pais),
+      vocabulario: await this.vocabularioDe(pais),
       servicios,
       aclaraciones: [], pregunta: null, rondas: 0, avisos,
     };
@@ -155,14 +156,22 @@ export class ContextoV3Service {
    */
   async cambiarPais(contexto: ContextoTurno, mensaje: string, pais: Pais, motivo: string): Promise<ContextoTurno> {
     if (pais === contexto.pais) return contexto;
-    const [servicios, directorio] = await Promise.all([this.serviciosDe(pais), this.leerDirectorio()]);
+    const [servicios, directorio, vocabulario] = await Promise.all([this.serviciosDe(pais), this.leerDirectorio(), this.vocabularioDe(pais)]);
     return {
       ...contexto,
       pais, hoy: hoyEn(pais), motivo_pais: motivo, servicios,
       entidades: mencionesDe(mensaje, directorio, pais),
       almacenes: almacenesDe(directorio, pais),
+      vocabulario,
       avisos: [...(contexto.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`],
     };
+  }
+
+  /** Las palabras que enseñó el equipo (agente_vocabulario). Sin la tabla (falta el sql/03), ninguna */
+  async vocabularioDe(pais: Pais): Promise<Array<{ termino: string; significa: string }>> {
+    const { data, error } = await this.supabase.admin.from('agente_vocabulario').select('termino, significa').eq('pais', pais).order('termino').limit(80);
+    if (error) return [];
+    return (data ?? []) as Array<{ termino: string; significa: string }>;
   }
 
   /** Lo aprendido (un alias, un nombre) se usa desde el mensaje siguiente, sin esperar los 5 minutos del directorio */
