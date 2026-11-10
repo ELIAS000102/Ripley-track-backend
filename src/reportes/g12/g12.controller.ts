@@ -20,10 +20,14 @@ export class G12Controller {
     private readonly inicial: InicialG12Service,
   ) {}
 
-  /** GET /reportes/g12?pais=PE[&refrescar=true] — el último de hace menos de 5 min, salvo que se pida refrescar */
+  /**
+   * GET /reportes/g12?pais=PE[&refrescar=true][&soloGuardado=true] — con lo
+   * generado de cada cuadro en los últimos 15 min; `soloGuardado` no pide nada
+   * a Ripley (el resumen del final de "Generar")
+   */
   @Get()
   async generar(@Usuario() usuario: UsuarioAutenticado, @Query() query: ReporteG12Dto) {
-    return this.reporte.reporte(usuario, query.pais ?? 'PE', query.refrescar === true);
+    return this.reporte.reporte(usuario, query.pais ?? 'PE', query.refrescar === true, query.soloGuardado === true);
   }
 
   /**

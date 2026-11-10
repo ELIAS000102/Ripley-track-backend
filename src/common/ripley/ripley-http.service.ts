@@ -372,8 +372,12 @@ export class RipleyHttpService {
     // porque quien llama puede ordenar o recortar lo que le llega
     if (clave && this.enVuelo.has(clave)) return structuredClone(await this.enVuelo.get(clave)) as T;
 
-    const trabajo = this.carril(country, clase).turno(() =>
-      this.enviar<T>(metodo, url, body, { params, headers }, { accion, params, path, pais: country, huella, clase, lee }),
+    // Si la petición va en serie (el G12), además del carril espera a que
+    // termine su llamada anterior: ninguna de las suyas sale a la vez
+    const trabajo = this.enSuFila(() =>
+      this.carril(country, clase).turno(() =>
+        this.enviar<T>(metodo, url, body, { params, headers }, { accion, params, path, pais: country, huella, clase, lee }),
+      ),
     );
 
     if (!clave) return trabajo;
@@ -431,6 +435,11 @@ export class RipleyHttpService {
 
       this.manejarError(error, d.accion, d.params, d.path.length, d.pais);
     }
+  }
+
+  /** La fila de la petición en curso, si va en serie (ver `ContextoAuditoria.activarSecuencial`) */
+  private enSuFila<T>(fn: () => Promise<T>): Promise<T> {
+    return typeof this.contexto.enFila === 'function' ? this.contexto.enFila(fn) : fn();
   }
 
   private carril(pais: string, clase: 'general' | 'simulacion' | string): Carril {

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { CapacidadAgenteService } from '../../../src/agente/consultas/capacidad/capacidad.service.js';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
+import { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import type { DespachoService } from '../../../src/agendas/despacho/despacho.service.js';
 import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
 import { hoyEnPais, sumarDias } from '../../../src/common/ripley/utils/date.util.js';
@@ -35,15 +35,29 @@ function montar(opciones: {
   /** Cuántas veces responde 429 el simulador antes de contestar bien */
   fallos429?: number;
   zonas?: Array<{ zoneId: string; nombre: string; officeCode: string }>;
-  consultar?: (dto: { codigo: string; servicio?: string; zona?: string }) => unknown;
+  consultar?: (dto: { codigo: string; servicio?: string; zona?: string }) => Promise<unknown>;
+  /** Lo que tarda cada simulación y cada lectura de agenda, para ver si se pisan */
+  retardoMs?: number;
 } = {}) {
   const fechas = opciones.fechas ?? {};
   let fallos = opciones.fallos429 ?? 0;
+  // Cuántas peticiones a Ripley hay en curso a la vez, y el máximo visto
+  const concurrencia = { activas: 0, maximo: 0 };
+  const medir = <A extends unknown[], R>(fn: (...a: A) => Promise<R>) => async (...a: A): Promise<R> => {
+    concurrencia.activas++;
+    concurrencia.maximo = Math.max(concurrencia.maximo, concurrencia.activas);
+    try {
+      if (opciones.retardoMs) await new Promise((r) => setTimeout(r, opciones.retardoMs));
+      return await fn(...a);
+    } finally {
+      concurrencia.activas--;
+    }
+  };
   const simulacion = {
     listarRegiones: vi.fn(async () => [{ id: 'r-15', nombre: 'Lima', code: '15' }, { id: 'r-7', nombre: 'Callao', code: '7' }]),
     regionDetalle: vi.fn(async () => LIMA),
     resolverProductos: vi.fn(async () => [{ sku: 1, quantity: '1', type: {} }]),
-    simularResuelto: vi.fn(async (r: { courier: { code: string }; typeOfServiceCode: string; comuna: { name: string } }) => {
+    simularResuelto: vi.fn(medir(async (r: { courier: { code: string }; typeOfServiceCode: string; comuna: { name: string } }) => {
       if (fallos-- > 0) throw new Error('La API corporativa de PE pidió ir más despacio (429) al consultar, también después de esperar.');
       const fecha = fechas[`${r.courier.code}|${r.typeOfServiceCode}`] ?? null;
       return {
@@ -51,20 +65,20 @@ function montar(opciones: {
         errores: fecha ? [] : [{ msg: 'No se encuentran agendas' }],
         mensaje: '',
       };
-    }),
+    })),
   };
   const catalogos = {
     oficinas: vi.fn(async (_pais: string, f: { q: string }) => (f.q === '9999' ? [{ id: 'x', code: '99990' }] : [{ id: `id-${f.q}`, code: f.q }])),
   };
   const hoy = hoyEnPais('PE');
   const capacidad = {
-    consultar: vi.fn(opciones.consultar ?? (async (dto: { codigo: string; servicio?: string }) => ({
+    consultar: vi.fn(medir(opciones.consultar ?? (async (dto: { codigo: string; servicio?: string }) => ({
       tipo: 'picking', pais: 'PE', desde: hoy, sinDatos: [],
       oficinas: [{ oficina: dto.codigo, agendas: [{ agenda: `Agenda ${dto.servicio}`, servicio: dto.servicio ?? null, unidad: null, dias: [
         { fecha: sumarDias(hoy, 1), activo: true, asignado: 230, ocupado: 66, disponible: 164, uso: 29 },
         { fecha: sumarDias(hoy, 2), activo: true, asignado: 230, ocupado: 10, disponible: 220, uso: 4 },
       ] }] }],
-    }))),
+    })))),
   };
 
   const despacho = { listarZonas: vi.fn(async () => opciones.zonas ?? []) };
@@ -84,8 +98,8 @@ function montar(opciones: {
   const supabase = { admin: { from: () => consulta } } as unknown as SupabaseService;
   const cache = new CacheReporteG12();
   const configuracion = new ConfiguracionG12Service(new ConfiguracionReportesService(supabase), { registrarCambio: vi.fn() } as unknown as ContextoAuditoria, cache);
-  const reporte = new ReporteG12Service(configuracion, ejecutor, cache);
-  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy };
+  const reporte = new ReporteG12Service(configuracion, ejecutor, cache, new ContextoAuditoria());
+  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia };
 }
 
 const simItem = (fila: string, operador: string, servicio: string, distrito = 'San Isidro') =>
@@ -237,6 +251,36 @@ describe('El reporte G12', () => {
     expect(simulacion.simularResuelto.mock.calls.length).toBe(llamadas);
     expect(entero.peticiones).toHaveLength(4);
     expect(entero.cobertura).toMatchObject({ simulaciones: { total: 2, conFecha: 1 }, agendas: { total: 2, fallidas: 0 }, reintentadas: 0 });
+  });
+
+  it('una petición a la vez: cada ítem espera a que el anterior tenga su resultado, en el orden configurado', async () => {
+    const muchos: ConfiguracionG12 = {
+      componentes: [{
+        clave: 'pickup_lima',
+        filas: ['A', 'B', 'C'].map((nombre) => ({ nombre })),
+        bloques: [
+          { tipo: 'simulacion', items: [simItem('A', '20027', 'RT'), simItem('B', '20030', 'RT'), simItem('C', '20031', 'RT')] },
+          { tipo: 'picking', items: ['A', 'B', 'C'].map((f, i) => ({ fila: f, campos: { codigo: `2003${i}`, servicio: 'RT' } })) },
+        ],
+      }],
+      resumen: [],
+    };
+    const { reporte, simulacion, capacidad, concurrencia } = montar({ config: muchos, retardoMs: 15 });
+    await reporte.cuadro({ id: 'u', email: 'u@r.pe' }, 'PE', 'pickup_lima');
+
+    expect(simulacion.simularResuelto).toHaveBeenCalledTimes(3);
+    expect(capacidad.consultar).toHaveBeenCalledTimes(3);
+    expect(concurrencia.maximo).toBe(1);
+    expect(simulacion.simularResuelto.mock.calls.map((c) => (c[0] as { courier: { code: string } }).courier.code)).toEqual(['20027', '20030', '20031']);
+  });
+
+  it('el resumen del final (soloGuardado) no vuelve a Ripley: lo que no esté generado sale vacío y avisado', async () => {
+    const { reporte, simulacion, capacidad } = montar({ config: config() });
+    const r = await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE', false, true);
+    expect(simulacion.simularResuelto).not.toHaveBeenCalled();
+    expect(capacidad.consultar).not.toHaveBeenCalled();
+    expect(r.componentes.find((c) => c.clave === 'pickup_lima')!.filas[0].estado).toBe('sin_configurar');
+    expect(r.avisos.join(' ')).toMatch(/Sin generar todavía.*Pickup in store - Lima/);
   });
 
   it('sin ítems configurados dice dónde configurarlo', async () => {

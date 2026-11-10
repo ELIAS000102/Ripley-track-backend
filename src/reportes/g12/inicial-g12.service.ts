@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PickingService } from '../../agendas/picking/picking.service.js';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { RecepcionService } from '../../agendas/recepcion/recepcion.service.js';
 import type { RegionDetalle } from '../../simulacion/interfaces/simulacion.interface.js';
 import { SimulacionService } from '../../simulacion/simulacion.service.js';
@@ -38,12 +39,15 @@ export class InicialG12Service {
     private readonly simulacion: SimulacionService,
     private readonly picking: PickingService,
     private readonly recepcion: RecepcionService,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   async inicial(pais: string): Promise<{ configuracion: ConfiguracionG12; avisos: string[] }> {
     if (pais !== 'PE') {
       throw new BadRequestException('Solo hay configuración inicial de Perú: es la del Excel del G12.');
     }
+    // Como el resto del G12: las llamadas a Ripley, de una en una
+    this.contexto.activarSecuencial();
 
     const avisos: string[] = [];
     const lugar = this.traductorDeComunas(pais, avisos);

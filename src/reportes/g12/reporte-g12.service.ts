@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
 import { CacheReporteG12, type CuadroGuardadoG12 } from './cache-reporte-g12.service.js';
@@ -36,10 +37,13 @@ export class ReporteG12Service {
     private readonly configuracion: ConfiguracionG12Service,
     private readonly ejecutor: EjecutorG12Service,
     private readonly cache: CacheReporteG12,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   /** Un cuadro: el guardado si es reciente, o generado ahora */
   async cuadro(usuario: UsuarioAutenticado, pais: string, clave: ClaveComponente, refrescar = false): Promise<CuadroG12> {
+    // Las llamadas a Ripley de esta petición, de una en una
+    this.contexto.activarSecuencial();
     const hoy = hoyEnPais(pais);
     if (!refrescar) {
       const guardado = this.cache.leer(usuario.id, pais, clave, hoy);
@@ -50,8 +54,14 @@ export class ReporteG12Service {
     return { ...aCuadro(generado), desdeCache: false };
   }
 
-  /** El reporte entero: lo que haya reciente de cada cuadro, y lo que falte se genera */
-  async reporte(usuario: UsuarioAutenticado, pais: string, refrescar = false): Promise<ReporteG12> {
+  /**
+   * El reporte entero: lo que haya reciente de cada cuadro, y lo que falte se
+   * genera. Con `soloGuardado` no se pide nada a Ripley: se arma con lo
+   * generado hoy, sea de cuando sea (es el resumen del final de "Generar"), y
+   * un cuadro que no esté sale vacío con un aviso.
+   */
+  async reporte(usuario: UsuarioAutenticado, pais: string, refrescar = false, soloGuardado = false): Promise<ReporteG12> {
+    this.contexto.activarSecuencial();
     const hoy = hoyEnPais(pais);
     const config = await this.configuracion.configuracion(pais);
     const items = config.componentes.reduce((n, c) => n + c.bloques.reduce((m, b) => m + b.items.length, 0), 0);
@@ -62,13 +72,25 @@ export class ReporteG12Service {
     const guardados = new Map<ClaveComponente, CuadroGuardadoG12>();
     if (!refrescar) {
       for (const clave of CLAVES_COMPONENTES) {
-        const g = this.cache.leer(usuario.id, pais, clave, hoy);
+        const g = this.cache.leer(usuario.id, pais, clave, hoy, soloGuardado);
         if (g) guardados.set(clave, g);
       }
     }
     const faltan = CLAVES_COMPONENTES.filter((c) => !guardados.has(c));
     const inicio = Date.now();
-    for (const g of faltan.length ? await this.generar(usuario, pais, config, faltan) : []) guardados.set(g.componente.clave, g);
+    const sinGenerar: ClaveComponente[] = [];
+    if (soloGuardado) {
+      // Sin ir a Ripley: lo que falte sale con sus filas vacías
+      for (const clave of faltan) {
+        const comp = config.componentes.find((c) => c.clave === clave)!;
+        const def = definicionDe(clave);
+        const filas = calcularFilas(def, comp.filas, new Map(), hoy);
+        guardados.set(clave, { t: Date.now(), hoy, generado: new Date().toISOString(), componente: { clave, titulo: def.titulo, receta: def.receta, filas, total: totalDe(filas) }, peticiones: [] });
+        if (comp.bloques.some((b) => b.items.length)) sinGenerar.push(clave);
+      }
+    } else {
+      for (const g of faltan.length ? await this.generar(usuario, pais, config, faltan) : []) guardados.set(g.componente.clave, g);
+    }
 
     const cuadros = CLAVES_COMPONENTES.map((c) => guardados.get(c)!);
     const componentes = cuadros.map((c) => c.componente);
@@ -85,6 +107,9 @@ export class ReporteG12Service {
     const resumen = calcularResumen(config.resumen, componentes);
 
     const avisos = [...resumen.avisos];
+    if (sinGenerar.length) {
+      avisos.push(`Sin generar todavía, no cuentan en los totales: ${sinGenerar.map((c) => definicionDe(c).titulo).join(', ')}.`);
+    }
     const ddLima = componentes.find((c) => c.clave === 'dd_lima');
     if (ddLima?.filas.some((f) => f.unidades === null && (f.capacidad ?? 0) > 0)) {
       avisos.push('Las unidades de Despacho a domicilio Lima salen del Oracle interno y todavía no están conectadas.');
@@ -146,6 +171,7 @@ export class ReporteG12Service {
    * "Guardar" no digan cosas distintas.
    */
   async probar(dto: ProbarG12Dto, pais: string) {
+    this.contexto.activarSecuencial();
     const filas = [...new Set(dto.bloque.items.map((i) => i.fila))].map((nombre) => ({ nombre }));
     const { configuracion, errores } = normalizarConfiguracion({
       componentes: [{ clave: dto.componente, filas, bloques: [dto.bloque] }],

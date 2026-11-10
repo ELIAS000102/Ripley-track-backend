@@ -26,12 +26,14 @@ import type {
 } from './interfaces/g12.interface.js';
 
 /**
- * Simulaciones y lecturas de agendas a la vez. Pocas a propósito: el G12 son
- * unas 300 peticiones seguidas y la API corporativa responde 429 si se le
- * aprieta. El ritmo fino lo pone además el carril de Ripley.
+ * **Una a la vez** (decisión del usuario, 2026-11-10): bloque por bloque e
+ * ítem por ítem, y cada uno empieza cuando el anterior ya tiene su resultado.
+ * La API corporativa responde 429 en cuanto le llegan varias juntas. Además,
+ * `ReporteG12Service` pone la petición en serie, así que tampoco salen a la
+ * vez las llamadas que los services de capacidad o de catálogos hacen por dentro.
  */
-const SIMULACIONES_A_LA_VEZ = 3;
-const AGENDAS_A_LA_VEZ = 3;
+const SIMULACIONES_A_LA_VEZ = 1;
+const AGENDAS_A_LA_VEZ = 1;
 
 /**
  * Cuántas veces se repite una petición que falló por algo pasajero, y la
@@ -157,7 +159,8 @@ export class EjecutorG12Service {
       });
     }
 
-    await enParalelo(trabajos, AGENDAS_A_LA_VEZ + 1, (t) => t());
+    // En el orden de la configuración, uno detrás de otro
+    for (const trabajo of trabajos) await trabajo();
     return { entradas, registro, hoy: sesion.hoy };
   }
 
@@ -241,12 +244,11 @@ export class EjecutorG12Service {
     const pedido = pedidoDe(item, metodo);
 
     try {
-      const [{ region, comuna }, courier, almacen, productos] = await Promise.all([
-        this.lugar(String(c.region ?? ''), String(c.provincia ?? ''), String(c.distrito ?? ''), sesion),
-        this.oficina(String(c.operador ?? ''), 'opl', sesion),
-        c.almacen ? this.oficina(String(c.almacen), 'almacen', sesion) : Promise.resolve(null),
-        this.productos(String(c.sku || SKU_POR_DEFECTO), Number(c.cantidad || 1), sesion),
-      ]);
+      // Una consulta tras otra, también aquí: nada sale a la vez
+      const { region, comuna } = await this.lugar(String(c.region ?? ''), String(c.provincia ?? ''), String(c.distrito ?? ''), sesion);
+      const courier = await this.oficina(String(c.operador ?? ''), 'opl', sesion);
+      const almacen = c.almacen ? await this.oficina(String(c.almacen), 'almacen', sesion) : null;
+      const productos = await this.productos(String(c.sku || SKU_POR_DEFECTO), Number(c.cantidad || 1), sesion);
 
       const respuesta = await this.simulacion.simularResuelto({
         pais: sesion.pais,

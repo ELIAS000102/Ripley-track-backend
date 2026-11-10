@@ -15,6 +15,8 @@ interface CambioRegistrado {
   usuario?: { id: string; email: string };
   /** Presente si la petición va en simulacro: lo que no se escribió */
   simulacro?: { escrituras: EscrituraEvitada[] };
+  /** Presente si las llamadas a Ripley de la petición van de una en una: la última en la fila */
+  fila?: { cola: Promise<unknown> };
 }
 
 /**
@@ -102,6 +104,32 @@ export class ContextoAuditoria {
   /** Si la petición en curso va en simulacro */
   enSimulacro(): boolean {
     return Boolean(this.almacen.getStore()?.simulacro);
+  }
+
+  // ---------- En serie ----------
+
+  /**
+   * Desde aquí, las llamadas a Ripley de esta petición salen **de una en una**:
+   * cada una espera a que termine la anterior.
+   *
+   * Lo pide el G12 (decisión del usuario, 2026-11-10): son unas 300 llamadas
+   * seguidas y la API corporativa responde 429 si le llegan varias a la vez.
+   * Va por petición y no en el cliente de Ripley entero para no frenar al
+   * resto del backend: el panel y el agente siguen a su ritmo.
+   */
+  activarSecuencial(): void {
+    const actual = this.almacen.getStore();
+    if (actual && !actual.fila) actual.fila = { cola: Promise.resolve() };
+  }
+
+  /** Si la petición va en serie, `fn` espera su turno; si no, sale ya */
+  enFila<T>(fn: () => Promise<T>): Promise<T> {
+    const fila = this.almacen.getStore()?.fila;
+    if (!fila) return fn();
+    // Detrás de la anterior, haya ido bien o mal
+    const turno = fila.cola.then(() => fn(), () => fn());
+    fila.cola = turno.catch(() => undefined);
+    return turno;
   }
 
   /** Lo llama el cliente de Ripley en vez de escribir */

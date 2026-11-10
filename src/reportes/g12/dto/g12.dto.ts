@@ -25,6 +25,12 @@ export class ReporteG12Dto extends PaisDto {
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   refrescar?: boolean;
+
+  /** true: no pedir nada a Ripley, armar el reporte con lo generado hoy (el resumen del final) */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  soloGuardado?: boolean;
 }
 
 /** GET /reportes/g12/cuadro — un cuadro suelto, para actualizar tabla por tabla */

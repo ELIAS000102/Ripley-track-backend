@@ -28,10 +28,15 @@ export class CacheReporteG12 {
     return `${usuarioId}|${pais}|${cuadro}`;
   }
 
-  /** El cuadro guardado si es de hoy y de hace menos de cinco minutos */
-  leer(usuarioId: string, pais: string, cuadro: ClaveComponente, hoy: string): CuadroGuardadoG12 | null {
+  /**
+   * El cuadro guardado si es de hoy y reciente. `aunqueViejo`: cualquiera de
+   * hoy, para armar el resumen al final de una generación larga sin volver a
+   * pedir las primeras tablas.
+   */
+  leer(usuarioId: string, pais: string, cuadro: ClaveComponente, hoy: string, aunqueViejo = false): CuadroGuardadoG12 | null {
     const guardado = this.cuadros.get(this.clave(usuarioId, pais, cuadro));
-    if (!guardado || guardado.hoy !== hoy || Date.now() - guardado.t > VIDA_REPORTE_MS) return null;
+    if (!guardado || guardado.hoy !== hoy) return null;
+    if (!aunqueViejo && Date.now() - guardado.t > VIDA_REPORTE_MS) return null;
     return guardado;
   }
 

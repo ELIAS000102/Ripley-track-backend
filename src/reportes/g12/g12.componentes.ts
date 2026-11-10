@@ -165,5 +165,9 @@ export const DIAS_PRIMER_DIA = 10;
 /** Cuántos días de cada agenda se leen: de ayer (por el RT) a seis semanas */
 export const DIAS_LECTURA_AGENDAS = 45;
 
-/** Lo que vive el último reporte generado, antes de volver a pedirlo a Ripley */
-export const VIDA_REPORTE_MS = 5 * 60 * 1000;
+/**
+ * Lo que vive cada cuadro generado antes de volver a pedirlo a Ripley. Quince
+ * minutos y no cinco: en serie, una petición a la vez, las diez tablas tardan
+ * varios minutos, y con cinco las primeras ya habrían caducado al terminar.
+ */
+export const VIDA_REPORTE_MS = 15 * 60 * 1000;
