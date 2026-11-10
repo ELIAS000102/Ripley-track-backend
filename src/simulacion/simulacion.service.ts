@@ -213,8 +213,21 @@ export class SimulacionService {
     return oficina;
   }
 
-  /** Cada producto necesita su bloque "type", que vive en el catálogo de SKU */
-  private async resolverProductos(
+  /**
+   * El árbol de una región: sus provincias y sus distritos.
+   *
+   * Público para quien simula muchas veces seguidas —el reporte G12— y quiere
+   * pedirlo una vez por región y no una por simulación.
+   */
+  regionDetalle(regionId: string, pais = 'PE'): Promise<RegionDetalle> {
+    return this.traerRegion(regionId, pais);
+  }
+
+  /**
+   * Cada producto necesita su bloque "type", que vive en el catálogo de SKU.
+   * Público por lo mismo que `regionDetalle`.
+   */
+  async resolverProductos(
     productos: SimularDto['products'],
     pais: string,
   ): Promise<SimulacionPayload['products']> {
@@ -282,12 +295,55 @@ export class SimulacionService {
 
     const comuna = this.buscarComuna(region, dto.communeId);
 
+    return this.simularResuelto({
+      pais,
+      region,
+      comuna,
+      almacen,
+      courier,
+      productos,
+      deliveryMethod: dto.deliveryMethod,
+      typeOfServiceCode: dto.typeOfServiceCode,
+      channelSales: dto.channelSales,
+      stock: dto.stock,
+      isCheckout: dto.isCheckout,
+      useFreightEngineSimulation: dto.useFreightEngineSimulation,
+      date: dto.date,
+      hour: dto.hour,
+    });
+  }
+
+  /**
+   * La simulación con todo ya resuelto: región, distrito, oficinas y productos.
+   *
+   * `simular` resuelve esas cuatro piezas en cada llamada (cuatro lecturas antes
+   * del POST). Quien simula muchas combinaciones seguidas —el G12 son unas 160—
+   * las resuelve una vez y llama aquí: el payload y la respuesta son los mismos.
+   */
+  async simularResuelto(r: {
+    pais: string;
+    region: RegionDetalle;
+    comuna: Comuna;
+    almacen: Pick<OfficeRow, 'id' | 'code'> | null;
+    courier: Pick<OfficeRow, 'id' | 'code'>;
+    productos: SimulacionPayload['products'];
+    deliveryMethod: string;
+    typeOfServiceCode?: string | null;
+    channelSales?: string;
+    stock?: number;
+    isCheckout?: boolean;
+    useFreightEngineSimulation?: boolean;
+    date?: string;
+    hour?: string;
+  }) {
+    const { pais, region, comuna, almacen, courier } = r;
+
     const payload: SimulacionPayload = {
-      products: productos,
-      channelSales: dto.channelSales ?? 'TVI',
-      stock: dto.stock ?? 2,
-      isCheckout: dto.isCheckout ?? false,
-      useFreightEngineSimulation: dto.useFreightEngineSimulation ?? false,
+      products: r.productos,
+      channelSales: r.channelSales ?? 'TVI',
+      stock: r.stock ?? 2,
+      isCheckout: r.isCheckout ?? false,
+      useFreightEngineSimulation: r.useFreightEngineSimulation ?? false,
 
       // Derivados del árbol geográfico
       commune: comuna.id,
@@ -312,16 +368,16 @@ export class SimulacionService {
       courier: courier.id,
       pickupStoreCode: courier.code,
 
-      deliveryMethod: dto.deliveryMethod,
+      deliveryMethod: r.deliveryMethod,
       // La cadena vacía se traduce a null: Ripley devuelve matriz vacía con
       // "" y la matriz completa con null, que es lo que se quiere al no filtrar.
-      typeOfServiceCode: dto.typeOfServiceCode?.trim() || null,
-      date: dto.date ?? this.aFechaSimulador(hoyEnPais(pais)),
-      hour: dto.hour ?? this.horaEnPais(pais),
+      typeOfServiceCode: r.typeOfServiceCode?.trim() || null,
+      date: r.date ?? this.aFechaSimulador(hoyEnPais(pais)),
+      hour: r.hour ?? this.horaEnPais(pais),
     };
 
     this.logger.log(
-      `Simulando ${dto.deliveryMethod}/${dto.typeOfServiceCode} — ${almacen?.code ?? 'sin almacén'} → ${courier.code} (${comuna.name})`,
+      `Simulando ${r.deliveryMethod}/${r.typeOfServiceCode} — ${almacen?.code ?? 'sin almacén'} → ${courier.code} (${comuna.name})`,
     );
 
     // Simular no cambia nada en Ripley: es un POST que lee

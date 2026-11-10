@@ -5,7 +5,7 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 const TABLA = 'reportes';
 
 /** Los reportes que guardan su configuración aquí */
-export type TipoReporte = 'st' | 'cd';
+export type TipoReporte = 'st' | 'cd' | 'g12';
 
 /** Una fila de la tabla: la configuración de un reporte en un país */
 export interface ConfiguracionGuardada<T> {
@@ -87,6 +87,12 @@ export class ConfiguracionReportesService {
     if (error.code === '42P01' || error.code === 'PGRST205' || error.code === '42703' || error.code === 'PGRST204') {
       throw new BadGatewayException(
         'Falta la tabla "reportes" en Supabase: ejecuta la sección "Reportes" del SQL de configuración.',
+      );
+    }
+    // La tabla existe pero su check no admite el tipo: falta la línea del SQL del G12
+    if (error.code === '23514') {
+      throw new BadGatewayException(
+        'La tabla "reportes" todavía no admite este reporte: ejecuta en Supabase el cambio de la sección "Reportes" del SQL de configuración.',
       );
     }
     this.logger.error(`No se pudo ${accion}: ${error.message ?? 'error desconocido'}`);

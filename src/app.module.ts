@@ -20,6 +20,7 @@ import { RecepcionModule } from './agendas/recepcion/recepcion.module.js';
 import { TransferenciaAgendasModule } from './agendas/transferencia/transferencia-agendas.module.js';
 import { CdsModule } from './reportes/cds/cds.module.js';
 import { ReporteStModule } from './reportes/st/reporte-st.module.js';
+import { G12Module } from './reportes/g12/g12.module.js';
 import { OplMasivoModule } from './configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from './configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from './configuracion/transf-suc/transf.module.js';
@@ -54,6 +55,7 @@ import { AgenteV3Module } from './agente-v3/agente-v3.module.js';
     TransferenciaAgendasModule,
     CdsModule,
     ReporteStModule,
+    G12Module,
     OplMasivoModule,
     OplModule,
     TransfModule,

@@ -1,0 +1,26 @@
+import { Module } from '@nestjs/common';
+import { AgenteModule } from '../../agente/agente.module.js';
+import { PickingModule } from '../../agendas/picking/picking.module.js';
+import { RecepcionModule } from '../../agendas/recepcion/recepcion.module.js';
+import { RipleyModule } from '../../common/ripley/ripley.module.js';
+import { SimulacionModule } from '../../simulacion/simulacion.module.js';
+import { ReportesComunModule } from '../comun/reportes-comun.module.js';
+import { CacheReporteG12 } from './cache-reporte-g12.service.js';
+import { ConfiguracionG12Service } from './configuracion-g12.service.js';
+import { EjecutorG12Service } from './ejecutor-g12.service.js';
+import { G12Controller } from './g12.controller.js';
+import { InicialG12Service } from './inicial-g12.service.js';
+import { ReporteG12Service } from './reporte-g12.service.js';
+
+/**
+ * El reporte G12: la plantilla del Excel "REPORTE - G12 - PE" en la
+ * plataforma. Su configuración es suya —no pasa por los atajos—; de los demás
+ * módulos usa el simulador y la consulta de capacidad, que ya resuelven códigos
+ * y nombres.
+ */
+@Module({
+  imports: [RipleyModule, ReportesComunModule, SimulacionModule, AgenteModule, PickingModule, RecepcionModule],
+  controllers: [G12Controller],
+  providers: [ReporteG12Service, ConfiguracionG12Service, EjecutorG12Service, InicialG12Service, CacheReporteG12],
+})
+export class G12Module {}
