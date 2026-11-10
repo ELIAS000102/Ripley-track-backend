@@ -108,6 +108,33 @@ export interface AgendaLeidaG12 {
   dias: DiaG12[];
 }
 
+/** Cómo fue una petición a Ripley: cuándo, cuánto tardó y cuántas veces se intentó */
+export interface MetaPeticionG12 {
+  inicio: string;
+  ms: number;
+  intentos: number;
+  /** Por qué falló cada intento que se repitió (429, API caída…) */
+  reintentos: string[];
+}
+
+/** Todo lo que devolvió el simulador, por servicio: lo que el Excel volcaba en sus hojas DC, STS, RT… */
+export interface RespuestaSimulacionG12 {
+  servicios: Array<{
+    servicio: string;
+    agenda: string | null;
+    zona: string | null;
+    opciones: Array<{
+      fecha: string | null;
+      horaCorte: string | null;
+      almacen: string | null;
+      operador: string | null;
+      tamano: string | null;
+    }>;
+  }>;
+  errores: string[];
+  mensaje: string | null;
+}
+
 /** Lo que devolvió un ítem de simulación */
 export interface SimulacionG12 {
   servicio: string;
@@ -123,6 +150,9 @@ export interface SimulacionG12 {
   error?: string | null;
   /** No se pidió: la muestra del bloque no dio fecha */
   omitida?: boolean;
+  meta?: MetaPeticionG12;
+  /** Todo lo que devolvió Ripley; solo va en el registro de peticiones, no en las filas */
+  respuesta?: RespuestaSimulacionG12 | null;
 }
 
 /** Lo que devolvió un ítem de agenda (picking, recepción o despacho) */
@@ -131,6 +161,26 @@ export interface AgendaG12 {
   pedido: Record<string, string | number | null>;
   agendas: AgendaLeidaG12[];
   error?: string | null;
+  /** Se encontró, pero no como se pidió (la zona del Excel no existe y el operador tiene una sola) */
+  aviso?: string | null;
+  meta?: MetaPeticionG12;
+}
+
+/** Una petición del G12 a Ripley, para el registro: qué se pidió, qué volvió y cómo fue */
+export interface PeticionG12 {
+  componente: ClaveComponente;
+  cuadro: string;
+  fila: string;
+  /** El número del bloque en el cuadro, desde 1 */
+  bloque: number;
+  tipo: TipoBloqueG12;
+  pedido: Record<string, string | number | null>;
+  /** ok: con fecha o con agenda · sin_fecha: Ripley respondió sin fecha · omitida: por la muestra · error */
+  estado: 'ok' | 'sin_fecha' | 'omitida' | 'error';
+  mensaje: string | null;
+  meta: MetaPeticionG12 | null;
+  /** Lo que volvió: la respuesta del simulador o las agendas con sus días */
+  datos: RespuestaSimulacionG12 | AgendaLeidaG12[] | null;
 }
 
 /** Lo que alimenta una fila, ya leído */
@@ -209,14 +259,27 @@ export interface LineaResumenReporteG12 extends TotalG12 {
   incompleta: boolean;
 }
 
+/** Un cuadro suelto, como lo pide el panel al actualizar tabla por tabla */
+export interface CuadroG12 {
+  hoy: string;
+  generado: string;
+  desdeCache: boolean;
+  componente: ComponenteReporteG12;
+  peticiones: PeticionG12[];
+}
+
 export interface ReporteG12 {
   parametros: { pais: string; hoy: string; generado: string; desdeCache: boolean };
+  /** Cada petición a Ripley de este reporte */
+  peticiones: PeticionG12[];
   grupos: GrupoReporteG12[];
   componentes: ComponenteReporteG12[];
   resumen: { fecha: string; lineas: LineaResumenReporteG12[]; total: LineaResumenReporteG12 };
   cobertura: {
     simulaciones: { total: number; conFecha: number; omitidas: number; fallidas: number };
     agendas: { total: number; fallidas: number };
+    /** Peticiones que hubo que repetir (429, API caída) */
+    reintentadas: number;
     duracionMs: number;
   };
   avisos: string[];

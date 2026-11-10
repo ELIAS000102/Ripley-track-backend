@@ -1,32 +1,47 @@
 import { Injectable } from '@nestjs/common';
 import { VIDA_REPORTE_MS } from './g12.componentes.js';
-import type { ReporteG12 } from './interfaces/g12.interface.js';
+import type { ClaveComponente, ComponenteReporteG12, PeticionG12 } from './interfaces/g12.interface.js';
+
+/** Un cuadro ya generado, con sus peticiones */
+export interface CuadroGuardadoG12 {
+  t: number;
+  hoy: string;
+  generado: string;
+  componente: ComponenteReporteG12;
+  peticiones: PeticionG12[];
+}
 
 /**
- * El último G12 generado, por persona y país, durante unos minutos.
+ * Lo último generado del G12, cuadro a cuadro, por persona y país, durante
+ * unos minutos.
  *
- * Generarlo son unas 300 llamadas a la API corporativa: volver a abrir el
- * apartado no tiene por qué repetirlas. No hay historial (decisión del
- * usuario, 2026-11-10): solo el último. Va por persona porque cada una lo pide
- * con su token de Ripley.
+ * Por cuadro porque el panel actualiza tabla por tabla: el reporte entero se
+ * arma después con lo que ya hay, sin volver a Ripley. No hay historial
+ * (decisión del usuario, 2026-11-10): solo lo último. Va por persona porque
+ * cada una lo pide con su token de Ripley.
  */
 @Injectable()
 export class CacheReporteG12 {
-  private readonly ultimos = new Map<string, { t: number; reporte: ReporteG12 }>();
+  private readonly cuadros = new Map<string, CuadroGuardadoG12>();
 
-  leer(usuarioId: string, pais: string): ReporteG12 | null {
-    const guardado = this.ultimos.get(`${usuarioId}|${pais}`);
-    if (!guardado || Date.now() - guardado.t > VIDA_REPORTE_MS) return null;
-    return guardado.reporte;
+  private clave(usuarioId: string, pais: string, cuadro: ClaveComponente) {
+    return `${usuarioId}|${pais}|${cuadro}`;
   }
 
-  guardar(usuarioId: string, pais: string, reporte: ReporteG12): void {
-    if (this.ultimos.size > 200) this.ultimos.clear();
-    this.ultimos.set(`${usuarioId}|${pais}`, { t: Date.now(), reporte });
+  /** El cuadro guardado si es de hoy y de hace menos de cinco minutos */
+  leer(usuarioId: string, pais: string, cuadro: ClaveComponente, hoy: string): CuadroGuardadoG12 | null {
+    const guardado = this.cuadros.get(this.clave(usuarioId, pais, cuadro));
+    if (!guardado || guardado.hoy !== hoy || Date.now() - guardado.t > VIDA_REPORTE_MS) return null;
+    return guardado;
+  }
+
+  guardar(usuarioId: string, pais: string, cuadro: CuadroGuardadoG12): void {
+    if (this.cuadros.size > 2000) this.cuadros.clear();
+    this.cuadros.set(this.clave(usuarioId, pais, cuadro.componente.clave), cuadro);
   }
 
   /** Al cambiar la configuración, lo generado con la de antes ya no vale */
   olvidar(pais: string): void {
-    for (const clave of this.ultimos.keys()) if (clave.endsWith(`|${pais}`)) this.ultimos.delete(clave);
+    for (const clave of this.cuadros.keys()) if (clave.split('|')[1] === pais) this.cuadros.delete(clave);
   }
 }

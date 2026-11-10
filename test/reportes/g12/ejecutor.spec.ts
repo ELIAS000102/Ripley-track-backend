@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { CapacidadAgenteService } from '../../../src/agente/consultas/capacidad/capacidad.service.js';
 import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
+import type { DespachoService } from '../../../src/agendas/despacho/despacho.service.js';
 import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
 import { hoyEnPais, sumarDias } from '../../../src/common/ripley/utils/date.util.js';
 import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
@@ -28,13 +29,22 @@ const LIMA = {
   ],
 };
 
-function montar(opciones: { fechas?: Record<string, string | null>; config?: ConfiguracionG12 | null } = {}) {
+function montar(opciones: {
+  fechas?: Record<string, string | null>;
+  config?: ConfiguracionG12 | null;
+  /** Cuántas veces responde 429 el simulador antes de contestar bien */
+  fallos429?: number;
+  zonas?: Array<{ zoneId: string; nombre: string; officeCode: string }>;
+  consultar?: (dto: { codigo: string; servicio?: string; zona?: string }) => unknown;
+} = {}) {
   const fechas = opciones.fechas ?? {};
+  let fallos = opciones.fallos429 ?? 0;
   const simulacion = {
     listarRegiones: vi.fn(async () => [{ id: 'r-15', nombre: 'Lima', code: '15' }, { id: 'r-7', nombre: 'Callao', code: '7' }]),
     regionDetalle: vi.fn(async () => LIMA),
     resolverProductos: vi.fn(async () => [{ sku: 1, quantity: '1', type: {} }]),
     simularResuelto: vi.fn(async (r: { courier: { code: string }; typeOfServiceCode: string; comuna: { name: string } }) => {
+      if (fallos-- > 0) throw new Error('La API corporativa de PE pidió ir más despacio (429) al consultar, también después de esperar.');
       const fecha = fechas[`${r.courier.code}|${r.typeOfServiceCode}`] ?? null;
       return {
         resultados: [{ typeOfService: r.typeOfServiceCode, agenda: 'Agenda', zona: 'Zona', opciones: fecha ? [{ fechaEntrega: `${fecha}T05:00:00.000Z` }, { fechaEntrega: '2026-12-31T05:00:00.000Z' }] : [] }],
@@ -48,16 +58,24 @@ function montar(opciones: { fechas?: Record<string, string | null>; config?: Con
   };
   const hoy = hoyEnPais('PE');
   const capacidad = {
-    consultar: vi.fn(async (dto: { codigo: string; servicio?: string }) => ({
+    consultar: vi.fn(opciones.consultar ?? (async (dto: { codigo: string; servicio?: string }) => ({
       tipo: 'picking', pais: 'PE', desde: hoy, sinDatos: [],
       oficinas: [{ oficina: dto.codigo, agendas: [{ agenda: `Agenda ${dto.servicio}`, servicio: dto.servicio ?? null, unidad: null, dias: [
         { fecha: sumarDias(hoy, 1), activo: true, asignado: 230, ocupado: 66, disponible: 164, uso: 29 },
         { fecha: sumarDias(hoy, 2), activo: true, asignado: 230, ocupado: 10, disponible: 220, uso: 4 },
       ] }] }],
-    })),
+    }))),
   };
 
-  const ejecutor = new EjecutorG12Service(simulacion as unknown as SimulacionService, capacidad as unknown as CapacidadAgenteService, catalogos as unknown as CatalogosRipleyService);
+  const despacho = { listarZonas: vi.fn(async () => opciones.zonas ?? []) };
+  const ejecutor = new EjecutorG12Service(
+    simulacion as unknown as SimulacionService,
+    capacidad as unknown as CapacidadAgenteService,
+    catalogos as unknown as CatalogosRipleyService,
+    despacho as unknown as DespachoService,
+  );
+  // Los reintentos esperan 2, 4 y 8 s; aquí no se espera
+  ejecutor.esperaBaseMs = 0;
 
   const consulta = {
     select: () => consulta, eq: () => consulta,
@@ -108,6 +126,49 @@ describe('El ejecutor del G12', () => {
     expect(capacidad.consultar).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'picking', codigo: '20026', servicio: 'RC', agenda: 'Agenda RC Villa', desde: sumarDias(hoy, -1), dias: 45 }));
   });
 
+  it('un 429 se reintenta hasta tres veces, y el registro dice cuántas y por qué', async () => {
+    const { ejecutor, simulacion } = montar({ fechas: { '20027|RT': '2026-11-10' }, fallos429: 2 });
+    const r = await ejecutor.probar({ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }, 'PE');
+    expect(r.simulaciones?.[0]).toMatchObject({ fecha: '2026-11-10', meta: { intentos: 3 } });
+    expect(r.simulaciones?.[0].meta?.reintentos[0]).toMatch(/429/);
+    expect(simulacion.simularResuelto).toHaveBeenCalledTimes(3);
+  });
+
+  it('si el 429 sigue tras tres reintentos, queda el error; lo que no es pasajero no se reintenta', async () => {
+    const insistente = montar({ fallos429: 10 });
+    const r = await insistente.ejecutor.probar({ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }, 'PE');
+    expect(r.simulaciones?.[0]).toMatchObject({ fecha: null, meta: { intentos: 4 } });
+    expect(r.simulaciones?.[0].error).toMatch(/429/);
+
+    const definitivo = montar();
+    const d = await definitivo.ejecutor.probar({ tipo: 'simulacion', items: [simItem('A', '9999', 'RT')] }, 'PE');
+    expect(d.simulaciones?.[0].meta?.intentos).toBe(1);
+  });
+
+  it('una zona de despacho que el operador no tiene: si tiene una sola se usa y se avisa; si no, se dicen las que tiene', async () => {
+    const consultar = async (dto: { codigo: string; zona?: string }) => (dto.zona === 'Zona SFS 1017'
+      ? { tipo: 'despacho', pais: 'PE', desde: '', sinDatos: [], oficinas: [{ oficina: '1017', agendas: [{ agenda: 'Agenda Zona SFS 1017', servicio: 'DT', zona: 'Zona SFS 1017', unidad: null, dias: [] }] }] }
+      : { tipo: 'despacho', pais: 'PE', desde: '', oficinas: [{ oficina: dto.codigo, agendas: [] }], sinDatos: [`1017: El operador 1017 no tiene zonas que coincidan con "${dto.zona}"`] });
+
+    const una = montar({ consultar, zonas: [{ zoneId: 'z', nombre: 'Zona SFS 1017', officeCode: '1017' }] });
+    const r = await una.ejecutor.probar({ tipo: 'despacho', items: [{ fila: 'A', campos: { codigo: '1017', zona: 'SFS San isidro  - SHARF' } }] }, 'PE');
+    expect(r.agendas?.[0]).toMatchObject({ error: null, agendas: [{ agenda: 'Agenda Zona SFS 1017' }] });
+    expect(r.agendas?.[0].aviso).toMatch(/no existe .* tiene una sola, «Zona SFS 1017»/);
+
+    const varias = montar({ consultar, zonas: [{ zoneId: 'a', nombre: 'Zona A', officeCode: '1017' }, { zoneId: 'b', nombre: 'Zona B', officeCode: '1017' }] });
+    const v = await varias.ejecutor.probar({ tipo: 'despacho', items: [{ fila: 'A', campos: { codigo: '1017', zona: 'Otra' } }] }, 'PE');
+    expect(v.agendas?.[0].error).toBe('La zona «Otra» no existe en el operador 1017. Sus zonas: «Zona A», «Zona B».');
+  });
+
+  it('la respuesta completa del simulador, por servicio, va con cada simulación', async () => {
+    const { ejecutor } = montar({ fechas: { '20027|RT': '2026-11-10' } });
+    const r = await ejecutor.probar({ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }, 'PE');
+    expect(r.simulaciones?.[0].respuesta).toMatchObject({
+      servicios: [{ servicio: 'RT', agenda: 'Agenda', zona: 'Zona', opciones: [{ fecha: '2026-11-10' }, { fecha: '2026-12-31' }] }],
+      errores: [],
+    });
+  });
+
   it('la fecha del servicio pedido, la primera, por su parte de día', () => {
     expect(fechaDelServicio({ resultados: [
       { typeOfService: 'S', opciones: [{ fechaEntrega: '2026-11-12T05:00:00.000Z' }, { fechaEntrega: '2026-11-11T05:00:00.000Z' }] },
@@ -152,6 +213,30 @@ describe('El reporte G12', () => {
 
     await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE', true);
     expect(simulacion.simularResuelto).toHaveBeenCalledTimes(4);
+  });
+
+  it('cuadro a cuadro: cada uno se genera solo, y el reporte entero después sale de lo guardado', async () => {
+    const { reporte, simulacion } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
+    const usuario = { id: 'u', email: 'u@r.pe' };
+
+    const cuadro = await reporte.cuadro(usuario, 'PE', 'pickup_lima');
+    expect(cuadro).toMatchObject({ desdeCache: false, componente: { clave: 'pickup_lima', filas: [{ unidades: 66 }] } });
+    // El registro: las dos simulaciones y las dos lecturas de agenda, con su estado
+    expect(cuadro.peticiones.map((p) => `${p.tipo}:${p.estado}`).sort()).toEqual(['picking:ok', 'picking:ok', 'simulacion:ok', 'simulacion:sin_fecha']);
+    expect(cuadro.peticiones.find((p) => p.estado === 'sin_fecha')?.mensaje).toBe('No se encuentran agendas');
+    // La respuesta completa no se repite en las filas: va en el registro
+    expect(cuadro.componente.filas[0].detalle.simulaciones[0]).not.toHaveProperty('respuesta');
+    expect(cuadro.peticiones.find((p) => p.estado === 'ok' && p.tipo === 'simulacion')?.datos).toMatchObject({ servicios: [{ servicio: 'RT' }] });
+
+    const llamadas = simulacion.simularResuelto.mock.calls.length;
+    const otraVez = await reporte.cuadro(usuario, 'PE', 'pickup_lima');
+    expect(otraVez.desdeCache).toBe(true);
+
+    // El resto de cuadros no tienen ítems: el reporte entero no vuelve a simular nada
+    const entero = await reporte.reporte(usuario, 'PE');
+    expect(simulacion.simularResuelto.mock.calls.length).toBe(llamadas);
+    expect(entero.peticiones).toHaveLength(4);
+    expect(entero.cobertura).toMatchObject({ simulaciones: { total: 2, conFecha: 1 }, agendas: { total: 2, fallidas: 0 }, reintentadas: 0 });
   });
 
   it('sin ítems configurados dice dónde configurarlo', async () => {

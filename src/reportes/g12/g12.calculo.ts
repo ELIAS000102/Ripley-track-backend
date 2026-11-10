@@ -119,7 +119,8 @@ export function agendasDeLaFila(items: AgendaG12[], flujo: string | null): Agend
       });
       continue;
     }
-    for (const agenda of candidatas) salida.push({ item, agenda, aviso: null });
+    // El aviso del ítem (la zona del Excel no existe y se usó la única del operador) viaja con su agenda
+    for (const agenda of candidatas) salida.push({ item, agenda, aviso: item.aviso ?? null });
   }
   return salida;
 }

@@ -27,6 +27,12 @@ export class ReporteG12Dto extends PaisDto {
   refrescar?: boolean;
 }
 
+/** GET /reportes/g12/cuadro — un cuadro suelto, para actualizar tabla por tabla */
+export class CuadroG12Dto extends ReporteG12Dto {
+  @IsIn(CLAVES_COMPONENTES, { message: `clave debe ser uno de: ${CLAVES_COMPONENTES.join(', ')}` })
+  clave: string;
+}
+
 export class ItemG12Dto {
   @IsString()
   @MaxLength(LIMITES_G12.texto)

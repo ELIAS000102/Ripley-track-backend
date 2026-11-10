@@ -538,105 +538,105 @@ export const SEMILLA_G12_PE: SemillaG12 = {
               "fila": "SFS San isidro  - SHARF",
               "campos": {
                 "codigo": "1017",
-                "zona": "SFS San isidro  - SHARF"
+                "zona": "Zona SFS 1017"
               }
             },
             {
               "fila": "SFS Los Olivos  - SHARF",
               "campos": {
                 "codigo": "1024",
-                "zona": "SFS Los Olivos  - SHARF"
+                "zona": "Zona SFS 1024"
               }
             },
             {
               "fila": "SFS Miraflores  - SHARF",
               "campos": {
                 "codigo": "1030",
-                "zona": "SFS Miraflores  - SHARF"
+                "zona": "Zona SFS 1030"
               }
             },
             {
               "fila": "SFS Chorrillos  - SHARF",
               "campos": {
                 "codigo": "1121",
-                "zona": "SFS Chorrillos  - SHARF"
+                "zona": "Zona1121 - Suc. Chorrillos"
               }
             },
             {
               "fila": "SFS Jockey Plaza  - SHARF",
               "campos": {
                 "codigo": "1125",
-                "zona": "SFS Jockey Plaza  - SHARF"
+                "zona": "Zona SFS 1125"
               }
             },
             {
               "fila": "SFS San Miguel  - SHARF",
               "campos": {
                 "codigo": "1128",
-                "zona": "SFS San Miguel  - SHARF"
+                "zona": "Zona 1128 - Suc. San Miguel II"
               }
             },
             {
               "fila": "SFS Trujillo  - E&G",
               "campos": {
                 "codigo": "1140",
-                "zona": "SFS Trujillo  - E&G"
+                "zona": "Zona SFS 1140"
               }
             },
             {
               "fila": "SFS - SJL  - SHARF",
               "campos": {
                 "codigo": "1157",
-                "zona": "SFS - SJL  - SHARF"
+                "zona": "Zona  1157 - SFS San Juan de Lurigancho"
               }
             },
             {
               "fila": "SFS Arequipa  - EXACTA",
               "campos": {
                 "codigo": "1162",
-                "zona": "SFS Arequipa  - EXACTA"
+                "zona": "SFS Arequipa"
               }
             },
             {
               "fila": "SFS Chimbote  - EXACTA",
               "campos": {
                 "codigo": "1169",
-                "zona": "SFS Chimbote  - EXACTA"
+                "zona": "Zona SFS 1169"
               }
             },
             {
               "fila": "SFS Huancayo  - TFART",
               "campos": {
                 "codigo": "1172",
-                "zona": "SFS Huancayo  - TFART"
+                "zona": "Zona SFS 1172"
               }
             },
             {
               "fila": "SFS Piura II  - EXACTA",
               "campos": {
                 "codigo": "1177",
-                "zona": "SFS Piura II  - EXACTA"
+                "zona": "Zona SFS 1177"
               }
             },
             {
               "fila": "SFS Ica  - EXACTA",
               "campos": {
                 "codigo": "1180",
-                "zona": "SFS Ica  - EXACTA"
+                "zona": "Zona SFS 1180"
               }
             },
             {
               "fila": "SFS Chiclayo II  - EXACTA",
               "campos": {
                 "codigo": "1188",
-                "zona": "SFS Chiclayo II  - EXACTA"
+                "zona": "SFS Chiclayo II"
               }
             },
             {
               "fila": "SFS Comas  - SHARF",
               "campos": {
                 "codigo": "1189",
-                "zona": "SFS Comas  - SHARF"
+                "zona": "Zona SFS 1189"
               }
             }
           ]
@@ -3799,98 +3799,98 @@ export const SEMILLA_G12_PE: SemillaG12 = {
               "fila": "PQT. F.E. Arequipa",
               "campos": {
                 "codigo": "1363",
-                "zona": "PQT. F.E. Arequipa"
+                "zona": "Zona PQT F.E Arequipa"
               }
             },
             {
               "fila": "BT. F.E. Arequipa",
               "campos": {
                 "codigo": "1463",
-                "zona": "BT. F.E. Arequipa"
+                "zona": "Zona 1463 - BT Arequipa"
               }
             },
             {
               "fila": "PQT. F.E. Piura",
               "campos": {
                 "codigo": "1365",
-                "zona": "PQT. F.E. Piura"
+                "zona": "Zona 1365 - F.E Courrier Piura"
               }
             },
             {
               "fila": "BT. F.E. Piura",
               "campos": {
                 "codigo": "1465",
-                "zona": "BT. F.E. Piura"
+                "zona": "Zona 1465 - Suc Aldea 6 Piura"
               }
             },
             {
               "fila": "PQT. F.E. Chiclayo",
               "campos": {
                 "codigo": "1342",
-                "zona": "PQT. F.E. Chiclayo"
+                "zona": "Zona 1342 - F.ECourrier Chiclayo"
               }
             },
             {
               "fila": "BT. F.E. Chiclayo",
               "campos": {
                 "codigo": "1442",
-                "zona": "BT. F.E. Chiclayo"
+                "zona": "Zona 1442 - Suc Aldea 6 Chiclayo"
               }
             },
             {
               "fila": "PQT. F.E. Chimbote",
               "campos": {
                 "codigo": "1370",
-                "zona": "PQT. F.E. Chimbote"
+                "zona": "Zona 1370 - F.E Courier Chimbote"
               }
             },
             {
               "fila": "BT. F.E. Chimbote",
               "campos": {
                 "codigo": "1469",
-                "zona": "BT. F.E. Chimbote"
+                "zona": "Zona 1469 - Suc Aldea 6 Chimbote"
               }
             },
             {
               "fila": "PQT. F.E. Ica",
               "campos": {
                 "codigo": "1381",
-                "zona": "PQT. F.E. Ica"
+                "zona": "Zona 1381 - F.E Courrier Ica"
               }
             },
             {
               "fila": "BT. F.E. Ica",
               "campos": {
                 "codigo": "1480",
-                "zona": "BT. F.E. Ica"
+                "zona": "Zona 1480 - Suc Aldea 6 Ica"
               }
             },
             {
               "fila": "PQT. F.E. Huancayo",
               "campos": {
                 "codigo": "1373",
-                "zona": "PQT. F.E. Huancayo"
+                "zona": "Zona 1373 - F.Ecourrier huancayo"
               }
             },
             {
               "fila": "BT. F.E. Huancayo",
               "campos": {
                 "codigo": "1472",
-                "zona": "BT. F.E. Huancayo"
+                "zona": "Zona 1472 - Suc Aldea 6 Huancayo"
               }
             },
             {
               "fila": "PQT. F.E. Trujillo",
               "campos": {
                 "codigo": "1339",
-                "zona": "PQT. F.E. Trujillo"
+                "zona": "Zona 1339 - F.ECourrier Trujillo"
               }
             },
             {
               "fila": "BT. F.E. Trujillo",
               "campos": {
                 "codigo": "1439",
-                "zona": "BT. F.E. Trujillo"
+                "zona": "Zona 1439 - Suc Aldea 6 Trujillo"
               }
             }
           ]

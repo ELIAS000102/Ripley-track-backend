@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AgenteModule } from '../../agente/agente.module.js';
+import { DespachoModule } from '../../agendas/despacho/despacho.module.js';
 import { PickingModule } from '../../agendas/picking/picking.module.js';
 import { RecepcionModule } from '../../agendas/recepcion/recepcion.module.js';
 import { RipleyModule } from '../../common/ripley/ripley.module.js';
@@ -19,7 +20,7 @@ import { ReporteG12Service } from './reporte-g12.service.js';
  * y nombres.
  */
 @Module({
-  imports: [RipleyModule, ReportesComunModule, SimulacionModule, AgenteModule, PickingModule, RecepcionModule],
+  imports: [RipleyModule, ReportesComunModule, SimulacionModule, AgenteModule, PickingModule, RecepcionModule, DespachoModule],
   controllers: [G12Controller],
   providers: [ReporteG12Service, ConfiguracionG12Service, EjecutorG12Service, InicialG12Service, CacheReporteG12],
 })

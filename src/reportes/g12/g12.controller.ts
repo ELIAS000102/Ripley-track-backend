@@ -4,7 +4,8 @@ import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PaisDto } from '../../common/dto/pais.dto.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
-import { GuardarConfiguracionG12Dto, ProbarG12Dto, ReporteG12Dto } from './dto/g12.dto.js';
+import { CuadroG12Dto, GuardarConfiguracionG12Dto, ProbarG12Dto, ReporteG12Dto } from './dto/g12.dto.js';
+import type { ClaveComponente } from './interfaces/g12.interface.js';
 import { InicialG12Service } from './inicial-g12.service.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
 
@@ -23,6 +24,16 @@ export class G12Controller {
   @Get()
   async generar(@Usuario() usuario: UsuarioAutenticado, @Query() query: ReporteG12Dto) {
     return this.reporte.reporte(usuario, query.pais ?? 'PE', query.refrescar === true);
+  }
+
+  /**
+   * GET /reportes/g12/cuadro?pais=PE&clave=pickup_lima[&refrescar=true] — un cuadro
+   * suelto. Es como lo actualiza el panel, tabla por tabla: así no salen 300
+   * peticiones de golpe y cada tabla se ve cuando está.
+   */
+  @Get('cuadro')
+  async cuadro(@Usuario() usuario: UsuarioAutenticado, @Query() query: CuadroG12Dto) {
+    return this.reporte.cuadro(usuario, query.pais ?? 'PE', query.clave as ClaveComponente, query.refrescar === true);
   }
 
   /** GET /reportes/g12/configuracion?pais=PE */
