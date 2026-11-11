@@ -89,15 +89,16 @@ export class OracleG12Service {
   async datos(pais: string): Promise<{ carga: CargaOracleG12 | null; unidades: UnidadOracleG12[] }> {
     const carga = await this.ultimaCarga(pais);
     if (!carga) return { carga: null, unidades: [] };
-    const { data, error } = await this.supabase.admin.from('g12_unidades_oracle').select('fecha, sub_flujo, unidades').eq('pais', pais);
+    const { data, error } = await this.supabase.admin.from('g12_unidades_oracle').select('fecha, zona, sub_flujo, unidades').eq('pais', pais);
     if (error) {
       this.logger.warn(`No se pudieron leer las unidades del Oracle de ${pais}: ${error.message}`);
       return { carga: null, unidades: [] };
     }
     return {
       carga,
-      unidades: ((data ?? []) as Array<{ fecha: string; sub_flujo: string; unidades: number | string }>).map((u) => ({
+      unidades: ((data ?? []) as Array<{ fecha: string; zona: string | null; sub_flujo: string; unidades: number | string }>).map((u) => ({
         fecha: String(u.fecha).slice(0, 10),
+        zona: u.zona ?? '',
         subFlujo: u.sub_flujo,
         unidades: Number(u.unidades) || 0,
       })),

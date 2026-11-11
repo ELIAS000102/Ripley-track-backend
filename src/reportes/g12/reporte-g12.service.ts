@@ -135,6 +135,7 @@ export class ReporteG12Service {
     return {
       parametros: { pais, hoy, generado: generados.at(-1) ?? null },
       oracle: oracle.carga,
+      consumos: oracle.carga ? oracle.unidades : [],
       cuadros,
       filas: Object.fromEntries(config.componentes.map((c) => [c.clave, c.filas.map((f) => f.nombre)])),
       peticiones,

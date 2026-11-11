@@ -408,6 +408,7 @@ describe('Las unidades del Oracle en el reporte', () => {
     await cuadros.guardar('PE', cuadroDd());
     const r = await reporte.reporte('PE');
     expect(r.oracle).toBeNull();
+    expect(r.consumos).toEqual([]);
     expect(r.cuadros[0].componente.filas[0].unidades).toBeNull();
     expect(r.avisos.join(' ')).toMatch(/todavía no se han cargado: usa el Excel de carga/);
   });
@@ -422,6 +423,8 @@ describe('Las unidades del Oracle en el reporte', () => {
     const r = await reporte.reporte('PE');
 
     expect(r.oracle).toMatchObject({ filas: 1, origen: 'excel' });
+    // Los consumos van tal cual, para la pestaña "Datos"
+    expect(r.consumos).toEqual([{ fecha: sumarDias(hoyEnPais('PE'), 1), zona: '2. PAQUETERIA_RM', subFlujo: 'Centralizado URBANO', unidades: 202 }]);
     // Va en los cuadros que pinta el panel, no solo en "componentes"
     expect(r.cuadros[0].componente.filas[0]).toMatchObject({ unidades: 202, porcentaje: 40 });
     expect(r.componentes.find((c) => c.clave === 'dd_lima')!.total).toMatchObject({ unidades: 202 });

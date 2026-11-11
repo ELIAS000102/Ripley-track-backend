@@ -267,6 +267,8 @@ export function calcularFilas(
 /** Unidades de un sub-flujo en un día, tal como llegan del Oracle (consulta "BT_DISPACTH") */
 export interface UnidadOracleG12 {
   fecha: string;
+  /** "2. PAQUETERIA_RM", "3. BT_RM"… (la ZONA de la consulta) */
+  zona?: string;
   /** El nombre de la fila del cuadro: "Centralizado URBANO", "Big Ticket Lima"… */
   subFlujo: string;
   unidades: number;
