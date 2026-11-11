@@ -13,6 +13,8 @@ export interface CargaOracleG12 {
   origen: string;
   /** De quién era el Excel que la subió (null: una clave sin persona) */
   usuarioEmail: string | null;
+  /** La hora del propio Oracle al consultar (su SYSDATE, hora de Lima), si el Excel la envió */
+  consultadoEn: string | null;
 }
 
 /** El último pedido de unidades a los Excel de carga */
@@ -81,8 +83,10 @@ export class OracleG12Service {
       this.logger.warn(`No se pudo leer la carga del Oracle de ${pais}: ${error.message}`);
       return null;
     }
-    const f = (data ?? [])[0] as { cargado_en: string; filas: number; desde: string | null; hasta: string | null; origen: string | null; usuario_email?: string | null } | undefined;
-    return f ? { cargadoEn: f.cargado_en, filas: f.filas, desde: f.desde ?? null, hasta: f.hasta ?? null, origen: f.origen ?? 'excel', usuarioEmail: f.usuario_email ?? null } : null;
+    const f = (data ?? [])[0] as { cargado_en: string; filas: number; desde: string | null; hasta: string | null; origen: string | null; usuario_email?: string | null; consultado_en?: string | null } | undefined;
+    return f
+      ? { cargadoEn: f.cargado_en, filas: f.filas, desde: f.desde ?? null, hasta: f.hasta ?? null, origen: f.origen ?? 'excel', usuarioEmail: f.usuario_email ?? null, consultadoEn: f.consultado_en ?? null }
+      : null;
   }
 
   /** Las unidades cargadas del país y su carga; sin carga, vacías */
