@@ -35,7 +35,8 @@ function armar(opciones: { fallar?: Set<string> } = {}) {
       }),
   } as unknown as HttpService;
   const config = {
-    get: (clave: string) => (clave === 'ripley.urls' ? { PE: 'https://api' } : undefined),
+    // Sin intervalo en el carril: lo que se mide aquí es la fila de la petición
+    get: (clave: string) => ({ 'ripley.urls': { PE: 'https://api' }, 'ripley.ritmo.general': { paralelas: '8', intervaloMs: '0' } } as Record<string, unknown>)[clave],
   } as unknown as ConfigService;
   const tokens = { obtenerParaUso: async () => 'token' } as unknown as TokenRipleyService;
   const cache = { olvidar: () => undefined } as unknown as CacheCatalogosService;
@@ -104,6 +105,30 @@ describe('Las llamadas a Ripley en serie', () => {
       await ripley.get('/ruta/zonas', 'PE');
     });
     expect(vuelo.orden).toEqual(['zonas', 'zonas']);
+  });
+
+  it('con aLaVez, como mucho esas a la vez, y las demás por orden de llegada', async () => {
+    const { ripley, contexto, vuelo } = armar();
+    await contexto.ejecutar(async () => {
+      contexto.identificarUsuario('u', 'u@r.pe');
+      contexto.activarSecuencial({ aLaVez: 2 });
+      await Promise.all(['a', 'b', 'c', 'd', 'e'].map((x) => ripley.get(`/ruta/${x}`, 'PE')));
+    });
+    expect(vuelo.maximo).toBe(2);
+    expect(vuelo.orden).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
+  it('medir cuenta las llamadas de cada parte por separado, aunque vayan a la vez', async () => {
+    const { ripley, contexto } = armar();
+    const [uno, dos] = await contexto.ejecutar(() => {
+      contexto.identificarUsuario('u', 'u@r.pe');
+      contexto.activarSecuencial({ aLaVez: 4 });
+      return Promise.all([
+        contexto.medir(async () => { await ripley.get('/ruta/x1', 'PE'); await ripley.get('/ruta/x2', 'PE'); }),
+        contexto.medir(() => ripley.get('/ruta/y1', 'PE')),
+      ]);
+    });
+    expect([uno.llamadas, dos.llamadas]).toEqual([2, 1]);
   });
 
   it('una que falla no atasca a las siguientes', async () => {

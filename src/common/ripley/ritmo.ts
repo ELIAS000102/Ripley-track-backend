@@ -96,3 +96,90 @@ export class Carril {
     this.despachar();
   }
 }
+
+/**
+ * El cupo de Ripley por token: cuántas llamadas deja hacer en cada ventana.
+ *
+ * Medido el 2026-11-10 con tres actualizaciones del G12: el 429 llega siempre
+ * hacia la llamada 120 de la ventana, y se vuelve a poder llamar a los 60 s de
+ * la primera, no del 429. Ir más despacio no lo evita —las 120 caben en
+ * cualquier ritmo—; lo que lo evita es no pasar del cupo. Se deja margen
+ * (110) para lo que el panel o el agente pidan con el mismo token.
+ */
+export interface CupoVentana {
+  /** Llamadas por ventana, como mucho */
+  llamadas: number;
+  /** Lo que dura una ventana desde su primera llamada */
+  ventanaMs: number;
+  /** Lo que se espera de más al cerrar una ventana, por si los relojes no coinciden */
+  margenMs: number;
+}
+
+export const CUPO_POR_DEFECTO: CupoVentana = { llamadas: 110, ventanaMs: 60_000, margenMs: 1_000 };
+
+/** El cupo de la configuración, o el de por defecto en lo que no valga */
+export function cupoDe(valor: unknown, porDefecto: CupoVentana = CUPO_POR_DEFECTO): CupoVentana {
+  const v = (valor && typeof valor === 'object' ? valor : {}) as Partial<Record<keyof CupoVentana, unknown>>;
+  const entero = (x: unknown, minimo: number, d: number) => {
+    if (x === undefined || x === null || x === '') return d;
+    const n = Number(x);
+    return Number.isFinite(n) && n >= minimo ? Math.floor(n) : d;
+  };
+  return {
+    llamadas: entero(v.llamadas, 1, porDefecto.llamadas),
+    ventanaMs: entero(v.ventanaMs, 1, porDefecto.ventanaMs),
+    margenMs: entero(v.margenMs, 0, porDefecto.margenMs),
+  };
+}
+
+/**
+ * La cuenta de un token: cuándo empezó su ventana y cuántas lleva. Una
+ * ventana empieza con la primera llamada después de cerrarse la anterior,
+ * como en Ripley.
+ */
+export class Cupo {
+  private inicio: number | null = null;
+  private usadas = 0;
+  /** Tras un 429, nadie sale antes de esto */
+  private bloqueadoHasta = 0;
+
+  constructor(private readonly cupo: CupoVentana) {}
+
+  /** Espera a que haya sitio en la ventana y lo ocupa. Devuelve lo que esperó */
+  async tomar(): Promise<number> {
+    const desde = Date.now();
+    for (;;) {
+      const ahora = Date.now();
+      if (this.bloqueadoHasta > ahora) {
+        await dormir(this.bloqueadoHasta - ahora);
+        continue;
+      }
+      if (this.inicio === null || ahora >= this.cierre()) {
+        this.inicio = ahora;
+        this.usadas = 0;
+      }
+      if (this.usadas < this.cupo.llamadas) {
+        this.usadas++;
+        return Date.now() - desde;
+      }
+      await dormir(Math.max(1, this.cierre() - ahora));
+    }
+  }
+
+  /**
+   * Ripley respondió 429: la ventana está gastada aunque no lo pareciera (otra
+   * llamada con el mismo token, fuera de esta cuenta). Nadie sale hasta que
+   * cierre, o hasta lo que pida Ripley si es más; después empieza otra.
+   */
+  agotado(pedidoMs = 0): void {
+    const ahora = Date.now();
+    const cierre = this.inicio === null ? ahora + this.cupo.ventanaMs + this.cupo.margenMs : this.cierre();
+    this.bloqueadoHasta = Math.max(this.bloqueadoHasta, cierre, ahora + pedidoMs);
+    this.inicio = null;
+    this.usadas = 0;
+  }
+
+  private cierre(): number {
+    return (this.inicio ?? Date.now()) + this.cupo.ventanaMs + this.cupo.margenMs;
+  }
+}

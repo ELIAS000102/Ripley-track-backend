@@ -9,7 +9,6 @@ import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js
 import { CatalogosRipleyService, type TipoOficina } from '../../common/ripley/catalogos.service.js';
 import { dormir } from '../../common/ripley/ritmo.js';
 import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
-import { enParalelo } from '../../common/utils/lotes.util.js';
 import type { Comuna, OfficeRow, RegionDetalle, SimulacionPayload } from '../../simulacion/interfaces/simulacion.interface.js';
 import { SimulacionService } from '../../simulacion/simulacion.service.js';
 import { DIAS_LECTURA_AGENDAS, DIAS_SEMANA } from './g12.componentes.js';
@@ -27,14 +26,38 @@ import type {
 } from './interfaces/g12.interface.js';
 
 /**
- * **Una a la vez** (decisión del usuario, 2026-11-10): bloque por bloque e
- * ítem por ítem, y cada uno empieza cuando el anterior ya tiene su resultado.
- * La API corporativa responde 429 en cuanto le llegan varias juntas. Además,
- * `ReporteG12Service` pone la petición en serie, así que tampoco salen a la
- * vez las llamadas que los services de capacidad o de catálogos hacen por dentro.
+ * **De 4 en 4** (decisión del usuario, 2026-11-10). Primero iba de una en una;
+ * al medir que Ripley deja unas 120 llamadas por ventana de 60 s por token, se
+ * pidió gastar la ventana en ráfaga. El cupo del cliente de Ripley frena al
+ * llegar al tope (110), así que ir más rápido no trae 429. No son todas a la
+ * vez: cien conexiones juntas podrían saltar otra protección de Ripley que no
+ * conocemos. Se cambia con G12_A_LA_VEZ (de 1 a 8).
  */
-const SIMULACIONES_A_LA_VEZ = 1;
-const AGENDAS_A_LA_VEZ = 1;
+const A_LA_VEZ_POR_DEFECTO = 4;
+const A_LA_VEZ_MAXIMO = 8;
+
+function aLaVezDe(valor: string | undefined): number {
+  const n = Number(valor);
+  return Number.isInteger(n) && n >= 1 ? Math.min(n, A_LA_VEZ_MAXIMO) : A_LA_VEZ_POR_DEFECTO;
+}
+
+/** Como mucho `n` trabajos en curso; los demás esperan por orden de llegada */
+type Limitador = <T>(fn: () => Promise<T>) => Promise<T>;
+function limitador(n: number): Limitador {
+  let activos = 0;
+  const cola: Array<() => void> = [];
+  return async (fn) => {
+    if (activos < n) activos++;
+    else await new Promise<void>((entrar) => cola.push(entrar));
+    try {
+      return await fn();
+    } finally {
+      const siguiente = cola.shift();
+      if (siguiente) siguiente();
+      else activos--;
+    }
+  };
+}
 
 /**
  * Cuántas veces se repite una petición que falló por algo pasajero, y la
@@ -104,6 +127,9 @@ export class EjecutorG12Service {
   /** La espera del primer reintento. Se puede cambiar en los tests */
   esperaBaseMs = ESPERA_BASE_MS;
 
+  /** Cuántos ítems a la vez; `ReporteG12Service` pone la fila de la petición con lo mismo */
+  aLaVez = aLaVezDe(process.env.G12_A_LA_VEZ);
+
   constructor(
     private readonly simulacion: SimulacionService,
     private readonly capacidad: CapacidadAgenteService,
@@ -122,12 +148,22 @@ export class EjecutorG12Service {
    */
   async ejecutar(config: ConfiguracionG12, pais: string, claves?: ClaveComponente[]): Promise<{ entradas: EntradasG12; registro: RegistroG12[]; hoy: string }> {
     const sesion = this.nuevaSesion(pais);
+    const limitar = limitador(this.aLaVez);
+    const componentes = config.componentes.filter((c) => !claves || claves.includes(c.clave));
+
+    // Todo sale a la vez por el limitador: de `aLaVez` en `aLaVez`, y por orden
+    // de la configuración, porque el limitador atiende por orden de llegada
+    const resultados = componentes.map((comp) => comp.bloques.map((bloque) => {
+      if (bloque.tipo === 'simulacion') return this.simularBloque(bloque, sesion, limitar);
+      if (bloque.tipo === 'capacidad') return Promise.resolve([]);
+      return Promise.all(bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))));
+    }));
+    const listos = await Promise.all(resultados.map((porBloque) => Promise.all(porBloque)));
+
+    // Y se arma en el orden de la configuración, llegue lo que llegue antes
     const entradas: EntradasG12 = new Map();
     const registro: RegistroG12[] = [];
-
-    const trabajos: Array<() => Promise<void>> = [];
-    for (const comp of config.componentes) {
-      if (claves && !claves.includes(comp.clave)) continue;
+    componentes.forEach((comp, c) => {
       const porFila = new Map<string, EntradasFilaG12>();
       entradas.set(comp.clave, porFila);
       const de = (fila: string) => {
@@ -136,42 +172,29 @@ export class EjecutorG12Service {
       };
 
       comp.bloques.forEach((bloque, b) => {
-        const anotar = (it: ItemG12, resultado: SimulacionG12 | AgendaG12) =>
-          registro.push({ componente: comp.clave, fila: it.fila, bloque: b + 1, tipo: bloque.tipo, resultado });
-
-        if (bloque.tipo === 'simulacion') {
-          trabajos.push(async () => {
-            const resultados = await this.simularBloque(bloque, sesion);
-            bloque.items.forEach((it, i) => {
-              de(it.fila).simulaciones.push(resultados[i]);
-              anotar(it, resultados[i]);
-            });
-          });
-        } else if (bloque.tipo === 'capacidad') {
-          for (const it of bloque.items) de(it.fila).fijas.push(cupoSemanal(it));
-        } else {
-          for (const it of bloque.items) {
-            trabajos.push(async () => {
-              const r = await this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion);
-              de(it.fila).agendas.push(r);
-              anotar(it, r);
-            });
+        bloque.items.forEach((it, i) => {
+          if (bloque.tipo === 'capacidad') {
+            de(it.fila).fijas.push(cupoSemanal(it));
+            return;
           }
-        }
+          const resultado = listos[c][b][i];
+          if (bloque.tipo === 'simulacion') de(it.fila).simulaciones.push(resultado as SimulacionG12);
+          else de(it.fila).agendas.push(resultado as AgendaG12);
+          registro.push({ componente: comp.clave, fila: it.fila, bloque: b + 1, tipo: bloque.tipo, resultado });
+        });
       });
-    }
+    });
 
-    // En el orden de la configuración, uno detrás de otro
-    for (const trabajo of trabajos) await trabajo();
     return { entradas, registro, hoy: sesion.hoy };
   }
 
   /** Un bloque suelto, para el botón "Probar" del panel */
   async probar(bloque: BloqueG12, pais: string) {
     const sesion = this.nuevaSesion(pais);
-    if (bloque.tipo === 'simulacion') return { hoy: sesion.hoy, simulaciones: await this.simularBloque(bloque, sesion) };
+    const limitar = limitador(this.aLaVez);
+    if (bloque.tipo === 'simulacion') return { hoy: sesion.hoy, simulaciones: await this.simularBloque(bloque, sesion, limitar) };
     if (bloque.tipo === 'capacidad') return { hoy: sesion.hoy, cupos: bloque.items.map(cupoSemanal) };
-    const agendas = await enParalelo(bloque.items, AGENDAS_A_LA_VEZ, (it) => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion));
+    const agendas = await Promise.all(bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))));
     return { hoy: sesion.hoy, agendas };
   }
 
@@ -182,20 +205,25 @@ export class EjecutorG12Service {
    */
   private async conReintentos<T>(hacer: () => Promise<T>, fallo: (r: T) => string | null): Promise<{ resultado: T; meta: MetaPeticionG12 }> {
     const inicio = new Date();
-    // Va todo en serie, así que lo que suba el contador mientras tanto es de esta petición
-    const llamadasAntes = this.contexto.llamadasHechas();
     const reintentos: string[] = [];
-    let resultado = await hacer();
 
-    for (let n = 0; n < REINTENTOS; n++) {
-      const motivo = fallo(resultado);
-      if (!motivo || !PASAJERO.test(motivo)) break;
-      reintentos.push(motivo);
-      await dormir(this.esperaBaseMs * 2 ** n);
-      resultado = await hacer();
-    }
+    // Medido aparte: con varias a la vez, el contador de la petición mezclaría las de otras
+    const { resultado, llamadas, esperaMs } = await this.contexto.medir(async () => {
+      let r = await hacer();
+      for (let n = 0; n < REINTENTOS; n++) {
+        const motivo = fallo(r);
+        if (!motivo || !PASAJERO.test(motivo)) break;
+        reintentos.push(motivo);
+        await dormir(this.esperaBaseMs * 2 ** n);
+        r = await hacer();
+      }
+      return r;
+    });
 
-    return { resultado, meta: { inicio: inicio.toISOString(), ms: Date.now() - inicio.getTime(), intentos: reintentos.length + 1, reintentos, llamadas: this.contexto.llamadasHechas() - llamadasAntes } };
+    return {
+      resultado,
+      meta: { inicio: inicio.toISOString(), ms: Date.now() - inicio.getTime(), intentos: reintentos.length + 1, reintentos, llamadas, esperaMs: Math.round(esperaMs) },
+    };
   }
 
   // ───────────────────────── Simulación ─────────────────────────
@@ -207,12 +235,13 @@ export class EjecutorG12Service {
    * muestra falla por la API (no por falta de fecha) se simulan todos igual,
    * porque eso no dice nada del servicio.
    */
-  private async simularBloque(bloque: BloqueG12, sesion: SesionG12): Promise<SimulacionG12[]> {
+  private async simularBloque(bloque: BloqueG12, sesion: SesionG12, limitar: Limitador): Promise<SimulacionG12[]> {
     const items = bloque.items;
     if (!items.length) return [];
+    const simular = (it: ItemG12) => limitar(() => this.simular(it, sesion));
 
     if (bloque.muestra && items.length > 1) {
-      const primera = await this.simular(items[0], sesion);
+      const primera = await simular(items[0]);
       if (!primera.fecha && !primera.error) {
         const motivo = primera.mensaje ? `: ${primera.mensaje}` : '';
         return [
@@ -226,10 +255,10 @@ export class EjecutorG12Service {
           })),
         ];
       }
-      return [primera, ...(await enParalelo(items.slice(1), SIMULACIONES_A_LA_VEZ, (it) => this.simular(it, sesion)))];
+      return [primera, ...(await Promise.all(items.slice(1).map(simular)))];
     }
 
-    return enParalelo(items, SIMULACIONES_A_LA_VEZ, (it) => this.simular(it, sesion));
+    return Promise.all(items.map(simular));
   }
 
   /** Una simulación; dos ítems idénticos se piden una sola vez por corrida */

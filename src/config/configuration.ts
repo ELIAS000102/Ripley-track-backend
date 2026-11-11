@@ -37,6 +37,16 @@ export default () => {
           intervaloMs: process.env.RIPLEY_RITMO_SIMULACION_INTERVALO_MS,
         },
       },
+      /*
+       * El cupo de Ripley por token: llamadas por ventana, lo que dura la
+       * ventana y el margen al cerrarla. Vacío, 110 cada 60 s + 1 s (ver
+       * src/common/ripley/ritmo.ts: el 429 llega hacia la llamada 120).
+       */
+      cupo: {
+        llamadas: process.env.RIPLEY_CUPO_LLAMADAS,
+        ventanaMs: process.env.RIPLEY_CUPO_VENTANA_MS,
+        margenMs: process.env.RIPLEY_CUPO_MARGEN_MS,
+      },
       // Los tokens ya no viven aquí: cada usuario guarda el suyo cifrado
       // (ver src/configuracion/token-ripley).
       endpoints: {

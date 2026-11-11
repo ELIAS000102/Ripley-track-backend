@@ -36,6 +36,8 @@ export interface ResumenActualizacionG12 {
   reintentadas: number;
   /** Llamadas que salieron de verdad a Ripley; falta en las de antes de contarlas */
   llamadas?: number;
+  /** Lo que las peticiones esperaron a que se abriera la ventana del cupo; falta en las de antes */
+  esperaMs?: number;
 }
 
 export interface ActualizacionG12 {
@@ -75,6 +77,8 @@ interface FilaPeticion {
   reintentos: string[] | null;
   /** Falta (o es null) en las de antes de contarlas */
   llamadas?: number | null;
+  /** Espera por el cupo de Ripley; falta (o es null) en las de antes de medirla */
+  espera_ms?: number | null;
   ms: number | null;
   inicio: string | null;
   datos: PeticionG12['datos'];
@@ -166,12 +170,13 @@ export class HistorialG12Service {
         inicio: p.meta?.inicio ?? null,
         datos: recortarDatos(p, hoy),
         llamadas: p.meta?.llamadas ?? null,
+        espera_ms: p.meta?.esperaMs ?? null,
       }));
       let { error } = await this.supabase.admin.from(TABLA_PETICIONES).insert(filas);
-      // Sin la columna "llamadas" (falta el ALTER del SQL) se guarda igual, sin ellas
+      // Sin las columnas nuevas (falta el ALTER del SQL) se guarda igual, sin ellas
       if (error && SIN_COLUMNA.includes(error.code ?? '')) {
-        this.logger.warn('g12_peticiones no tiene la columna "llamadas": ejecuta el ALTER de docs/supabase-setup.sql');
-        ({ error } = await this.supabase.admin.from(TABLA_PETICIONES).insert(filas.map(({ llamadas: _l, ...resto }) => resto)));
+        this.logger.warn('g12_peticiones no tiene las columnas "llamadas" y "espera_ms": ejecuta los ALTER de docs/supabase-setup.sql');
+        ({ error } = await this.supabase.admin.from(TABLA_PETICIONES).insert(filas.map(({ llamadas: _l, espera_ms: _e, ...resto }) => resto)));
       }
       if (error) this.fallo(error, 'guardar las peticiones');
     }
@@ -193,8 +198,8 @@ export class HistorialG12Service {
     const actual = await this.propia(id, usuario);
     if (actual.fin) return actual;
 
-    type Contada = { estado: string; intentos: number | null; llamadas?: number | null };
-    const leidas = await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos, llamadas').eq('actualizacion_id', id);
+    type Contada = { estado: string; intentos: number | null; llamadas?: number | null; espera_ms?: number | null };
+    const leidas = await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos, llamadas, espera_ms').eq('actualizacion_id', id);
     let data = leidas.data as Contada[] | null;
     if (leidas.error && SIN_COLUMNA.includes(leidas.error.code ?? '')) {
       data = (await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos').eq('actualizacion_id', id)).data as Contada[] | null;
@@ -209,6 +214,7 @@ export class HistorialG12Service {
       error: cuenta('error'),
       reintentadas: filas.filter((f) => (f.intentos ?? 1) > 1).length,
       ...(filas.some((f) => typeof f.llamadas === 'number') ? { llamadas: filas.reduce((n, f) => n + (f.llamadas ?? 0), 0) } : {}),
+      ...(filas.some((f) => typeof f.espera_ms === 'number') ? { esperaMs: filas.reduce((n, f) => n + (f.espera_ms ?? 0), 0) } : {}),
     };
 
     const { data: fila, error } = await this.supabase.admin
@@ -254,7 +260,7 @@ export class HistorialG12Service {
         estado: f.estado,
         pedido: f.pedido ?? {},
         mensaje: f.mensaje,
-        meta: f.inicio ? { inicio: f.inicio, ms: f.ms ?? 0, intentos: f.intentos ?? 1, reintentos: f.reintentos ?? [], ...(typeof f.llamadas === 'number' ? { llamadas: f.llamadas } : {}) } : null,
+        meta: f.inicio ? { inicio: f.inicio, ms: f.ms ?? 0, intentos: f.intentos ?? 1, reintentos: f.reintentos ?? [], ...(typeof f.llamadas === 'number' ? { llamadas: f.llamadas } : {}), ...(typeof f.espera_ms === 'number' ? { esperaMs: f.espera_ms } : {}) } : null,
         datos: f.datos,
       })),
     };
@@ -333,6 +339,10 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
   if (peticiones.some((p) => typeof p.meta?.llamadas === 'number')) {
     datos.push(['Llamadas a Ripley', peticiones.reduce((n, p) => n + (p.meta?.llamadas ?? 0), 0)]);
   }
+  if (peticiones.some((p) => typeof p.meta?.esperaMs === 'number')) {
+    // Varias esperan a la vez la misma ventana: la suma no es tiempo de reloj
+    datos.push(['Espera por cupo (suma, s)', Math.round(peticiones.reduce((n, p) => n + (p.meta?.esperaMs ?? 0), 0) / 100) / 10]);
+  }
   for (const [k, v] of datos) r.addRow([k, v]).getCell(1).font = negrita;
   r.addRow([]);
   cabecera(r.addRow(['Cuadro', 'Origen', 'Generado', 'Peticiones', 'Con error']));
@@ -346,7 +356,7 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
   const columnas: Array<[string, number]> = [
     ['#', 6], ['Cuadro', 26], ['Fila', 26], ['Bloque', 8], ['Tipo', 12], ['Servicio', 9], ['Método', 8],
     ['Operador / código', 16], ['Almacén', 10], ['Zona', 26], ['Agenda pedida', 26], ['Destino', 30],
-    ['Resultado', 11], ['Mensaje', 60], ['Intentos', 9], ['Llamadas a Ripley', 10], ['Reintentos', 60], ['Tiempo (s)', 10], ['Hora', 20],
+    ['Resultado', 11], ['Mensaje', 60], ['Intentos', 9], ['Llamadas a Ripley', 10], ['Reintentos', 60], ['Tiempo (s)', 10], ['Espera por cupo (s)', 12], ['Hora', 20],
     ['Fecha de entrega', 15], ['Servicios devueltos', 22], ['Agenda encontrada', 34], ['Zona encontrada', 30],
   ];
   cabecera(h.addRow(columnas.map(([t]) => t)));
@@ -377,6 +387,7 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
       p.meta?.llamadas ?? '',
       (p.meta?.reintentos ?? []).map((m, k) => `${k + 1}º: ${m}`).join(' | '),
       p.meta ? Math.round(p.meta.ms / 100) / 10 : '',
+      typeof p.meta?.esperaMs === 'number' ? Math.round(p.meta.esperaMs / 100) / 10 : '',
       p.meta ? horaLocal(p.meta.inicio, a.pais) : '',
       delServicio?.opciones[0]?.fecha ?? '',
       sim ? sim.servicios.map((s) => s.servicio).join(', ') : '',

@@ -122,6 +122,11 @@ export interface MetaPeticionG12 {
    * las actualizaciones de antes de contarlas.
    */
   llamadas?: number;
+  /**
+   * Lo que esperó a que se abriera la ventana del cupo de Ripley (110 llamadas
+   * cada 60 s por token). Va dentro de \`ms\`. Falta en las de antes de medirlo.
+   */
+  esperaMs?: number;
 }
 
 /** Todo lo que devolvió el simulador, por servicio: lo que el Excel volcaba en sus hojas DC, STS, RT… */

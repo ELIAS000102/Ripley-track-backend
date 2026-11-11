@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { CacheCatalogosService } from './cache-catalogos.service.js';
-import { Carril, dormir, RITMO_POR_DEFECTO, ritmoDe } from './ritmo.js';
+import { Carril, Cupo, cupoDe, RITMO_POR_DEFECTO, ritmoDe } from './ritmo.js';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { TokenRipleyService } from '../../configuracion/token-ripley/token-ripley.service.js';
 import { RipleyApiError } from './ripley.errors.js';
@@ -39,6 +39,17 @@ const SIMULACION_RECORDADA_MS = 30 * 1000;
 
 /** Lo más que se espera cuando Ripley pide ir más despacio (429) */
 const ESPERA_MAXIMA_429_MS = 10 * 1000;
+
+/**
+ * Cuántas veces se repite una llamada que recibió 429. Cada vez se espera al
+ * cierre de la ventana del cupo, así que una segunda casi nunca hace falta.
+ */
+const REINTENTOS_429 = 2;
+
+/** Una llamada que recibió 429 y se va a repetir cuando se abra la ventana */
+class Reintentar429 {
+  constructor(readonly pedidoMs: number) {}
+}
 
 /** Tope de lecturas que guarda una petición en serie: el G12 entero son unas 600 */
 const LECTURAS_MAXIMAS_POR_FILA = 3000;
@@ -90,6 +101,9 @@ export class RipleyHttpService {
 
   /** Las últimas simulaciones, por lo que se pidió y con qué token */
   private readonly simulaciones = new Map<string, { t: number; data: unknown }>();
+
+  /** El cupo de cada token, por país: cuántas llamadas lleva en su ventana */
+  private readonly cupos = new Map<string, Cupo>();
 
   /** Tokens que Ripley acaba de rechazar con un 401, hasta cuándo */
   private readonly rechazados = new Map<string, number>();
@@ -380,13 +394,13 @@ export class RipleyHttpService {
     // porque quien llama puede ordenar o recortar lo que le llega
     if (clave && this.enVuelo.has(clave)) return structuredClone(await this.enVuelo.get(clave)) as T;
 
-    // Si la petición va en serie (el G12), además del carril espera a que
-    // termine su llamada anterior: ninguna de las suyas sale a la vez
-    const trabajo = this.enSuFila(() =>
-      this.carril(country, clase).turno(() =>
-        this.enviar<T>(metodo, url, body, { params, headers }, { accion, params, path, pais: country, huella, clase, lee }),
-      ),
-    );
+    // Si la petición va en fila (el G12), espera además su sitio en ella. El
+    // cupo del token se espera antes de entrar al carril: el carril es de
+    // todos, y quien espera su ventana no le quita el sitio a otro usuario
+    const d = { accion, params, path, pais: country, huella, clase, lee };
+    const trabajo = this.enSuFila(() => this.conCupo<T>(d, (intento) =>
+      this.carril(country, clase).turno(() => this.enviar<T>(metodo, url, body, { params, headers }, d, intento)),
+    ));
 
     if (!clave) return trabajo;
 
@@ -400,6 +414,36 @@ export class RipleyHttpService {
     } finally {
       this.enVuelo.delete(clave);
     }
+  }
+
+  /**
+   * Cada intento espera sitio en la ventana del cupo de su token. Si Ripley
+   * responde 429 de todos modos, la ventana se da por gastada y se repite
+   * cuando cierre: antes se repetía a los pocos segundos, cuando Ripley
+   * todavía no deja, y tras los reintentos la petición fallaba igual.
+   */
+  private async conCupo<T>(d: { pais: string; huella: string }, intentar: (intento: number) => Promise<T>): Promise<T> {
+    const cupo = this.cupoDe(d.pais, d.huella);
+    for (let intento = 0; ; intento++) {
+      const esperado = await cupo.tomar();
+      if (esperado > 0) this.anotarEspera(esperado);
+      try {
+        return await intentar(intento);
+      } catch (e) {
+        if (!(e instanceof Reintentar429)) throw e;
+        cupo.agotado(e.pedidoMs);
+      }
+    }
+  }
+
+  private cupoDe(pais: string, huella: string): Cupo {
+    const clave = `${pais}:${huella}`;
+    let cupo = this.cupos.get(clave);
+    if (!cupo) {
+      cupo = new Cupo(cupoDe(this.configService.get('ripley.cupo')));
+      this.cupos.set(clave, cupo);
+    }
+    return cupo;
   }
 
   /** La petición en sí, cuando ya le tocó su turno en el carril */
@@ -432,14 +476,13 @@ export class RipleyHttpService {
     } catch (error) {
       const status = (error as AxiosError).response?.status;
 
-      // Ripley pide ir más despacio: se respeta lo que diga, todo el carril
-      // espera, y se reintenta una vez
-      if (status === 429 && intento === 0) {
+      // Ripley pide ir más despacio: el carril espera lo que diga, y la
+      // llamada se repite cuando se abra la ventana del cupo (ver conCupo)
+      if (status === 429 && intento < REINTENTOS_429) {
         const espera = this.esperaPedida(error as AxiosError);
-        this.logger.warn(`La API corporativa de ${d.pais} pidió ir más despacio: se espera ${Math.round(espera / 100) / 10} s`);
+        this.logger.warn(`La API corporativa de ${d.pais} pidió ir más despacio (429): se repite al abrirse la ventana del cupo`);
         this.carril(d.pais, d.clase).frenar(espera);
-        await dormir(espera);
-        return this.enviar<T>(metodo, url, body, config, d, 1);
+        throw new Reintentar429(espera);
       }
 
       if (status === 401) this.rechazados.set(`${d.pais}:${d.huella}`, Date.now() + PAUSA_TRAS_401_MS);
@@ -465,6 +508,10 @@ export class RipleyHttpService {
 
   private contarLlamada(): void {
     if (typeof this.contexto.contarLlamada === 'function') this.contexto.contarLlamada();
+  }
+
+  private anotarEspera(ms: number): void {
+    if (typeof this.contexto.anotarEspera === 'function') this.contexto.anotarEspera(ms);
   }
 
   private carril(pais: string, clase: 'general' | 'simulacion' | string): Carril {

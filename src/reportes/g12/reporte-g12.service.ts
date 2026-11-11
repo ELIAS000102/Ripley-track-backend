@@ -57,7 +57,7 @@ export class ReporteG12Service {
   /** Un cuadro: el guardado si es reciente, o generado ahora */
   async cuadro(usuario: UsuarioAutenticado, pais: string, clave: ClaveComponente, refrescar = false, actualizacion?: string): Promise<CuadroG12> {
     // Las llamadas a Ripley de esta petición, de una en una y sin repetir lecturas de la actualización
-    this.contexto.activarSecuencial({ lecturas: this.lecturasDe(usuario.id, actualizacion) });
+    this.contexto.activarSecuencial({ lecturas: this.lecturasDe(usuario.id, actualizacion), aLaVez: this.ejecutor.aLaVez });
     const hoy = hoyEnPais(pais);
     if (!refrescar) {
       const guardado = this.cache.leer(usuario.id, pais, clave, hoy);
@@ -75,7 +75,7 @@ export class ReporteG12Service {
    * un cuadro que no esté sale vacío con un aviso.
    */
   async reporte(usuario: UsuarioAutenticado, pais: string, refrescar = false, soloGuardado = false): Promise<ReporteG12> {
-    this.contexto.activarSecuencial();
+    this.contexto.activarSecuencial({ aLaVez: this.ejecutor.aLaVez });
     const hoy = hoyEnPais(pais);
     const config = await this.configuracion.configuracion(pais);
     const items = config.componentes.reduce((n, c) => n + c.bloques.reduce((m, b) => m + b.items.length, 0), 0);
@@ -207,7 +207,7 @@ export class ReporteG12Service {
    * "Guardar" no digan cosas distintas.
    */
   async probar(dto: ProbarG12Dto, pais: string) {
-    this.contexto.activarSecuencial();
+    this.contexto.activarSecuencial({ aLaVez: this.ejecutor.aLaVez });
     const filas = [...new Set(dto.bloque.items.map((i) => i.fila))].map((nombre) => ({ nombre }));
     const { configuracion, errores } = normalizarConfiguracion({
       componentes: [{ clave: dto.componente, filas, bloques: [dto.bloque] }],

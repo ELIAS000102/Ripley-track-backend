@@ -84,6 +84,8 @@ function montar(opciones: { get?: () => unknown; token?: () => string } = {}) {
       'ripley.endpoints.simulator': '/simulador',
       'ripley.ritmo.general': { paralelas: '2', intervaloMs: '0' },
       'ripley.ritmo.simulacion': { paralelas: '1', intervaloMs: '0' },
+      // Ventanas cortas: un 429 espera a que cierre la ventana del cupo
+      'ripley.cupo': { llamadas: '100', ventanaMs: '30', margenMs: '0' },
     } as Record<string, unknown>)[clave],
   } as unknown as ConfigService;
   const contexto = { usuarioActual: () => ({ id: 'u1', email: 'ana@ejemplo.com' }), enSimulacro: () => false } as unknown as ContextoAuditoria;
@@ -168,7 +170,7 @@ describe('El cliente de Ripley, con ritmo', () => {
     await expect(servicio.get('/agendas', 'CL')).resolves.toEqual({ ok: true });
   });
 
-  it('si Ripley pide ir más despacio (429), espera lo que dice y reintenta una vez', async () => {
+  it('si Ripley pide ir más despacio (429), espera lo que dice (o a que cierre la ventana) y reintenta', async () => {
     const { servicio, http } = montar({
       get: () => (http.get.mock.calls.length === 1
         ? throwError(() => ({ message: '429', response: { status: 429, data: '', headers: { 'retry-after': '0.05' } } }))

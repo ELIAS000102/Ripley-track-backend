@@ -158,7 +158,8 @@ describe('El ejecutor del G12', () => {
       contexto.activarSecuencial();
       return ejecutor.probar({ tipo: 'simulacion', items: [simItem('A', '20027', 'RT'), simItem('B', '20030', 'RT')] }, 'PE');
     });
-    expect(r.simulaciones?.map((s) => [s.meta?.intentos, s.meta?.llamadas])).toEqual([[3, 3], [1, 1]]);
+    // Van a la vez: las dos primeras llamadas reciben el 429, y cada una cuenta solo las suyas
+    expect(r.simulaciones?.map((s) => [s.meta?.intentos, s.meta?.llamadas])).toEqual([[2, 2], [2, 2]]);
   });
 
   it('si el 429 sigue tras tres reintentos, queda el error; lo que no es pasajero no se reintenta', async () => {
@@ -266,7 +267,7 @@ describe('El reporte G12', () => {
     expect(entero.cobertura).toMatchObject({ simulaciones: { total: 2, conFecha: 1 }, agendas: { total: 2, fallidas: 0 }, reintentadas: 0 });
   });
 
-  it('una petición a la vez: cada ítem espera a que el anterior tenga su resultado, en el orden configurado', async () => {
+  it('de N en N, y el registro en el orden configurado aunque las respuestas lleguen desordenadas', async () => {
     const muchos: ConfiguracionG12 = {
       componentes: [{
         clave: 'pickup_lima',
@@ -278,13 +279,15 @@ describe('El reporte G12', () => {
       }],
       resumen: [],
     };
-    const { reporte, simulacion, capacidad, concurrencia } = montar({ config: muchos, retardoMs: 15 });
-    await reporte.cuadro({ id: 'u', email: 'u@r.pe' }, 'PE', 'pickup_lima');
+    const { ejecutor, reporte, simulacion, capacidad, concurrencia } = montar({ config: muchos, retardoMs: 15 });
+    ejecutor.aLaVez = 2;
+    const r = await reporte.cuadro({ id: 'u', email: 'u@r.pe' }, 'PE', 'pickup_lima');
 
     expect(simulacion.simularResuelto).toHaveBeenCalledTimes(3);
     expect(capacidad.consultar).toHaveBeenCalledTimes(3);
-    expect(concurrencia.maximo).toBe(1);
-    expect(simulacion.simularResuelto.mock.calls.map((c) => (c[0] as { courier: { code: string } }).courier.code)).toEqual(['20027', '20030', '20031']);
+    expect(concurrencia.maximo).toBe(2);
+    expect(r.peticiones.map((p) => `${p.tipo}:${p.fila}`)).toEqual(['simulacion:A', 'simulacion:B', 'simulacion:C', 'picking:A', 'picking:B', 'picking:C']);
+    expect(r.peticiones.map((p) => p.pedido.operador ?? p.pedido.codigo)).toEqual(['20027', '20030', '20031', '20030', '20031', '20032']);
   });
 
   it('el resumen del final (soloGuardado) no vuelve a Ripley: lo que no esté generado sale vacío y avisado', async () => {
