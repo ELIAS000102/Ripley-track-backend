@@ -7,6 +7,7 @@ import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { CLAVES_COMPONENTES, definicionDe, VIDA_REPORTE_MS } from './g12.componentes.js';
 import { HistorialG12Service, type ActualizacionG12, type TipoActualizacionG12 } from './historial-g12.service.js';
+import { OracleG12Service } from './oracle-g12.service.js';
 import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interface.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
 
@@ -51,6 +52,7 @@ export class ActualizadorG12Service {
     private readonly historial: HistorialG12Service,
     private readonly contexto: ContextoAuditoria,
     private readonly perfiles: PerfilService,
+    private readonly oracle: OracleG12Service,
   ) {}
 
   /**
@@ -114,12 +116,14 @@ export class ActualizadorG12Service {
 
   /** Si hay una en curso y por dónde va, la última, y si cambió algo de lo guardado */
   async estado(pais: string): Promise<EstadoG12> {
-    const [enCurso, ultima, versiones] = await Promise.all([
+    const [enCurso, ultima, versiones, carga] = await Promise.all([
       this.historial.enCurso(pais),
       this.historial.ultima(pais),
       this.cuadros.versiones(pais),
+      this.oracle.ultimaCarga(pais),
     ]);
-    const version = versiones.map((v) => `${v.clave}:${v.generado}`).sort().join('|');
+    // Una carga nueva del Oracle también cambia el reporte (las unidades de DD Lima)
+    const version = [...versiones.map((v) => `${v.clave}:${v.generado}`).sort(), `oracle:${carga?.cargadoEn ?? ''}`].join('|');
     return {
       enCurso: enCurso ? { ...enCurso, hechas: enCurso.cuadros.length, total: enCurso.claves.length } : null,
       ultima,

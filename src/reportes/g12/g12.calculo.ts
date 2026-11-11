@@ -264,6 +264,53 @@ export function calcularFilas(
   );
 }
 
+/** Unidades de un sub-flujo en un día, tal como llegan del Oracle (consulta "BT_DISPACTH") */
+export interface UnidadOracleG12 {
+  fecha: string;
+  /** El nombre de la fila del cuadro: "Centralizado URBANO", "Big Ticket Lima"… */
+  subFlujo: string;
+  unidades: number;
+}
+
+/**
+ * Las unidades del Oracle en las filas de un cuadro, **como el Excel**: cada
+ * fila suma lo de su SUB_FLUJO (su nombre) en su fecha —el SUMIFS de la
+ * plantilla—; sin coincidencia o sin fecha, 0. Solo toca las filas que esperan
+ * al Oracle (las de cupo a mano, con unidades vacías); las de total se vuelven
+ * a sumar con sus partes, y el total del cuadro también.
+ */
+export function aplicarUnidadesOracle(comp: ComponenteReporteG12, filasConfig: FilaG12[], unidades: UnidadOracleG12[], origen: string): ComponenteReporteG12 {
+  const clave = (s: string) => s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
+  const suma = new Map<string, number>();
+  for (const u of unidades) {
+    const k = `${clave(u.subFlujo)}|${u.fecha}`;
+    suma.set(k, (suma.get(k) ?? 0) + (Number(u.unidades) || 0));
+  }
+
+  const simples = comp.filas.map((f) => {
+    if (f.esTotal || f.unidades !== null) return f;
+    const u = f.fecha ? suma.get(`${clave(f.nombre)}|${f.fecha}`) ?? 0 : 0;
+    return {
+      ...f,
+      unidades: u,
+      porcentaje: porcentaje(u, f.capacidad),
+      detalle: { ...f.detalle, avisos: [...f.detalle.avisos, `Unidades del Oracle (${origen}).`] },
+    };
+  });
+
+  const porNombre = new Map(simples.map((f) => [f.nombre, f]));
+  const filas = simples.map((f) => {
+    if (!f.esTotal) return f;
+    const partes = (filasConfig.find((c) => c.nombre === f.nombre)?.suma ?? [])
+      .map((n) => porNombre.get(n))
+      .filter((p): p is FilaReporteG12 => !!p && p.unidades !== null);
+    const u = partes.length ? partes.reduce((t, p) => t + p.unidades!, 0) : f.unidades;
+    return { ...f, unidades: u, porcentaje: porcentaje(u, f.capacidad) };
+  });
+
+  return { ...comp, filas, total: totalDe(filas) };
+}
+
 /** Suma de filas: las de total no entran, que ya cuentan en sus partes */
 export function totalDe(filas: FilaReporteG12[]): TotalG12 {
   const simples = filas.filter((f) => !f.esTotal);

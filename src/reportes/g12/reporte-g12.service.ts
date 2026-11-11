@@ -4,9 +4,10 @@ import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { EjecutorG12Service, type RegistroG12 } from './ejecutor-g12.service.js';
-import { calcularFilas, calcularResumen, sumarTotales, totalDe } from './g12.calculo.js';
+import { aplicarUnidadesOracle, calcularFilas, calcularResumen, sumarTotales, totalDe } from './g12.calculo.js';
 import { CLAVES_COMPONENTES, definicionDe, GRUPOS_G12 } from './g12.componentes.js';
 import { normalizarConfiguracion } from './g12.validacion.js';
+import { OracleG12Service } from './oracle-g12.service.js';
 import type { ProbarG12Dto } from './dto/g12.dto.js';
 import type {
   AgendaG12,
@@ -18,6 +19,23 @@ import type {
   ReporteG12,
   SimulacionG12,
 } from './interfaces/g12.interface.js';
+
+/** El cuadro cuyas unidades llegan del Oracle */
+const COMPONENTE_ORACLE: ClaveComponente = 'dd_lima';
+
+/** El día (YYYY-MM-DD) de un instante, en la hora del país */
+function diaEnPais(iso: string, pais: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: pais === 'CL' ? 'America/Santiago' : 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+}
+
+/** "11/11 08:31" en la hora del país */
+function fechaHora(iso: string, pais: string): string {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: pais === 'CL' ? 'America/Santiago' : 'America/Lima',
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month} ${p.hour}:${p.minute}`;
+}
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
 const diaCorto = (iso: string) => `${Number(iso.slice(8, 10))}-${MESES[Number(iso.slice(5, 7)) - 1]}`;
@@ -40,6 +58,7 @@ export class ReporteG12Service {
     private readonly ejecutor: EjecutorG12Service,
     private readonly cuadros: CuadrosG12Service,
     private readonly contexto: ContextoAuditoria,
+    private readonly oracle: OracleG12Service,
   ) {}
 
   /** Cuántos ítems a la vez pide el ejecutor: la fila de la petición se pone con lo mismo */
@@ -54,7 +73,7 @@ export class ReporteG12Service {
    */
   async reporte(pais: string): Promise<ReporteG12> {
     const hoy = hoyEnPais(pais);
-    const [config, guardados] = await Promise.all([this.configuracion.configuracion(pais), this.cuadros.todos(pais)]);
+    const [config, guardados, oracle] = await Promise.all([this.configuracion.configuracion(pais), this.cuadros.todos(pais), this.oracle.datos(pais)]);
 
     const sinGenerar: ClaveComponente[] = [];
     const componentes: ComponenteReporteG12[] = CLAVES_COMPONENTES.map((clave) => {
@@ -66,9 +85,16 @@ export class ReporteG12Service {
       const filas = calcularFilas(def, comp.filas, new Map(), hoy);
       return { clave, titulo: def.titulo, receta: def.receta, filas, total: totalDe(filas) };
     });
-    const cuadros: CuadroReporteG12[] = CLAVES_COMPONENTES.flatMap((c) => {
+    // Las unidades de DD Lima, del Oracle que sube el Excel de carga (como el SUMIFS de la plantilla)
+    const iDd = CLAVES_COMPONENTES.indexOf(COMPONENTE_ORACLE);
+    if (oracle.carga && guardados.has(COMPONENTE_ORACLE)) {
+      const filasDd = config.componentes.find((c) => c.clave === COMPONENTE_ORACLE)?.filas ?? [];
+      componentes[iDd] = aplicarUnidadesOracle(componentes[iDd], filasDd, oracle.unidades, `carga del ${fechaHora(oracle.carga.cargadoEn, pais)}`);
+    }
+
+    const cuadros: CuadroReporteG12[] = CLAVES_COMPONENTES.flatMap((c, i) => {
       const g = guardados.get(c);
-      return g ? [{ clave: c, hoy: g.hoy, generado: g.generado, usuarioEmail: g.usuarioEmail, actualizacionId: g.actualizacionId, componente: g.componente, peticiones: g.peticiones }] : [];
+      return g ? [{ clave: c, hoy: g.hoy, generado: g.generado, usuarioEmail: g.usuarioEmail, actualizacionId: g.actualizacionId, componente: componentes[i], peticiones: g.peticiones }] : [];
     });
     const peticiones = cuadros.flatMap((c) => c.peticiones);
 
@@ -93,9 +119,11 @@ export class ReporteG12Service {
     if (viejos.length) {
       avisos.push(`Datos de otro día, actualízalos: ${viejos.map((c) => `${definicionDe(c.clave).titulo} (${diaCorto(c.hoy)})`).join(', ')}.`);
     }
-    const ddLima = componentes.find((c) => c.clave === 'dd_lima');
-    if (ddLima?.filas.some((f) => f.unidades === null && (f.capacidad ?? 0) > 0)) {
-      avisos.push('Las unidades de Despacho a domicilio Lima salen del Oracle interno y todavía no están conectadas.');
+    const ddLima = componentes[iDd];
+    if (!oracle.carga && ddLima.filas.some((f) => f.unidades === null && (f.capacidad ?? 0) > 0)) {
+      avisos.push('Las unidades de Despacho a domicilio Lima salen del Oracle interno y todavía no se han cargado: usa el Excel de carga dentro de la red de Ripley.');
+    } else if (oracle.carga && diaEnPais(oracle.carga.cargadoEn, pais) !== hoy) {
+      avisos.push(`Las unidades de Despacho a domicilio Lima son del Oracle del ${fechaHora(oracle.carga.cargadoEn, pais)}: vuelve a cargarlas con el Excel.`);
     }
     const corregidas = peticiones.filter((p) => p.tipo === 'despacho' && p.mensaje?.startsWith('La zona «') && p.estado === 'ok').length;
     if (corregidas) avisos.push(`${corregidas} agenda(s) de despacho tienen en la configuración una zona que no existe y se leyó la única del operador: corrígelas (mira "Peticiones").`);
@@ -106,6 +134,7 @@ export class ReporteG12Service {
 
     return {
       parametros: { pais, hoy, generado: generados.at(-1) ?? null },
+      oracle: oracle.carga,
       cuadros,
       filas: Object.fromEntries(config.componentes.map((c) => [c.clave, c.filas.map((f) => f.nombre)])),
       peticiones,

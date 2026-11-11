@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   agendasDeLaFila,
+  aplicarUnidadesOracle,
   calcularFilas,
   calcularResumen,
   elegirFecha,
@@ -214,5 +215,48 @@ describe('Las agendas de una fila', () => {
   it('un ítem que no encontró su agenda se dice con el motivo', () => {
     const r = agendasDeLaFila([agenda('picking', { codigo: '1' }, [], 'El almacén 1 no tiene agendas')], null);
     expect(r[0]).toMatchObject({ agenda: null, aviso: 'El almacén 1 no tiene agendas' });
+  });
+});
+
+describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', () => {
+  const fila = (nombre: string, fecha: string | null, capacidad: number | null, unidades: number | null = null) => ({
+    nombre, esTotal: false, flujo: 'S', fecha, leadTime: null, unidades, capacidad, porcentaje: null, estado: 'ok' as const,
+    detalle: { simulaciones: [], agendas: [], capacidadFija: capacidad, avisos: [] },
+  });
+  const comp = () => ({
+    clave: 'dd_lima' as const, titulo: 'Despacho domicilio', receta: 'simulada' as const,
+    filas: [
+      { ...fila('Paquetería Lima Total', '2026-11-12', 1100), esTotal: true },
+      fila('Centralizado MailAmericas', '2026-11-12', 600),
+      fila('Centralizado URBANO', '2026-11-13', 500),
+      fila('Big Ticket Lima', '2026-11-13', 280, 61),
+      fila('SAME DAY', null, 0),
+    ],
+    total: { unidades: null, capacidad: 1380, porcentaje: null },
+  });
+  const config = [
+    { nombre: 'Paquetería Lima Total', suma: ['Centralizado MailAmericas', 'Centralizado URBANO'] },
+    { nombre: 'Centralizado MailAmericas' }, { nombre: 'Centralizado URBANO' }, { nombre: 'Big Ticket Lima' }, { nombre: 'SAME DAY' },
+  ];
+
+  it('cada fila suma su SUB_FLUJO en su fecha; sin coincidencia o sin fecha, 0; el total se vuelve a sumar', () => {
+    const r = aplicarUnidadesOracle(comp(), config, [
+      { fecha: '2026-11-12', subFlujo: 'Centralizado MailAmericas', unidades: 600 },
+      { fecha: '2026-11-12', subFlujo: 'Centralizado MailAmericas', unidades: 83 },
+      { fecha: '2026-11-12', subFlujo: 'Centralizado URBANO', unidades: 999 },
+      { fecha: '2026-11-13', subFlujo: 'centralizado  urbano ', unidades: 202 },
+      { fecha: '2026-11-13', subFlujo: 'SD_RM - 1er Turno', unidades: 40 },
+    ], 'carga del 11/11 08:31');
+
+    expect(r.filas.map((f) => [f.nombre, f.unidades, f.porcentaje])).toEqual([
+      ['Paquetería Lima Total', 885, 80],
+      ['Centralizado MailAmericas', 683, 114],
+      ['Centralizado URBANO', 202, 40],
+      // La que ya tenía unidades (de una agenda) no se toca
+      ['Big Ticket Lima', 61, null],
+      ['SAME DAY', 0, null],
+    ]);
+    expect(r.total).toEqual({ unidades: 946, capacidad: 1380, porcentaje: 69 });
+    expect(r.filas[1].detalle.avisos).toEqual(['Unidades del Oracle (carga del 11/11 08:31).']);
   });
 });

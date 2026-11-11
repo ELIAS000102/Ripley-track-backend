@@ -288,6 +288,8 @@ export interface ReporteG12 {
   parametros: { pais: string; hoy: string; generado: string | null };
   /** Los cuadros guardados, el mismo para todos; los que faltan no están */
   cuadros: CuadroReporteG12[];
+  /** La última carga de unidades del Oracle (DD Lima), o null si nunca se cargó */
+  oracle: { cargadoEn: string; filas: number; desde: string | null; hasta: string | null; origen: string } | null;
   /** Las filas de cada cuadro según la configuración: las de los que faltan se pintan en espera */
   filas: Record<string, string[]>;
   /** Cada petición a Ripley de este reporte */

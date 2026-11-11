@@ -9,6 +9,7 @@ import { ConfiguracionReportesService } from '../../../src/reportes/comun/config
 import { ActualizadorG12Service } from '../../../src/reportes/g12/actualizador-g12.service.js';
 import { CuadrosG12Service } from '../../../src/reportes/g12/cuadros-g12.service.js';
 import { HistorialG12Service } from '../../../src/reportes/g12/historial-g12.service.js';
+import { OracleG12Service } from '../../../src/reportes/g12/oracle-g12.service.js';
 import type { PerfilService } from '../../../src/auth/perfil.service.js';
 import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js';
 import { ConfiguracionG12Service } from '../../../src/reportes/g12/configuracion-g12.service.js';
@@ -106,9 +107,10 @@ function montar(opciones: {
   const cuadros = new CuadrosG12Service(supabase);
   const historial = new HistorialG12Service(supabase);
   const configuracion = new ConfiguracionG12Service(new ConfiguracionReportesService(supabase), { registrarCambio: vi.fn() } as unknown as ContextoAuditoria, cuadros, historial);
-  const reporte = new ReporteG12Service(configuracion, ejecutor, cuadros, contexto);
+  const oracle = new OracleG12Service(supabase);
+  const reporte = new ReporteG12Service(configuracion, ejecutor, cuadros, contexto, oracle);
   const perfiles = { obtener: async (id: string) => ({ rol: id === 'jefa' ? 'admin' : 'user' }) } as unknown as PerfilService;
-  const actualizador = new ActualizadorG12Service(reporte, configuracion, cuadros, historial, contexto, perfiles);
+  const actualizador = new ActualizadorG12Service(reporte, configuracion, cuadros, historial, contexto, perfiles, oracle);
   return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto, actualizador, historial, cuadros, tablas };
 }
 
@@ -384,5 +386,54 @@ describe('La actualización compartida del G12', () => {
     const cerrada = await esperarFin(historial, actualizacion!.id);
     // La tabla que estaba en marcha termina; la cancelación se nota en la siguiente
     expect(['cancelada', 'terminada']).toContain(cerrada.estado);
+  });
+});
+
+describe('Las unidades del Oracle en el reporte', () => {
+  const cuadroDd = () => ({
+    clave: 'dd_lima' as const, hoy: hoyEnPais('PE'), generado: new Date().toISOString(), peticiones: [], actualizacionId: null, usuarioEmail: 'ana@r.pe',
+    componente: {
+      clave: 'dd_lima' as const, titulo: 'Despacho domicilio', receta: 'simulada' as const,
+      filas: [{ nombre: 'Centralizado URBANO', esTotal: false, flujo: 'S', fecha: sumarDias(hoyEnPais('PE'), 1), leadTime: null, unidades: null, capacidad: 500, porcentaje: null, estado: 'ok' as const, detalle: { simulaciones: [], agendas: [], capacidadFija: 500, avisos: [] } }],
+      total: { unidades: null, capacidad: 500, porcentaje: null },
+    },
+  });
+  const config = (): ConfiguracionG12 => ({
+    componentes: [{ clave: 'dd_lima', filas: [{ nombre: 'Centralizado URBANO' }], bloques: [{ tipo: 'capacidad', items: [{ fila: 'Centralizado URBANO', campos: { lun: 500, mar: 500, mie: 500, jue: 500, vie: 500, sab: 500, dom: 500 } }] }] }],
+    resumen: [],
+  });
+
+  it('sin carga, las unidades quedan vacías y lo dice', async () => {
+    const { reporte, cuadros } = montar({ config: config() });
+    await cuadros.guardar('PE', cuadroDd());
+    const r = await reporte.reporte('PE');
+    expect(r.oracle).toBeNull();
+    expect(r.cuadros[0].componente.filas[0].unidades).toBeNull();
+    expect(r.avisos.join(' ')).toMatch(/todavía no se han cargado: usa el Excel de carga/);
+  });
+
+  it('con carga, cada fila toma lo suyo, y la carga cambia la versión del estado', async () => {
+    const { reporte, cuadros, tablas, actualizador } = montar({ config: config() });
+    await cuadros.guardar('PE', cuadroDd());
+    const antes = (await actualizador.estado('PE')).version;
+
+    tablas.g12_cargas_oracle = [{ pais: 'PE', cargado_en: new Date().toISOString(), filas: 1, desde: hoyEnPais('PE'), hasta: hoyEnPais('PE'), origen: 'excel' }];
+    tablas.g12_unidades_oracle = [{ pais: 'PE', fecha: sumarDias(hoyEnPais('PE'), 1), zona: '2. PAQUETERIA_RM', sub_flujo: 'Centralizado URBANO', unidades: '202' }];
+    const r = await reporte.reporte('PE');
+
+    expect(r.oracle).toMatchObject({ filas: 1, origen: 'excel' });
+    // Va en los cuadros que pinta el panel, no solo en "componentes"
+    expect(r.cuadros[0].componente.filas[0]).toMatchObject({ unidades: 202, porcentaje: 40 });
+    expect(r.componentes.find((c) => c.clave === 'dd_lima')!.total).toMatchObject({ unidades: 202 });
+    expect(r.avisos.join(' ')).not.toMatch(/Oracle/);
+    expect((await actualizador.estado('PE')).version).not.toBe(antes);
+  });
+
+  it('una carga de otro día se avisa', async () => {
+    const { reporte, cuadros, tablas } = montar({ config: config() });
+    await cuadros.guardar('PE', cuadroDd());
+    tablas.g12_cargas_oracle = [{ pais: 'PE', cargado_en: '2026-11-01T13:31:00.000Z', filas: 0, desde: null, hasta: null, origen: 'excel' }];
+    const r = await reporte.reporte('PE');
+    expect(r.avisos.join(' ')).toMatch(/son del Oracle del 01\/11 08:31: vuelve a cargarlas/);
   });
 });
