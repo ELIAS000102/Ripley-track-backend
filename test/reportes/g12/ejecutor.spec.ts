@@ -349,7 +349,7 @@ describe('La actualización compartida del G12', () => {
     // Cualquiera lo lee ahora, sin ir a Ripley
     const r = await reporte.reporte('PE');
     expect(r.cuadros.map((c) => [c.clave, c.usuarioEmail, c.actualizacionId])).toEqual([['pickup_lima', 'ana@r.pe', actualizacion!.id]]);
-    expect((await actualizador.estado('PE')).version).toMatch(/^pickup_lima:/);
+    expect((await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' })).version).toMatch(/^pickup_lima:/);
   });
 
   it('una a la vez por país: mientras una corre, otra persona no puede lanzar ni guardar la configuración', async () => {
@@ -358,11 +358,11 @@ describe('La actualización compartida del G12', () => {
 
     await expect(actualizador.lanzar(LUIS, 'PE', 'refrescar')).rejects.toThrow(ConflictException);
     await expect(actualizador.lanzar(LUIS, 'PE', 'refrescar')).rejects.toThrow(/ana@r\.pe está actualizando el G12 de PE/);
-    const estado = await actualizador.estado('PE');
+    const estado = await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' });
     expect(estado.enCurso).toMatchObject({ id: actualizacion!.id, total: 1 });
 
     await esperarFin(historial, actualizacion!.id);
-    expect((await actualizador.estado('PE')).enCurso).toBeNull();
+    expect((await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' })).enCurso).toBeNull();
     // Terminada, ya se puede otra
     const otra = await actualizador.lanzar(LUIS, 'PE', 'refrescar');
     await esperarFin(historial, otra.actualizacion!.id);
@@ -415,7 +415,7 @@ describe('Las unidades del Oracle en el reporte', () => {
   it('con carga, cada fila toma lo suyo, y la carga cambia la versión del estado', async () => {
     const { reporte, cuadros, tablas, actualizador } = montar({ config: config() });
     await cuadros.guardar('PE', cuadroDd());
-    const antes = (await actualizador.estado('PE')).version;
+    const antes = (await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' })).version;
 
     tablas.g12_cargas_oracle = [{ pais: 'PE', cargado_en: new Date().toISOString(), filas: 1, desde: hoyEnPais('PE'), hasta: hoyEnPais('PE'), origen: 'excel' }];
     tablas.g12_unidades_oracle = [{ pais: 'PE', fecha: sumarDias(hoyEnPais('PE'), 1), zona: '2. PAQUETERIA_RM', sub_flujo: 'Centralizado URBANO', unidades: '202' }];
@@ -426,7 +426,7 @@ describe('Las unidades del Oracle en el reporte', () => {
     expect(r.cuadros[0].componente.filas[0]).toMatchObject({ unidades: 202, porcentaje: 40 });
     expect(r.componentes.find((c) => c.clave === 'dd_lima')!.total).toMatchObject({ unidades: 202 });
     expect(r.avisos.join(' ')).not.toMatch(/Oracle/);
-    expect((await actualizador.estado('PE')).version).not.toBe(antes);
+    expect((await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' })).version).not.toBe(antes);
   });
 
   it('una carga de otro día se avisa', async () => {
@@ -435,5 +435,67 @@ describe('Las unidades del Oracle en el reporte', () => {
     tablas.g12_cargas_oracle = [{ pais: 'PE', cargado_en: '2026-11-01T13:31:00.000Z', filas: 0, desde: null, hasta: null, origen: 'excel' }];
     const r = await reporte.reporte('PE');
     expect(r.avisos.join(' ')).toMatch(/son del Oracle del 01\/11 08:31: vuelve a cargarlas/);
+  });
+});
+
+describe('Las unidades del Oracle, pedidas al Excel de quien actualiza', () => {
+  const ANA = { id: 'ana', email: 'ana@r.pe' };
+  const LUIS = { id: 'luis', email: 'luis@r.pe' };
+  const config = (): ConfiguracionG12 => ({
+    componentes: [{ clave: 'dd_lima', filas: [{ nombre: 'Centralizado URBANO' }], bloques: [{ tipo: 'simulacion', items: [simItem('Centralizado URBANO', '1100', 'S')] }] }],
+    resumen: [],
+  });
+
+  it('la clave es de su dueño, se guarda solo su hash, y una nueva anula la anterior', async () => {
+    const { actualizador, tablas } = montar({ config: config() });
+    const oracle = (actualizador as unknown as { oracle: import('../../../src/reportes/g12/oracle-g12.service.js').OracleG12Service }).oracle;
+    const { hashDeClave } = await import('../../../src/reportes/g12/oracle-g12.service.js');
+
+    const primera = await oracle.crearClave(ANA);
+    const segunda = await oracle.crearClave(ANA);
+    expect(primera.clave).toMatch(/^[0-9a-f]{48}$/);
+    const filas = tablas.g12_claves_carga;
+    expect(filas.map((f) => [f.usuario_id, f.activa])).toEqual([['ana', false], ['ana', true]]);
+    expect(filas[1].hash).toBe(hashDeClave(segunda.clave));
+    expect(JSON.stringify(filas)).not.toContain(segunda.clave);
+  });
+
+  it('con su Excel conectado, el pedido es primero de quien actualiza; si no, del primer Excel que pregunte', async () => {
+    const { actualizador, historial, tablas } = montar({ config: config() });
+    const oracle = (actualizador as unknown as { oracle: import('../../../src/reportes/g12/oracle-g12.service.js').OracleG12Service }).oracle;
+    await oracle.crearClave(ANA);
+    // El Excel de Ana preguntó hace 20 s: está conectado
+    tablas.g12_claves_carga[0].visto_en = new Date(Date.now() - 20_000).toISOString();
+
+    const r = await actualizador.lanzar(ANA, 'PE', 'refrescar');
+    expect(r.oracle).toBe('tu_excel');
+    expect(tablas.g12_pedidos_oracle.at(-1)).toMatchObject({ estado: 'pendiente', usuario_id: 'ana', destinatario_id: 'ana' });
+    const deAna = await actualizador.estado('PE', ANA);
+    expect(deAna.oracle.pedido).toMatchObject({ estado: 'pendiente', usuarioEmail: 'ana@r.pe', dirigido: true });
+    expect(deAna.oracle.conectados).toEqual(['ana@r.pe']);
+    // Luis ve el pedido de Ana, y que él no tiene Excel de carga
+    expect((await actualizador.estado('PE', LUIS)).oracle.miExcel.tieneClave).toBe(false);
+
+    for (let i = 0; i < 200 && (await historial.leer(r.actualizacion!.id)).estado === 'en_curso'; i++) await new Promise((x) => setTimeout(x, 5));
+    // Luis no tiene Excel (o está fuera de la red): el pedido queda abierto a cualquier Excel, y el de antes vence
+    expect((await actualizador.lanzar(LUIS, 'PE', 'refrescar')).oracle).toBe('cualquier_excel');
+    expect(tablas.g12_pedidos_oracle.map((p) => [p.usuario_id, p.estado, p.destinatario_id])).toEqual([['ana', 'vencido', 'ana'], ['luis', 'pendiente', null]]);
+  });
+
+  it('un Excel que no pregunta hace más de 3 minutos no cuenta como conectado', async () => {
+    const { actualizador, tablas } = montar({ config: config() });
+    tablas.g12_claves_carga = [
+      { id: 'k1', activa: true, usuario_email: 'ana@r.pe', descripcion: 'x', visto_en: new Date(Date.now() - 30_000).toISOString() },
+      { id: 'k2', activa: true, usuario_email: 'luis@r.pe', descripcion: 'x', visto_en: new Date(Date.now() - 10 * 60_000).toISOString() },
+      { id: 'k3', activa: true, usuario_email: null, descripcion: 'PC de carga', visto_en: new Date().toISOString() },
+      { id: 'k4', activa: false, usuario_email: 'vieja@r.pe', descripcion: 'x', visto_en: new Date().toISOString() },
+    ];
+    expect((await actualizador.estado('PE', ANA)).oracle.conectados.sort()).toEqual(['PC de carga', 'ana@r.pe']);
+  });
+
+  it('un pedido sin atender en 15 minutos se da por vencido', async () => {
+    const { actualizador, tablas } = montar({ config: config() });
+    tablas.g12_pedidos_oracle = [{ pais: 'PE', usuario_id: 'ana', usuario_email: 'ana@r.pe', estado: 'pendiente', creado_en: new Date(Date.now() - 16 * 60_000).toISOString(), atendido_en: null }];
+    expect((await actualizador.estado('PE', ANA)).oracle.pedido).toMatchObject({ estado: 'vencido' });
   });
 });

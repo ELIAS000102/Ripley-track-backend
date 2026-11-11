@@ -29,6 +29,7 @@ import {
   ProbarG12Dto,
 } from './dto/g12.dto.js';
 import { HistorialG12Service } from './historial-g12.service.js';
+import { OracleG12Service } from './oracle-g12.service.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
 
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -53,6 +54,7 @@ export class G12Controller {
     private readonly configuracion: ConfiguracionG12Service,
     private readonly historial: HistorialG12Service,
     private readonly actualizador: ActualizadorG12Service,
+    private readonly oracle: OracleG12Service,
   ) {}
 
   /** GET /reportes/g12?pais=PE — lo último generado del país, el mismo para todos. No va a Ripley */
@@ -67,8 +69,20 @@ export class G12Controller {
    * pregunta cada pocos segundos: no trae los datos de las tablas.
    */
   @Get('estado')
-  async estado(@Query() query: PaisDto) {
-    return this.actualizador.estado(query.pais ?? 'PE');
+  async estado(@Usuario() usuario: UsuarioAutenticado, @Query() query: PaisDto) {
+    return this.actualizador.estado(query.pais ?? 'PE', usuario);
+  }
+
+  /**
+   * POST /reportes/g12/oracle/clave — una clave de carga nueva para quien la
+   * pide (la anterior deja de valer). Se devuelve UNA vez: va en la tabla
+   * CONFIG de su Excel de carga, que con ella atiende solo sus pedidos.
+   */
+  @Auditar('reporte-g12.clave-oracle')
+  @Post('oracle/clave')
+  @HttpCode(200)
+  async claveOracle(@Usuario() usuario: UsuarioAutenticado) {
+    return this.oracle.crearClave(usuario);
   }
 
   // ───────── Actualizar (una a la vez por país) ─────────

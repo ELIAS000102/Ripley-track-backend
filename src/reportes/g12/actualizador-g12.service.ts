@@ -7,7 +7,7 @@ import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { CLAVES_COMPONENTES, definicionDe, VIDA_REPORTE_MS } from './g12.componentes.js';
 import { HistorialG12Service, type ActualizacionG12, type TipoActualizacionG12 } from './historial-g12.service.js';
-import { OracleG12Service } from './oracle-g12.service.js';
+import { OracleG12Service, type CargaOracleG12, type MiExcelG12, type PedidoOracleG12 } from './oracle-g12.service.js';
 import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interface.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
 
@@ -18,6 +18,8 @@ const LATIDO_MS = 30_000;
 export interface LanzamientoG12 {
   actualizacion: ActualizacionG12 | null;
   mensaje: string | null;
+  /** Las unidades de DD Lima: pedidas primero a tu Excel (estaba conectado) o al primer Excel de carga que pregunte */
+  oracle: 'tu_excel' | 'cualquier_excel' | null;
 }
 
 /** Lo que el panel pregunta cada pocos segundos: barato, sin los datos de las tablas */
@@ -26,6 +28,8 @@ export interface EstadoG12 {
   ultima: ActualizacionG12 | null;
   /** Cambia cuando cambia algún cuadro guardado: si es distinta, el panel vuelve a pedir el reporte */
   version: string;
+  /** Las unidades del Oracle: la última carga, el último pedido y el Excel de quien pregunta */
+  oracle: { carga: CargaOracleG12 | null; pedido: PedidoOracleG12 | null; miExcel: MiExcelG12; conectados: string[] };
 }
 
 /**
@@ -67,6 +71,8 @@ export class ActualizadorG12Service {
     if (!conItems.length) {
       throw new BadRequestException('El G12 de este país todavía no tiene ítems: configúralo en la pestaña "Configuración".');
     }
+    // DD Lima saca sus unidades del Oracle: se le piden a los Excel de carga (primero al de quien actualiza)
+    const conOracle = conItems.includes('dd_lima') && tipo !== 'reintento' && (tipo !== 'tabla' || (pedidas ?? []).includes('dd_lima'));
 
     let claves: ClaveComponente[];
     if (tipo === 'tabla' || tipo === 'reintento') {
@@ -83,14 +89,32 @@ export class ActualizadorG12Service {
         .map((v) => v.clave));
       claves = conItems.filter((c) => !frescas.has(c));
       if (!claves.length) {
-        return { actualizacion: null, mensaje: 'Todas las tablas son de hace menos de 15 minutos. "Actualizar" las vuelve a pedir todas.' };
+        const oracle = conOracle ? await this.pedirOracle(pais, usuario, null) : null;
+        return {
+          actualizacion: null,
+          mensaje: 'Todas las tablas son de hace menos de 15 minutos. "Actualizar" las vuelve a pedir todas.'
+            + (oracle ? ' Las unidades de DD Lima se pidieron a los Excel de carga.' : ''),
+          oracle,
+        };
       }
     }
 
     const a = await this.historial.crear(pais, tipo, usuario, claves);
     this.enMarcha.set(a.id, { cancelar: null });
     void this.correr(a, usuario, config, claves);
-    return { actualizacion: a, mensaje: null };
+    const oracle = conOracle ? await this.pedirOracle(pais, usuario, a.id) : null;
+    return { actualizacion: a, mensaje: null, oracle };
+  }
+
+  /** El pedido a los Excel de carga; si falla, la actualización sigue igual */
+  private async pedirOracle(pais: string, usuario: UsuarioAutenticado, actualizacionId: string | null): Promise<'tu_excel' | 'cualquier_excel' | null> {
+    try {
+      const p = await this.oracle.pedir(pais, usuario, actualizacionId);
+      return p ? (p.dirigido ? 'tu_excel' : 'cualquier_excel') : null;
+    } catch (e) {
+      this.logger.warn(`No se pudo pedir las unidades del Oracle (${usuario.email}): ${(e as Error).message}`);
+      return null;
+    }
   }
 
   /**
@@ -114,13 +138,16 @@ export class ActualizadorG12Service {
     return this.historial.cerrar(id, 'cancelada', `Cancelada por ${usuario.email}.`);
   }
 
-  /** Si hay una en curso y por dónde va, la última, y si cambió algo de lo guardado */
-  async estado(pais: string): Promise<EstadoG12> {
-    const [enCurso, ultima, versiones, carga] = await Promise.all([
+  /** Si hay una en curso y por dónde va, la última, si cambió algo de lo guardado, y el Oracle */
+  async estado(pais: string, usuario: UsuarioAutenticado): Promise<EstadoG12> {
+    const [enCurso, ultima, versiones, carga, pedido, miExcel, conectados] = await Promise.all([
       this.historial.enCurso(pais),
       this.historial.ultima(pais),
       this.cuadros.versiones(pais),
       this.oracle.ultimaCarga(pais),
+      this.oracle.ultimoPedido(pais),
+      this.oracle.miExcel(usuario.id),
+      this.oracle.conectados(),
     ]);
     // Una carga nueva del Oracle también cambia el reporte (las unidades de DD Lima)
     const version = [...versiones.map((v) => `${v.clave}:${v.generado}`).sort(), `oracle:${carga?.cargadoEn ?? ''}`].join('|');
@@ -128,6 +155,7 @@ export class ActualizadorG12Service {
       enCurso: enCurso ? { ...enCurso, hechas: enCurso.cuadros.length, total: enCurso.claves.length } : null,
       ultima,
       version,
+      oracle: { carga, pedido, miExcel, conectados },
     };
   }
 
