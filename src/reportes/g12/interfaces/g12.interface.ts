@@ -115,6 +115,13 @@ export interface MetaPeticionG12 {
   intentos: number;
   /** Por qué falló cada intento que se repitió (429, API caída…) */
   reintentos: string[];
+  /**
+   * Las llamadas que salieron de verdad a Ripley para esta petición, reintentos
+   * incluidos: una fila del Excel son varias (operador → zonas → agendas →
+   * capacidad). 0 si todo salió de lo ya leído en la actualización. Falta en
+   * las actualizaciones de antes de contarlas.
+   */
+  llamadas?: number;
 }
 
 /** Todo lo que devolvió el simulador, por servicio: lo que el Excel volcaba en sus hojas DC, STS, RT… */

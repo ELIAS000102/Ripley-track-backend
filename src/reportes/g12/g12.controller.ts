@@ -48,7 +48,7 @@ export class G12Controller {
   @Get('cuadro')
   async cuadro(@Usuario() usuario: UsuarioAutenticado, @Query() query: CuadroG12Dto) {
     const pais = query.pais ?? 'PE';
-    const r = await this.reporte.cuadro(usuario, pais, query.clave as ClaveComponente, query.refrescar === true);
+    const r = await this.reporte.cuadro(usuario, pais, query.clave as ClaveComponente, query.refrescar === true, query.actualizacion);
     if (!query.actualizacion) return r;
 
     // Al historial. Si no se puede (falta la tabla), el cuadro llega igual y lo dice
@@ -73,7 +73,9 @@ export class G12Controller {
   @Post('actualizaciones/:id/fin')
   @HttpCode(200)
   async terminarActualizacion(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string) {
-    return this.historial.terminar(id, usuario);
+    const cerrada = await this.historial.terminar(id, usuario);
+    this.reporte.olvidarLecturas(usuario.id, id);
+    return cerrada;
   }
 
   /** GET /reportes/g12/actualizaciones?pais=PE[&dia=2026-11-10] — el historial, las últimas primero */

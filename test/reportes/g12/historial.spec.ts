@@ -113,6 +113,29 @@ describe('El Excel de una actualización', () => {
     expect(valor('Destino')).toBe('San Isidro, Lima');
   });
 
+  it('cuenta las llamadas a Ripley de cada petición y del total', async () => {
+    const { historial } = montar();
+    const a = await historial.crear('PE', 'completa', ANA);
+    const conLlamadas = (fila: string, n: number) => {
+      const p = peticion(fila, 'ok');
+      return { ...p, meta: { ...p.meta!, llamadas: n } };
+    };
+    await historial.anotarCuadro(a.id, ANA, 'PE', cuadro([conLlamadas('San Isidro', 4), conLlamadas('Miraflores', 0)]));
+    expect((await historial.terminar(a.id, ANA)).resumen?.llamadas).toBe(4);
+
+    const { actualizacion, peticiones } = await historial.obtener(a.id);
+    expect(peticiones.map((p) => p.meta?.llamadas)).toEqual([4, 0]);
+
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load((await libroDeActualizacion(actualizacion, peticiones)) as unknown as ArrayBuffer);
+    const hoja = libro.getWorksheet('Peticiones')!;
+    const columna = (hoja.getRow(1).values as unknown[]).indexOf('Llamadas a Ripley');
+    expect([hoja.getRow(2).getCell(columna).value, hoja.getRow(3).getCell(columna).value]).toEqual([4, 0]);
+    const resumen = libro.getWorksheet('Resumen')!;
+    const fila = resumen.getRows(1, 20)!.find((r) => r.getCell(1).value === 'Llamadas a Ripley');
+    expect(fila?.getCell(2).value).toBe(4);
+  });
+
   it('se llama por el país y la hora de inicio, en la hora del país', () => {
     expect(nombreArchivo({ pais: 'PE', inicio: '2026-11-10T20:02:11.000Z' })).toBe('G12-peticiones-PE-2026-11-10-1502.xlsx');
   });

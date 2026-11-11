@@ -40,6 +40,9 @@ const SIMULACION_RECORDADA_MS = 30 * 1000;
 /** Lo más que se espera cuando Ripley pide ir más despacio (429) */
 const ESPERA_MAXIMA_429_MS = 10 * 1000;
 
+/** Tope de lecturas que guarda una petición en serie: el G12 entero son unas 600 */
+const LECTURAS_MAXIMAS_POR_FILA = 3000;
+
 export function resumirCuerpo(data: unknown): string {
   if (typeof data === 'string' && /^\s*<(!doctype|html)/i.test(data)) {
     // El título dice qué es —un "Bad Gateway", un "Access Denied" de un
@@ -368,6 +371,11 @@ export class RipleyHttpService {
       if (recordada && Date.now() - recordada.t < SIMULACION_RECORDADA_MS) return structuredClone(recordada.data) as T;
     }
 
+    // Una petición en serie (el G12) no lee dos veces lo mismo: el almacén, la
+    // zona o la agenda que ya leyó en esta actualización salen de lo leído
+    const leidas = clave ? this.lecturasDeLaFila() : null;
+    if (clave && leidas?.has(clave)) return structuredClone(leidas.get(clave)) as T;
+
     // La misma lectura ya en camino: se espera a esa. Cada uno recibe su copia,
     // porque quien llama puede ordenar o recortar lo que le llega
     if (clave && this.enVuelo.has(clave)) return structuredClone(await this.enVuelo.get(clave)) as T;
@@ -386,6 +394,8 @@ export class RipleyHttpService {
     try {
       const data = await trabajo;
       if (clase === 'simulacion') this.recordarSimulacion(clave, data);
+      // Solo lo que salió bien: un fallo se vuelve a pedir en el reintento
+      if (leidas && leidas.size < LECTURAS_MAXIMAS_POR_FILA) leidas.set(clave, structuredClone(data));
       return structuredClone(data);
     } finally {
       this.enVuelo.delete(clave);
@@ -401,6 +411,7 @@ export class RipleyHttpService {
     d: { accion: string; params?: Record<string, any>; path: string; pais: string; huella: string; clase: string; lee: boolean },
     intento = 0,
   ): Promise<T> {
+    this.contarLlamada();
     try {
       const respuesta =
         metodo === 'get'
@@ -440,6 +451,15 @@ export class RipleyHttpService {
   /** La fila de la petición en curso, si va en serie (ver `ContextoAuditoria.activarSecuencial`) */
   private enSuFila<T>(fn: () => Promise<T>): Promise<T> {
     return typeof this.contexto.enFila === 'function' ? this.contexto.enFila(fn) : fn();
+  }
+
+  /** Lo ya leído por la petición en serie, si lo es (los tests pueden pasar un contexto a medias) */
+  private lecturasDeLaFila(): Map<string, unknown> | null {
+    return typeof this.contexto.lecturasDeLaFila === 'function' ? this.contexto.lecturasDeLaFila() : null;
+  }
+
+  private contarLlamada(): void {
+    if (typeof this.contexto.contarLlamada === 'function') this.contexto.contarLlamada();
   }
 
   private carril(pais: string, clase: 'general' | 'simulacion' | string): Carril {

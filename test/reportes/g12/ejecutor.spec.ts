@@ -43,7 +43,10 @@ function montar(opciones: {
   let fallos = opciones.fallos429 ?? 0;
   // Cuántas peticiones a Ripley hay en curso a la vez, y el máximo visto
   const concurrencia = { activas: 0, maximo: 0 };
+  const contexto = new ContextoAuditoria();
   const medir = <A extends unknown[], R>(fn: (...a: A) => Promise<R>) => async (...a: A): Promise<R> => {
+    // Como hace el cliente de Ripley con cada llamada que sale
+    contexto.contarLlamada();
     concurrencia.activas++;
     concurrencia.maximo = Math.max(concurrencia.maximo, concurrencia.activas);
     try {
@@ -87,6 +90,7 @@ function montar(opciones: {
     capacidad as unknown as CapacidadAgenteService,
     catalogos as unknown as CatalogosRipleyService,
     despacho as unknown as DespachoService,
+    contexto,
   );
   // Los reintentos esperan 2, 4 y 8 s; aquí no se espera
   ejecutor.esperaBaseMs = 0;
@@ -98,8 +102,8 @@ function montar(opciones: {
   const supabase = { admin: { from: () => consulta } } as unknown as SupabaseService;
   const cache = new CacheReporteG12();
   const configuracion = new ConfiguracionG12Service(new ConfiguracionReportesService(supabase), { registrarCambio: vi.fn() } as unknown as ContextoAuditoria, cache);
-  const reporte = new ReporteG12Service(configuracion, ejecutor, cache, new ContextoAuditoria());
-  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia };
+  const reporte = new ReporteG12Service(configuracion, ejecutor, cache, contexto);
+  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto };
 }
 
 const simItem = (fila: string, operador: string, servicio: string, distrito = 'San Isidro') =>
@@ -146,6 +150,15 @@ describe('El ejecutor del G12', () => {
     expect(r.simulaciones?.[0]).toMatchObject({ fecha: '2026-11-10', meta: { intentos: 3 } });
     expect(r.simulaciones?.[0].meta?.reintentos[0]).toMatch(/429/);
     expect(simulacion.simularResuelto).toHaveBeenCalledTimes(3);
+  });
+
+  it('cada petición dice cuántas llamadas salieron a Ripley, reintentos incluidos', async () => {
+    const { ejecutor, contexto } = montar({ fechas: { '20027|RT': '2026-11-10', '20030|RT': '2026-11-11' }, fallos429: 2 });
+    const r = await contexto.ejecutar(async () => {
+      contexto.activarSecuencial();
+      return ejecutor.probar({ tipo: 'simulacion', items: [simItem('A', '20027', 'RT'), simItem('B', '20030', 'RT')] }, 'PE');
+    });
+    expect(r.simulaciones?.map((s) => [s.meta?.intentos, s.meta?.llamadas])).toEqual([[3, 3], [1, 1]]);
   });
 
   it('si el 429 sigue tras tres reintentos, queda el error; lo que no es pasajero no se reintenta', async () => {

@@ -5,6 +5,7 @@ import { SKU_POR_DEFECTO } from '../../agente/constantes/simulacion.constants.js
 import type { ConsultarCapacidadDto } from '../../agente/dto/consultas.dto.js';
 import { motivoDelFallo } from '../../agente/utils/error.util.js';
 import { DespachoService } from '../../agendas/despacho/despacho.service.js';
+import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { CatalogosRipleyService, type TipoOficina } from '../../common/ripley/catalogos.service.js';
 import { dormir } from '../../common/ripley/ritmo.js';
 import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
@@ -108,6 +109,7 @@ export class EjecutorG12Service {
     private readonly capacidad: CapacidadAgenteService,
     private readonly catalogos: CatalogosRipleyService,
     private readonly despacho: DespachoService,
+    private readonly contexto: ContextoAuditoria,
   ) {}
 
   nuevaSesion(pais: string) {
@@ -180,6 +182,8 @@ export class EjecutorG12Service {
    */
   private async conReintentos<T>(hacer: () => Promise<T>, fallo: (r: T) => string | null): Promise<{ resultado: T; meta: MetaPeticionG12 }> {
     const inicio = new Date();
+    // Va todo en serie, así que lo que suba el contador mientras tanto es de esta petición
+    const llamadasAntes = this.contexto.llamadasHechas();
     const reintentos: string[] = [];
     let resultado = await hacer();
 
@@ -191,7 +195,7 @@ export class EjecutorG12Service {
       resultado = await hacer();
     }
 
-    return { resultado, meta: { inicio: inicio.toISOString(), ms: Date.now() - inicio.getTime(), intentos: reintentos.length + 1, reintentos } };
+    return { resultado, meta: { inicio: inicio.toISOString(), ms: Date.now() - inicio.getTime(), intentos: reintentos.length + 1, reintentos, llamadas: this.contexto.llamadasHechas() - llamadasAntes } };
   }
 
   // ───────────────────────── Simulación ─────────────────────────

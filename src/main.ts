@@ -10,7 +10,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
-  app.enableCors();
+  // Content-Disposition a la vista: el panel saca de ahí el nombre de los Excel que descarga
+  app.enableCors({ exposedHeaders: ['Content-Disposition'] });
 
   // 2 MB y no los 100 KB de Express: el panel guarda en el chat la respuesta entera de
   // la v3 del agente (las tablas de un atajo grande), y un 413 la perdería

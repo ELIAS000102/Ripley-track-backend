@@ -15,8 +15,18 @@ interface CambioRegistrado {
   usuario?: { id: string; email: string };
   /** Presente si la petición va en simulacro: lo que no se escribió */
   simulacro?: { escrituras: EscrituraEvitada[] };
-  /** Presente si las llamadas a Ripley de la petición van de una en una: la última en la fila */
-  fila?: { cola: Promise<unknown> };
+  /** Presente si las llamadas a Ripley de la petición van de una en una */
+  fila?: FilaSecuencial;
+}
+
+/** Una petición en serie (el G12): su fila, cuántas llamadas lleva y las lecturas que ya tiene */
+interface FilaSecuencial {
+  /** La última llamada en la fila */
+  cola: Promise<unknown>;
+  /** Las que salieron de verdad a Ripley, reintentos incluidos */
+  llamadas: number;
+  /** Lo ya leído (solo lecturas), para no pedirlo dos veces; puede venir de fuera y durar más que la petición */
+  lecturas: Map<string, unknown>;
 }
 
 /**
@@ -116,10 +126,32 @@ export class ContextoAuditoria {
    * seguidas y la API corporativa responde 429 si le llegan varias a la vez.
    * Va por petición y no en el cliente de Ripley entero para no frenar al
    * resto del backend: el panel y el agente siguen a su ritmo.
+   *
+   * Además, una lectura que ya se hizo no se repite: sale de `lecturas`. Por
+   * defecto dura lo que la petición; el G12 pasa la de su actualización, para
+   * que una tabla aproveche lo que leyó la anterior (el mismo almacén, la
+   * misma zona). Es una foto de la actualización, no una caché: la siguiente
+   * actualización empieza vacía.
    */
-  activarSecuencial(): void {
+  activarSecuencial(opciones: { lecturas?: Map<string, unknown> } = {}): void {
     const actual = this.almacen.getStore();
-    if (actual && !actual.fila) actual.fila = { cola: Promise.resolve() };
+    if (actual && !actual.fila) actual.fila = { cola: Promise.resolve(), llamadas: 0, lecturas: opciones.lecturas ?? new Map() };
+  }
+
+  /** Lo llama el cliente de Ripley cada vez que una llamada sale de verdad */
+  contarLlamada(): void {
+    const fila = this.almacen.getStore()?.fila;
+    if (fila) fila.llamadas++;
+  }
+
+  /** Cuántas llamadas a Ripley lleva la petición en serie (0 si no va en serie) */
+  llamadasHechas(): number {
+    return this.almacen.getStore()?.fila?.llamadas ?? 0;
+  }
+
+  /** Lo ya leído en esta petición en serie; `null` si no va en serie */
+  lecturasDeLaFila(): Map<string, unknown> | null {
+    return this.almacen.getStore()?.fila?.lecturas ?? null;
   }
 
   /** Si la petición va en serie, `fn` espera su turno; si no, sale ya */
