@@ -4,10 +4,15 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
+  Matches,
+  Max,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { PaisDto } from '../../../common/dto/pais.dto.js';
@@ -37,6 +42,31 @@ export class ReporteG12Dto extends PaisDto {
 export class CuadroG12Dto extends ReporteG12Dto {
   @IsIn(CLAVES_COMPONENTES, { message: `clave debe ser uno de: ${CLAVES_COMPONENTES.join(', ')}` })
   clave: string;
+
+  /** La actualización en curso del historial: sus peticiones se guardan ahí */
+  @IsOptional()
+  @IsUUID('all', { message: 'actualizacion es el id de una actualización del historial' })
+  actualizacion?: string;
+}
+
+/** POST /reportes/g12/actualizaciones — empieza una actualización del historial */
+export class CrearActualizacionG12Dto {
+  @IsIn(['completa', 'refrescar', 'tabla', 'reintento'], { message: 'tipo debe ser completa, refrescar, tabla o reintento' })
+  tipo: 'completa' | 'refrescar' | 'tabla' | 'reintento';
+}
+
+/** GET /reportes/g12/actualizaciones — el historial, de un día si se dice */
+export class ListarActualizacionesG12Dto extends PaisDto {
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dia debe tener el formato YYYY-MM-DD' })
+  dia?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limite?: number;
 }
 
 export class ItemG12Dto {

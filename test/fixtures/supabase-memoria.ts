@@ -16,6 +16,7 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
     let accion: 'leer' | 'borrar' | 'actualizar' = 'leer';
     let cambios: Fila = {};
     let tocadas: Fila[] | null = null;
+    let contar = false;
     const filtradas = () => {
       // Un filtro es un valor (eq) o una función que dice si el valor vale (in)
       let r = tablas[nombre].filter((f) => filtros.every(([c, v]) => (typeof v === 'function' ? v(f[c]) : f[c] === v)));
@@ -45,11 +46,14 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
         for (const f of tocadas) Object.assign(f, cambios);
         return { data: tocadas, error: null };
       }
+      if (contar) return { data: null, count: filtradas().length, error: null };
       return { data: tocadas ?? filtradas(), error: null };
     };
     const metodos = {
-      select: () => cadena(),
+      select: (_c?: string, o?: { count?: string; head?: boolean }) => { if (o?.count) contar = true; return cadena(); },
       eq: (c: string, v: unknown) => { filtros.push([c, v]); return cadena(); },
+      lt: (c: string, v: unknown) => { filtros.push([c, (x: unknown) => String(x) < String(v)]); return cadena(); },
+      gte: (c: string, v: unknown) => { filtros.push([c, (x: unknown) => String(x) >= String(v)]); return cadena(); },
       in: (c: string, vs: unknown[]) => { filtros.push([c, (x: unknown) => vs.includes(x)]); return cadena(); },
       order: (c: string, o?: { ascending?: boolean }) => { orden = [c, o?.ascending !== false]; return cadena(); },
       limit: (n: number) => { tope = n; return cadena(); },

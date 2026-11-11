@@ -10,6 +10,7 @@ import { CacheReporteG12 } from './cache-reporte-g12.service.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { EjecutorG12Service } from './ejecutor-g12.service.js';
 import { G12Controller } from './g12.controller.js';
+import { HistorialG12Service } from './historial-g12.service.js';
 import { InicialG12Service } from './inicial-g12.service.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
 
@@ -22,6 +23,6 @@ import { ReporteG12Service } from './reporte-g12.service.js';
 @Module({
   imports: [RipleyModule, ReportesComunModule, SimulacionModule, AgenteModule, PickingModule, RecepcionModule, DespachoModule],
   controllers: [G12Controller],
-  providers: [ReporteG12Service, ConfiguracionG12Service, EjecutorG12Service, InicialG12Service, CacheReporteG12],
+  providers: [ReporteG12Service, ConfiguracionG12Service, EjecutorG12Service, InicialG12Service, CacheReporteG12, HistorialG12Service],
 })
 export class G12Module {}
