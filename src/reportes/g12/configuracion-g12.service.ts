@@ -6,7 +6,7 @@ import { CacheReporteG12 } from './cache-reporte-g12.service.js';
 import { definicionDe } from './g12.componentes.js';
 import { configuracionVacia, normalizarConfiguracion } from './g12.validacion.js';
 import type { GuardarConfiguracionG12Dto } from './dto/g12.dto.js';
-import type { ConfiguracionG12 } from './interfaces/g12.interface.js';
+import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interface.js';
 
 /**
  * La configuración del G12, una por país, en la tabla `reportes` (tipo "g12").
@@ -46,16 +46,28 @@ export class ConfiguracionG12Service {
     const anterior = await this.configuraciones.leer<ConfiguracionG12>('g12', pais);
     const actualizadoEn = await this.configuraciones.guardar<ConfiguracionG12>('g12', pais, configuracion, usuario);
 
-    // El último reporte se hizo con la configuración de antes
-    this.cache.olvidar(pais);
+    // Lo generado de un cuadro que cambió ya no vale; el de los demás, sí. Antes
+    // se olvidaba todo, y corregir una dirección dejaba en blanco las diez tablas
+    const cambiados = cuadrosCambiados(anterior.configuracion, configuracion);
+    this.cache.olvidar(pais, cambiados);
 
     this.auditoria.registrarCambio(
       anterior.configuracion ? { pais, cuadros: resumir(completar(anterior.configuracion)) } : null,
       { pais, cuadros: resumir(configuracion) },
     );
 
-    return { pais, actualizadoEn, cuadros: resumir(configuracion) };
+    return { pais, actualizadoEn, cuadros: resumir(configuracion), cuadrosCambiados: cambiados };
   }
+}
+
+/** Los cuadros cuyas filas o bloques cambiaron; el resumen no cuenta, se calcula al armar el reporte */
+export function cuadrosCambiados(anterior: ConfiguracionG12 | null, nueva: ConfiguracionG12): ClaveComponente[] {
+  // La de antes pasa por la misma limpieza, para comparar igual con igual
+  const antes = normalizarConfiguracion(completar(anterior)).configuracion;
+  const forma = (c: ConfiguracionG12['componentes'][number] | undefined) => JSON.stringify(c ? { filas: c.filas, bloques: c.bloques } : null);
+  return nueva.componentes
+    .filter((c) => forma(c) !== forma(antes.componentes.find((a) => a.clave === c.clave)))
+    .map((c) => c.clave);
 }
 
 /** Lo guardado antes de añadir un cuadro nuevo no lo trae: se completa vacío */

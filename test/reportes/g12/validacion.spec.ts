@@ -110,3 +110,32 @@ describe('La semilla del Excel', () => {
     expect(pickup.bloques.map((b) => [b.tipo, b.muestra ?? false])).toEqual([['simulacion', true], ['simulacion', false], ['picking', false]]);
   });
 });
+
+describe('Al guardar la configuración, qué tablas dejan de valer', () => {
+  it('solo las que cambiaron sus filas o bloques; el resumen no cuenta', async () => {
+    const { cuadrosCambiados } = await import('../../../src/reportes/g12/configuracion-g12.service.js');
+    const { configuracionVacia } = await import('../../../src/reportes/g12/g12.validacion.js');
+    const antes = configuracionVacia();
+    const dd = antes.componentes.find((c) => c.clave === 'dd_lima')!;
+    dd.filas = [{ nombre: 'Centralizado MailAmericas' }];
+    dd.bloques = [{ tipo: 'simulacion', items: [{ fila: 'Centralizado MailAmericas', campos: { servicio: 'S', operador: '1100', region: 'Lima', provincia: 'Lima', distrito: 'La Molina' } }] }];
+
+    const despues = structuredClone(antes);
+    despues.componentes.find((c) => c.clave === 'dd_lima')!.bloques[0].items[0].campos.distrito = 'Surco';
+    despues.resumen = [];
+
+    expect(cuadrosCambiados(antes, despues)).toEqual(['dd_lima']);
+    expect(cuadrosCambiados(antes, structuredClone(antes))).toEqual([]);
+  });
+
+  it('la caché olvida solo esas tablas', async () => {
+    const { CacheReporteG12 } = await import('../../../src/reportes/g12/cache-reporte-g12.service.js');
+    const cache = new CacheReporteG12();
+    const cuadro = (clave: 'dd_lima' | 'sfs') => ({ t: Date.now(), hoy: '2026-11-10', generado: 'x', peticiones: [], componente: { clave, titulo: clave, receta: 'simulada' as const, filas: [], total: { unidades: 0, capacidad: 0, porcentaje: null } } });
+    cache.guardar('u', 'PE', cuadro('dd_lima'));
+    cache.guardar('u', 'PE', cuadro('sfs'));
+    cache.olvidar('PE', ['dd_lima']);
+    expect(cache.leer('u', 'PE', 'dd_lima', '2026-11-10')).toBeNull();
+    expect(cache.leer('u', 'PE', 'sfs', '2026-11-10')).not.toBeNull();
+  });
+});

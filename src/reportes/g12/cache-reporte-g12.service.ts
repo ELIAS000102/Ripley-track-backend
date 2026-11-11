@@ -45,8 +45,11 @@ export class CacheReporteG12 {
     this.cuadros.set(this.clave(usuarioId, pais, cuadro.componente.clave), cuadro);
   }
 
-  /** Al cambiar la configuración, lo generado con la de antes ya no vale */
-  olvidar(pais: string): void {
-    for (const clave of this.cuadros.keys()) if (clave.split('|')[1] === pais) this.cuadros.delete(clave);
+  /** Al cambiar la configuración, lo generado con la de antes ya no vale: el de esos cuadros, o todos */
+  olvidar(pais: string, cuadros?: ClaveComponente[]): void {
+    for (const clave of this.cuadros.keys()) {
+      const [, p, cuadro] = clave.split('|');
+      if (p === pais && (!cuadros || cuadros.includes(cuadro as ClaveComponente))) this.cuadros.delete(clave);
+    }
   }
 }
