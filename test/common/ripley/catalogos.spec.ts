@@ -14,12 +14,13 @@ import type { RipleyHttpService } from '../../../src/common/ripley/ripley-http.s
  * el buscador con resultados que no son.
  */
 
-function armar(respuesta: unknown = { count: 0, rows: [] }) {
+function armar(respuesta: unknown = { count: 0, rows: [] }, enSerie = false) {
   const get = vi.fn().mockResolvedValue(respuesta);
 
   const ripley = {
     get,
     endpoint: (nombre: string) => `/api/${nombre}`,
+    vaEnSerie: () => enSerie,
   } as unknown as RipleyHttpService;
 
   // Sin caché de por medio: lo que se vigila aquí es qué se le pide a Ripley
@@ -156,5 +157,39 @@ describe('Catálogos de Ripley: cómo se elige una oficina', () => {
 
     expect(total).toBe(3);
     expect(filas).toHaveLength(2);
+  });
+});
+
+describe('Las oficinas en una petición en serie (el G12)', () => {
+  const OPL = { count: 2, rows: [{ id: 'a', code: '1017' }, { id: 'b', code: '10170' }] };
+
+  it('salen del catálogo entero de su tipo, no de una búsqueda por código', async () => {
+    const { servicio, get } = armar(OPL, true);
+    expect(await servicio.oficinaPorCodigo('1017', 'PE', 'opl')).toMatchObject({ id: 'a' });
+    expect(await servicio.oficinaExacta('10170', 'PE', 'opl')).toMatchObject({ id: 'b' });
+    // Las dos con la misma lectura: la que guarda la actualización no se repite
+    expect(get.mock.calls.map((c) => c[2])).toEqual([{ isOPLOffice: true }, { isOPLOffice: true }]);
+  });
+
+  it('si el código no está en el catálogo (la API pagina), se busca por código como siempre', async () => {
+    const get = vi.fn(async (_p: string, _pais: string, params: { q?: string }) =>
+      params.q ? { count: 1, rows: [{ id: 'z', code: '1999' }] } : OPL);
+    const servicio = new CatalogosRipleyService(
+      { get, endpoint: (n: string) => `/api/${n}`, vaEnSerie: () => true } as unknown as RipleyHttpService,
+      { recordar: (_c: string, _p: string, traer: () => unknown) => traer() } as unknown as CacheCatalogosService,
+    );
+    expect(await servicio.oficinaExacta('1999', 'PE', 'opl')).toMatchObject({ id: 'z' });
+    expect(get.mock.calls.map((c) => c[2])).toEqual([{ isOPLOffice: true }, { q: '1999', isOPLOffice: true }]);
+  });
+
+  it('exacta no cambia un código que no existe por el parecido', async () => {
+    const { servicio } = armar({ count: 1, rows: [{ id: 'x', code: '99990' }] }, true);
+    expect(await servicio.oficinaExacta('9999', 'PE', 'opl')).toBeNull();
+  });
+
+  it('fuera del G12 se sigue buscando por código', async () => {
+    const { servicio, get } = armar(OPL);
+    await servicio.oficinaPorCodigo('1017', 'PE', 'opl');
+    expect(llamada(get)[2]).toEqual({ q: '1017', isOPLOffice: true });
   });
 });

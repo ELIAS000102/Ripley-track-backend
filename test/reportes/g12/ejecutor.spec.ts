@@ -71,7 +71,7 @@ function montar(opciones: {
     })),
   };
   const catalogos = {
-    oficinas: vi.fn(async (_pais: string, f: { q: string }) => (f.q === '9999' ? [{ id: 'x', code: '99990' }] : [{ id: `id-${f.q}`, code: f.q }])),
+    oficinaExacta: vi.fn(async (code: string) => (code === '9999' ? null : { id: `id-${code}`, code })),
   };
   const hoy = hoyEnPais('PE');
   const capacidad = {
@@ -120,7 +120,7 @@ describe('El ejecutor del G12', () => {
     expect(simulacion.resolverProductos).toHaveBeenCalledTimes(1);
     // El tercero es igual al primero: no se vuelve a simular
     expect(simulacion.simularResuelto).toHaveBeenCalledTimes(2);
-    expect(catalogos.oficinas).toHaveBeenCalledTimes(2);
+    expect(catalogos.oficinaExacta).toHaveBeenCalledTimes(2);
     expect(simulacion.simularResuelto.mock.calls[1][0]).toMatchObject({ deliveryMethod: 'RT', typeOfServiceCode: 'RT', comuna: { id: 'c-brena' } });
   });
 

@@ -453,6 +453,11 @@ export class RipleyHttpService {
     return typeof this.contexto.enFila === 'function' ? this.contexto.enFila(fn) : fn();
   }
 
+  /** Si la petición en curso va en serie (el G12): sus lecturas se guardan para la actualización */
+  vaEnSerie(): boolean {
+    return this.lecturasDeLaFila() !== null;
+  }
+
   /** Lo ya leído por la petición en serie, si lo es (los tests pueden pasar un contexto a medias) */
   private lecturasDeLaFila(): Map<string, unknown> | null {
     return typeof this.contexto.lecturasDeLaFila === 'function' ? this.contexto.lecturasDeLaFila() : null;

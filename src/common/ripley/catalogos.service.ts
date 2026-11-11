@@ -103,6 +103,9 @@ export class CatalogosRipleyService {
     tipo: TipoOficina,
     queEs = 'la oficina',
   ): Promise<OfficeRow> {
+    const delCatalogo = await this.delCatalogoEntero(code, pais, tipo);
+    if (delCatalogo) return delCatalogo;
+
     const filas = await this.oficinas(pais, { q: code, tipo });
     const oficina = filas.find((o) => o.code === code) ?? filas[0];
 
@@ -111,6 +114,34 @@ export class CatalogosRipleyService {
     }
 
     return oficina;
+  }
+
+  /**
+   * La oficina de un código, **exacto**, o `null`: un código que no existe no
+   * se cambia por el parecido. Lo usa el G12.
+   */
+  async oficinaExacta(code: string, pais: string, tipo: TipoOficina): Promise<OfficeRow | null> {
+    const buscado = code.trim();
+    const delCatalogo = await this.delCatalogoEntero(buscado, pais, tipo);
+    if (delCatalogo) return delCatalogo;
+
+    const filas = await this.oficinas(pais, { q: buscado, tipo });
+    return filas.find((o) => o.code === buscado) ?? null;
+  }
+
+  /**
+   * En una petición en serie (el G12), la oficina sale del catálogo entero de
+   * su tipo, que se lee una vez por actualización: son unas 120 oficinas
+   * distintas, y buscarlas una a una eran 120 llamadas a una API que responde
+   * 429 hacia las 125 por minuto. Si el código no está —la API puede paginar—,
+   * `undefined` y quien llama la busca por código como siempre.
+   *
+   * Fuera del G12 no: una búsqueda suelta es más barata que el catálogo entero.
+   */
+  private async delCatalogoEntero(code: string, pais: string, tipo: TipoOficina): Promise<OfficeRow | undefined> {
+    if (typeof this.ripley.vaEnSerie !== 'function' || !this.ripley.vaEnSerie()) return undefined;
+    const filas = await this.oficinas(pais, { tipo });
+    return filas.find((o) => o.code === code);
   }
 
   /** El catálogo /services entero */

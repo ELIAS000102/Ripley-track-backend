@@ -308,8 +308,7 @@ export class EjecutorG12Service {
   private oficina(codigo: string, tipo: TipoOficina, sesion: SesionG12): Promise<OfficeRow> {
     const buscado = codigo.trim();
     return memoSinFallos(sesion.oficinas, `${tipo}:${buscado}`, async () => {
-      const filas = await this.catalogos.oficinas(sesion.pais, { q: buscado, tipo });
-      const oficina = filas.find((o) => o.code === buscado);
+      const oficina = await this.catalogos.oficinaExacta(buscado, sesion.pais, tipo);
       if (!oficina) throw new Error(`No existe ${tipo === 'opl' ? 'el operador' : 'el almacén'} ${buscado}`);
       return oficina;
     });
