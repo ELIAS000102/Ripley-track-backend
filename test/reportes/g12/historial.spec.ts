@@ -1,9 +1,9 @@
 import ExcelJS from 'exceljs';
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { hoyEnPais, sumarDias } from '../../../src/common/ripley/utils/date.util.js';
 import { HistorialG12Service, libroDeActualizacion, nombreArchivo } from '../../../src/reportes/g12/historial-g12.service.js';
-import type { CuadroG12, PeticionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
+import type { PeticionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
 import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js';
 
 /**
@@ -24,11 +24,7 @@ const peticion = (fila: string, estado: PeticionG12['estado'], extra: Partial<Pe
   ...extra,
 });
 
-const cuadro = (peticiones: PeticionG12[], desdeCache = false): CuadroG12 => ({
-  hoy: HOY, generado: new Date().toISOString(), desdeCache,
-  componente: { clave: 'pickup_lima', titulo: 'Pickup in store - Lima', receta: 'simulada', filas: [], total: { unidades: 0, capacidad: 0, porcentaje: null } },
-  peticiones,
-});
+const cuadro = (peticiones: PeticionG12[]) => ({ clave: 'pickup_lima' as const, generado: new Date().toISOString(), peticiones });
 
 function montar() {
   const tablas: Record<string, Fila[]> = {};
@@ -38,17 +34,18 @@ function montar() {
 describe('El historial de actualizaciones del G12', () => {
   it('guarda cada actualización con su inicio y su fin, y las peticiones de cada tabla en orden', async () => {
     const { historial } = montar();
-    const a = await historial.crear('PE', 'completa', ANA);
-    expect(a).toMatchObject({ tipo: 'completa', usuarioEmail: ANA.email, fin: null });
+    const a = await historial.crear('PE', 'completa', ANA, ['pickup_lima', 'sfs']);
+    expect(a).toMatchObject({ tipo: 'completa', estado: 'en_curso', usuarioEmail: ANA.email, fin: null, claves: ['pickup_lima', 'sfs'] });
 
-    await historial.anotarCuadro(a.id, ANA, 'PE', cuadro([peticion('San Isidro', 'ok'), peticion('Miraflores', 'error')]));
-    // Una tabla que salió de lo ya generado no tiene peticiones nuevas
-    await historial.anotarCuadro(a.id, ANA, 'PE', cuadro([peticion('Vieja', 'ok')], true));
-    const cerrada = await historial.terminar(a.id, ANA);
+    await historial.anotarCuadro(a.id, 'PE', cuadro([peticion('San Isidro', 'ok'), peticion('Miraflores', 'error')]));
+    // Una tabla que no se pudo generar queda con su motivo
+    await historial.anotarCuadro(a.id, 'PE', { clave: 'sfs', generado: new Date().toISOString(), peticiones: [] }, 'Falta el token');
+    const cerrada = await historial.cerrar(a.id, 'terminada');
 
+    expect(cerrada).toMatchObject({ estado: 'terminada', cuadroActual: null });
     expect(cerrada.fin).toBeTruthy();
     expect(cerrada.resumen).toEqual({ total: 2, ok: 1, sin_fecha: 0, omitida: 0, error: 1, reintentadas: 1 });
-    expect(cerrada.cuadros.map((c) => [c.desdeCache, c.peticiones, c.errores])).toEqual([[false, 2, 1], [true, 0, 0]]);
+    expect(cerrada.cuadros.map((c) => [c.clave, c.peticiones, c.errores, c.fallo ?? null])).toEqual([['pickup_lima', 2, 1, null], ['sfs', 0, 0, 'Falta el token']]);
 
     const { peticiones } = await historial.obtener(a.id);
     expect(peticiones.map((p) => [p.orden, p.fila, p.estado])).toEqual([[1, 'San Isidro', 'ok'], [2, 'Miraflores', 'error']]);
@@ -57,26 +54,48 @@ describe('El historial de actualizaciones del G12', () => {
 
   it('de una agenda guarda sus próximos 14 días, no los 45 que se leen', async () => {
     const { historial } = montar();
-    const a = await historial.crear('PE', 'tabla', ANA);
+    const a = await historial.crear('PE', 'tabla', ANA, ['pickup_lima']);
     const dias = Array.from({ length: 45 }, (_, i) => ({ fecha: sumarDias(HOY, i - 1), activo: true, asignado: 10, ocupado: 1, disponible: 9 }));
-    await historial.anotarCuadro(a.id, ANA, 'PE', cuadro([peticion('A', 'ok', { tipo: 'picking', datos: [{ agenda: 'Agenda RT', servicio: 'RT', dias }] })]));
+    await historial.anotarCuadro(a.id, 'PE', cuadro([peticion('A', 'ok', { tipo: 'picking', datos: [{ agenda: 'Agenda RT', servicio: 'RT', dias }] })]));
     const { peticiones } = await historial.obtener(a.id);
     const guardados = (peticiones[0].datos as Array<{ dias: unknown[] }>)[0].dias;
     expect(guardados).toHaveLength(14);
   });
 
-  it('solo quien empezó la actualización le añade tablas o la cierra', async () => {
+  it('una en curso por país: la segunda dice quién la tiene; en otro país no estorba', async () => {
     const { historial } = montar();
-    const a = await historial.crear('PE', 'completa', ANA);
-    await expect(historial.anotarCuadro(a.id, LUIS, 'PE', cuadro([]))).rejects.toThrow(ForbiddenException);
-    await expect(historial.terminar(a.id, LUIS)).rejects.toThrow(ForbiddenException);
+    const a = await historial.crear('PE', 'completa', ANA, ['pickup_lima']);
+    await expect(historial.crear('PE', 'refrescar', LUIS, ['sfs'])).rejects.toThrow(ConflictException);
+    await expect(historial.crear('PE', 'refrescar', LUIS, ['sfs'])).rejects.toThrow(/ana@ripley\.com\.pe está actualizando el G12 de PE/);
+    await expect(historial.crear('CL', 'refrescar', LUIS, ['sfs'])).resolves.toMatchObject({ pais: 'CL' });
+
+    await historial.cerrar(a.id, 'terminada');
+    await expect(historial.crear('PE', 'refrescar', LUIS, ['sfs'])).resolves.toMatchObject({ usuarioEmail: LUIS.email });
+  });
+
+  it('una que dejó de dar señales (3 min) se da por abandonada y libera el turno', async () => {
+    const { historial, tablas } = montar();
+    const a = await historial.crear('PE', 'completa', ANA, ['pickup_lima']);
+    const fila = tablas.g12_actualizaciones.find((x) => x.id === a.id)!;
+    fila.latido = new Date(Date.now() - 4 * 60_000).toISOString();
+
+    expect(await historial.enCurso('PE')).toBeNull();
+    expect(await historial.leer(a.id)).toMatchObject({ estado: 'abandonada', error: expect.stringMatching(/Dejó de dar señales/) });
+    await expect(historial.crear('PE', 'refrescar', LUIS, ['sfs'])).resolves.toMatchObject({ estado: 'en_curso' });
+  });
+
+  it('la señal de vida dice por qué tabla va', async () => {
+    const { historial } = montar();
+    const a = await historial.crear('PE', 'completa', ANA, ['pickup_lima', 'sfs']);
+    await historial.latir(a.id, 'sfs');
+    expect(await historial.enCurso('PE')).toMatchObject({ id: a.id, cuadroActual: 'sfs' });
   });
 
   it('se lista por país, las últimas primero, y se puede filtrar por día', async () => {
     const { historial, tablas } = montar();
-    await historial.crear('PE', 'completa', ANA);
-    await historial.crear('CL', 'completa', ANA);
-    tablas.g12_actualizaciones.push({ id: 'vieja', pais: 'PE', tipo: 'tabla', inicio: '2026-11-01T15:00:00.000Z', cuadros: [] });
+    await historial.crear('PE', 'completa', ANA, ['pickup_lima']);
+    await historial.crear('CL', 'completa', ANA, ['pickup_lima']);
+    tablas.g12_actualizaciones.push({ id: 'vieja', pais: 'PE', tipo: 'tabla', inicio: '2026-11-01T15:00:00.000Z', fin: '2026-11-01T15:01:00.000Z', cuadros: [] });
 
     expect((await historial.listar('PE')).map((a) => a.pais)).toEqual(['PE', 'PE']);
     expect((await historial.listar('PE', { dia: '2026-11-01' })).map((a) => a.id)).toEqual(['vieja']);
@@ -86,8 +105,8 @@ describe('El historial de actualizaciones del G12', () => {
 describe('El Excel de una actualización', () => {
   it('lleva una hoja con el resumen y otra con cada petición y su ejecución', async () => {
     const a = {
-      id: 'a-1', pais: 'PE', tipo: 'completa' as const, usuarioEmail: ANA.email,
-      inicio: '2026-11-10T20:02:11.000Z', fin: '2026-11-10T20:08:40.000Z',
+      id: 'a-1', pais: 'PE', tipo: 'completa' as const, estado: 'terminada' as const, usuarioId: ANA.id, usuarioEmail: ANA.email,
+      inicio: '2026-11-10T20:02:11.000Z', fin: '2026-11-10T20:08:40.000Z', claves: ['pickup_lima' as const], cuadroActual: null, latido: null, error: null,
       cuadros: [{ clave: 'pickup_lima' as const, titulo: 'Pickup in store - Lima', desdeCache: false, generado: '2026-11-10T20:05:00.000Z', peticiones: 2, errores: 1 }],
       resumen: null,
     };
@@ -98,8 +117,10 @@ describe('El Excel de una actualización', () => {
     expect(libro.worksheets.map((h) => h.name)).toEqual(['Resumen', 'Peticiones']);
 
     const resumen = libro.getWorksheet('Resumen')!;
-    expect(resumen.getCell('B5').value).toBe('10/11/2026 15:02:11');
-    expect(resumen.getCell('B7').value).toBe('6 min 29 s');
+    const enResumen = (k: string) => resumen.getRows(1, 30)!.find((r) => r.getCell(1).value === k)?.getCell(2).value;
+    expect(enResumen('Estado')).toBe('Terminada');
+    expect(enResumen('Inicio')).toBe('10/11/2026 15:02:11');
+    expect(enResumen('Duración')).toBe('6 min 29 s');
 
     const hoja = libro.getWorksheet('Peticiones')!;
     expect(hoja.rowCount).toBe(3);
@@ -115,13 +136,13 @@ describe('El Excel de una actualización', () => {
 
   it('cuenta las llamadas a Ripley de cada petición y del total', async () => {
     const { historial } = montar();
-    const a = await historial.crear('PE', 'completa', ANA);
+    const a = await historial.crear('PE', 'completa', ANA, ['pickup_lima']);
     const conLlamadas = (fila: string, n: number) => {
       const p = peticion(fila, 'ok');
       return { ...p, meta: { ...p.meta!, llamadas: n } };
     };
-    await historial.anotarCuadro(a.id, ANA, 'PE', cuadro([conLlamadas('San Isidro', 4), conLlamadas('Miraflores', 0)]));
-    expect((await historial.terminar(a.id, ANA)).resumen?.llamadas).toBe(4);
+    await historial.anotarCuadro(a.id, 'PE', cuadro([conLlamadas('San Isidro', 4), conLlamadas('Miraflores', 0)]));
+    expect((await historial.cerrar(a.id, 'terminada')).resumen?.llamadas).toBe(4);
 
     const { actualizacion, peticiones } = await historial.obtener(a.id);
     expect(peticiones.map((p) => p.meta?.llamadas)).toEqual([4, 0]);

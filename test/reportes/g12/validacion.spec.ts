@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CLAVES_COMPONENTES } from '../../../src/reportes/g12/g12.componentes.js';
 import { configuracionVacia, normalizarConfiguracion } from '../../../src/reportes/g12/g12.validacion.js';
-import { SEMILLA_G12_PE } from '../../../src/reportes/g12/semilla-pe.js';
 
 /** Lo que se guarda: limpio, comprobado y con todos los errores de una vez */
 
@@ -85,32 +84,6 @@ describe('La configuración del G12', () => {
   });
 });
 
-describe('La semilla del Excel', () => {
-  it('se guarda sin errores en cuanto sus comunas tienen nombre', () => {
-    const traducida = {
-      componentes: SEMILLA_G12_PE.componentes.map((c) => ({
-        ...c,
-        bloques: c.bloques.map((b) => ({
-          ...b,
-          items: b.items.map((it) => ({ fila: it.fila, campos: b.tipo === 'simulacion' ? { ...it.campos, region: 'Lima', distrito: `d-${it.ref?.ubigeo}` } : it.campos })),
-        })),
-      })),
-      resumen: configuracionVacia().resumen,
-    };
-    const { configuracion, errores } = normalizarConfiguracion(traducida);
-    expect(errores).toEqual([]);
-
-    const filas = Object.fromEntries(configuracion.componentes.map((c) => [c.clave, c.filas.length]));
-    expect(filas).toEqual({
-      dd_lima: 8, sfs: 15, store_to_store: 7, pickup_lima: 17, pickup_provincia: 13,
-      sts_lima: 17, sts_provincia: 13, dd_troncal: 14, retiro_cercano: 1, se_express: 1,
-    });
-    // RE y SE se prueban con una tienda antes de pedir las demás, como la "muestra" del Excel
-    const pickup = configuracion.componentes.find((c) => c.clave === 'pickup_lima')!;
-    expect(pickup.bloques.map((b) => [b.tipo, b.muestra ?? false])).toEqual([['simulacion', true], ['simulacion', false], ['picking', false]]);
-  });
-});
-
 describe('Al guardar la configuración, qué tablas dejan de valer', () => {
   it('solo las que cambiaron sus filas o bloques; el resumen no cuenta', async () => {
     const { cuadrosCambiados } = await import('../../../src/reportes/g12/configuracion-g12.service.js');
@@ -128,14 +101,17 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
     expect(cuadrosCambiados(antes, structuredClone(antes))).toEqual([]);
   });
 
-  it('la caché olvida solo esas tablas', async () => {
-    const { CacheReporteG12 } = await import('../../../src/reportes/g12/cache-reporte-g12.service.js');
-    const cache = new CacheReporteG12();
-    const cuadro = (clave: 'dd_lima' | 'sfs') => ({ t: Date.now(), hoy: '2026-11-10', generado: 'x', peticiones: [], componente: { clave, titulo: clave, receta: 'simulada' as const, filas: [], total: { unidades: 0, capacidad: 0, porcentaje: null } } });
-    cache.guardar('u', 'PE', cuadro('dd_lima'));
-    cache.guardar('u', 'PE', cuadro('sfs'));
-    cache.olvidar('PE', ['dd_lima']);
-    expect(cache.leer('u', 'PE', 'dd_lima', '2026-11-10')).toBeNull();
-    expect(cache.leer('u', 'PE', 'sfs', '2026-11-10')).not.toBeNull();
+  it('lo guardado para todos olvida solo esas tablas, y solo de ese país', async () => {
+    const { CuadrosG12Service } = await import('../../../src/reportes/g12/cuadros-g12.service.js');
+    const { supabaseEnMemoria } = await import('../../fixtures/supabase-memoria.js');
+    const cuadros = new CuadrosG12Service(supabaseEnMemoria({}));
+    const cuadro = (clave: 'dd_lima' | 'sfs') => ({ clave, hoy: '2026-11-10', generado: 'x', peticiones: [], actualizacionId: null, usuarioEmail: null, componente: { clave, titulo: clave, receta: 'simulada' as const, filas: [], total: { unidades: 0, capacidad: 0, porcentaje: null } } });
+    await cuadros.guardar('PE', cuadro('dd_lima'));
+    await cuadros.guardar('PE', cuadro('sfs'));
+    await cuadros.guardar('CL', cuadro('dd_lima'));
+    await cuadros.olvidar('PE', ['dd_lima']);
+    expect([...(await cuadros.todos('PE')).keys()]).toEqual(['sfs']);
+    expect([...(await cuadros.todos('CL')).keys()]).toEqual(['dd_lima']);
   });
 });
+

@@ -1,13 +1,16 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { CapacidadAgenteService } from '../../../src/agente/consultas/capacidad/capacidad.service.js';
 import { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import type { DespachoService } from '../../../src/agendas/despacho/despacho.service.js';
 import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
 import { hoyEnPais, sumarDias } from '../../../src/common/ripley/utils/date.util.js';
-import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
 import { ConfiguracionReportesService } from '../../../src/reportes/comun/configuracion-reportes.service.js';
-import { CacheReporteG12 } from '../../../src/reportes/g12/cache-reporte-g12.service.js';
+import { ActualizadorG12Service } from '../../../src/reportes/g12/actualizador-g12.service.js';
+import { CuadrosG12Service } from '../../../src/reportes/g12/cuadros-g12.service.js';
+import { HistorialG12Service } from '../../../src/reportes/g12/historial-g12.service.js';
+import type { PerfilService } from '../../../src/auth/perfil.service.js';
+import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js';
 import { ConfiguracionG12Service } from '../../../src/reportes/g12/configuracion-g12.service.js';
 import { EjecutorG12Service, fechaDelServicio } from '../../../src/reportes/g12/ejecutor-g12.service.js';
 import type { ConfiguracionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
@@ -95,15 +98,18 @@ function montar(opciones: {
   // Los reintentos esperan 2, 4 y 8 s; aquí no se espera
   ejecutor.esperaBaseMs = 0;
 
-  const consulta = {
-    select: () => consulta, eq: () => consulta,
-    maybeSingle: async () => ({ data: opciones.config ? { configuracion: opciones.config, actualizado_por: 'u@r.pe', actualizado_en: 'x' } : null, error: null }),
+  // Supabase en memoria: la configuración, lo guardado para todos y el historial con su turno
+  const tablas: Record<string, Fila[]> = {
+    reportes: opciones.config ? [{ tipo: 'g12', pais: 'PE', configuracion: opciones.config, actualizado_por: 'u@r.pe', actualizado_en: 'x' }] : [],
   };
-  const supabase = { admin: { from: () => consulta } } as unknown as SupabaseService;
-  const cache = new CacheReporteG12();
-  const configuracion = new ConfiguracionG12Service(new ConfiguracionReportesService(supabase), { registrarCambio: vi.fn() } as unknown as ContextoAuditoria, cache);
-  const reporte = new ReporteG12Service(configuracion, ejecutor, cache, contexto);
-  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto };
+  const supabase = supabaseEnMemoria(tablas);
+  const cuadros = new CuadrosG12Service(supabase);
+  const historial = new HistorialG12Service(supabase);
+  const configuracion = new ConfiguracionG12Service(new ConfiguracionReportesService(supabase), { registrarCambio: vi.fn() } as unknown as ContextoAuditoria, cuadros, historial);
+  const reporte = new ReporteG12Service(configuracion, ejecutor, cuadros, contexto);
+  const perfiles = { obtener: async (id: string) => ({ rol: id === 'jefa' ? 'admin' : 'user' }) } as unknown as PerfilService;
+  const actualizador = new ActualizadorG12Service(reporte, configuracion, cuadros, historial, contexto, perfiles);
+  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto, actualizador, historial, cuadros, tablas };
 }
 
 const simItem = (fila: string, operador: string, servicio: string, distrito = 'San Isidro') =>
@@ -221,8 +227,10 @@ describe('El reporte G12', () => {
   });
 
   it('arma cada cuadro con su receta, el total conjunto y el resumen', async () => {
-    const { reporte, hoy } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
-    const r = await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE');
+    const { reporte, cuadros, hoy } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
+    const generado = await reporte.generarCuadro('PE', 'pickup_lima', config());
+    await cuadros.guardar('PE', { ...generado, actualizacionId: null, usuarioEmail: 'u@r.pe' });
+    const r = await reporte.reporte('PE');
 
     const fila = r.componentes.find((c) => c.clave === 'pickup_lima')!.filas[0];
     // RT el día 2 mira el picking del día 1: 66 de 230
@@ -232,39 +240,16 @@ describe('El reporte G12', () => {
     expect(r.cobertura.simulaciones).toMatchObject({ total: 2, conFecha: 1 });
   });
 
-  it('el último se guarda unos minutos por persona; refrescar lo vuelve a pedir', async () => {
-    const { reporte, simulacion } = montar({ config: config() });
-    await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE');
-    const segundo = await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE');
-    expect(segundo.parametros.desdeCache).toBe(true);
-    expect(simulacion.simularResuelto).toHaveBeenCalledTimes(2);
-
-    await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE', true);
-    expect(simulacion.simularResuelto).toHaveBeenCalledTimes(4);
-  });
-
-  it('cuadro a cuadro: cada uno se genera solo, y el reporte entero después sale de lo guardado', async () => {
-    const { reporte, simulacion } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
-    const usuario = { id: 'u', email: 'u@r.pe' };
-
-    const cuadro = await reporte.cuadro(usuario, 'PE', 'pickup_lima');
-    expect(cuadro).toMatchObject({ desdeCache: false, componente: { clave: 'pickup_lima', filas: [{ unidades: 66 }] } });
+  it('un cuadro se genera solo, con el registro de sus peticiones', async () => {
+    const { reporte } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
+    const cuadro = await reporte.generarCuadro('PE', 'pickup_lima', config());
+    expect(cuadro).toMatchObject({ clave: 'pickup_lima', componente: { clave: 'pickup_lima', filas: [{ unidades: 66 }] } });
     // El registro: las dos simulaciones y las dos lecturas de agenda, con su estado
     expect(cuadro.peticiones.map((p) => `${p.tipo}:${p.estado}`).sort()).toEqual(['picking:ok', 'picking:ok', 'simulacion:ok', 'simulacion:sin_fecha']);
     expect(cuadro.peticiones.find((p) => p.estado === 'sin_fecha')?.mensaje).toBe('No se encuentran agendas');
     // La respuesta completa no se repite en las filas: va en el registro
     expect(cuadro.componente.filas[0].detalle.simulaciones[0]).not.toHaveProperty('respuesta');
     expect(cuadro.peticiones.find((p) => p.estado === 'ok' && p.tipo === 'simulacion')?.datos).toMatchObject({ servicios: [{ servicio: 'RT' }] });
-
-    const llamadas = simulacion.simularResuelto.mock.calls.length;
-    const otraVez = await reporte.cuadro(usuario, 'PE', 'pickup_lima');
-    expect(otraVez.desdeCache).toBe(true);
-
-    // El resto de cuadros no tienen ítems: el reporte entero no vuelve a simular nada
-    const entero = await reporte.reporte(usuario, 'PE');
-    expect(simulacion.simularResuelto.mock.calls.length).toBe(llamadas);
-    expect(entero.peticiones).toHaveLength(4);
-    expect(entero.cobertura).toMatchObject({ simulaciones: { total: 2, conFecha: 1 }, agendas: { total: 2, fallidas: 0 }, reintentadas: 0 });
   });
 
   it('de N en N, y el registro en el orden configurado aunque las respuestas lleguen desordenadas', async () => {
@@ -281,7 +266,7 @@ describe('El reporte G12', () => {
     };
     const { ejecutor, reporte, simulacion, capacidad, concurrencia } = montar({ config: muchos, retardoMs: 15 });
     ejecutor.aLaVez = 2;
-    const r = await reporte.cuadro({ id: 'u', email: 'u@r.pe' }, 'PE', 'pickup_lima');
+    const r = await reporte.generarCuadro('PE', 'pickup_lima', muchos);
 
     expect(simulacion.simularResuelto).toHaveBeenCalledTimes(3);
     expect(capacidad.consultar).toHaveBeenCalledTimes(3);
@@ -290,23 +275,114 @@ describe('El reporte G12', () => {
     expect(r.peticiones.map((p) => p.pedido.operador ?? p.pedido.codigo)).toEqual(['20027', '20030', '20031', '20030', '20031', '20032']);
   });
 
-  it('el resumen del final (soloGuardado) no vuelve a Ripley: lo que no esté generado sale vacío y avisado', async () => {
+  it('leer el reporte no va a Ripley: lo que no esté generado sale vacío y avisado', async () => {
     const { reporte, simulacion, capacidad } = montar({ config: config() });
-    const r = await reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE', false, true);
+    const r = await reporte.reporte('PE');
     expect(simulacion.simularResuelto).not.toHaveBeenCalled();
     expect(capacidad.consultar).not.toHaveBeenCalled();
+    expect(r.cuadros).toEqual([]);
+    expect(r.filas.pickup_lima).toEqual(['San Isidro']);
     expect(r.componentes.find((c) => c.clave === 'pickup_lima')!.filas[0].estado).toBe('sin_configurar');
     expect(r.avisos.join(' ')).toMatch(/Sin generar todavía.*Pickup in store - Lima/);
   });
 
-  it('sin ítems configurados dice dónde configurarlo', async () => {
-    const { reporte } = montar({ config: null });
-    await expect(reporte.reporte({ id: 'u', email: 'u@r.pe' }, 'PE')).rejects.toThrow(BadRequestException);
+  it('un cuadro de otro día sale con sus datos y avisado', async () => {
+    const { reporte, cuadros } = montar({ config: config() });
+    const viejo = { clave: 'pickup_lima' as const, hoy: '2026-11-01', generado: '2026-11-01T15:00:00.000Z', componente: { clave: 'pickup_lima' as const, titulo: 'Pickup in store - Lima', receta: 'simulada' as const, filas: [], total: { unidades: 5, capacidad: 10, porcentaje: 50 } }, peticiones: [], actualizacionId: null, usuarioEmail: 'ana@r.pe' };
+    await cuadros.guardar('PE', viejo);
+    const r = await reporte.reporte('PE');
+    expect(r.cuadros.map((c) => [c.clave, c.usuarioEmail])).toEqual([['pickup_lima', 'ana@r.pe']]);
+    expect(r.avisos.join(' ')).toMatch(/Datos de otro día, actualízalos: Pickup in store - Lima \(1-nov\)/);
+  });
+
+  it('sin ítems configurados lo dice, y no se puede actualizar', async () => {
+    const { reporte, actualizador } = montar({ config: null });
+    expect((await reporte.reporte('PE')).avisos.join(' ')).toMatch(/todavía no tiene ítems/);
+    await expect(actualizador.lanzar({ id: 'u', email: 'u@r.pe' }, 'PE', 'completa')).rejects.toThrow(BadRequestException);
   });
 
   it('probar comprueba el bloque con las mismas reglas que al guardar', async () => {
     const { reporte } = montar();
     await expect(reporte.probar({ componente: 'store_to_store', bloque: { tipo: 'simulacion', items: [simItem('A', '1', 'S')] } } as never, 'PE'))
       .rejects.toThrow(/no lleva bloques de simulacion/);
+  });
+});
+
+describe('La actualización compartida del G12', () => {
+  const config = (): ConfiguracionG12 => ({
+    componentes: [{
+      clave: 'pickup_lima',
+      filas: [{ nombre: 'San Isidro' }],
+      bloques: [{ tipo: 'simulacion', items: [simItem('San Isidro', '20027', 'RT')] }],
+    }],
+    resumen: [],
+  });
+  const ANA = { id: 'ana', email: 'ana@r.pe' };
+  const LUIS = { id: 'luis', email: 'luis@r.pe' };
+
+  /** Hasta que la actualización deja de estar en curso */
+  async function esperarFin(historial: HistorialG12Service, id: string) {
+    for (let i = 0; i < 200; i++) {
+      const a = await historial.leer(id);
+      if (a.estado !== 'en_curso') return a;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    throw new Error('no terminó');
+  }
+
+  it('corre en segundo plano con el usuario que la lanzó, y lo generado queda para todos', async () => {
+    const { actualizador, historial, reporte, contexto, simulacion } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
+    let quien: string | undefined;
+    simulacion.simularResuelto.mockImplementationOnce(async () => {
+      quien = contexto.usuarioActual()?.email;
+      return { resultados: [{ typeOfService: 'RT', agenda: 'A', zona: 'Z', opciones: [{ fechaEntrega: `${sumarDias(hoyEnPais('PE'), 2)}T05:00:00.000Z` }] }], errores: [], mensaje: '' };
+    });
+
+    const { actualizacion } = await actualizador.lanzar(ANA, 'PE', 'completa');
+    expect(actualizacion).toMatchObject({ estado: 'en_curso', claves: ['pickup_lima'], usuarioEmail: 'ana@r.pe' });
+    const cerrada = await esperarFin(historial, actualizacion!.id);
+
+    expect(quien).toBe('ana@r.pe');
+    expect(cerrada).toMatchObject({ estado: 'terminada', cuadroActual: null, resumen: { total: 1, ok: 1 } });
+    // Cualquiera lo lee ahora, sin ir a Ripley
+    const r = await reporte.reporte('PE');
+    expect(r.cuadros.map((c) => [c.clave, c.usuarioEmail, c.actualizacionId])).toEqual([['pickup_lima', 'ana@r.pe', actualizacion!.id]]);
+    expect((await actualizador.estado('PE')).version).toMatch(/^pickup_lima:/);
+  });
+
+  it('una a la vez por país: mientras una corre, otra persona no puede lanzar ni guardar la configuración', async () => {
+    const { actualizador, historial } = montar({ config: config(), retardoMs: 60 });
+    const { actualizacion } = await actualizador.lanzar(ANA, 'PE', 'refrescar');
+
+    await expect(actualizador.lanzar(LUIS, 'PE', 'refrescar')).rejects.toThrow(ConflictException);
+    await expect(actualizador.lanzar(LUIS, 'PE', 'refrescar')).rejects.toThrow(/ana@r\.pe está actualizando el G12 de PE/);
+    const estado = await actualizador.estado('PE');
+    expect(estado.enCurso).toMatchObject({ id: actualizacion!.id, total: 1 });
+
+    await esperarFin(historial, actualizacion!.id);
+    expect((await actualizador.estado('PE')).enCurso).toBeNull();
+    // Terminada, ya se puede otra
+    const otra = await actualizador.lanzar(LUIS, 'PE', 'refrescar');
+    await esperarFin(historial, otra.actualizacion!.id);
+  });
+
+  it('"completa" no repite las tablas de hace menos de 15 minutos', async () => {
+    const { actualizador, historial } = montar({ config: config() });
+    const { actualizacion } = await actualizador.lanzar(ANA, 'PE', 'completa');
+    await esperarFin(historial, actualizacion!.id);
+
+    const otra = await actualizador.lanzar(LUIS, 'PE', 'completa');
+    expect(otra.actualizacion).toBeNull();
+    expect(otra.mensaje).toMatch(/menos de 15 minutos/);
+  });
+
+  it('solo quien la lanzó o un administrador la cancelan', async () => {
+    const { actualizador, historial } = montar({ config: config(), retardoMs: 60 });
+    const { actualizacion } = await actualizador.lanzar(ANA, 'PE', 'refrescar');
+    await expect(actualizador.cancelar(actualizacion!.id, LUIS)).rejects.toThrow(ForbiddenException);
+    await actualizador.cancelar(actualizacion!.id, { id: 'jefa', email: 'jefa@r.pe' });
+    const cerrada = await esperarFin(historial, actualizacion!.id);
+    // La tabla que estaba en marcha termina; la cancelación se nota en la siguiente
+    expect(['cancelada', 'terminada']).toContain(cerrada.estado);
   });
 });

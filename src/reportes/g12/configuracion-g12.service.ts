@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
-import { CacheReporteG12 } from './cache-reporte-g12.service.js';
+import { configuracionAXlsx, xlsxAConfiguracion } from './configuracion-xlsx.js';
+import { CuadrosG12Service } from './cuadros-g12.service.js';
+import { HistorialG12Service } from './historial-g12.service.js';
 import { definicionDe } from './g12.componentes.js';
 import { configuracionVacia, normalizarConfiguracion } from './g12.validacion.js';
 import type { GuardarConfiguracionG12Dto } from './dto/g12.dto.js';
@@ -21,7 +23,8 @@ export class ConfiguracionG12Service {
   constructor(
     private readonly configuraciones: ConfiguracionReportesService,
     private readonly auditoria: ContextoAuditoria,
-    private readonly cache: CacheReporteG12,
+    private readonly cuadros: CuadrosG12Service,
+    private readonly historial: HistorialG12Service,
   ) {}
 
   /** La del país; sin guardar nunca, los cuadros vacíos y el resumen de siempre */
@@ -39,9 +42,32 @@ export class ConfiguracionG12Service {
     return (await this.leer(pais)).configuracion;
   }
 
+  /**
+   * Un Excel exportado (o editado a mano), leído y comprobado con las mismas
+   * reglas que al guardar. No guarda nada: entra en el editor y se guarda con
+   * "Guardar", después de revisarlo.
+   */
+  async importar(contenido: Buffer): Promise<{ configuracion: ConfiguracionG12; errores: string[] }> {
+    const leida = await xlsxAConfiguracion(contenido);
+    const { configuracion, errores } = normalizarConfiguracion(leida.configuracion);
+    return { configuracion: completar(configuracion), errores: [...leida.errores, ...errores].slice(0, 50) };
+  }
+
+  /** La configuración que llega (la del editor, guardada o no) en un Excel */
+  async exportar(dto: GuardarConfiguracionG12Dto, pais: string): Promise<Buffer> {
+    const { configuracion } = normalizarConfiguracion(dto);
+    return configuracionAXlsx(completar(configuracion), pais);
+  }
+
   async guardar(pais: string, dto: GuardarConfiguracionG12Dto, usuario: UsuarioAutenticado) {
     const { configuracion, errores } = normalizarConfiguracion(dto);
     if (errores.length) throw new BadRequestException(errores.slice(0, 25).join(' '));
+
+    // Con una actualización en curso, sus tablas saldrían de dos configuraciones distintas
+    const enCurso = await this.historial.enCurso(pais);
+    if (enCurso) {
+      throw new ConflictException(`${enCurso.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${pais}: guarda la configuración cuando termine (tus cambios siguen en el editor).`);
+    }
 
     const anterior = await this.configuraciones.leer<ConfiguracionG12>('g12', pais);
     const actualizadoEn = await this.configuraciones.guardar<ConfiguracionG12>('g12', pais, configuracion, usuario);
@@ -49,7 +75,7 @@ export class ConfiguracionG12Service {
     // Lo generado de un cuadro que cambió ya no vale; el de los demás, sí. Antes
     // se olvidaba todo, y corregir una dirección dejaba en blanco las diez tablas
     const cambiados = cuadrosCambiados(anterior.configuracion, configuracion);
-    this.cache.olvidar(pais, cambiados);
+    await this.cuadros.olvidar(pais, cambiados);
 
     this.auditoria.registrarCambio(
       anterior.configuracion ? { pais, cuadros: resumir(completar(anterior.configuracion)) } : null,

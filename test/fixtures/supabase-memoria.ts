@@ -64,6 +64,18 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
       },
       delete: () => { accion = 'borrar'; return cadena(); },
       update: (datos: Fila) => { accion = 'actualizar'; cambios = datos; return cadena(); },
+      // Reemplaza la fila que coincide en las columnas de onConflict, o la añade
+      upsert: (datos: Fila | Fila[], o?: { onConflict?: string }) => {
+        const columnas = (o?.onConflict ?? 'id').split(',').map((c) => c.trim());
+        tocadas = [];
+        for (const d of Array.isArray(datos) ? datos : [datos]) {
+          const i = tablas[nombre].findIndex((f) => columnas.every((c) => f[c] === d[c]));
+          if (i >= 0) tablas[nombre][i] = { ...tablas[nombre][i], ...d };
+          else tablas[nombre].push({ ...d });
+          tocadas.push(d);
+        }
+        return cadena();
+      },
       insert: (datos: Fila | Fila[]) => {
         tocadas = (Array.isArray(datos) ? datos : [datos]).map((d, i) => ({ id: `id-${tablas[nombre].length + i}`, cargado_en: new Date(Date.now() + tablas[nombre].length).toISOString(), ...d }));
         tablas[nombre].push(...tocadas);

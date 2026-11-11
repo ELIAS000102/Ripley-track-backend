@@ -1,10 +1,10 @@
-import { BadGatewayException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
 import { definicionDe } from './g12.componentes.js';
-import type { AgendaLeidaG12, ClaveComponente, CuadroG12, PeticionG12, RespuestaSimulacionG12 } from './interfaces/g12.interface.js';
+import type { AgendaLeidaG12, ClaveComponente, PeticionG12, RespuestaSimulacionG12 } from './interfaces/g12.interface.js';
 
 const TABLA = 'g12_actualizaciones';
 const TABLA_PETICIONES = 'g12_peticiones';
@@ -15,16 +15,26 @@ const DIAS_HISTORIAL = 60;
 /** De una agenda se guardan sus próximos 14 días, no los 45 que se leen */
 const DIAS_GUARDADOS = 14;
 
+/**
+ * Sin señal de vida en este tiempo, una actualización en curso se da por
+ * abandonada y deja de bloquear (decisión del usuario, 2026-11-11). La que
+ * corre de verdad da señal cada 30 s, también mientras espera el cupo de Ripley.
+ */
+export const SIN_LATIDO_MS = 3 * 60_000;
+
 export type TipoActualizacionG12 = 'completa' | 'refrescar' | 'tabla' | 'reintento';
+export type EstadoActualizacionG12 = 'en_curso' | 'terminada' | 'cancelada' | 'abandonada' | 'fallida';
 
 export interface CuadroActualizacionG12 {
   clave: ClaveComponente;
   titulo: string;
-  /** Salió de lo ya generado: no hubo peticiones a Ripley */
+  /** Salió de lo ya generado: no hubo peticiones a Ripley (actualizaciones de antes del G12 compartido) */
   desdeCache: boolean;
   generado: string;
   peticiones: number;
   errores: number;
+  /** La tabla no se pudo generar: por qué */
+  fallo?: string;
 }
 
 export interface ResumenActualizacionG12 {
@@ -44,23 +54,37 @@ export interface ActualizacionG12 {
   id: string;
   pais: string;
   tipo: TipoActualizacionG12;
+  estado: EstadoActualizacionG12;
+  usuarioId: string | null;
   usuarioEmail: string | null;
   inicio: string;
   fin: string | null;
+  /** Las tablas que va a actualizar, en orden */
+  claves: ClaveComponente[];
+  /** La que está generando ahora */
+  cuadroActual: ClaveComponente | null;
+  latido: string | null;
   cuadros: CuadroActualizacionG12[];
   resumen: ResumenActualizacionG12 | null;
+  /** Por qué falló, se canceló o se abandonó */
+  error: string | null;
 }
 
 interface FilaActualizacion {
   id: string;
   pais: string;
   tipo: TipoActualizacionG12;
+  estado?: EstadoActualizacionG12 | null;
   usuario_id: string | null;
   usuario_email: string | null;
   inicio: string;
   fin: string | null;
+  claves?: ClaveComponente[] | null;
+  cuadro_actual?: ClaveComponente | null;
+  latido?: string | null;
   cuadros: CuadroActualizacionG12[] | null;
   resumen: ResumenActualizacionG12 | null;
+  error?: string | null;
 }
 
 interface FilaPeticion {
@@ -88,11 +112,18 @@ const aActualizacion = (f: FilaActualizacion): ActualizacionG12 => ({
   id: f.id,
   pais: f.pais,
   tipo: f.tipo,
+  // Las de antes del G12 compartido no tienen estado: terminada si tiene fin
+  estado: f.estado ?? (f.fin ? 'terminada' : 'en_curso'),
+  usuarioId: f.usuario_id ?? null,
   usuarioEmail: f.usuario_email ?? null,
   inicio: f.inicio,
   fin: f.fin ?? null,
+  claves: f.claves ?? [],
+  cuadroActual: f.cuadro_actual ?? null,
+  latido: f.latido ?? null,
   cuadros: f.cuadros ?? [],
   resumen: f.resumen ?? null,
+  error: f.error ?? null,
 });
 
 /** Lo que responde Supabase cuando falta una columna */
@@ -112,14 +143,21 @@ function horaLocal(iso: string | null | undefined, pais: string): string {
   }).format(new Date(iso)).replace(',', '');
 }
 
+/** Si una en curso ya no da señales: entonces no bloquea */
+export function sinSenales(a: Pick<ActualizacionG12, 'latido' | 'inicio'>, ahora = Date.now()): boolean {
+  return ahora - new Date(a.latido ?? a.inicio).getTime() > SIN_LATIDO_MS;
+}
+
 /**
- * El historial de actualizaciones del G12: cada vez que alguien actualiza (todo,
- * una tabla o los cuadros con errores) queda una actualización con su hora de
- * inicio y de fin, y cada petición a Ripley que hizo, con lo que devolvió.
+ * El historial de actualizaciones del G12, y **el turno**: cada vez que alguien
+ * actualiza (todo, una tabla o los cuadros con errores) queda una actualización
+ * con su inicio, su fin, su estado y cada petición a Ripley que hizo.
  *
- * Lo pidió el usuario (2026-11-10) para ver qué pasó en cada actualización y
- * exportarlo. Es lo único del G12 que tiene historial: el reporte en sí solo
- * guarda lo último. Se guardan 60 días.
+ * Desde el 2026-11-11 el G12 es uno por país y lo ve todo el equipo, así que
+ * **solo puede haber una actualización en curso por país**. Lo garantiza la
+ * base (un índice único sobre las que están en curso); aquí se comprueba antes
+ * para poder decir quién la tiene, y se liberan las que dejaron de dar señales.
+ * Se guardan 60 días.
  */
 @Injectable()
 export class HistorialG12Service {
@@ -127,13 +165,26 @@ export class HistorialG12Service {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  /** Empieza una actualización; de paso borra las de hace más de 60 días */
-  async crear(pais: string, tipo: TipoActualizacionG12, usuario: UsuarioAutenticado): Promise<ActualizacionG12> {
+  /**
+   * Empieza una actualización, si nadie tiene el turno. Una en curso sin
+   * señales en 3 min se cierra como abandonada y deja paso. De paso borra las
+   * de hace más de 60 días.
+   */
+  async crear(pais: string, tipo: TipoActualizacionG12, usuario: UsuarioAutenticado, claves: ClaveComponente[]): Promise<ActualizacionG12> {
+    const enCurso = await this.enCurso(pais);
+    if (enCurso) throw this.ocupado(enCurso);
+
+    const ahora = new Date().toISOString();
     const { data, error } = await this.supabase.admin
       .from(TABLA)
-      .insert({ pais, tipo, usuario_id: usuario.id, usuario_email: usuario.email ?? null, inicio: new Date().toISOString(), cuadros: [] })
+      .insert({ pais, tipo, estado: 'en_curso', usuario_id: usuario.id, usuario_email: usuario.email ?? null, inicio: ahora, latido: ahora, claves, cuadros: [] })
       .select('*')
       .single();
+    // Otro empezó en el mismo instante: el índice único de la base lo para
+    if (error?.code === '23505') {
+      const otra = await this.enCurso(pais);
+      throw otra ? this.ocupado(otra) : new ConflictException('Alguien acaba de empezar a actualizar el G12. Espera a que termine.');
+    }
     if (error || !data) this.fallo(error, 'empezar la actualización');
 
     const limite = new Date(Date.now() - DIAS_HISTORIAL * 86_400_000).toISOString();
@@ -142,14 +193,50 @@ export class HistorialG12Service {
     return aActualizacion(data as FilaActualizacion);
   }
 
-  /** Lo que hizo un cuadro en esta actualización: sus peticiones, si fue a Ripley */
-  async anotarCuadro(id: string, usuario: UsuarioAutenticado, pais: string, cuadro: CuadroG12): Promise<void> {
-    const actual = await this.propia(id, usuario);
-    if (actual.fin) return;
+  /**
+   * La que tiene el turno del país, o `null`. Una que dejó de dar señales se
+   * cierra aquí como abandonada (el backend se reinició a mitad, por ejemplo).
+   */
+  async enCurso(pais: string): Promise<ActualizacionG12 | null> {
+    const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('pais', pais).eq('estado', 'en_curso');
+    if (error) this.fallo(error, 'leer la actualización en curso');
+    let viva: ActualizacionG12 | null = null;
+    for (const a of ((data ?? []) as FilaActualizacion[]).map(aActualizacion)) {
+      if (sinSenales(a)) {
+        await this.cerrar(a.id, 'abandonada', 'Dejó de dar señales (el backend se reinició o la conexión con Supabase falló): se liberó el turno.');
+      } else {
+        viva = a;
+      }
+    }
+    return viva;
+  }
+
+  /** La última del país (en curso o no) */
+  async ultima(pais: string): Promise<ActualizacionG12 | null> {
+    const [a] = await this.listar(pais, { limite: 1 });
+    return a ?? null;
+  }
+
+  /** Señal de vida, y qué tabla está generando */
+  async latir(id: string, cuadroActual?: ClaveComponente | null): Promise<void> {
+    const cambios: Record<string, unknown> = { latido: new Date().toISOString() };
+    if (cuadroActual !== undefined) cambios.cuadro_actual = cuadroActual;
+    const { error } = await this.supabase.admin.from(TABLA).update(cambios).eq('id', id);
+    if (error) this.logger.warn(`No se pudo dar señal de vida a la actualización ${id}: ${error.message}`);
+  }
+
+  /** Lo que hizo una tabla en esta actualización: sus peticiones, o por qué no se pudo generar */
+  async anotarCuadro(
+    id: string,
+    pais: string,
+    cuadro: { clave: ClaveComponente; generado: string; peticiones: PeticionG12[] },
+    fallo?: string,
+  ): Promise<void> {
+    const actual = await this.leer(id);
 
     const { count } = await this.supabase.admin.from(TABLA_PETICIONES).select('id', { count: 'exact', head: true }).eq('actualizacion_id', id);
     const desde = count ?? 0;
-    const peticiones = cuadro.desdeCache ? [] : cuadro.peticiones;
+    const peticiones = cuadro.peticiones;
 
     if (peticiones.length) {
       const hoy = hoyEnPais(pais);
@@ -182,21 +269,22 @@ export class HistorialG12Service {
     }
 
     const resumen: CuadroActualizacionG12 = {
-      clave: cuadro.componente.clave,
-      titulo: definicionDe(cuadro.componente.clave).titulo,
-      desdeCache: cuadro.desdeCache,
+      clave: cuadro.clave,
+      titulo: definicionDe(cuadro.clave).titulo,
+      desdeCache: false,
       generado: cuadro.generado,
       peticiones: peticiones.length,
       errores: peticiones.filter((p) => p.estado === 'error').length,
+      ...(fallo ? { fallo } : {}),
     };
     const { error } = await this.supabase.admin.from(TABLA).update({ cuadros: [...actual.cuadros, resumen] }).eq('id', id);
     if (error) this.fallo(error, 'anotar el cuadro');
   }
 
-  /** Cierra la actualización con su hora de fin y lo que salió */
-  async terminar(id: string, usuario: UsuarioAutenticado): Promise<ActualizacionG12> {
-    const actual = await this.propia(id, usuario);
-    if (actual.fin) return actual;
+  /** La cierra con su estado, su hora de fin y lo que salió; libera el turno */
+  async cerrar(id: string, estado: Exclude<EstadoActualizacionG12, 'en_curso'>, error?: string): Promise<ActualizacionG12> {
+    const actual = await this.leer(id);
+    if (actual.estado !== 'en_curso') return actual;
 
     type Contada = { estado: string; intentos: number | null; llamadas?: number | null; espera_ms?: number | null };
     const leidas = await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos, llamadas, espera_ms').eq('actualizacion_id', id);
@@ -217,13 +305,13 @@ export class HistorialG12Service {
       ...(filas.some((f) => typeof f.espera_ms === 'number') ? { esperaMs: filas.reduce((n, f) => n + (f.espera_ms ?? 0), 0) } : {}),
     };
 
-    const { data: fila, error } = await this.supabase.admin
+    const { data: fila, error: e2 } = await this.supabase.admin
       .from(TABLA)
-      .update({ fin: new Date().toISOString(), resumen })
+      .update({ fin: new Date().toISOString(), estado, resumen, cuadro_actual: null, error: error ?? null })
       .eq('id', id)
       .select('*')
       .single();
-    if (error || !fila) this.fallo(error, 'terminar la actualización');
+    if (e2 || !fila) this.fallo(e2, 'terminar la actualización');
     return aActualizacion(fila as FilaActualizacion);
   }
 
@@ -241,15 +329,13 @@ export class HistorialG12Service {
 
   /** Una actualización con todas sus peticiones, en orden */
   async obtener(id: string): Promise<{ actualizacion: ActualizacionG12; peticiones: Array<PeticionG12 & { orden: number }> }> {
-    const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('id', id).maybeSingle();
-    if (error) this.fallo(error, 'leer la actualización');
-    if (!data) throw new NotFoundException('Esa actualización no existe (se guardan 60 días).');
+    const actualizacion = await this.leer(id, 'Esa actualización no existe (se guardan 60 días).');
 
     const { data: filas, error: e2 } = await this.supabase.admin.from(TABLA_PETICIONES).select('*').eq('actualizacion_id', id).order('orden');
     if (e2) this.fallo(e2, 'leer las peticiones');
 
     return {
-      actualizacion: aActualizacion(data as FilaActualizacion),
+      actualizacion,
       peticiones: ((filas ?? []) as FilaPeticion[]).map((f) => ({
         orden: f.orden,
         componente: f.componente,
@@ -272,18 +358,23 @@ export class HistorialG12Service {
     return { nombre: nombreArchivo(a), contenido: await libroDeActualizacion(a, peticiones) };
   }
 
-  /** La actualización, si es de quien la toca: solo quien la empezó le añade cosas */
-  private async propia(id: string, usuario: UsuarioAutenticado): Promise<ActualizacionG12> {
+  async leer(id: string, noExiste = 'Esa actualización no existe.'): Promise<ActualizacionG12> {
     const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('id', id).maybeSingle();
     if (error) this.fallo(error, 'leer la actualización');
-    if (!data) throw new NotFoundException('Esa actualización no existe.');
-    if ((data as FilaActualizacion).usuario_id !== usuario.id) throw new ForbiddenException('Esa actualización la empezó otra persona.');
+    if (!data) throw new NotFoundException(noExiste);
     return aActualizacion(data as FilaActualizacion);
+  }
+
+  /** "Ana lo está actualizando desde las 08:31 (Pickup in store - Lima)" */
+  private ocupado(a: ActualizacionG12): ConflictException {
+    const hora = horaLocal(a.inicio, a.pais).split(' ')[1]?.slice(0, 5) ?? '';
+    const donde = a.cuadroActual ? ` (va por ${definicionDe(a.cuadroActual).titulo})` : '';
+    return new ConflictException(`${a.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${a.pais} desde las ${hora}${donde}. Espera a que termine: lo verás actualizado aquí.`);
   }
 
   private fallo(error: { code?: string; message?: string } | null, accion: string): never {
     if (error && ['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code ?? '')) {
-      throw new BadGatewayException('Falta el historial del G12 en Supabase: ejecuta las tablas g12_actualizaciones y g12_peticiones del SQL de configuración.');
+      throw new BadGatewayException('Falta el G12 compartido en Supabase: ejecuta el SQL de g12_actualizaciones, g12_peticiones y g12_cuadros de docs/supabase-setup.sql.');
     }
     this.logger.error(`No se pudo ${accion}: ${error?.message ?? 'sin respuesta'}`);
     throw new BadGatewayException(`No se pudo ${accion}.`);
@@ -297,6 +388,7 @@ function recortarDatos(p: PeticionG12, hoy: string): PeticionG12['datos'] {
   return (p.datos as AgendaLeidaG12[]).map((a) => ({ ...a, dias: a.dias.filter((d) => d.fecha >= hoy && d.fecha <= hasta) }));
 }
 
+const NOMBRE_ESTADO_ACTUALIZACION: Record<string, string> = { en_curso: 'En curso', terminada: 'Terminada', cancelada: 'Cancelada', abandonada: 'Abandonada', fallida: 'Falló' };
 const NOMBRE_TIPO: Record<string, string> = { completa: 'Completa', refrescar: 'Actualizar todo', tabla: 'Una tabla', reintento: 'Reintento de errores' };
 const NOMBRE_ESTADO: Record<string, string> = { ok: 'Correcta', sin_fecha: 'Sin fecha', omitida: 'Omitida', error: 'Error' };
 const NOMBRE_BLOQUE: Record<string, string> = { simulacion: 'Simulación', picking: 'Picking', recepcion: 'Recepción', despacho: 'Despacho', capacidad: 'Cupo a mano' };
@@ -325,6 +417,8 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
     ['Actualización', a.id],
     ['País', a.pais],
     ['Tipo', NOMBRE_TIPO[a.tipo] ?? a.tipo],
+    ['Estado', NOMBRE_ESTADO_ACTUALIZACION[a.estado] ?? a.estado],
+    ...(a.error ? [['Motivo', a.error] as [string, string]] : []),
     ['Quién', a.usuarioEmail ?? ''],
     ['Inicio', horaLocal(a.inicio, a.pais)],
     ['Fin', a.fin ? horaLocal(a.fin, a.pais) : 'Sin terminar'],
@@ -347,7 +441,7 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
   r.addRow([]);
   cabecera(r.addRow(['Cuadro', 'Origen', 'Generado', 'Peticiones', 'Con error']));
   for (const c of a.cuadros) {
-    r.addRow([c.titulo, c.desdeCache ? 'Lo ya generado (sin peticiones)' : 'Pedido a Ripley', horaLocal(c.generado, a.pais), c.peticiones, c.errores]);
+    r.addRow([c.titulo, c.fallo ? `No se pudo generar: ${c.fallo}` : c.desdeCache ? 'Lo ya generado (sin peticiones)' : 'Pedido a Ripley', horaLocal(c.generado, a.pais), c.peticiones, c.errores]);
   }
   r.columns = [{ width: 28 }, { width: 34 }, { width: 22 }, { width: 12 }, { width: 12 }];
 

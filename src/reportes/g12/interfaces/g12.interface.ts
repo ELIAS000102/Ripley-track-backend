@@ -271,17 +271,25 @@ export interface LineaResumenReporteG12 extends TotalG12 {
   incompleta: boolean;
 }
 
-/** Un cuadro suelto, como lo pide el panel al actualizar tabla por tabla */
-export interface CuadroG12 {
+/** Un cuadro tal como está guardado para todos: cuándo y quién lo generó, y sus peticiones */
+export interface CuadroReporteG12 {
+  clave: ClaveComponente;
+  /** El día (del país) en que se generó */
   hoy: string;
   generado: string;
-  desdeCache: boolean;
+  usuarioEmail: string | null;
+  actualizacionId: string | null;
   componente: ComponenteReporteG12;
   peticiones: PeticionG12[];
 }
 
 export interface ReporteG12 {
-  parametros: { pais: string; hoy: string; generado: string; desdeCache: boolean };
+  /** `generado`: el más reciente de sus cuadros (null si no hay ninguno) */
+  parametros: { pais: string; hoy: string; generado: string | null };
+  /** Los cuadros guardados, el mismo para todos; los que faltan no están */
+  cuadros: CuadroReporteG12[];
+  /** Las filas de cada cuadro según la configuración: las de los que faltan se pintan en espera */
+  filas: Record<string, string[]>;
   /** Cada petición a Ripley de este reporte */
   peticiones: PeticionG12[];
   grupos: GrupoReporteG12[];
@@ -292,7 +300,6 @@ export interface ReporteG12 {
     agendas: { total: number; fallidas: number };
     /** Peticiones que hubo que repetir (429, API caída) */
     reintentadas: number;
-    duracionMs: number;
   };
   avisos: string[];
 }

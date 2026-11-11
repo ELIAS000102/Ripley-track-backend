@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
-import { CacheReporteG12, type CuadroGuardadoG12 } from './cache-reporte-g12.service.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
+import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { EjecutorG12Service, type RegistroG12 } from './ejecutor-g12.service.js';
 import { calcularFilas, calcularResumen, sumarTotales, totalDe } from './g12.calculo.js';
 import { CLAVES_COMPONENTES, definicionDe, GRUPOS_G12 } from './g12.componentes.js';
@@ -14,100 +13,63 @@ import type {
   ClaveComponente,
   ComponenteReporteG12,
   ConfiguracionG12,
-  CuadroG12,
+  CuadroReporteG12,
   PeticionG12,
   ReporteG12,
   SimulacionG12,
 } from './interfaces/g12.interface.js';
 
-/** Cuánto se guarda lo leído en una actualización que nadie cerró */
-const VIDA_LECTURAS_MS = 15 * 60_000;
-
-/** Cuántas actualizaciones guardan lo leído a la vez */
-const ACTUALIZACIONES_CON_LECTURAS = 10;
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
+const diaCorto = (iso: string) => `${Number(iso.slice(8, 10))}-${MESES[Number(iso.slice(5, 7)) - 1]}`;
 
 /**
  * El reporte G12: lee la configuración, ejecuta sus ítems contra Ripley y
  * aplica la receta de cada cuadro.
  *
- * Se puede pedir **cuadro a cuadro** —es como lo actualiza el panel, tabla por
- * tabla, para no lanzar 300 peticiones de golpe— o entero. Lo generado se
- * guarda unos minutos por cuadro, así que el reporte entero después de los
- * cuadros sale sin volver a Ripley.
+ * Desde el 2026-11-11 es **uno por país y lo ve todo el equipo**: lo generado
+ * se guarda en `g12_cuadros` y el reporte se arma siempre con eso, sin ir a
+ * Ripley. Lo que va a Ripley es la actualización (`ActualizadorG12Service`),
+ * de una en una por país, y genera tabla por tabla con `generarCuadro`.
  */
 @Injectable()
 export class ReporteG12Service {
   private readonly logger = new Logger(ReporteG12Service.name);
 
-  /**
-   * Lo leído de Ripley en cada actualización del panel, por persona y
-   * actualización: la tabla siguiente no vuelve a pedir el almacén, la zona o
-   * la agenda que ya leyó la anterior. Se olvida al cerrar la actualización o
-   * a los 15 minutos.
-   */
-  private readonly lecturas = new Map<string, { t: number; mapa: Map<string, unknown> }>();
-
   constructor(
     private readonly configuracion: ConfiguracionG12Service,
     private readonly ejecutor: EjecutorG12Service,
-    private readonly cache: CacheReporteG12,
+    private readonly cuadros: CuadrosG12Service,
     private readonly contexto: ContextoAuditoria,
   ) {}
 
-  /** Un cuadro: el guardado si es reciente, o generado ahora */
-  async cuadro(usuario: UsuarioAutenticado, pais: string, clave: ClaveComponente, refrescar = false, actualizacion?: string): Promise<CuadroG12> {
-    // Las llamadas a Ripley de esta petición, de una en una y sin repetir lecturas de la actualización
-    this.contexto.activarSecuencial({ lecturas: this.lecturasDe(usuario.id, actualizacion), aLaVez: this.ejecutor.aLaVez });
-    const hoy = hoyEnPais(pais);
-    if (!refrescar) {
-      const guardado = this.cache.leer(usuario.id, pais, clave, hoy);
-      if (guardado) return { ...aCuadro(guardado), desdeCache: true };
-    }
-    const config = await this.configuracion.configuracion(pais);
-    const [generado] = await this.generar(usuario, pais, config, [clave]);
-    return { ...aCuadro(generado), desdeCache: false };
+  /** Cuántos ítems a la vez pide el ejecutor: la fila de la petición se pone con lo mismo */
+  get aLaVez(): number {
+    return this.ejecutor.aLaVez;
   }
 
   /**
-   * El reporte entero: lo que haya reciente de cada cuadro, y lo que falte se
-   * genera. Con `soloGuardado` no se pide nada a Ripley: se arma con lo
-   * generado hoy, sea de cuando sea (es el resumen del final de "Generar"), y
-   * un cuadro que no esté sale vacío con un aviso.
+   * El reporte del país con lo guardado, el mismo para todos. Un cuadro que no
+   * se ha generado sale vacío y avisado; uno de otro día sale con sus datos y
+   * avisado (decisión del usuario: mejor eso que dejarlo en blanco).
    */
-  async reporte(usuario: UsuarioAutenticado, pais: string, refrescar = false, soloGuardado = false): Promise<ReporteG12> {
-    this.contexto.activarSecuencial({ aLaVez: this.ejecutor.aLaVez });
+  async reporte(pais: string): Promise<ReporteG12> {
     const hoy = hoyEnPais(pais);
-    const config = await this.configuracion.configuracion(pais);
-    const items = config.componentes.reduce((n, c) => n + c.bloques.reduce((m, b) => m + b.items.length, 0), 0);
-    if (!items) {
-      throw new BadRequestException('El G12 de este país todavía no tiene ítems: configúralo en la pestaña "Configuración" del G12.');
-    }
+    const [config, guardados] = await Promise.all([this.configuracion.configuracion(pais), this.cuadros.todos(pais)]);
 
-    const guardados = new Map<ClaveComponente, CuadroGuardadoG12>();
-    if (!refrescar) {
-      for (const clave of CLAVES_COMPONENTES) {
-        const g = this.cache.leer(usuario.id, pais, clave, hoy, soloGuardado);
-        if (g) guardados.set(clave, g);
-      }
-    }
-    const faltan = CLAVES_COMPONENTES.filter((c) => !guardados.has(c));
-    const inicio = Date.now();
     const sinGenerar: ClaveComponente[] = [];
-    if (soloGuardado) {
-      // Sin ir a Ripley: lo que falte sale con sus filas vacías
-      for (const clave of faltan) {
-        const comp = config.componentes.find((c) => c.clave === clave)!;
-        const def = definicionDe(clave);
-        const filas = calcularFilas(def, comp.filas, new Map(), hoy);
-        guardados.set(clave, { t: Date.now(), hoy, generado: new Date().toISOString(), componente: { clave, titulo: def.titulo, receta: def.receta, filas, total: totalDe(filas) }, peticiones: [] });
-        if (comp.bloques.some((b) => b.items.length)) sinGenerar.push(clave);
-      }
-    } else {
-      for (const g of faltan.length ? await this.generar(usuario, pais, config, faltan) : []) guardados.set(g.componente.clave, g);
-    }
-
-    const cuadros = CLAVES_COMPONENTES.map((c) => guardados.get(c)!);
-    const componentes = cuadros.map((c) => c.componente);
+    const componentes: ComponenteReporteG12[] = CLAVES_COMPONENTES.map((clave) => {
+      const g = guardados.get(clave);
+      if (g) return g.componente;
+      const comp = config.componentes.find((c) => c.clave === clave)!;
+      const def = definicionDe(clave);
+      if (comp.bloques.some((b) => b.items.length)) sinGenerar.push(clave);
+      const filas = calcularFilas(def, comp.filas, new Map(), hoy);
+      return { clave, titulo: def.titulo, receta: def.receta, filas, total: totalDe(filas) };
+    });
+    const cuadros: CuadroReporteG12[] = CLAVES_COMPONENTES.flatMap((c) => {
+      const g = guardados.get(c);
+      return g ? [{ clave: c, hoy: g.hoy, generado: g.generado, usuarioEmail: g.usuarioEmail, actualizacionId: g.actualizacionId, componente: g.componente, peticiones: g.peticiones }] : [];
+    });
     const peticiones = cuadros.flatMap((c) => c.peticiones);
 
     const grupos = GRUPOS_G12.map((g) => ({
@@ -121,8 +83,15 @@ export class ReporteG12Service {
     const resumen = calcularResumen(config.resumen, componentes);
 
     const avisos = [...resumen.avisos];
+    if (!config.componentes.some((c) => c.bloques.some((b) => b.items.length))) {
+      avisos.push('El G12 de este país todavía no tiene ítems: configúralo en la pestaña "Configuración".');
+    }
     if (sinGenerar.length) {
       avisos.push(`Sin generar todavía, no cuentan en los totales: ${sinGenerar.map((c) => definicionDe(c).titulo).join(', ')}.`);
+    }
+    const viejos = cuadros.filter((c) => c.hoy !== hoy);
+    if (viejos.length) {
+      avisos.push(`Datos de otro día, actualízalos: ${viejos.map((c) => `${definicionDe(c.clave).titulo} (${diaCorto(c.hoy)})`).join(', ')}.`);
     }
     const ddLima = componentes.find((c) => c.clave === 'dd_lima');
     if (ddLima?.filas.some((f) => f.unidades === null && (f.capacidad ?? 0) > 0)) {
@@ -136,7 +105,9 @@ export class ReporteG12Service {
     const generados = cuadros.map((c) => c.generado).sort();
 
     return {
-      parametros: { pais, hoy, generado: generados.at(-1)!, desdeCache: !faltan.length },
+      parametros: { pais, hoy, generado: generados.at(-1) ?? null },
+      cuadros,
+      filas: Object.fromEntries(config.componentes.map((c) => [c.clave, c.filas.map((f) => f.nombre)])),
       peticiones,
       grupos,
       componentes,
@@ -150,55 +121,33 @@ export class ReporteG12Service {
         },
         agendas: { total: agendas.length, fallidas: agendas.filter((a) => a.estado === 'error').length },
         reintentadas: peticiones.filter((p) => (p.meta?.intentos ?? 1) > 1).length,
-        duracionMs: Date.now() - inicio,
       },
       avisos,
     };
   }
 
-  /** Genera los cuadros pedidos contra Ripley y los guarda */
-  private async generar(usuario: UsuarioAutenticado, pais: string, config: ConfiguracionG12, claves: ClaveComponente[]): Promise<CuadroGuardadoG12[]> {
-    const items = config.componentes.filter((c) => claves.includes(c.clave)).reduce((n, c) => n + c.bloques.reduce((m, b) => m + b.items.length, 0), 0);
-    this.logger.log(`G12 de ${pais}: ${claves.join(', ')} — ${items} ítem(s) — ${usuario.email}`);
+  /**
+   * Un cuadro, generado ahora contra Ripley con la configuración dada. No lo
+   * guarda: eso lo hace quien lleva la actualización, que sabe de cuál es.
+   */
+  async generarCuadro(pais: string, clave: ClaveComponente, config: ConfiguracionG12): Promise<{ clave: ClaveComponente; hoy: string; generado: string; componente: ComponenteReporteG12; peticiones: PeticionG12[] }> {
+    const comp = config.componentes.find((c) => c.clave === clave)!;
+    const items = comp.bloques.reduce((m, b) => m + b.items.length, 0);
+    this.logger.log(`G12 de ${pais}: ${clave} — ${items} ítem(s)`);
 
-    const { entradas, registro, hoy } = await this.ejecutor.ejecutar(config, pais, claves);
-    const generado = new Date().toISOString();
+    const { entradas, registro, hoy } = await this.ejecutor.ejecutar(config, pais, [clave]);
+    const def = definicionDe(clave);
+    const filas = calcularFilas(def, comp.filas, entradas.get(clave) ?? new Map(), hoy);
+    // La respuesta completa del simulador va en el registro; en las filas sobra
+    for (const f of filas) f.detalle.simulaciones = f.detalle.simulaciones.map(({ respuesta: _r, ...s }) => s);
 
-    return claves.map((clave) => {
-      const comp = config.componentes.find((c) => c.clave === clave)!;
-      const def = definicionDe(clave);
-      const filas = calcularFilas(def, comp.filas, entradas.get(clave) ?? new Map(), hoy);
-      // La respuesta completa del simulador va en el registro; en las filas sobra
-      for (const f of filas) f.detalle.simulaciones = f.detalle.simulaciones.map(({ respuesta: _r, ...s }) => s);
-
-      const componente: ComponenteReporteG12 = { clave, titulo: def.titulo, receta: def.receta, filas, total: totalDe(filas) };
-      const peticiones = registro.filter((r) => r.componente === clave).map((r) => aPeticion(r, def.titulo));
-      const cuadro: CuadroGuardadoG12 = { t: Date.now(), hoy, generado, componente, peticiones };
-      this.cache.guardar(usuario.id, pais, cuadro);
-      return cuadro;
-    });
-  }
-
-  /** Al cerrar una actualización, lo que leyó ya no sirve */
-  olvidarLecturas(usuarioId: string, actualizacion: string): void {
-    this.lecturas.delete(`${usuarioId}|${actualizacion}`);
-  }
-
-  /** Lo leído en la actualización; sin actualización, solo lo de esta petición */
-  private lecturasDe(usuarioId: string, actualizacion?: string): Map<string, unknown> {
-    if (!actualizacion) return new Map();
-    const ahora = Date.now();
-    for (const [k, v] of this.lecturas) if (ahora - v.t > VIDA_LECTURAS_MS) this.lecturas.delete(k);
-    const clave = `${usuarioId}|${actualizacion}`;
-    let entrada = this.lecturas.get(clave);
-    if (!entrada) {
-      // Pocas a la vez: cada una puede guardar unos cientos de respuestas
-      if (this.lecturas.size >= ACTUALIZACIONES_CON_LECTURAS) this.lecturas.delete(this.lecturas.keys().next().value!);
-      entrada = { t: ahora, mapa: new Map() };
-      this.lecturas.set(clave, entrada);
-    }
-    entrada.t = ahora;
-    return entrada.mapa;
+    return {
+      clave,
+      hoy,
+      generado: new Date().toISOString(),
+      componente: { clave, titulo: def.titulo, receta: def.receta, filas, total: totalDe(filas) },
+      peticiones: registro.filter((r) => r.componente === clave).map((r) => aPeticion(r, def.titulo)),
+    };
   }
 
   /**
@@ -217,10 +166,6 @@ export class ReporteG12Service {
     const bloque = configuracion.componentes.find((c) => c.clave === dto.componente)!.bloques[0];
     return this.ejecutor.probar(bloque, pais);
   }
-}
-
-function aCuadro(g: CuadroGuardadoG12): Omit<CuadroG12, 'desdeCache'> {
-  return { hoy: g.hoy, generado: g.generado, componente: g.componente, peticiones: g.peticiones };
 }
 
 /** Del registro del ejecutor a la fila que enseña "Peticiones" */

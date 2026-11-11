@@ -1,4 +1,4 @@
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -8,7 +8,6 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -24,35 +23,22 @@ import { CLAVES_COMPONENTES, LIMITES_G12, TIPOS_BLOQUE_G12 } from '../g12.compon
  * `normalizarConfiguracion`, que junta todos los errores en un mensaje.
  */
 
-export class ReporteG12Dto extends PaisDto {
-  /** true: no usar el último generado, pedirlo otra vez a Ripley */
-  @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
-  @IsBoolean()
-  refrescar?: boolean;
-
-  /** true: no pedir nada a Ripley, armar el reporte con lo generado hoy (el resumen del final) */
-  @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
-  @IsBoolean()
-  soloGuardado?: boolean;
-}
-
-/** GET /reportes/g12/cuadro — un cuadro suelto, para actualizar tabla por tabla */
-export class CuadroG12Dto extends ReporteG12Dto {
-  @IsIn(CLAVES_COMPONENTES, { message: `clave debe ser uno de: ${CLAVES_COMPONENTES.join(', ')}` })
-  clave: string;
-
-  /** La actualización en curso del historial: sus peticiones se guardan ahí */
-  @IsOptional()
-  @IsUUID('all', { message: 'actualizacion es el id de una actualización del historial' })
-  actualizacion?: string;
-}
-
-/** POST /reportes/g12/actualizaciones — empieza una actualización del historial */
+/**
+ * POST /reportes/g12/actualizaciones — lanza una actualización del G12 del país.
+ *
+ * - completa: las tablas que no son de hoy o tienen más de 15 minutos.
+ * - refrescar: todas.
+ * - tabla / reintento: las de `claves` (una tabla con ↻, o las que tienen errores).
+ */
 export class CrearActualizacionG12Dto {
   @IsIn(['completa', 'refrescar', 'tabla', 'reintento'], { message: 'tipo debe ser completa, refrescar, tabla o reintento' })
   tipo: 'completa' | 'refrescar' | 'tabla' | 'reintento';
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CLAVES_COMPONENTES.length)
+  @IsIn(CLAVES_COMPONENTES, { each: true, message: `cada clave debe ser una de: ${CLAVES_COMPONENTES.join(', ')}` })
+  claves?: string[];
 }
 
 /** GET /reportes/g12/actualizaciones — el historial, de un día si se dice */
