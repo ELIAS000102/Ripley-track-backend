@@ -125,6 +125,20 @@ export default () => {
           .split(',')
           .map((c) => c.trim().toLowerCase())
           .filter(Boolean),
+        /**
+         * Las claves de Gemini de las tres cuentas (la v3 llama a Gemini desde
+         * el backend, sin n8n). Nunca salen del backend ni se escriben en un log.
+         * Una cuenta sin clave no se usa.
+         */
+        gemini: {
+          claves: {
+            1: process.env.GEMINI_CLAVE_1 ?? '',
+            2: process.env.GEMINI_CLAVE_2 ?? '',
+            3: process.env.GEMINI_CLAVE_3 ?? '',
+          } as Record<number, string>,
+          url: process.env.GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta',
+          timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS) || 60000,
+        },
       },
     },
     supabase: {

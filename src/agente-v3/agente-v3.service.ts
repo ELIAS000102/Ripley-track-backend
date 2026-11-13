@@ -658,6 +658,13 @@ export class AgenteV3Service {
     return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
   }
 
+  /** "Detener": el turno se cierra como cancelado, esté donde esté (no sigue con lo que faltaba) */
+  async detener(usuario: UsuarioAutenticado, id: string): Promise<SalidaRuta> {
+    const turno = await this.turnos.obtener(id, usuario.id);
+    if (turno.estado !== 'en_curso' && turno.estado !== 'pregunta') return this.comoEsta(turno);
+    return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Detenido: no seguí con lo que faltaba.'), tipo: 'cancelada' }, 'cancelado');
+  }
+
   /** El estado de un turno (para depurar y para la medición) */
   obtener(usuario: UsuarioAutenticado, id: string): Promise<Turno> {
     return this.turnos.obtener(id, usuario.id);
