@@ -18,7 +18,38 @@ export const QUE_TRAE: Record<string, string> = {
   masivo: 'estado de las agendas de un servicio (activas, en checkout)',
   opl: 'servicios de OPL (activo, checkout, corte, holgura)',
   simulacion: 'simulación de entrega',
+  reporte: 'ocupación de los CDs',
 };
+
+/** Lo que puede pedir una persona (Clasificar lo dice en "pide"): las mismas clases que trae un atajo */
+export const PIDE = Object.keys(QUE_TRAE);
+
+/** Lo que se contesta igual con una clase u otra: el estado de las agendas y los servicios de OPL; la ocupación de un CD y su picking */
+const AFINES: Record<string, string[]> = { masivo: ['opl'], opl: ['masivo'], reporte: ['picking'], picking: ['reporte'] };
+
+/** Lo que trae un paso del plan */
+export function traePaso(paso: { herramienta: string; param: Record<string, unknown> }, atajos: AtajoDelContexto[]): string[] {
+  switch (paso.herramienta) {
+    case 'consultar_capacidad': return typeof paso.param.tipo === 'string' ? [paso.param.tipo] : [];
+    case 'consultar_reporte_cds': return ['reporte'];
+    case 'busqueda_masiva': return ['masivo'];
+    case 'consultar_servicios_opl': return ['opl'];
+    case 'consultar_transferencia': return ['transferencia'];
+    case 'simular_entrega': return ['simulacion'];
+    case 'ejecutar_atajo': return atajos.find((a) => a.nombre === paso.param.nombre)?.tipos ?? [];
+    default: return [];
+  }
+}
+
+/** De lo que se pide, lo que no trae nada de lo que hay ("se pide despacho" y solo hay "masivo") */
+export function sinTraer(pide: string[] | undefined, trae: string[]): string[] {
+  const hay = new Set(trae.flatMap((t) => [t, ...(AFINES[t] ?? [])]));
+  return (pide ?? []).filter((p) => !hay.has(p));
+}
+
+/** Por qué no vale: "se pide capacidad de despacho y …" (el principio es fijo: con él se sabe que ya se avisó) */
+export const NO_TRAE = 'se pide ';
+export const motivoNoTrae = (faltan: string[], quien: string) => `${NO_TRAE}${faltan.map((p) => QUE_TRAE[p] ?? p).join(' y ')} y ${quien} no lo trae`;
 
 /** Un atajo en una línea del prompt: nombre, qué trae y su descripción */
 export function atajoEnLinea(a: AtajoDelContexto, conPais = false): string {

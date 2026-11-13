@@ -21,7 +21,7 @@ import { claseDeFallo, elegirModelo } from './modelos.js';
 import { planDe, serviciosNombrados, type QueSigue } from './plan.js';
 import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAprender } from './preguntas.js';
 import { armarRespuesta, intermedios, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
-import { atajoEsperado, atajosNombrados } from './atajos.js';
+import { atajoEsperado, atajosNombrados, motivoNoTrae, NO_TRAE, QUE_TRAE, sinTraer } from './atajos.js';
 import { leerPresentacion, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
 import { TurnosService } from './turnos.service.js';
 import { queEs } from './que.js';
@@ -183,7 +183,7 @@ export class AgenteV3Service {
     if (!dto.error && dto.salida !== undefined) {
       const leida = leerClasificacion(dto.salida, contexto.atajos.map((a) => a.nombre));
       if (!leida.ok) motivo = leida.motivo;
-      else motivo = leida.valor.atajo ? this.atajoDeOtroPais(turno, leida.valor.atajo) : null;
+      else motivo = leida.valor.atajo ? (this.atajoDeOtroPais(turno, leida.valor.atajo) ?? atajoQueNoTrae(leida.valor, contexto)) : null;
       if (leida.ok && !motivo) clasificacion = leida.valor;
       if (leida.ok && motivo) leidaSinAtajo = { ...leida.valor, tipo: leida.valor.tipo === 'atajo' ? 'consulta' : leida.valor.tipo, atajo: null, motivo: `${leida.valor.motivo} (sin el atajo: ${motivo})`.slice(0, 300) };
     }
@@ -335,7 +335,10 @@ export class AgenteV3Service {
     if (turno.etapa !== 'armar' || turno.estado !== 'en_curso') return this.comoEsta(turno);
     const contexto = turno.contexto!;
     const cambio = turno.clasificacion?.tipo === 'cambio';
-    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio, atajoEsperado(mensajeDe(turno), contexto.atajos, turno.clasificacion?.atajo, contexto.pais)) : null;
+    // Lo que pide (según Clasificar) se le exige una vez: si insiste en otra cosa, puede que Clasificar se equivocara
+    const avisado = turno.modelos.some((m) => m.rol === 'armar' && m.motivo?.startsWith(NO_TRAE));
+    const pide = cambio || avisado ? [] : (turno.clasificacion?.pide ?? []);
+    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio, atajoEsperado(mensajeDe(turno), contexto.atajos, turno.clasificacion?.atajo, contexto.pais), pide) : null;
     this.anotar(turno, 'armar', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'armar', leida && !leida.ok ? leida.motivo : undefined);
     const { plan, faltan, buscar, sinCambio } = leida.valor;
@@ -742,4 +745,12 @@ export class AgenteV3Service {
     if (turno.etapa === 'ejecutar') return this.salida(turno, 'ejecutar');
     return this.salida(turno, 'responder', { respuesta: respuestaSinPlan(turno, 'Este turno ya no está en curso.') });
   }
+}
+
+/** Un atajo (todo el pedido) que no trae lo que se pide: "el despacho del 90 min" no es un atajo de servicios de OPL */
+export function atajoQueNoTrae(c: Clasificacion, contexto: ContextoTurno): string | null {
+  if (c.tipo !== 'atajo' || !c.atajo || !c.pide?.length) return null;
+  const a = contexto.atajos.find((x) => x.nombre === c.atajo);
+  const faltan = sinTraer(c.pide, a?.tipos ?? []);
+  return a && faltan.length ? `${motivoNoTrae(faltan, `el atajo «${a.nombre}» (trae ${a.tipos.map((t) => QUE_TRAE[t] ?? t).join('; ') || 'nada'})`)}: si ningún atajo lo trae, es "consulta"` : null;
 }

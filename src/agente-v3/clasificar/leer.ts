@@ -1,3 +1,4 @@
+import { PIDE } from '../atajos.js';
 import { LIMITES, SIN_ATAJO } from '../constantes.js';
 import { TIPOS_PETICION, type Clasificacion, type TipoPeticion } from '../interfaces/agente-v3.interface.js';
 
@@ -52,5 +53,9 @@ export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clas
   const respuesta = tipo === 'charla' && typeof j.respuesta === 'string' && j.respuesta.trim() ? j.respuesta.trim().slice(0, 600) : null;
   const retoma = j.retoma === true;
   const ensena = j.ensena === true || tipo === 'enseñar';
-  return { ok: true, valor: { tipo, dep, atajo, motivo, ...(tipo === 'charla' ? { respuesta } : {}), ...(retoma ? { retoma } : {}), ...(ensena ? { ensena } : {}) } };
+  // Lo que quiere ver: solo las clases conocidas (lo demás no se comprueba)
+  const pide = tipo === 'atajo' || tipo === 'consulta'
+    ? [...new Set((Array.isArray(j.pide) ? j.pide : [j.pide]).map((p) => plano(String(p ?? ''))).filter((p) => PIDE.includes(p)))]
+    : [];
+  return { ok: true, valor: { tipo, dep, atajo, motivo, ...(tipo === 'charla' ? { respuesta } : {}), ...(retoma ? { retoma } : {}), ...(ensena ? { ensena } : {}), ...(pide.length ? { pide } : {}) } };
 }

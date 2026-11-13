@@ -214,6 +214,8 @@ export interface Clasificacion {
   retoma?: boolean;
   /** Además de lo que pide, enseña algo (se aprende al final) */
   ensena?: boolean;
+  /** En "atajo" y "consulta": qué dato quiere ver (las claves de QUE_TRAE: "despacho", "masivo"…); el plan tiene que traerlo */
+  pide?: string[];
 }
 
 /** Un paso del plan, con el formato que se mide en la fase 0 (`fase0/detalle.mjs`) */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { otrosSinDatos } from '../../src/agente-v3/agente-v3.service.js';
+import { atajoQueNoTrae, otrosSinDatos } from '../../src/agente-v3/agente-v3.service.js';
+import { leerClasificacion } from '../../src/agente-v3/clasificar/leer.js';
 import { leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { promptArmar } from '../../src/agente-v3/armar/prompt.js';
 import { apodosDe, atajoEsperado, atajosNombrados } from '../../src/agente-v3/atajos.js';
@@ -74,5 +75,31 @@ describe('"Dame el despacho del 90 min+": el código por su apodo, y un atajo so
     expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1130'] } }] }), c, m)).toMatchObject({ ok: true });
     // Un código que no está en ninguna lista sigue sin valer
     expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1999'] } }] }), c, m)).toMatchObject({ ok: false });
+  });
+});
+
+describe('Clasificar dice qué se pide ("pide"), y el atajo o el plan tienen que traerlo', () => {
+  const EX: AtajoDelContexto = { nombre: 'Consultar 90 min (EX)', descripcion: 'activar o desactivar el 90 min', tipos: ['opl'], pais: 'PE' };
+  const c: ContextoTurno = { ...CTX, atajos: [...ATAJOS.filter((a) => a.nombre !== EX.nombre), EX] };
+  const cl = (o: Record<string, unknown>) => JSON.stringify({ depende_del_anterior: false, motivo: '', ...o });
+
+  it('se lee solo en atajo y consulta, y solo las clases conocidas', () => {
+    expect(leerClasificacion(cl({ tipo: 'consulta', atajo: '(ninguno)', pide: ['Despacho', 'cualquiera'] }), [])).toMatchObject({ ok: true, valor: { pide: ['despacho'] } });
+    expect(leerClasificacion(cl({ tipo: 'consulta', atajo: '(ninguno)', pide: 'recepción' }), [])).toMatchObject({ ok: true, valor: { pide: ['recepcion'] } });
+    const cambio = leerClasificacion(cl({ tipo: 'cambio', atajo: '(ninguno)', pide: ['despacho'] }), []);
+    expect(cambio.ok && cambio.valor.pide).toBeUndefined();
+  });
+
+  it('"el despacho del 90 min" no es el atajo de servicios de OPL; el estado de las agendas sí lo es (afín)', () => {
+    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: EX.nombre, motivo: '', pide: ['despacho'] }, c)).toBe('se pide capacidad de despacho y el atajo «Consultar 90 min (EX)» (trae servicios de OPL (activo, checkout, corte, holgura)) no lo trae: si ningún atajo lo trae, es "consulta"');
+    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: EX.nombre, motivo: '', pide: ['masivo'] }, c)).toBeNull();
+    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: 'Big Ticket Lima', motivo: '', pide: ['despacho'] }, c)).toBeNull();
+    // Encadenado a una consulta ("la transferencia de los OPL de la SE"), el atajo es solo el primer paso
+    expect(atajoQueNoTrae({ tipo: 'consulta', dep: false, atajo: EX.nombre, motivo: '', pide: ['transferencia'] }, c)).toBeNull();
+  });
+
+  it('un plan que ejecuta un atajo trae lo que trae el atajo', () => {
+    expect(leerPlan(ejecutar('Big Ticket Lima'), c, MENSAJE, false, null, ['despacho'])).toMatchObject({ ok: true });
+    expect(leerPlan(ejecutar(EX.nombre), c, 'dame el despacho del 90 min+', false, null, ['despacho'])).toMatchObject({ ok: false, motivo: expect.stringMatching(/^se pide capacidad de despacho y el plan \(ejecutar_atajo\) no lo trae/) });
   });
 });

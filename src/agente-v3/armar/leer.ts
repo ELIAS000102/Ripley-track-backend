@@ -1,5 +1,6 @@
 import { agendasConocidas, CON_AGENDA, codigosDelAnterior, deLasOficinas, lasQueEncajan } from '../agendas.js';
 import { primerJson, type Lectura } from '../clasificar/leer.js';
+import { motivoNoTrae, sinTraer, traePaso } from '../atajos.js';
 import { serviciosNombrados } from '../plan.js';
 import { codigosDichos } from '../entidades.js';
 import { FUENTE_POR_DEFECTO, herramienta, type ParamDef } from '../herramientas.js';
@@ -168,7 +169,7 @@ export function serviciosSinUsar(pasos: PasoPlan[], mensaje: string, contexto: C
  * de edición (se ejecutan en simulacro: la vista previa), y el plan trae al
  * menos una y como mucho MAX_CAMBIOS; sin cambio, una edición no vale.
  */
-export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false, atajo: string | null = null): Lectura<PlanLeido> {
+export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false, atajo: string | null = null, pide: string[] = []): Lectura<PlanLeido> {
   const j = primerJson(texto);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
   const faltan = Array.isArray(j.faltan) ? j.faltan.map((f) => String(f).trim()).filter(Boolean).slice(0, 3) : [];
@@ -241,6 +242,10 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
   // Lo que nombra el mensaje está en el plan: "la RT y la RE" no puede quedarse en la RT sin decirlo
   const faltanServicios = serviciosSinUsar(pasos, mensaje, contexto);
   if (faltanServicios.length) return { ok: false, motivo: `el mensaje nombra ${faltanServicios.join(' y ')} y el plan no ${faltanServicios.length === 1 ? 'lo' : 'los'} usa: pon todo lo que pide` };
+
+  // El plan trae lo que se pide: "el despacho RT de las tiendas" no se contesta con el estado de sus agendas
+  const noTrae = sinTraer(pide, pasos.flatMap((p) => traePaso(p, contexto.atajos)));
+  if (noTrae.length) return { ok: false, motivo: `${motivoNoTrae(noTrae, `el plan (${pasos.map((p) => p.herramienta).join(' + ')})`)}: añade el paso que lo trae${noTrae.some((p) => ['picking', 'despacho', 'recepcion'].includes(p)) ? ' (consultar_capacidad con ese tipo; busqueda_masiva solo dice si las agendas están activas)' : ''}` };
 
   // "Fíjate que estén inactivas" no es un cambio: si Armar armó una consulta válida, vale como consulta
   const sinCambio = cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion);

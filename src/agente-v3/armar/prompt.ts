@@ -1,5 +1,5 @@
 import { agendasParaPrompt } from '../agendas.js';
-import { atajoEnLinea, atajoEsperado } from '../atajos.js';
+import { atajoEnLinea, atajoEsperado, QUE_TRAE } from '../atajos.js';
 import { VOCABULARIO } from '../constantes.js';
 import { almacenesParaPrompt, parecidosParaPrompt, vocabularioParaPrompt } from '../entidades.js';
 import { codigosQueCumplen, filasDe } from '../filas.js';
@@ -28,8 +28,9 @@ const REGLAS = `REGLAS
 - UN ATAJO SOLO SI TRAE LO QUE SE PIDE: mira lo que "trae" cada atajo, no solo su nombre. "El despacho del 90 min" pide capacidad de DESPACHO: un atajo que trae "servicios de OPL" no sirve aunque se llame "90 min"; es consultar_capacidad tipo despacho del código que se parece («90 minutos»).
 - PRIMERO LOS ATAJOS: si un atajo guardado trae lo que se pide (o la lista sobre la que se pide algo), el paso es "ejecutar_atajo" con su nombre exacto. Un atajo se reconoce por su nombre o por su apodo (lo que va entre paréntesis en su descripción: "el bt lima" = «Big Ticket Lima» (BT LIMA); "la pqt lima" = «Paqueteria Lima» (PQT LIMA)), NUNCA por una palabra suelta como "lima". Si arriba dice "EL ATAJO QUE NOMBRA EL MENSAJE", es ese, y lo demás usa {"ref": "paso", "n": 1}. "La transferencia de los OPL de la SE" = ejecutar_atajo «OPLS de la SE» + consultar_transferencia con destino {"ref": "paso", "n": 1}.
 - EL MÍNIMO DE PASOS: cada paso trae algo que ningún otro trae. busqueda_masiva ya dice si cada agenda está activa y en checkout: para ver o contar activos e inactivos basta con ella; consultar_servicios_opl solo si se pide la hora de corte, la holgura, las ocurrencias o los demás servicios. Varios servicios van juntos en UN paso.
-- CAPACIDAD: "picking" para tiendas, almacenes y CDs; "despacho" para OPL (4 cifras); "recepcion" para las agendas de recepción de las tiendas. "Cómo va el CD …" es consultar_reporte_cds.
-- UNA FASE ("fase 1", "F2") son sus servicios en el país: mira "SERVICIOS DEL PAÍS". "Las sucursales de la fase 1" = busqueda_masiva de esos servicios; "su picking" = consultar_capacidad con codigo {"ref": "paso", "n": 1}.
+- CAPACIDAD: "picking" para tiendas, almacenes y CDs; "despacho" para OPL (4 cifras) y para las tiendas en retiro en tienda (RT, RE, ST…: la tienda es el OPL); "recepcion" para las agendas de recepción de las tiendas. "Cómo va el CD …" es consultar_reporte_cds. La capacidad (asignado, ocupado, disponible) SOLO la trae consultar_capacidad: busqueda_masiva solo dice si las agendas están activas y en checkout.
+- EL PLAN TRAE LO QUE SE PIDE: si arriba dice "LO QUE PIDE", algún paso tiene que traerlo; buscar las oficinas es solo el primer paso.
+- UNA FASE ("fase 1", "F2") son sus servicios en el país: mira "SERVICIOS DEL PAÍS". "Las sucursales de la fase 1" = busqueda_masiva de esos servicios; "su picking" = consultar_capacidad con codigo {"ref": "paso", "n": 1}. "El despacho RT de las tiendas de la fase 1" = busqueda_masiva de la RT + consultar_capacidad tipo "despacho", codigo {"ref": "paso", "n": 1}, servicio ["RT"].
 - AGENDAS: si el mensaje nombra una agenda o una zona ("el centralizaso de San Luis", "la flota"), busca en "AGENDAS QUE CONOZCO" la que quiere decir aunque esté escrita de otra forma, abreviada o con faltas, y copia en "agenda" su nombre EXACTO (en despacho, la zona exacta en "zona"; es lo que va antes de "›", o el mismo nombre si no hay "›"). En "codigo" (u "opl") pon SOLO las oficinas que la tienen. Si nombra varias a la vez ("los centralizados"), pon la parte común ("Centralizado"). Si no está en la lista, escríbela como la dijo: el sistema buscará las agendas de esas oficinas y te las enseñará.
 - SIMULAR: "operador" es quién entrega. En retiro en tienda (ST, SE, RT…) la TIENDA donde se recoge es el operador; "almacen" es la fuente de stock. En despacho a domicilio (SD, DT, S…) el operador es el OPL.
 - CONDICIÓN y COMPROBAR: "solo las inactivas", "las que están sin cupo" → "condicion" en ese paso ({"campo": "activa", "op": "=", "valor": false}; {"campo": "disponible", "op": "<=", "valor": 0}). "Fíjate que todas estén inactivas", "¿están todos activos?" → "comprobar" ({"campo": "activa", "op": "=", "valor": false, "cuantos": "todos", "servicio": "RE"}). "Activos e inactivos" no lleva condición. Campos: activa, enCheckout, habilitada, asignado, ocupado, disponible, uso, desfase, transito, preparacion, dias, jornadas (cuántas jornadas tiene cada oficina; "un flujo" = una jornada).
@@ -96,7 +97,7 @@ ${servicios || '(no los tengo)'}
 
 ATAJOS GUARDADOS
 ${atajos || '(ninguno)'}
-${nombrado ? `EL ATAJO QUE NOMBRA EL MENSAJE: «${nombrado}»\n` : ''}${vocabularioParaPrompt(contexto.vocabulario)}${agendas.length ? `\nAGENDAS QUE CONOZCO (oficina · tipo · zona › agenda · servicio)\n${agendas.join('\n')}\n` : ''}
+${nombrado ? `EL ATAJO QUE NOMBRA EL MENSAJE: «${nombrado}»\n` : ''}${clasificacion?.pide?.length && clasificacion.tipo !== 'cambio' ? `LO QUE PIDE: ${clasificacion.pide.map((p) => QUE_TRAE[p] ?? p).join('; ')}\n` : ''}${vocabularioParaPrompt(contexto.vocabulario)}${agendas.length ? `\nAGENDAS QUE CONOZCO (oficina · tipo · zona › agenda · servicio)\n${agendas.join('\n')}\n` : ''}
 EL MENSAJE ANTERIOR
 ${anterior}
 ${contexto.aclaraciones.length ? `\nLO QUE ACLARÓ LA PERSONA\n${contexto.aclaraciones.map((a) => `- ${a}`).join('\n')}\n` : ''}

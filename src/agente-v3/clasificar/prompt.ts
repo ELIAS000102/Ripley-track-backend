@@ -33,10 +33,11 @@ Devuelve:
 - motivo: una frase corta.
 - respuesta: SOLO en "charla": lo que le contestas a la persona, en una o dos frases, en español, de tú, cercano y breve. Sin cifras, códigos ni datos de la operación (esos salen de las consultas, nunca de ti). En los demás tipos, null.
 - retoma: true SOLO si el mensaje anterior NO SE PUDO RESOLVER (falló o quedó pendiente) y este mensaje solo lo completa o lo corrige ("es de Perú", "la 20048", "el de picking"). Entonces el "tipo" y el "atajo" son los de AQUELLA petición, ya completada. Si no, false.
+- pide: SOLO en "atajo" y "consulta": qué dato quiere VER la persona, una lista con: "picking" (capacidad de picking), "despacho" (capacidad de despacho: de un OPL, o de las tiendas en retiro en tienda), "recepcion" (capacidad de recepción), "masivo" (si las agendas de un servicio están activas o en checkout), "opl" (servicios de un OPL: activo, corte, holgura), "transferencia", "simulacion" (fecha de entrega), "reporte" (cómo van los CDs). "El despacho RT de las tiendas" = ["despacho"]; "los opls de la ST" = ["masivo"]; "el consumo del bt lima" = lo que trae ese atajo. El atajo tiene que traer lo que pide. [] si es otra cosa.
 - ensena: true si, además de pedir algo, el mensaje enseña cómo es algo de la operación ("…, que sale siempre del CD Aldeas"). En "enseñar" también true.
 
 Responde SOLO con un JSON de una línea, sin texto alrededor:
-{"tipo": "...", "depende_del_anterior": true|false, "atajo": "...", "motivo": "...", "respuesta": null, "retoma": false, "ensena": false}
+{"tipo": "...", "depende_del_anterior": true|false, "atajo": "...", "motivo": "...", "pide": [], "respuesta": null, "retoma": false, "ensena": false}
 
 VOCABULARIO DE LA OPERACIÓN
 ${VOCABULARIO.map((v) => `- ${v}`).join('\n')}`;

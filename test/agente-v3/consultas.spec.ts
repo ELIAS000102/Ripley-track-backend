@@ -310,3 +310,28 @@ describe('Un turno de consulta, de punta a punta', () => {
     expect(r.respuesta!.resultados[0]).toMatchObject({ herramienta: 'calcular', datos: { columnas: ['fecha', 'ocupado'], filas: [['07/11', 50], ['08/11', 100]] } });
   });
 });
+
+describe('"El despacho RT de las tiendas de la fase 1": el plan trae lo que se pide', () => {
+  const m = 'dame el despacho RT de las tiendas del fase 1 de peru';
+  const SOLO_MASIVA = JSON.stringify({ pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: ['RT'] } }] });
+
+  it('solo la búsqueda masiva no vale: otro intento, con el motivo y "LO QUE PIDE" a la vista', async () => {
+    const { servicio } = armarServicio(ctx(m));
+    const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
+    const a = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('consulta', { pide: ['despacho'] }), modelo: M });
+    expect(a.prompt!.mensaje).toContain('LO QUE PIDE: capacidad de despacho');
+    const r = await servicio.armado(USUARIO, t.turno_id, { salida: SOLO_MASIVA, modelo: M });
+    expect(r.camino).toBe('armar');
+    expect(r.prompt!.mensaje).toContain('TU PLAN ANTERIOR NO VALIÓ: se pide capacidad de despacho y el plan (busqueda_masiva) no lo trae');
+    const bien = { pasos: [{ herramienta: 'busqueda_masiva', param: { servicio: ['RT'] } }, { herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: { ref: 'paso', n: 1 }, servicio: ['RT'] } }] };
+    expect((await servicio.armado(USUARIO, t.turno_id, { salida: JSON.stringify(bien), modelo: M })).camino).toBe('ejecutar');
+  });
+
+  it('se exige una vez: si Armar insiste, puede que Clasificar se equivocara, y vale', async () => {
+    const { servicio } = armarServicio(ctx(m));
+    const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
+    await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif('consulta', { pide: ['despacho'] }), modelo: M });
+    expect((await servicio.armado(USUARIO, t.turno_id, { salida: SOLO_MASIVA, modelo: M })).camino).toBe('armar');
+    expect((await servicio.armado(USUARIO, t.turno_id, { salida: SOLO_MASIVA, modelo: M })).camino).toBe('ejecutar');
+  });
+});
