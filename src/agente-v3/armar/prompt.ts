@@ -1,7 +1,7 @@
 import { agendasParaPrompt } from '../agendas.js';
-import { atajoEsperado } from '../atajos.js';
+import { atajoEnLinea, atajoEsperado } from '../atajos.js';
 import { VOCABULARIO } from '../constantes.js';
-import { almacenesParaPrompt, vocabularioParaPrompt } from '../entidades.js';
+import { almacenesParaPrompt, parecidosParaPrompt, vocabularioParaPrompt } from '../entidades.js';
 import { codigosQueCumplen, filasDe } from '../filas.js';
 import { catalogoParaPrompt, FUENTE_POR_DEFECTO } from '../herramientas.js';
 import type { Clasificacion, ContextoTurno } from '../interfaces/agente-v3.interface.js';
@@ -24,7 +24,8 @@ ES UN CAMBIO: cada cambio que pide la persona es un paso con la herramienta de C
 
 const REGLAS = `REGLAS
 - Solo herramientas y parámetros del CATÁLOGO. Lo que la persona no dijo NO se pone (ni fechas, ni días, ni "soloActivas"): se queda como está por defecto.
-- Los CÓDIGOS solo pueden ser: los de "CÓDIGOS DEL MENSAJE"; el de un CD o almacén de "CDS Y ALMACENES DEL PAÍS" que la persona nombre por su nombre, una parte o un apodo ("el cd villa", "aldeas"), aunque no coincida letra a letra; el ORIGEN DE STOCK de un servicio (en "SERVICIOS DEL PAÍS": si el servicio lo tiene, úsalo para "origen" o "almacen", porque ese servicio sale siempre de ahí); la fuente de stock por defecto del país (en Perú, 20026) para "origen" o "almacen"; {"ref": "anterior"} (lo que trajo el mensaje anterior: "esas", "su", "de esos"); o {"ref": "paso", "n": N} (lo que trae el paso N de este plan); "el resto", "las demás", "las que no son de…" es {"ref": "paso", "n": N, "sin": M}: lo del paso N menos lo del paso M ("el resto de sucursales de la ST" = búsqueda masiva de la ST en el paso N, sin las de la SE del paso M). "Las de la ST que coinciden con las de la SE" es editar_masivo de la ST con opls = las de la SE ({"ref": "paso", "n": <el de la SE>}): solo toca la ST de esas sucursales; NO uses ahí todas las de la ST. Nunca inventes un código.
+- Los CÓDIGOS solo pueden ser: los de "CÓDIGOS DEL MENSAJE"; el de "CÓDIGOS QUE SE PARECEN A LO QUE DICE" que la persona nombra por su nombre o apodo aunque lo escriba distinto o abreviado ("el 90 min+" = el de apodo «90 minutos»); si ninguno es, no uses ninguno; el de un CD o almacén de "CDS Y ALMACENES DEL PAÍS" que la persona nombre por su nombre, una parte o un apodo ("el cd villa", "aldeas"), aunque no coincida letra a letra; el ORIGEN DE STOCK de un servicio (en "SERVICIOS DEL PAÍS": si el servicio lo tiene, úsalo para "origen" o "almacen", porque ese servicio sale siempre de ahí); la fuente de stock por defecto del país (en Perú, 20026) para "origen" o "almacen"; {"ref": "anterior"} (lo que trajo el mensaje anterior: "esas", "su", "de esos"); o {"ref": "paso", "n": N} (lo que trae el paso N de este plan); "el resto", "las demás", "las que no son de…" es {"ref": "paso", "n": N, "sin": M}: lo del paso N menos lo del paso M ("el resto de sucursales de la ST" = búsqueda masiva de la ST en el paso N, sin las de la SE del paso M). "Las de la ST que coinciden con las de la SE" es editar_masivo de la ST con opls = las de la SE ({"ref": "paso", "n": <el de la SE>}): solo toca la ST de esas sucursales; NO uses ahí todas las de la ST. Nunca inventes un código.
+- UN ATAJO SOLO SI TRAE LO QUE SE PIDE: mira lo que "trae" cada atajo, no solo su nombre. "El despacho del 90 min" pide capacidad de DESPACHO: un atajo que trae "servicios de OPL" no sirve aunque se llame "90 min"; es consultar_capacidad tipo despacho del código que se parece («90 minutos»).
 - PRIMERO LOS ATAJOS: si un atajo guardado trae lo que se pide (o la lista sobre la que se pide algo), el paso es "ejecutar_atajo" con su nombre exacto. Un atajo se reconoce por su nombre o por su apodo (lo que va entre paréntesis en su descripción: "el bt lima" = «Big Ticket Lima» (BT LIMA); "la pqt lima" = «Paqueteria Lima» (PQT LIMA)), NUNCA por una palabra suelta como "lima". Si arriba dice "EL ATAJO QUE NOMBRA EL MENSAJE", es ese, y lo demás usa {"ref": "paso", "n": 1}. "La transferencia de los OPL de la SE" = ejecutar_atajo «OPLS de la SE» + consultar_transferencia con destino {"ref": "paso", "n": 1}.
 - EL MÍNIMO DE PASOS: cada paso trae algo que ningún otro trae. busqueda_masiva ya dice si cada agenda está activa y en checkout: para ver o contar activos e inactivos basta con ella; consultar_servicios_opl solo si se pide la hora de corte, la holgura, las ocurrencias o los demás servicios. Varios servicios van juntos en UN paso.
 - CAPACIDAD: "picking" para tiendas, almacenes y CDs; "despacho" para OPL (4 cifras); "recepcion" para las agendas de recepción de las tiendas. "Cómo va el CD …" es consultar_reporte_cds.
@@ -62,7 +63,8 @@ export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificac
     s.origen ? `ORIGEN DE STOCK ${s.origen}` : null,
     s.descripcion ? s.descripcion : null,
   ].filter(Boolean).join(' · ')).join('\n');
-  const atajos = contexto.atajos.filter((a) => a.pais === contexto.pais).map((a) => `- «${a.nombre}» (${a.tipos.join(', ')}): ${a.descripcion ?? ''}`).join('\n');
+  const atajos = contexto.atajos.filter((a) => a.pais === contexto.pais).map((a) => atajoEnLinea(a)).join('\n');
+  const parecidos = parecidosParaPrompt(contexto.parecidos);
   const agendas = agendasParaPrompt(contexto);
   const nombrado = atajoEsperado(mensaje, contexto.atajos, clasificacion?.atajo, contexto.pais);
   const almacenes = almacenesParaPrompt(contexto.almacenes);
@@ -85,7 +87,7 @@ HOY: ${contexto.hoy}
 ${clasificacion?.dep ? 'EL MENSAJE DEPENDE DEL ANTERIOR.\n' : ''}
 CÓDIGOS DEL MENSAJE
 ${codigos || '(ninguno)'}
-
+${parecidos.length ? `\nCÓDIGOS QUE SE PARECEN A LO QUE DICE (por su nombre o apodo)\n${parecidos.join('\n')}\n` : ''}
 CDS Y ALMACENES DEL PAÍS
 ${almacenes.join('\n') || '(no los tengo)'}
 

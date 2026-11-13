@@ -9,6 +9,23 @@ import type { AtajoDelContexto } from './interfaces/agente-v3.interface.js';
 
 const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 
+/** Lo que trae cada clase de bloque de un atajo, para que el modelo sepa si sirve para lo que se pide */
+export const QUE_TRAE: Record<string, string> = {
+  picking: 'capacidad de picking',
+  despacho: 'capacidad de despacho',
+  recepcion: 'capacidad de recepción',
+  transferencia: 'capacidad de transferencia',
+  masivo: 'estado de las agendas de un servicio (activas, en checkout)',
+  opl: 'servicios de OPL (activo, checkout, corte, holgura)',
+  simulacion: 'simulación de entrega',
+};
+
+/** Un atajo en una línea del prompt: nombre, qué trae y su descripción */
+export function atajoEnLinea(a: AtajoDelContexto, conPais = false): string {
+  const trae = [...new Set(a.tipos.map((t) => QUE_TRAE[t] ?? t))].join('; ') || 'sin bloques';
+  return `- «${a.nombre}» — trae: ${trae}${conPais ? ` (${a.pais === 'CL' ? 'Chile' : 'Perú'})` : ''}. ${a.descripcion ?? ''}`.trim();
+}
+
 /** Los apodos de un atajo: lo que va entre paréntesis en su descripción, si es un nombre (dos palabras o 4+ letras) */
 export function apodosDe(a: Pick<AtajoDelContexto, 'descripcion'>): string[] {
   return [...String(a.descripcion ?? '').matchAll(/\(([^()]{2,30})\)/g)]

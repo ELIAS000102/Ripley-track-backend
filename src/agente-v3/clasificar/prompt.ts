@@ -1,4 +1,5 @@
 import { SIN_ATAJO, VOCABULARIO } from '../constantes.js';
+import { atajoEnLinea } from '../atajos.js';
 import { vocabularioParaPrompt } from '../entidades.js';
 import type { ContextoTurno } from '../interfaces/agente-v3.interface.js';
 
@@ -19,7 +20,7 @@ export const SISTEMA_CLASIFICAR = `Clasificas mensajes del chat de la operación
 
 Devuelve:
 - tipo:
-  · "atajo": lo que pide lo hace UN atajo guardado de la lista (por su nombre o su descripción). Si un atajo lo hace, es atajo, aunque también se pudiera consultar a mano.
+  · "atajo": lo que pide lo hace UN atajo guardado de la lista: por su nombre o su descripción, y SOLO si lo que "trae" es lo que pide ("el despacho del 90 min" pide capacidad de despacho: un atajo que trae servicios de OPL no es). Si un atajo lo hace, es atajo, aunque también se pudiera consultar a mano.
   · "consulta": hay que consultar Ripley (capacidad, transferencias, servicios de OPL, búsqueda masiva, simulación, reporte de CDs), sola o encadenada a un atajo ("la transferencia de los OPL de la SE" = consulta que usa el atajo «OPLS de la SE»).
   · "calculo": se contesta con lo que YA TRAJO el mensaje anterior, sin consultar: sumar, contar, el máximo, un porcentaje, filtrar ("solo las inactivas", "y los activos"), explicar o detallar una fila, enseñarlo "en un cuadro" o resumido. También si nombra un código que ya está en lo que trajo el anterior. Si nombra un atajo, un servicio o un código que NO estaba en lo que trajo el anterior ("el consumo del bt lima en porcentaje" después de otra cosa), NO es calculo: es "atajo" o "consulta".
   · "saber": lo que el agente tiene guardado (qué tiendas, OPL o CDs conoce, qué atajos hay, qué es un servicio o una fase, qué es un código).
@@ -41,9 +42,7 @@ VOCABULARIO DE LA OPERACIÓN
 ${VOCABULARIO.map((v) => `- ${v}`).join('\n')}`;
 
 export function promptClasificar(mensaje: string, contexto: ContextoTurno, noValio?: string): { sistema: string; mensaje: string } {
-  const atajos = contexto.atajos
-    .map((a) => `- «${a.nombre}» (${a.tipos.join(', ') || 'sin bloques'}; ${NOMBRE_PAIS[a.pais]}): ${a.descripcion ?? ''}`)
-    .join('\n');
+  const atajos = contexto.atajos.map((a) => atajoEnLinea(a, true)).join('\n');
   const ant = contexto.anterior;
   const anterior = ant
     ? `${ant.elegido ? 'La persona lo eligió con «Responder».\n' : ''}${ant.fallido ? 'NO SE PUDO RESOLVER: falló o quedó pendiente.\n' : ''}Lo que pidió: «${ant.persona ?? ''}»\nLo que se le contestó: «${ant.frase ?? ''}»\nHerramientas que usó: ${ant.herramientas.join(', ') || 'ninguna'}`

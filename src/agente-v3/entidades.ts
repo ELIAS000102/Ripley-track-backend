@@ -32,6 +32,42 @@ function nombresDe(e: EntidadDirectorio): string[] {
   return [...new Set(base)].filter((n) => n.length >= 4 && !GENERICAS.has(n) && !/^\d+$/.test(n));
 }
 
+/** Una entidad del directorio como la ve el modelo para elegirla por su nombre o apodo */
+export interface Parecido { codigo: string; nombre: string | null; tipo: string; es_cd: boolean; alias: string[] }
+
+/** Palabras del mensaje que no ayudan a encontrar un nombre (son de cualquier petición) */
+const VACIAS = new Set(['dame', 'dime', 'como', 'cual', 'cuales', 'cuanto', 'cuantos', 'cuantas', 'para', 'del', 'los', 'las', 'que', 'con', 'una', 'uno', 'por', 'todo', 'toda',
+  'despacho', 'picking', 'recepcion', 'capacidad', 'consumo', 'servicio', 'servicios', 'agendas', 'estado', 'activa', 'activas', 'activo', 'activos', 'inactiva', 'inactivas',
+  'cierra', 'abre', 'activa', 'desactiva', 'fecha', 'semana', 'porcentaje', 'cuadro', 'total', 'totales', 'resumen', 'sucursal', 'sucursales', 'tiendas', 'consulta', 'quiero', 'necesito']);
+
+/**
+ * Los códigos del directorio cuyo nombre o apodo se PARECE al mensaje: comparten
+ * una cifra ("90") o una palabra, entera o empezada ("min" de "minutos"). No
+ * deciden nada: van al prompt y el modelo elige cuál quiso decir la persona
+ * ("el 90 min+" = 1130, apodo «90 minutos»), como con los CDs. Los que el
+ * mensaje ya nombra exactos (en "CÓDIGOS DEL MENSAJE") no se repiten.
+ */
+export function parecidosDe(mensaje: string, directorio: EntidadDirectorio[], pais: string, yaNombrados: string[] = [], max = 15): Parecido[] {
+  const palabras = [...new Set(plano(mensaje).split(' '))].filter((w) => (/^\d+$/.test(w) ? w.length >= 2 : w.length >= 3) && !VACIAS.has(w) && !GENERICAS.has(w));
+  if (!palabras.length) return [];
+  const puntuados = directorio
+    .filter((e) => e.pais === pais && !yaNombrados.includes(e.codigo))
+    .map((e) => {
+      const suyas = new Set([e.nombre ?? '', ...(e.alias ?? [])].flatMap((n) => plano(n).split(' ')).filter(Boolean));
+      const puntos = palabras.filter((w) => [...suyas].some((s) => s === w || (w.length >= 3 && !/^\d+$/.test(w) && s.startsWith(w)))).length;
+      return { e, puntos };
+    })
+    .filter((x) => x.puntos > 0)
+    .sort((a, b) => b.puntos - a.puntos || a.e.codigo.localeCompare(b.e.codigo));
+  return puntuados.slice(0, max).map(({ e }) => ({ codigo: e.codigo, nombre: e.nombre, tipo: e.tipo, es_cd: e.es_cd, alias: e.alias ?? [] }));
+}
+
+/** "- 1130 · DD_EX - Miraflores (OPL) · también «90 minutos»" */
+export function parecidosParaPrompt(parecidos: Parecido[] | undefined): string[] {
+  const clase = (p: Parecido) => (p.es_cd ? 'CD' : p.tipo === 'almacen' ? 'almacén' : p.tipo === 'opl' ? 'OPL' : 'tienda');
+  return (parecidos ?? []).map((p) => `- ${p.codigo} · ${p.nombre ?? ''} (${clase(p)})${p.alias.length ? ` · también «${p.alias.join('», «')}»` : ''}`);
+}
+
 /** Los CDs y almacenes de un país, con sus alias (para que el modelo elija por el nombre) */
 export function almacenesDe(directorio: EntidadDirectorio[], pais: string): Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }> {
   return directorio

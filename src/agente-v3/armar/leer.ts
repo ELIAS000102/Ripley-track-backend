@@ -55,6 +55,8 @@ export function codigosPermitidos(contexto: ContextoTurno, mensaje: string): Set
   const origenes = contexto.servicios.map((s) => s.origen).filter((o): o is string => Boolean(o));
   // Los CDs y almacenes del país van en el prompt: el modelo elige cuál nombra la persona ("el cd villa" → 20026)
   const almacenes = (contexto.almacenes ?? []).map((a) => a.codigo);
+  // Y los que se parecen por su nombre o apodo: el modelo elige cuál quiso decir ("el 90 min+" = 1130)
+  almacenes.push(...(contexto.parecidos ?? []).map((p) => p.codigo));
   return new Set([...codigosDichos(contexto.entidades), ...del(mensaje), ...contexto.aclaraciones.flatMap(del), ...origenes, ...almacenes]);
 }
 

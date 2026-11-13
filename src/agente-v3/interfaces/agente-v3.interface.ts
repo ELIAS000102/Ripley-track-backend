@@ -188,6 +188,8 @@ export interface ContextoTurno {
   aprender_aclaracion?: boolean;
   /** Los CDs y almacenes del país, con sus alias: el modelo elige cuál nombra la persona ("el cd villa" → 20026) */
   almacenes?: Array<{ codigo: string; nombre: string | null; es_cd: boolean; alias: string[] }>;
+  /** Los códigos cuyo nombre o apodo se parece al mensaje ("90 min+" → 1130 «90 minutos»): el modelo elige */
+  parecidos?: Array<{ codigo: string; nombre: string | null; tipo: string; es_cd: boolean; alias: string[] }>;
   /** Las agendas que buscó el backend porque el plan nombraba una que no conocía (las del anterior se leen de él) */
   agendas?: AgendaConocida[];
   /** Las oficinas cuyas agendas ya se buscaron ("tipo:código"): no se vuelven a buscar */

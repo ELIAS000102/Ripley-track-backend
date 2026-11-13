@@ -102,7 +102,7 @@ describe('Lo que devuelve Clasificar: se lee, no se arregla', () => {
       anterior: { id: 'm1', persona: 'dame los opls de la SE', frase: '«OPLS de la SE»: SE, las 11 agendas activas.', herramientas: ['ejecutar_atajo'], plan: null, resultados: [], version: 2, elegido: false },
     });
     expect(p.mensaje).toContain('PAÍS DEL CHAT: Perú');
-    expect(p.mensaje).toContain('«Tiendas RT chile» (sin bloques; Chile)');
+    expect(p.mensaje).toContain('«Tiendas RT chile» — trae: sin bloques (Chile)');
     expect(p.mensaje).toContain('Lo que pidió: «dame los opls de la SE»');
     expect(p.mensaje).toContain('«simula la se»');
     expect(p.sistema).toContain('Responde SOLO con un JSON');
