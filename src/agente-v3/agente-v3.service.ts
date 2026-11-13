@@ -644,7 +644,7 @@ export class AgenteV3Service {
       const porElegir = await this.ejecucion.zonasPorElegir(usuario, plan, k, hechos, turno.contexto!);
       if (porElegir.length) {
         turno.etapa = 'ejecutar';
-        return this.preguntar(usuario, turno, preguntaDeZonas(k + 1, queEs(plan.pasos[k], turno.contexto!.pais), porElegir));
+        return this.preguntar(usuario, turno, preguntaDeZonas(k + 1, queEs(plan.pasos[k], turno.contexto!.pais).replace(/^Vista previa: /, '').replace(/ de lo del mensaje anterior$/, ''), porElegir));
       }
     }
     if (k < plan.pasos.length) {

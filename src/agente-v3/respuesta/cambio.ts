@@ -26,6 +26,8 @@ const conZona = (agenda: unknown, zona: unknown) => {
 };
 /** "2026-11-12" → "12/11" */
 const ddmm = (f: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f ?? '')); return m ? `${m[3]}/${m[2]}` : String(f ?? ''); };
+/** "Ya estaba así": no es un fallo, es que no cambiaría nada */
+const YA_ESTABA = /^ya estaba(n)? as[ií]/i;
 const si = (b: boolean | null | undefined, s: string, n: string) => (b === null || b === undefined ? '—' : b ? s : n);
 type R = Record<string, unknown>;
 const arr = (v: unknown): R[] => (Array.isArray(v) ? (v as R[]) : []);
@@ -58,13 +60,15 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
       return arr(d.oficinas).flatMap((o) => (o.error && !arr(o.agendas).length
         ? [{ donde: oficina(o.oficina), dia: '', antes: '—', despues: '—', error: String(o.error) }]
         : arr(o.agendas).flatMap((a) => (a.error && !arr(a.dias).length
-          ? [{ donde: `${oficina(o.oficina)} · ${String(a.agenda)}`, dia: '', antes: '—', despues: '—', error: String(a.error) }]
+          ? [YA_ESTABA.test(String(a.error))
+            ? { donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`, dia: '', antes: 'ya está así', despues: 'ya está así' }
+            : { donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`, dia: '', antes: '—', despues: '—', error: String(a.error) }]
           : arr(a.dias).map((x) => ({
             donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`,
             dia: String(x.fecha),
             antes: estadoDia(x.antes as R | null),
-            despues: estadoDia(x.despues as R | null),
-            ...(x.error ? { error: String(x.error) } : {}),
+            despues: x.error && YA_ESTABA.test(String(x.error)) ? estadoDia(x.antes as R | null) : estadoDia(x.despues as R | null),
+            ...(x.error && !YA_ESTABA.test(String(x.error)) ? { error: String(x.error) } : {}),
           }))))));
     case 'cortar_reabrir_cd':
       return arr(d.jornadas).map((j) => ({

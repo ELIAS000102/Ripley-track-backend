@@ -90,7 +90,7 @@ describe('"Cierra la fecha 11-11 para los tres": las agendas que se vieron', () 
       ['1402', 'Zona 1402 - Suc. Aldea 6 Perif.', 'Agenda 1402 - Suc. Aldea 6 Perif.'],
       ['1403', 'Zona BT Playas', 'Zona BT Playas'],
     ]);
-    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 3 de 3 \(las agendas que se vieron \(3\)\)/);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 3 de 3 \(las agendas que se vieron \(3 oficinas\)\)/);
   });
 });
 
@@ -216,5 +216,58 @@ describe('Dos preguntas en un mensaje: las dos en la respuesta', () => {
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
     r = await seguir(servicio, t.turno_id, r);
     expect(r.respuesta!.resultados.map((x) => x.principal)).toEqual([false, true]);
+  });
+});
+
+describe('"Cierra la fecha 18-11" tras el despacho de la 1401 (dos agendas a la vista): pregunta a cuál', () => {
+  const DOS = { tipo: 'despacho', pais: 'PE', desde: HOY, sinDatos: [], oficinas: [{ oficina: '1401', agendas: [
+    ag('Zona 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana'),
+    ag('Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT'),
+  ] }] };
+  const ANT: MensajeAnterior = { id: 'm1', persona: 'dame la agenda de despacho de la 1401', frase: '…', herramientas: ['consultar_capacidad'], plan: null, version: 3, elegido: false,
+    resultados: [{ herramienta: 'consultar_capacidad', titulo: 'Capacidad de despacho de 1401', datos: DOS }] };
+
+  async function hastaLaPregunta() {
+    const h = armar(ctx({ anterior: ANT }));
+    const { t, a } = await hastaArmar(h.servicio, 'cierra la fecha 18-11');
+    await h.servicio.armado(USUARIO, t.turno_id, { salida: cerrar({ ref: 'anterior' }), modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre } });
+    await h.servicio.ejecutar(USUARIO, t.turno_id);
+    const p = await h.servicio.ejecutar(USUARIO, t.turno_id);
+    return { ...h, t, p };
+  }
+
+  it('la pregunta: las dos agendas que se vieron, y "todas"; sin buscar nada ni tocar nada', async () => {
+    const { p, editarCapacidad, capacidad } = await hastaLaPregunta();
+    expect(p.camino).toBe('preguntar');
+    expect(p.pregunta!.frase).toBe('De la 1401 hay 2 agendas. Para «cerrar despacho», ¿a cuál?');
+    expect(p.pregunta!.dudas![0].opciones.map((o) => o.texto)).toEqual([
+      '1401 · Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana (Zona 1401 - Suc. Aldea 6 Lima/Metropolitana)',
+      '1401 · Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT',
+      '1401 · todas',
+    ]);
+    expect(editarCapacidad.editarCapacidad).not.toHaveBeenCalled();
+    expect(capacidad.consultar).not.toHaveBeenCalled();
+  });
+
+  it('elige una: va solo a esa, con su zona y su agenda exactas', async () => {
+    const { servicio, t, p, editarCapacidad } = await hastaLaPregunta();
+    const duda = p.pregunta!.dudas![0];
+    const s = await servicio.respuesta(USUARIO, t.turno_id, { respuestas: { [duda.id]: duda.opciones[0].id } });
+    expect(s.camino).toBe('ejecutar');
+    await servicio.ejecutar(USUARIO, t.turno_id);
+    expect(editarCapacidad.editarCapacidad.mock.calls.map(([, d]) => [d.codigo, d.zona, d.agenda])).toEqual([
+      ['1401', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana'],
+    ]);
+  });
+
+  it('"todas": a las dos; la que ya estaba cerrada sale como "ya está así" y no se lleva la otra', async () => {
+    const { servicio, t, p, editarCapacidad } = await hastaLaPregunta();
+    editarCapacidad.editarCapacidad.mockImplementationOnce(async () => { throw new Error('Ya estaba así (asignado 301, inactiva).'); });
+    const duda = p.pregunta!.dudas![0];
+    await servicio.respuesta(USUARIO, t.turno_id, { respuestas: { [duda.id]: 'todas' } });
+    const r = await seguir(servicio, t.turno_id, await servicio.ejecutar(USUARIO, t.turno_id));
+    expect(editarCapacidad.editarCapacidad).toHaveBeenCalledTimes(2);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiaría 1 de 2 \(.*\); 1 ya estaba así\./);
+    expect(r.respuesta!.markdown).toContain('| ya está así | igual |');
   });
 });

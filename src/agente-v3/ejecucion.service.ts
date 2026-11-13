@@ -21,7 +21,7 @@ import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
 import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
 import { calcular, fuenteDe } from './calcular/calcular.js';
-import { agendasDelAnterior, esDelAnterior, oficinasConVariasZonas, porLoQueSeVio, porZonaElegida, tipoConZona, type Grupo } from './zonas.js';
+import { agendasDelAnterior, agendasPorElegir, esDelAnterior, oficinasConVariasZonas, porEleccion, tipoConZona, type Grupo, type PorElegir } from './zonas.js';
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
 import { queEs } from './que.js';
@@ -59,6 +59,16 @@ function juntar(partes: Array<Record<string, unknown>>): Record<string, unknown>
     salida.resumen = suma;
   }
   return salida;
+}
+
+/** Las ediciones de capacidad, que devuelven sus agendas por oficina (y cada una puede fallar sola) */
+const CAPACIDAD_EDITABLE = new Set(['editar_capacidad', 'editar_capacidad_transferencia']);
+
+/** Lo que devuelve una llamada de un cambio que falló, como agendas con su motivo (la vista previa lo enseña) */
+function sinCambioDe(codigos: string[], extra: Record<string, unknown>, motivo: string): Record<string, unknown> {
+  return {
+    oficinas: codigos.map((oficina) => ({ oficina, agendas: [{ agenda: String(extra.agenda ?? extra.zona ?? 'sus agendas'), zona: extra.zona, dias: [], error: motivo }] })),
+  };
 }
 
 /**
@@ -160,11 +170,11 @@ export class EjecucionV3Service {
    * zonas de las que no se sabe cuál (ni se vio en el anterior ni se eligió).
    * Las zonas salen de lo conocido o de una consulta que solo lee.
    */
-  async zonasPorElegir(usuario: UsuarioAutenticado, plan: PlanV3, k: number, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<Array<{ codigo: string; zonas: string[] }>> {
+  async zonasPorElegir(usuario: UsuarioAutenticado, plan: PlanV3, k: number, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<PorElegir[]> {
     const paso = plan.pasos[k];
     const h = herramienta(paso.herramienta);
-    const tipo = h?.edicion ? tipoConZona(paso.herramienta, paso.param) : null;
-    if (!h?.lista || !tipo || paso.param.zona || paso.param.agenda || paso.param.atajo) return [];
+    const conAgenda = h?.edicion ? CON_AGENDA[paso.herramienta] : undefined;
+    if (!h?.lista || !conAgenda || paso.param.zona || paso.param.agenda || paso.param.atajo) return [];
     const v = paso.param[h.lista];
     let codigos: string[];
     try {
@@ -172,11 +182,21 @@ export class EjecucionV3Service {
     } catch {
       return [];
     }
-    // Lo que se vio en el anterior manda (porLoQueSeVio)
-    if (esDelAnterior(v) && porLoQueSeVio(paso.herramienta, paso.param, codigos, agendasDelAnterior(contexto))) return [];
     const elegidas = contexto.zonas_elegidas?.[String(k + 1)] ?? {};
     codigos = codigos.filter((c) => !elegidas[c] && !elegidas['*']);
     if (!codigos.length) return [];
+    // Sobre lo que se vio: de cada oficina con VARIAS agendas a la vista, ¿a cuál? (con una, a esa)
+    let sinVer = codigos;
+    let porElegir: PorElegir[] = [];
+    if (esDelAnterior(v)) {
+      const vistas = deLasOficinas(agendasDelAnterior(contexto), codigos, conAgenda.tipo(paso.param));
+      porElegir = agendasPorElegir(vistas, codigos, conAgenda.tipo(paso.param));
+      sinVer = codigos.filter((c) => !vistas.some((a) => a.codigo === c));
+    }
+    // Sin nada a la vista: las zonas de despacho u OPL, de lo conocido o buscándolas
+    const tipo = tipoConZona(paso.herramienta, paso.param);
+    if (!tipo || !sinVer.length) return porElegir;
+    codigos = sinVer;
     let conocidas = deLasOficinas(agendasConocidas(contexto), codigos, tipo);
     const sinSaber = codigos.filter((c) => !conocidas.some((a) => a.codigo === c));
     if (sinSaber.length) {
@@ -186,7 +206,7 @@ export class EjecucionV3Service {
         // Sin poder leerlas, la edición dirá lo que haga falta
       }
     }
-    return oficinasConVariasZonas(conocidas, codigos);
+    return [...porElegir, ...oficinasConVariasZonas(conocidas, codigos)];
   }
 
   /**
@@ -313,9 +333,10 @@ export class EjecucionV3Service {
 
     // La agenda que eligió Armar, con su nombre y su zona exactos, solo en las oficinas que la tienen
     // Un cambio sobre lo del anterior: a las agendas que se vieron; si no, a la zona que eligió la persona; si no, por agenda
-    const delAnterior = h.edicion && esDelAnterior(h.lista ? paso.param[h.lista] : undefined) ? porLoQueSeVio(h.id, plano0, codigos, agendasDelAnterior(contexto)) : null;
-    const elegida = !delAnterior && h.edicion && !plano0.zona && !plano0.agenda ? porZonaElegida(codigos, contexto.zonas_elegidas?.[String(hechos.length + 1)]) : null;
-    const { grupos, notas: deAgenda, nombres }: { grupos: Grupo[]; notas: string[]; nombres?: string[] } = delAnterior ?? elegida ?? porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
+    // Un cambio sin agenda ni zona: lo que eligió la persona o, sobre lo del anterior, la agenda que se vio
+    const vistas = h.edicion && esDelAnterior(h.lista ? paso.param[h.lista] : undefined) ? agendasDelAnterior(contexto) : [];
+    const elegido = h.edicion ? porEleccion(h.id, plano0, codigos, vistas, contexto.zonas_elegidas?.[String(hechos.length + 1)]) : null;
+    const { grupos, notas: deAgenda, nombres }: { grupos: Grupo[]; notas: string[]; nombres?: string[] } = elegido ?? porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
     notas = [...notas, ...deAgenda];
     const partes: Array<Record<string, unknown>> = [];
     for (const g of grupos) {
@@ -325,7 +346,13 @@ export class EjecucionV3Service {
         const dto = plainToInstance(h.dto, plano, { enableImplicitConversion: true });
         const fallos = await validate(dto as object, { whitelist: true });
         if (fallos.length) throw new Error(`Los datos no valen para ${h.id}: ${fallos.flatMap((f) => Object.values(f.constraints ?? {})).join('; ')}`);
-        partes.push((await this.llamar(usuario, h.id, dto)) as Record<string, unknown>);
+        try {
+          partes.push((await this.llamar(usuario, h.id, dto)) as Record<string, unknown>);
+        } catch (e) {
+          // Varias llamadas de un cambio: una que falla ("ya estaba así") no se lleva las demás
+          if (!h.edicion || grupos.length < 2 || !CAPACIDAD_EDITABLE.has(h.id)) throw e;
+          partes.push(sinCambioDe(tanda, g.extra, (e as Error).message));
+        }
       }
     }
     let datos: Record<string, unknown> = juntar(partes);
