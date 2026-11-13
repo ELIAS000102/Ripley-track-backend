@@ -82,12 +82,13 @@ export class ConsultasAgenteController {
    */
   @Get('configuracion')
   configuracion(@Usuario() usuario?: UsuarioAutenticado) {
-    // La v3 solo para quien la prueba (AGENTE_V3_PROBADORES): al resto ni se le nombra
-    const v3 = this.config.get<{ webhookUrl: string; probadores: string[] }>('agente.v3');
-    const probador = Boolean(usuario?.email && v3?.webhookUrl && v3.probadores.includes(usuario.email.toLowerCase()));
+    // La v3 solo para quien la prueba (AGENTE_V3_PROBADORES): al resto ni se le nombra. Ya no
+    // tiene webhook: vive en el backend (POST /agente/v3/mensajes), sin n8n
+    const v3 = this.config.get<{ probadores: string[] }>('agente.v3');
+    const probador = Boolean(usuario?.email && v3?.probadores.includes(usuario.email.toLowerCase()));
     return {
       webhookUrl: this.config.get<string>('agente.webhookUrl') ?? '',
-      v3: probador ? { webhookUrl: v3!.webhookUrl } : null,
+      v3: probador ? { ruta: '/agente/v3/mensajes' } : null,
     };
   }
 
