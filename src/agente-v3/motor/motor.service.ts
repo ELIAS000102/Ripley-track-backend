@@ -4,6 +4,7 @@ import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js
 import { AgenteV3Service } from '../agente-v3.service.js';
 import type { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from '../dto/turnos.dto.js';
 import type { RespuestaPanel, RolModelo, SalidaRuta } from '../interfaces/agente-v3.interface.js';
+import { esRespuesta } from '../preguntas.js';
 import { GeminiService } from './gemini.service.js';
 
 /**
@@ -49,14 +50,47 @@ export class MotorV3Service {
     private readonly interrupcion: InterrupcionAgenteService,
   ) {}
 
-  /** Un mensaje nuevo, de principio a fin (o hasta una pregunta) */
-  mensaje(usuario: UsuarioAutenticado, dto: CrearTurnoDto): AsyncGenerator<EventoV3> {
-    return this.recorrer(usuario, () => this.agente.crear(usuario, dto), dto.peticion_id);
+  /**
+   * Un mensaje nuevo, de principio a fin (o hasta una pregunta). Si el chat
+   * tiene una pregunta esperando: lo escrito la contesta si es su respuesta;
+   * si no, aquel turno se cierra y este empieza.
+   */
+  async *mensaje(usuario: UsuarioAutenticado, dto: CrearTurnoDto): AsyncGenerator<EventoV3> {
+    // Si no se puede mirar, se sigue como mensaje nuevo
+    let pendiente: Awaited<ReturnType<AgenteV3Service['pendienteDelChat']>> = null;
+    try {
+      pendiente = await this.agente.pendienteDelChat(usuario, dto.chat_id);
+    } catch {
+      pendiente = null;
+    }
+    if (pendiente?.contexto?.pregunta) {
+      if (esRespuesta(pendiente.contexto.pregunta, { texto: dto.mensaje })) {
+        yield* this.recorrer(usuario, () => this.agente.respuesta(usuario, pendiente.id, { texto: dto.mensaje }), dto.peticion_id);
+        return;
+      }
+      await this.agente.cerrarPendiente(usuario, pendiente.id).catch((e: Error) => this.logger.warn(`No se pudo cerrar el turno ${pendiente.id}: ${e.message}`));
+    }
+    yield* this.recorrer(usuario, () => this.agente.crear(usuario, dto), dto.peticion_id);
   }
 
-  /** Lo que contestó la persona a la pregunta de un turno: sigue donde estaba */
-  contestar(usuario: UsuarioAutenticado, turnoId: string, dto: RespuestaPersonaDto, peticionId?: string): AsyncGenerator<EventoV3> {
-    return this.recorrer(usuario, () => this.agente.respuesta(usuario, turnoId, dto), peticionId);
+  /**
+   * Lo que contestó la persona a la pregunta de un turno: sigue donde estaba.
+   * Si lo que escribió no es una respuesta a esa pregunta, es un mensaje nuevo.
+   */
+  async *contestar(usuario: UsuarioAutenticado, turnoId: string, dto: RespuestaPersonaDto, peticionId?: string): AsyncGenerator<EventoV3> {
+    let turno: Awaited<ReturnType<AgenteV3Service['obtener']>> | null = null;
+    try {
+      turno = await this.agente.obtener(usuario, turnoId);
+    } catch {
+      turno = null;
+    }
+    const p = turno?.estado === 'pregunta' ? turno.contexto?.pregunta : null;
+    if (turno && p && dto.texto && !esRespuesta(p, dto)) {
+      await this.agente.cerrarPendiente(usuario, turnoId);
+      yield* this.recorrer(usuario, () => this.agente.crear(usuario, { mensaje: dto.texto!, chat_id: turno.chat_id, peticion_id: peticionId }), peticionId);
+      return;
+    }
+    yield* this.recorrer(usuario, () => this.agente.respuesta(usuario, turnoId, dto), peticionId);
   }
 
   /** Todo el recorrido, en una lista (para quien no lee el flujo: pruebas, herramientas) */

@@ -83,3 +83,11 @@ export class RespuestaPersonaDto {
   @IsBoolean()
   caducada?: boolean;
 }
+
+/** La respuesta a una pregunta, desde el panel (sin n8n): con la petición, para "Detener" */
+export class ContestarDto extends RespuestaPersonaDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  peticion_id?: string;
+}

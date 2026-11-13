@@ -658,6 +658,26 @@ export class AgenteV3Service {
     return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
   }
 
+  /** El turno del chat que espera respuesta (si lo hay) */
+  pendienteDelChat(usuario: UsuarioAutenticado, chatId: string): Promise<Turno | null> {
+    return this.turnos.pendienteDelChat(chatId, usuario.id);
+  }
+
+  /**
+   * Una pregunta que no se contestó porque llegó otro mensaje: el turno se
+   * cierra; lo que ya tenía (los pasos hechos) queda en el chat.
+   */
+  async cerrarPendiente(usuario: UsuarioAutenticado, id: string): Promise<void> {
+    const turno = await this.turnos.obtener(id, usuario.id);
+    if (turno.estado !== 'pregunta') return;
+    turno.contexto = { ...turno.contexto!, pregunta: null };
+    if ((turno.pasos ?? []).some((p) => p.estado !== 'error')) {
+      await this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
+      return;
+    }
+    await this.turnos.actualizar(turno.id, { estado: 'cancelado', etapa: 'reemplazada', contexto: turno.contexto });
+  }
+
   /** "Detener": el turno se cierra como cancelado, esté donde esté (no sigue con lo que faltaba) */
   async detener(usuario: UsuarioAutenticado, id: string): Promise<SalidaRuta> {
     const turno = await this.turnos.obtener(id, usuario.id);

@@ -28,6 +28,23 @@ export class TurnosService {
     return data as Turno;
   }
 
+  /** El turno de ese chat que espera una respuesta de la persona (el último), si lo hay */
+  async pendienteDelChat(chatId: string, usuarioId: string): Promise<Turno | null> {
+    const { data, error } = await this.supabase.admin
+      .from('agente_turnos')
+      .select('*')
+      .eq('chat_id', chatId)
+      .eq('usuario_id', usuarioId)
+      .eq('estado', 'pregunta')
+      .order('creado_en', { ascending: false })
+      .limit(1);
+    if (error) {
+      this.logger.warn(`No se pudo mirar si el chat ${chatId} tiene una pregunta pendiente: ${error.message}`);
+      return null;
+    }
+    return ((data ?? [])[0] as Turno | undefined) ?? null;
+  }
+
   async actualizar(id: string, cambios: Partial<Turno>): Promise<void> {
     const { error } = await this.supabase.admin
       .from('agente_turnos')

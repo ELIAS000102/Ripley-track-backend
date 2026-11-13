@@ -8,6 +8,7 @@ import { AprendizajeService } from './aprender/aprendizaje.service.js';
 import { ContextoV3Service } from './contexto.service.js';
 import { EjecucionV3Service } from './ejecucion.service.js';
 import { GeminiService } from './motor/gemini.service.js';
+import { MensajesV3Controller } from './motor/mensajes.controller.js';
 import { MotorV3Service } from './motor/motor.service.js';
 import { TurnosService } from './turnos.service.js';
 
@@ -24,7 +25,7 @@ import { TurnosService } from './turnos.service.js';
  */
 @Module({
   imports: [AgenteModule, AtajosModule],
-  controllers: [AgenteV3Controller],
+  controllers: [AgenteV3Controller, MensajesV3Controller],
   providers: [AgenteV3Service, TurnosService, ContextoV3Service, EjecucionV3Service, AprendizajeService, GeminiService, MotorV3Service, SinRastroInterceptor],
 })
 export class AgenteV3Module {}

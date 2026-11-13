@@ -76,6 +76,24 @@ export function respuestaDeAprender(p: Pregunta, r: Contestacion): { si: true } 
   return texto ? { corrige: texto } : { nada: true };
 }
 
+const planoTexto = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * ¿Lo escrito contesta la pregunta pendiente, o es un mensaje nuevo?
+ * (decisión del usuario, 2026-11-13). Elegir, cancelar o una pregunta que
+ * admite texto (lo que falta, "¿de otra forma?", corregir lo aprendido): la
+ * contesta. Una pregunta de opciones (qué zona): solo si lo escrito es una de
+ * sus opciones; si no, es un mensaje nuevo.
+ */
+export function esRespuesta(p: Pregunta, r: Contestacion): boolean {
+  if (r.cancelar || (r.respuestas && Object.keys(r.respuestas).length)) return true;
+  const t = planoTexto(r.texto);
+  if (!t) return false;
+  if (p.libre !== null && !p.dudas?.length) return true;
+  const opciones = [...p.opciones, ...(p.dudas ?? []).flatMap((d) => d.opciones)];
+  return opciones.some((o) => planoTexto(o.texto) === t || planoTexto(o.id) === t);
+}
+
 export interface Contestacion {
   respuestas?: Record<string, unknown>;
   texto?: string;
