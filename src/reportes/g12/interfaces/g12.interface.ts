@@ -147,6 +147,53 @@ export interface RespuestaSimulacionG12 {
   mensaje: string | null;
 }
 
+/** Una regla del cálculo de Ripley, con los días que suma a la entrega (como en el apartado Simulación) */
+export interface PasoSimulacionG12 {
+  /** El nodo: "warehouse" (sucursal de stock) o "courier" (operador logístico) */
+  tipo: string;
+  funcion: string;
+  activo: boolean;
+  /** La fecha que arrastra la regla, tal como la manda Ripley */
+  fecha: string;
+  diasAgregados: number;
+  /** La entrega parcial después de la regla, YYYY-MM-DD */
+  fechaParcial: string;
+}
+
+/** Un tramo del recorrido físico del pedido: de qué nodo a cuál, y cuándo cada cosa */
+export interface TramoRecorridoG12 {
+  secuencia: number | null;
+  origen: string | null;
+  origenNombre: string | null;
+  destino: string | null;
+  destinoNombre: string | null;
+  planificacionPicking: string | null;
+  picking: string | null;
+  transferenciaOpl: string | null;
+  transferencia: string | null;
+  recepcion: string | null;
+  despacho: string | null;
+}
+
+/**
+ * Por qué sale esa fecha: de la venta a la entrega, la opción del simulador que
+ * da la fecha de la fila. Solo de esa opción, no de todas: son ~160 simulaciones
+ * por actualización y el resto no se mira.
+ */
+export interface TrazaSimulacionG12 {
+  fechaVenta: string | null;
+  fechaEntrega: string | null;
+  horaCorte: string | null;
+  almacen: string | null;
+  operador: string | null;
+  tamano: string | null;
+  bultos: number | null;
+  /** La suma de los días que agregan los pasos: de la venta a la entrega */
+  diasTotales: number;
+  pasos: PasoSimulacionG12[];
+  recorrido: TramoRecorridoG12[];
+}
+
 /** Lo que devolvió un ítem de simulación */
 export interface SimulacionG12 {
   servicio: string;
@@ -163,6 +210,8 @@ export interface SimulacionG12 {
   /** No se pidió: la muestra del bloque no dio fecha */
   omitida?: boolean;
   meta?: MetaPeticionG12;
+  /** De la venta a la entrega, la opción que da la fecha: los pasos del cálculo y el recorrido. Falta en las de antes */
+  traza?: TrazaSimulacionG12 | null;
   /** Todo lo que devolvió Ripley; solo va en el registro de peticiones, no en las filas */
   respuesta?: RespuestaSimulacionG12 | null;
 }

@@ -23,7 +23,9 @@ import type {
   RespuestaSimulacionG12,
   SimulacionG12,
   TipoBloqueG12,
+  TrazaSimulacionG12,
 } from './interfaces/g12.interface.js';
+import type { PasoFulfillment } from '../../simulacion/interfaces/simulacion.interface.js';
 
 /**
  * **De 4 en 4** (decisión del usuario, 2026-11-10). Primero iba de una en una;
@@ -437,12 +439,26 @@ function cupoSemanal(item: ItemG12): Array<number | null> {
   return DIAS_SEMANA.map((d) => (item.campos[d] === undefined ? null : Number(item.campos[d])));
 }
 
+/** Una opción del simulador tal como la deja `SimulacionService.normalizar` */
+type OpcionNormalizada = {
+  fechaEntrega?: string | null;
+  fechaVenta?: string | null;
+  horaCorte?: string | null;
+  almacen?: unknown;
+  courier?: unknown;
+  tamano?: unknown;
+  bultos?: unknown;
+  diasTotales?: number;
+  pasos?: Array<{ tipo?: string; funcion?: string; activo?: boolean; fecha?: string; diasAgregados?: number; fechaParcial?: string }>;
+  recorrido?: Array<Partial<PasoFulfillment>>;
+};
+
 type RespuestaNormalizada = {
   resultados?: Array<{
     typeOfService?: string;
     agenda?: string | null;
     zona?: string | null;
-    opciones?: Array<{ fechaEntrega?: string | null; horaCorte?: string | null; almacen?: unknown; courier?: unknown; tamano?: unknown }>;
+    opciones?: OpcionNormalizada[];
   }>;
   errores?: unknown[];
   mensaje?: string;
@@ -459,16 +475,60 @@ const errores = (r: RespuestaNormalizada) =>
  * La fecha se lee tal cual la devuelve Ripley (su parte de día), igual que la
  * enseña el apartado de Simulación: las dos vistas tienen que coincidir.
  */
-export function fechaDelServicio(respuesta: RespuestaNormalizada, servicio: string): Pick<SimulacionG12, 'fecha' | 'agenda' | 'zona' | 'mensaje'> {
+export function fechaDelServicio(respuesta: RespuestaNormalizada, servicio: string): Pick<SimulacionG12, 'fecha' | 'agenda' | 'zona' | 'mensaje' | 'traza'> {
   const resultado = (respuesta.resultados ?? []).find((r) => (r.typeOfService ?? '').toUpperCase() === servicio);
-  const fechas = (resultado?.opciones ?? []).map((o) => o.fechaEntrega).filter((f): f is string => !!f).map((f) => f.slice(0, 10)).sort();
+  // La opción con la primera fecha: la que da la fecha de la fila, y su traza
+  const conFecha = (resultado?.opciones ?? []).filter((o) => !!o.fechaEntrega)
+    .sort((a, b) => a.fechaEntrega!.slice(0, 10).localeCompare(b.fechaEntrega!.slice(0, 10)));
 
-  if (fechas.length) return { fecha: fechas[0], agenda: resultado?.agenda ?? null, zona: resultado?.zona ?? null, mensaje: null };
+  if (conFecha.length) {
+    return { fecha: conFecha[0].fechaEntrega!.slice(0, 10), agenda: resultado?.agenda ?? null, zona: resultado?.zona ?? null, mensaje: null, traza: trazaDe(conFecha[0]) };
+  }
 
   const devueltos = (respuesta.resultados ?? []).map((r) => r.typeOfService).filter(Boolean);
   const mensaje = errores(respuesta).join(' · ') || respuesta.mensaje?.trim()
     || (resultado ? 'Ripley no devolvió ninguna fecha' : `Ripley no devolvió el servicio ${servicio}${devueltos.length ? ` (devolvió ${devueltos.join(', ')})` : ''}`);
   return { fecha: null, agenda: resultado?.agenda ?? null, zona: resultado?.zona ?? null, mensaje };
+}
+
+/**
+ * De la venta a la entrega: los pasos del cálculo (con los días que suma cada
+ * uno, ya calculados por `tiempoAgregado`) y el recorrido físico del pedido.
+ */
+export function trazaDe(o: OpcionNormalizada): TrazaSimulacionG12 {
+  const texto = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v));
+  const numero = (v: unknown) => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  return {
+    fechaVenta: texto(o.fechaVenta),
+    fechaEntrega: texto(o.fechaEntrega),
+    horaCorte: texto(o.horaCorte),
+    almacen: texto(o.almacen),
+    operador: texto(o.courier),
+    tamano: texto(o.tamano),
+    bultos: numero(o.bultos),
+    diasTotales: Number(o.diasTotales ?? 0) || 0,
+    pasos: (o.pasos ?? []).map((p) => ({
+      tipo: String(p.tipo ?? ''),
+      funcion: String(p.funcion ?? ''),
+      activo: !!p.activo,
+      fecha: String(p.fecha ?? ''),
+      diasAgregados: Number(p.diasAgregados ?? 0) || 0,
+      fechaParcial: String(p.fechaParcial ?? ''),
+    })),
+    recorrido: (o.recorrido ?? []).map((f) => ({
+      secuencia: numero(f.sequence),
+      origen: texto(f.warehouse),
+      origenNombre: texto(f.warehouseName),
+      destino: texto(f.destinationNode),
+      destinoNombre: texto(f.destinationName),
+      planificacionPicking: texto(f.planningPickingDate),
+      picking: texto(f.pickingDate),
+      transferenciaOpl: texto(f.transferToOPLDate),
+      transferencia: texto(f.transferDate),
+      recepcion: texto(f.receptionDate),
+      despacho: texto(f.dispatchDay),
+    })),
+  };
 }
 
 /** Todo lo que devolvió el simulador, por servicio, con las cinco primeras opciones de cada uno */

@@ -212,6 +212,29 @@ describe('El ejecutor del G12', () => {
     ] }, 'S')).toMatchObject({ fecha: '2026-11-11' });
     expect(fechaDelServicio({ resultados: [], mensaje: '' }, 'EX')).toMatchObject({ fecha: null, mensaje: 'Ripley no devolvió el servicio EX' });
   });
+
+  it('la traza es la de la opción que da la fecha: venta, pasos con sus días y recorrido', () => {
+    const r = fechaDelServicio({ resultados: [{ typeOfService: 'ST', opciones: [
+      { fechaEntrega: '2026-11-18T05:00:00.000Z', fechaVenta: '2026-11-13T10:00:00.000Z', pasos: [] },
+      {
+        fechaEntrega: '2026-11-16T05:00:00.000Z', fechaVenta: '2026-11-13T10:00:00.000Z', horaCorte: '14:00', courier: '20048', almacen: '20026', tamano: 'M', bultos: 1, diasTotales: 3,
+        pasos: [
+          { tipo: 'warehouse', funcion: 'Horario de corte', activo: true, fecha: '2026-11-13T10:00:00.000Z', diasAgregados: 0, fechaParcial: '2026-11-13' },
+          { tipo: 'courier', funcion: 'Plazo transferencia', activo: true, fecha: '2026-11-16T00:00:00.000Z', diasAgregados: 3, fechaParcial: '2026-11-16' },
+        ],
+        recorrido: [{ sequence: 1, warehouse: '20026', warehouseName: 'CD', destinationNode: '20048', destinationName: 'Breña', pickingDate: '13/11/2026', transferDate: '14/11/2026', receptionDate: '16/11/2026', dispatchDay: '' }],
+      },
+    ] }] }, 'ST');
+
+    expect(r.fecha).toBe('2026-11-16');
+    expect(r.traza).toMatchObject({
+      fechaVenta: '2026-11-13T10:00:00.000Z', diasTotales: 3, horaCorte: '14:00', operador: '20048', almacen: '20026', bultos: 1,
+      pasos: [{ funcion: 'Horario de corte', diasAgregados: 0 }, { funcion: 'Plazo transferencia', diasAgregados: 3, fechaParcial: '2026-11-16' }],
+      recorrido: [{ secuencia: 1, origen: '20026', destinoNombre: 'Breña', picking: '13/11/2026', recepcion: '16/11/2026', despacho: null }],
+    });
+    // Sin fecha no hay de qué contar el porqué
+    expect(fechaDelServicio({ resultados: [{ typeOfService: 'ST', opciones: [] }] }, 'ST').traza).toBeUndefined();
+  });
 });
 
 describe('El reporte G12', () => {
