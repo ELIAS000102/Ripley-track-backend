@@ -138,7 +138,7 @@ export class EjecucionV3Service {
     const paso = plan.pasos[k];
     const n = k + 1;
     const t0 = Date.now();
-    const base = { n, que: queEs(paso), herramienta: paso.herramienta };
+    const base = { n, que: queEs(paso, contexto.pais), herramienta: paso.herramienta };
     try {
       // Un paso que usa lo de otro que falló no se hace
       const refs = Object.values(paso.param).filter((v) => v && typeof v === 'object' && (v as { ref?: string }).ref === 'paso') as Array<{ n: number; sin?: number }>;
@@ -146,6 +146,7 @@ export class EjecucionV3Service {
       if (fallido) throw new Error(`no se hizo: dependía del paso ${fallido}, que falló`);
 
       let datos = paso.herramienta === 'calcular' ? this.calcular(plan, contexto) : await this.correr(usuario, paso, hechos, contexto);
+      await this.conNombres(datos, String(paso.param.pais ?? contexto.pais));
       // Un cambio: las filas "dónde · día · ahora · quedaría" van con los datos (el panel las dibuja tal cual)
       if (herramienta(paso.herramienta)?.edicion && datos && typeof datos === 'object') datos = { ...(datos as object), vista: filasDelCambio(paso.herramienta, datos) };
       const salida: Partial<PasoEjecutado> = {};
@@ -162,6 +163,28 @@ export class EjecucionV3Service {
     } catch (e) {
       const error = enClaro((e as Error).message || 'falló');
       return { ...base, estado: 'error', resumen: error, error, ms: Date.now() - t0 };
+    }
+  }
+
+  /**
+   * La capacidad de picking llega con la oficina solo por su código ("20021"):
+   * se le pone el nombre del directorio ("20021 - Ripley Chorrillos"), como ya
+   * viene en despacho. Así la frase y la tabla dicen qué tienda es. Si el
+   * directorio no responde, se queda el código.
+   */
+  private async conNombres(datos: unknown, pais: string): Promise<void> {
+    const sueltas = oficinasConCapacidad(datos).filter((o) => /^\d{3,6}$/.test(String(o.oficina ?? '').trim()));
+    if (!sueltas.length) return;
+    try {
+      const codigos = [...new Set(sueltas.map((o) => String(o.oficina).trim()))];
+      const { data } = await this.supabase.admin.from('agente_entidades').select('codigo, nombre').eq('pais', pais).in('codigo', codigos);
+      const nombres = new Map(((data ?? []) as Array<{ codigo: string; nombre: string | null }>).filter((e) => e.nombre).map((e) => [e.codigo, e.nombre!]));
+      for (const o of sueltas) {
+        const nombre = nombres.get(String(o.oficina).trim());
+        if (nombre) o.oficina = `${String(o.oficina).trim()} - ${nombre}`;
+      }
+    } catch {
+      // Sin nombres: la tabla sigue con los códigos
     }
   }
 
@@ -428,4 +451,13 @@ export class EjecucionV3Service {
       throw e;
     }
   }
+}
+
+/** Las oficinas de una capacidad: la de una consulta o las de los bloques de un atajo */
+function oficinasConCapacidad(datos: unknown): Array<{ oficina: string }> {
+  const d = datos as { oficinas?: unknown; bloques?: Array<{ items?: Array<{ resultado?: { oficinas?: unknown } }> }> } | null;
+  if (!d || typeof d !== 'object') return [];
+  const de = (v: unknown) => (Array.isArray(v) ? (v as Array<{ oficina: string }>).filter((o) => o && typeof o === 'object') : []);
+  if (Array.isArray(d.oficinas)) return de(d.oficinas);
+  return (Array.isArray(d.bloques) ? d.bloques : []).flatMap((b) => (b.items ?? []).flatMap((i) => de(i.resultado?.oficinas)));
 }

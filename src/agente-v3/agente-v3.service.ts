@@ -22,7 +22,7 @@ import { planDe, serviciosNombrados, type QueSigue } from './plan.js';
 import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAprender } from './preguntas.js';
 import { armarRespuesta, intermedios, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
 import { atajoEsperado, atajosNombrados, motivoNoTrae, NO_TRAE, QUE_TRAE, sinTraer } from './atajos.js';
-import { leerPresentacion, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
+import { leerPresentacion, nombresLargos, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
 import { TurnosService } from './turnos.service.js';
 import { queEs } from './que.js';
 import { preguntaDeZonas, zonasDeLaRespuesta } from './zonas.js';
@@ -441,7 +441,8 @@ export class AgenteV3Service {
     if (turno.contexto?.presentado) return false;
     const conDatos = (turno.pasos ?? []).filter((p) => p.estado !== 'error');
     if (!conDatos.length) return false;
-    return conDatos.length > 1 || PIDE_FORMA.test(mensajeDe(turno));
+    // Varios resultados, una forma pedida, o nombres que no caben bien en la tabla (se acortan)
+    return conDatos.length > 1 || PIDE_FORMA.test(mensajeDe(turno)) || nombresLargos(conDatos).length > 0;
   }
 
   /** Cómo enseñar cada resultado y la frase natural, validados; si no vale, otro intento; agotados, lo del código */

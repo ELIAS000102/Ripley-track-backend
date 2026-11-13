@@ -264,6 +264,7 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
     resultados,
     markdown: [texto, ...cuerpo].join('\n\n'),
     ver: ver ?? null,
+    ...(pres?.etiquetas && Object.keys(pres.etiquetas).length ? { etiquetas: pres.etiquetas } : {}),
     pasos: pasos.map(({ n, que, estado, resumen, ms }) => ({ n, que, estado, resumen, ms })),
   };
 }

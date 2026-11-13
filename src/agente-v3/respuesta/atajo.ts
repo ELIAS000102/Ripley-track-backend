@@ -63,14 +63,17 @@ function fraseCapacidad(b: BloqueEjecutado, hoy: string): string {
   if (!agendas.length) return 'sin datos';
   const fechas = [...new Set(agendas.flatMap(({ a }) => a.dias.map((d) => d.fecha)))].sort();
   const rango = fechas.length > 1 ? ` del ${ddmm(fechas[0])} al ${ddmm(fechas.at(-1))}` : fechas.length ? ` el ${ddmm(fechas[0])}` : '';
-  const partes = [`${oficinas.length} ${oficinas.length === 1 ? 'oficina' : 'oficinas'}${rango}`];
+  // "Todas las tiendas": muchas no tienen agendas de ese servicio; se cuentan las que sí
+  const conAgendas = oficinas.filter((o) => o.agendas.length).length;
+  const cuantas = (n: number) => `${n} ${n === 1 ? 'oficina' : 'oficinas'}`;
+  const partes = [conAgendas === oficinas.length ? `${cuantas(oficinas.length)}${rango}` : `${cuantas(conAgendas)} con agendas${rango} (de ${oficinas.length} consultadas)`];
   const hoyCerradas = agendas.filter(({ a }) => a.dias.find((d) => d.fecha === hoy && !d.activo)).length;
   if (hoyCerradas && hoyCerradas === agendas.length) partes.push(`hoy (${ddmm(hoy)}) cerradas`);
-  else if (hoyCerradas) partes.push(`${hoyCerradas} cerradas hoy`);
+  else if (hoyCerradas) partes.push(`${hoyCerradas} ${hoyCerradas === 1 ? 'agenda cerrada' : 'agendas cerradas'} hoy`);
   const llenas = agendas.flatMap(({ o, a }) => a.dias.filter(sinCupo).map((d) => `${nombreCorto(o.oficina)} (${ddmm(d.fecha)})`));
   partes.push(llenas.length ? `sin cupo ${algunos([...new Set(llenas)])}` : `${hoyCerradas && hoyCerradas === agendas.length ? 'los demás días, ' : ''}con cupo`);
   const cerradasSiempre = agendas.filter(({ a }) => a.dias.length && a.dias.every((d) => !d.activo)).length;
-  if (cerradasSiempre && cerradasSiempre < agendas.length) partes.push(`${cerradasSiempre} cerradas todos los días`);
+  if (cerradasSiempre && cerradasSiempre < agendas.length) partes.push(`${cerradasSiempre} ${cerradasSiempre === 1 ? 'cerrada' : 'cerradas'} todos los días`);
   return partes.join('; ');
 }
 

@@ -43,6 +43,8 @@ export interface Presentacion {
   orden: number[];
   /** La frase en lenguaje natural (con cada cifra comprobada en los datos); null: la del código */
   frase: string | null;
+  /** Nombres largos de las tablas, acortados ("Agenda Picking DT - 20021" → "Picking DT"), comprobados */
+  etiquetas?: Record<string, string>;
 }
 
 /** Uno de los nodos Gemini del flujo: un modelo de una cuenta */
@@ -332,6 +334,8 @@ export interface RespuestaPanel {
   dudas?: DudaPanel[];
   /** Cómo pidió verlo la persona: "totales" (un cuadro de totales), "cuadro" o "uso" */
   ver?: string | null;
+  /** Los nombres largos de las tablas, acortados por Presentar: el panel los usa en lugar del largo */
+  etiquetas?: Record<string, string>;
 }
 
 /** Lo que contestan todas las rutas: n8n solo mira `camino` */

@@ -1,4 +1,5 @@
 import { primerJson, type Lectura } from '../clasificar/leer.js';
+import { herramienta } from '../herramientas.js';
 import type { PasoEjecutado, Presentacion, Vista } from '../interfaces/agente-v3.interface.js';
 
 /**
@@ -19,10 +20,54 @@ Para cada resultado elige su "vista" (solo de las que tiene permitidas):
 - "plegado": la tabla se guarda plegada, para quien la quiera ver (lo intermedio, lo que no pidió ver).
 Y el "orden": primero lo que pidió primero.
 
-La "frase": una o dos oraciones naturales, en español claro y cercano, que contesten lo que pidió en su orden. USA SOLO las cifras, códigos y nombres que aparecen en lo que dicen los resultados: no calcules, no redondees, no inventes, no añadas datos. Sin tablas ni listas. No nombres los pasos por dentro («Búsqueda masiva de…», «Cálculo con lo del mensaje anterior»): di de qué es (la RE, la RT, el Big Ticket Lima) o "lo que te traje antes".
+La "frase": una o dos oraciones naturales, en español claro y cercano, que contesten lo que pidió en su orden, como se lo diría una compañera del equipo. NO copies la frase del sistema: cuéntalo con tus palabras (sin punto y coma, sin "con 1 cerradas"; concuerda el singular y el plural). Lo importante primero (lo que está cerrado o sin cupo), y la tienda por su nombre con el código entre paréntesis si lo tienes ("Plaza Norte (20025)"). USA SOLO las cifras, códigos y nombres que aparecen en lo que dicen los resultados: no calcules, no redondees, no inventes, no añadas datos. Sin tablas ni listas. No nombres los pasos por dentro («Búsqueda masiva de…», «Cálculo con lo del mensaje anterior»): di de qué es (la RE, la RT, el Big Ticket Lima) o "lo que te traje antes".
+
+Las "etiquetas": si abajo hay NOMBRES LARGOS DE LAS TABLAS, dale a cada uno un nombre corto para la columna (como mucho 24 letras) hecho SOLO con sus propias palabras o abreviándolas, quitando lo que ya dice su grupo o se repite (el código de la tienda, "Agenda", el servicio repetido): "Agenda Picking DT - 20021" → "Picking DT"; "Centralizado HUB San Luis - Zona Sur" → "Centralizado San Luis Sur". Si no hay, {}.
 
 Responde SOLO con un JSON, sin texto alrededor:
-{"resultados": [{"n": 1, "vista": "..."}], "orden": [1], "frase": "..."}`;
+{"resultados": [{"n": 1, "vista": "..."}], "orden": [1], "frase": "...", "etiquetas": {}}`;
+
+/** Lo que es "largo" para una columna de la tabla */
+const LARGO = 30;
+const MAX_ETIQUETAS = 60;
+
+/** Los nombres de agenda y de zona de los resultados que no caben bien en la tabla */
+export function nombresLargos(pasos: PasoEjecutado[]): string[] {
+  const vistos = new Set<string>();
+  const recorrer = (v: unknown, hondo: number): void => {
+    if (!v || typeof v !== 'object' || hondo > 8 || vistos.size >= MAX_ETIQUETAS) return;
+    if (Array.isArray(v)) return v.forEach((x) => recorrer(x, hondo + 1));
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if ((k === 'agenda' || k === 'zona') && typeof x === 'string' && x.trim().length > LARGO) vistos.add(x.trim());
+      else if (x && typeof x === 'object') recorrer(x, hondo + 1);
+    }
+  };
+  // Los cambios tienen su propia tabla (dónde · día · ahora · quedaría): no se acortan
+  for (const p of pasos) if (p.estado !== 'error' && !herramienta(p.herramienta)?.edicion) recorrer(p.datos, 0);
+  return [...vistos].slice(0, MAX_ETIQUETAS);
+}
+
+const fichas = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+
+/**
+ * Los nombres cortos que propuso el modelo, uno por uno: solo para nombres que
+ * existen, más cortos, y hechos con sus propias palabras (enteras o abreviadas:
+ * "Centr." de "Centralizado"); una cifra tiene que estar tal cual. Lo que no
+ * cumple se descarta (queda el nombre largo); no tumba lo demás.
+ */
+export function leerEtiquetas(v: unknown, largos: string[]): Record<string, string> {
+  const fuera: Record<string, string> = {};
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return fuera;
+  for (const [largo, corto] of Object.entries(v as Record<string, unknown>)) {
+    if (!largos.includes(largo) || typeof corto !== 'string') continue;
+    const c = corto.trim().replace(/\s+/g, ' ');
+    if (c.length < 2 || c.length > 32 || c.length >= largo.length) continue;
+    const suyas = fichas(largo);
+    const vale = fichas(c).every((w) => (/^\d+$/.test(w) ? suyas.includes(w) : suyas.some((s) => s === w || (w.length >= 2 && s.startsWith(w)))));
+    if (vale) fuera[largo] = c;
+  }
+  return fuera;
+}
 
 /** Las vistas que tiene cada herramienta */
 export function vistasDe(herramienta: string): Vista[] {
@@ -37,6 +82,7 @@ export function vistasDe(herramienta: string): Vista[] {
 export const PIDE_FORMA = /\b(cuadro|tabla|total(es)?|resum\w*|solo|detall\w*|porcentaje|uso|cu[aá]nt[oa]s|lista\w*)\b/i;
 
 export function promptPresentar(mensaje: string, pasos: PasoEjecutado[], intermedios: Set<number>, fraseDelCodigo: string): { sistema: string; mensaje: string } {
+  const largos = nombresLargos(pasos);
   const lineas = pasos.filter((p) => p.estado !== 'error').map((p) => [
     `- Resultado ${p.n}: ${p.que}${intermedios.has(p.n) ? ' (intermedio: da sus códigos a otro paso)' : ''}${p.comprobacion ? ' (es una comprobación)' : ''}`,
     `  Lo que dice: ${p.resumen}`,
@@ -50,8 +96,8 @@ export function promptPresentar(mensaje: string, pasos: PasoEjecutado[], interme
 LOS RESULTADOS
 ${lineas.join('\n')}
 
-LA FRASE QUE ARMÓ EL SISTEMA (con las cifras buenas)
-${fraseDelCodigo}`,
+LA FRASE QUE ARMÓ EL SISTEMA (con las cifras buenas; escríbela mejor)
+${fraseDelCodigo}${largos.length ? `\n\nNOMBRES LARGOS DE LAS TABLAS\n${largos.map((l) => `- ${l}`).join('\n')}` : ''}`,
   };
 }
 
@@ -82,5 +128,6 @@ export function leerPresentacion(salida: string, pasos: PasoEjecutado[], materia
   let frase = typeof j.frase === 'string' ? j.frase.trim().replace(/\s+/g, ' ').slice(0, 600) : '';
   const permitidos = new Set(numeros(material));
   if (frase && (frase.includes('|') || numeros(frase).some((n) => !permitidos.has(n)))) frase = '';
-  return { ok: true, valor: { vistas, orden, frase: frase || null } };
+  const etiquetas = leerEtiquetas(j.etiquetas, nombresLargos(pasos));
+  return { ok: true, valor: { vistas, orden, frase: frase || null, ...(Object.keys(etiquetas).length ? { etiquetas } : {}) } };
 }
