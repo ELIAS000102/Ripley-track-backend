@@ -275,28 +275,59 @@ export interface UnidadOracleG12 {
 }
 
 /**
+ * Los SUB_FLUJO del Oracle de las filas que no se llaman igual que en el
+ * Oracle, cuando la configuración no dice otros (2026-11-14). El Excel dejaba
+ * estas dos filas en 0 porque su SUMIFS buscaba el nombre de la fila.
+ */
+export const SUBFLUJOS_ORACLE_POR_DEFECTO: Record<string, string[]> = {
+  '90 min': ['Serv. 90min'],
+  // "SD_RM - 1er Turno", "SD_RM - 2do Turno"…: todos los turnos del Same Day de Lima
+  'same day': ['SD_RM*'],
+};
+
+const claveOracle = (s: string) => s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** Lo que suma una fila: su configuración, si la tiene; si no, el valor por defecto o su nombre */
+export function subFlujosDeFila(nombre: string, config?: FilaG12): string[] {
+  const propios = (config?.oracle ?? []).map((s) => s.trim()).filter(Boolean);
+  if (propios.length) return propios;
+  return SUBFLUJOS_ORACLE_POR_DEFECTO[claveOracle(nombre)] ?? [nombre];
+}
+
+/** Si un SUB_FLUJO encaja con lo que suma la fila: igual (sin mayúsculas ni espacios de más) o, con `*`, por prefijo */
+export function encajaSubFlujo(subFlujo: string, patrones: string[]): boolean {
+  const s = claveOracle(subFlujo);
+  return patrones.some((p) => {
+    const c = claveOracle(p);
+    return c.endsWith('*') ? s.startsWith(c.slice(0, -1).trimEnd()) : s === c;
+  });
+}
+
+/**
  * Las unidades del Oracle en las filas de un cuadro, **como el Excel**: cada
- * fila suma lo de su SUB_FLUJO (su nombre) en su fecha —el SUMIFS de la
- * plantilla—; sin coincidencia o sin fecha, 0. Solo toca las filas que esperan
- * al Oracle (las de cupo a mano, con unidades vacías); las de total se vuelven
- * a sumar con sus partes, y el total del cuadro también.
+ * fila suma lo de sus SUB_FLUJO en su fecha —el SUMIFS de la plantilla—; sin
+ * coincidencia o sin fecha, 0. Sus SUB_FLUJO son los de su configuración
+ * (`oracle`), o los de SUBFLUJOS_ORACLE_POR_DEFECTO, o su nombre. Solo toca las
+ * filas que esperan al Oracle (las de cupo a mano, con unidades vacías); las de
+ * total se vuelven a sumar con sus partes, y el total del cuadro también.
  */
 export function aplicarUnidadesOracle(comp: ComponenteReporteG12, filasConfig: FilaG12[], unidades: UnidadOracleG12[], origen: string): ComponenteReporteG12 {
-  const clave = (s: string) => s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
-  const suma = new Map<string, number>();
-  for (const u of unidades) {
-    const k = `${clave(u.subFlujo)}|${u.fecha}`;
-    suma.set(k, (suma.get(k) ?? 0) + (Number(u.unidades) || 0));
-  }
+  const nombres = [...new Set(unidades.map((u) => u.subFlujo))];
 
   const simples = comp.filas.map((f) => {
     if (f.esTotal || f.unidades !== null) return f;
-    const u = f.fecha ? suma.get(`${clave(f.nombre)}|${f.fecha}`) ?? 0 : 0;
+    const patrones = subFlujosDeFila(f.nombre, filasConfig.find((c) => c.nombre === f.nombre));
+    const suyos = nombres.filter((n) => encajaSubFlujo(n, patrones));
+    const u = f.fecha
+      ? unidades.filter((x) => x.fecha === f.fecha && suyos.includes(x.subFlujo)).reduce((t, x) => t + (Number(x.unidades) || 0), 0)
+      : 0;
+    const que = suyos.length ? `suma ${suyos.map((n) => `«${n}»`).join(', ')}` : `no hay ningún SUB_FLUJO ${patrones.map((p) => `«${p}»`).join(', ')}`;
     return {
       ...f,
       unidades: u,
+      subFlujosOracle: suyos,
       porcentaje: porcentaje(u, f.capacidad),
-      detalle: { ...f.detalle, avisos: [...f.detalle.avisos, `Unidades del Oracle (${origen}).`] },
+      detalle: { ...f.detalle, avisos: [...f.detalle.avisos, `Unidades del Oracle (${origen}): ${que}${f.fecha ? '' : '; la fila no tiene fecha, así que 0'}.`] },
     };
   });
 

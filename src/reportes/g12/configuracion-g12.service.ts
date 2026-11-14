@@ -90,7 +90,9 @@ export class ConfiguracionG12Service {
 export function cuadrosCambiados(anterior: ConfiguracionG12 | null, nueva: ConfiguracionG12): ClaveComponente[] {
   // La de antes pasa por la misma limpieza, para comparar igual con igual
   const antes = normalizarConfiguracion(completar(anterior)).configuracion;
-  const forma = (c: ConfiguracionG12['componentes'][number] | undefined) => JSON.stringify(c ? { filas: c.filas, bloques: c.bloques } : null);
+  // Los sub-flujos del Oracle de una fila tampoco: se aplican al leer el reporte, no hace falta volver a Ripley
+  const forma = (c: ConfiguracionG12['componentes'][number] | undefined) =>
+    JSON.stringify(c ? { filas: c.filas.map(({ oracle: _o, ...f }) => f), bloques: c.bloques } : null);
   return nueva.componentes
     .filter((c) => forma(c) !== forma(antes.componentes.find((a) => a.clave === c.clave)))
     .map((c) => c.clave);

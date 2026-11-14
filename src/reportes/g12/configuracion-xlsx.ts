@@ -68,6 +68,7 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
     ['Cómo se importa', 'En el panel: Reporte G12 → Configuración → Importar. Se comprueba entera y entra en el editor; se guarda al pulsar "Guardar".'],
     ['Cuadro', `El título del cuadro, tal cual: ${COMPONENTES_G12.map((c) => c.titulo).join(', ')}.`],
     ['Filas', 'Las filas de cada cuadro, en orden. "Suma" solo en las filas de total: los nombres de las filas que suma, separados por " | ".'],
+    ['Sub-flujos del Oracle', 'Solo en Despacho domicilio: los SUB_FLUJO del Oracle que suma la fila, separados por " | ". Uno que acaba en * es un prefijo ("SD_RM*"). Vacío: el nombre de la fila (90 MIN y SAME DAY tienen los suyos por defecto).'],
     ['Bloque', 'Cada ítem dice a qué bloque de su cuadro pertenece (1, 2, 3… en el orden del editor). Un bloque es de un solo tipo: todos sus ítems van en la misma hoja.'],
     ['Muestra', 'Solo en Simulación: "Sí" en la primera fila del bloque para probar un ítem antes de pedir los demás.'],
     ['Nombres, no ids', 'Región, provincia, distrito, operador, almacén, zona y agenda van por su nombre o código, como en el editor.'],
@@ -79,9 +80,9 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
 
   // ── Filas ──
   const filas = libro.addWorksheet('Filas');
-  cabecera(filas, [['Cuadro', 28], ['Fila', 34], ['Suma (filas de total)', 60]]);
+  cabecera(filas, [['Cuadro', 28], ['Fila', 34], ['Suma (filas de total)', 60], ['Sub-flujos del Oracle', 50]]);
   for (const c of config.componentes) {
-    for (const f of c.filas) filas.addRow([definicionDe(c.clave).titulo, f.nombre, (f.suma ?? []).join(' | ')]);
+    for (const f of c.filas) filas.addRow([definicionDe(c.clave).titulo, f.nombre, (f.suma ?? []).join(' | '), (f.oracle ?? []).join(' | ')]);
   }
 
   // ── Una hoja por tipo de bloque ──
@@ -178,7 +179,9 @@ export async function xlsxAConfiguracion(contenido: Buffer): Promise<{ configura
     if (!c) continue;
     if (!nombre) { errores.push(`Filas, fila ${f.n}: falta el nombre de la fila.`); continue; }
     const suma = f.valor('Suma (filas de total)').split('|').map((x) => x.trim()).filter(Boolean);
-    c.filas.push({ nombre, ...(suma.length ? { suma } : {}) });
+    // Falta en los Excel exportados antes del 2026-11-14: entonces, vacío
+    const oracle = f.valor('Sub-flujos del Oracle').split('|').map((x) => x.trim()).filter(Boolean);
+    c.filas.push({ nombre, ...(suma.length ? { suma } : {}), ...(oracle.length ? { oracle } : {}) });
   }
 
   // ── Ítems, hoja por hoja ──

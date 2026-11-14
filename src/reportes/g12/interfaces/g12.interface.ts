@@ -66,6 +66,12 @@ export interface FilaG12 {
   nombre: string;
   /** Si es una fila de total: las filas que suma (Paquetería Lima Total) */
   suma?: string[];
+  /**
+   * Solo Despacho domicilio: los SUB_FLUJO del Oracle que suma esta fila. Sin
+   * ellos, el nombre de la fila (como el SUMIFS del Excel). Uno que acaba en `*`
+   * es un prefijo: "SD_RM*" suma todos los turnos del Same Day.
+   */
+  oracle?: string[];
 }
 
 export interface ComponenteG12 {
@@ -280,6 +286,8 @@ export interface FilaReporteG12 {
   leadTime: { dias: number; etiqueta: string } | null;
   /** null: no hay de dónde sacarlo (las unidades de DD Lima vienen del Oracle) */
   unidades: number | null;
+  /** DD Lima: los SUB_FLUJO del Oracle que sumó esta fila (los que encajan con su configuración, de cualquier día) */
+  subFlujosOracle?: string[];
   capacidad: number | null;
   /** Utilizado sobre asignado, en entero; null sin capacidad */
   porcentaje: number | null;

@@ -29,7 +29,7 @@ const clave = (s: string) => s.trim().toLowerCase();
 type Entrada = {
   componentes?: Array<{
     clave: string;
-    filas?: Array<{ nombre: string; suma?: string[] }>;
+    filas?: Array<{ nombre: string; suma?: string[]; oracle?: string[] }>;
     bloques?: Array<{ tipo: string; nota?: string; muestra?: boolean; items?: Array<{ fila: string; nota?: string; campos?: Record<string, unknown> }> }>;
   }>;
   resumen?: Array<{ nombre: string; partes?: Array<{ componente: string; fila?: string }> }>;
@@ -111,7 +111,17 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
       if (!nombre) { errores.push(`${def.titulo}: hay una fila sin nombre.`); continue; }
       if (nombres.has(clave(nombre))) { errores.push(`${def.titulo}: la fila "${nombre}" está dos veces.`); continue; }
       nombres.set(clave(nombre), nombre);
-      componente.filas.push({ nombre, ...(f.suma?.length ? { suma: f.suma.map((s) => String(s).trim()).filter(Boolean) } : {}) });
+      const oracle = [...new Set((f.oracle ?? []).map((s) => String(s).trim()).filter(Boolean))];
+      if (oracle.length && def.clave !== 'dd_lima') {
+        errores.push(`${def.titulo}: "${nombre}" tiene sub-flujos del Oracle, que solo van en Despacho domicilio.`);
+      }
+      if (oracle.length > 20) errores.push(`${def.titulo}: "${nombre}" suma demasiados sub-flujos del Oracle (máximo 20).`);
+      if (oracle.some((s) => s === '*')) errores.push(`${def.titulo}: "${nombre}": un "*" solo sumaría todo el Oracle; escribe el comienzo del sub-flujo, como "SD_RM*".`);
+      componente.filas.push({
+        nombre,
+        ...(f.suma?.length ? { suma: f.suma.map((s) => String(s).trim()).filter(Boolean) } : {}),
+        ...(oracle.length && def.clave === 'dd_lima' ? { oracle } : {}),
+      });
     }
     if (componente.filas.length > LIMITES_G12.filasPorComponente) {
       errores.push(`${def.titulo}: son demasiadas filas (máximo ${LIMITES_G12.filasPorComponente}).`);

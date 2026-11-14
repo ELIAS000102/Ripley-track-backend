@@ -99,6 +99,24 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
 
     expect(cuadrosCambiados(antes, despues)).toEqual(['dd_lima']);
     expect(cuadrosCambiados(antes, structuredClone(antes))).toEqual([]);
+
+    // Los sub-flujos del Oracle se aplican al leer: cambiarlos no deja en blanco Despacho domicilio
+    const conOracle = structuredClone(antes);
+    conOracle.componentes.find((c) => c.clave === 'dd_lima')!.filas[0].oracle = ['Centralizado MailAmericas', 'Mail*'];
+    expect(cuadrosCambiados(antes, conOracle)).toEqual([]);
+  });
+
+  it('los sub-flujos del Oracle solo van en Despacho domicilio, sin repetir y sin un "*" suelto', async () => {
+    const { configuracionVacia, normalizarConfiguracion } = await import('../../../src/reportes/g12/g12.validacion.js');
+    const c = configuracionVacia();
+    c.componentes.find((x) => x.clave === 'dd_lima')!.filas = [{ nombre: '90 MIN', oracle: [' Serv. 90min ', 'Serv. 90min', ''] }];
+    expect(normalizarConfiguracion(c).configuracion.componentes.find((x) => x.clave === 'dd_lima')!.filas).toEqual([{ nombre: '90 MIN', oracle: ['Serv. 90min'] }]);
+
+    c.componentes.find((x) => x.clave === 'sfs')!.filas = [{ nombre: 'SFS Ica', oracle: ['x'] }];
+    c.componentes.find((x) => x.clave === 'dd_lima')!.filas = [{ nombre: 'SAME DAY', oracle: ['*'] }];
+    const { errores } = normalizarConfiguracion(c);
+    expect(errores.join(' | ')).toMatch(/SFS Ica.*solo van en Despacho domicilio/);
+    expect(errores.join(' | ')).toMatch(/un "\*" solo sumaría todo el Oracle/);
   });
 
   it('lo guardado para todos olvida solo esas tablas, y solo de ese país', async () => {

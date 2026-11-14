@@ -257,6 +257,36 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
       ['SAME DAY', 0, null],
     ]);
     expect(r.total).toEqual({ unidades: 946, capacidad: 1380, porcentaje: 69 });
-    expect(r.filas[1].detalle.avisos).toEqual(['Unidades del Oracle (carga del 11/11 08:31).']);
+    expect(r.filas[1].detalle.avisos).toEqual(['Unidades del Oracle (carga del 11/11 08:31): suma «Centralizado MailAmericas».']);
+    expect(r.filas[1].subFlujosOracle).toEqual(['Centralizado MailAmericas']);
+    // SAME DAY encaja con "SD_RM - 1er Turno" por defecto, pero sin fecha no suma nada
+    expect(r.filas[4]).toMatchObject({ unidades: 0, subFlujosOracle: ['SD_RM - 1er Turno'] });
+  });
+
+  it('90 MIN y SAME DAY toman sus sub-flujos por defecto; la configuración manda, y "*" es un prefijo', () => {
+    const filas = () => ({ ...comp(), filas: [fila('90 MIN', '2026-11-14', 90), fila('SAME DAY', '2026-11-14', 300), fila('Courrier Lima Periferia', '2026-11-14', 100)] });
+    const unidades = [
+      { fecha: '2026-11-14', zona: '0. EX_TIENDAS', subFlujo: 'Serv. 90min', unidades: 3 },
+      { fecha: '2026-11-14', zona: '1. SAME DAY', subFlujo: 'SD_RM - 1er Turno', unidades: 53 },
+      { fecha: '2026-11-14', zona: '1. SAME DAY', subFlujo: 'SD_RM - 2do Turno', unidades: 7 },
+      { fecha: '2026-11-15', zona: '1. SAME DAY', subFlujo: 'SD_RM - 1er Turno', unidades: 99 },
+      { fecha: '2026-11-14', zona: '2. PAQUETERIA_RM', subFlujo: 'Courrier Lima Periferia', unidades: 22 },
+      { fecha: '2026-11-14', zona: 'MK', subFlujo: 'Courrier Lima Periferia', unidades: 2 },
+    ];
+
+    const porDefecto = aplicarUnidadesOracle(filas(), [], unidades, 'x');
+    expect(porDefecto.filas.map((f) => [f.nombre, f.unidades])).toEqual([['90 MIN', 3], ['SAME DAY', 60], ['Courrier Lima Periferia', 24]]);
+    expect(porDefecto.filas[1].subFlujosOracle).toEqual(['SD_RM - 1er Turno', 'SD_RM - 2do Turno']);
+
+    // Lo configurado reemplaza al valor por defecto (aquí, solo el 1er turno)
+    const configurado = aplicarUnidadesOracle(filas(), [{ nombre: 'SAME DAY', oracle: ['sd_rm - 1ER turno'] }], unidades, 'x');
+    expect(configurado.filas[1].unidades).toBe(53);
+    expect(configurado.filas[1].detalle.avisos.at(-1)).toBe('Unidades del Oracle (x): suma «SD_RM - 1er Turno».');
+  });
+
+  it('una fila cuyo sub-flujo no está en la carga lo dice', () => {
+    const r = aplicarUnidadesOracle({ ...comp(), filas: [fila('Nueva fila', '2026-11-14', 10)] }, [], [], 'x');
+    expect(r.filas[0]).toMatchObject({ unidades: 0, subFlujosOracle: [] });
+    expect(r.filas[0].detalle.avisos.at(-1)).toBe('Unidades del Oracle (x): no hay ningún SUB_FLUJO «Nueva fila».');
   });
 });

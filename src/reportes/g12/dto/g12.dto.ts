@@ -98,6 +98,14 @@ export class FilaG12Dto {
   @IsArray()
   @IsString({ each: true })
   suma?: string[];
+
+  /** Solo Despacho domicilio: los SUB_FLUJO del Oracle que suma ("SD_RM*" = por prefijo) */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(LIMITES_G12.texto, { each: true })
+  oracle?: string[];
 }
 
 export class ComponenteG12Dto {

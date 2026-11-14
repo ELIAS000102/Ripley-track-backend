@@ -21,7 +21,7 @@ function config(): ConfiguracionG12 {
     { tipo: 'picking', items: [{ fila: 'San Isidro', campos: { codigo: '20027', servicio: 'RT', agenda: 'Agenda Picking RT - 20027' } }] },
   ];
   const dd = c.componentes.find((x) => x.clave === 'dd_lima')!;
-  dd.filas = [{ nombre: 'Paquetería Lima Total', suma: ['Big Ticket Lima'] }, { nombre: 'Big Ticket Lima' }];
+  dd.filas = [{ nombre: 'Paquetería Lima Total', suma: ['Big Ticket Lima'] }, { nombre: 'Big Ticket Lima' }, { nombre: 'SAME DAY', oracle: ['SD_RM - 1er Turno', 'SD_RM - 2do*'] }];
   dd.bloques = [{ tipo: 'capacidad', items: [{ fila: 'Big Ticket Lima', campos: { lun: 280, mar: 280, mie: 280, jue: 280, vie: 280, sab: 0, dom: 0 } }] }];
   c.resumen = [{ nombre: 'Retiro en tienda', partes: [{ componente: 'pickup_lima' }, { componente: 'dd_lima', fila: 'Big Ticket Lima' }] }];
   return normalizarConfiguracion(c).configuracion;
