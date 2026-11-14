@@ -137,9 +137,18 @@ export class MotorV3Service {
             s = await this.agente[LEER[s.camino]](usuario, s.turno_id, dto);
             break;
           }
-          case 'ejecutar':
+          case 'ejecutar': {
+            // Al seguir tras una pregunta: el paso que va, a la vista antes de hacerlo
+            let progreso: RespuestaPanel | null = null;
+            try {
+              progreso = await this.agente.progresoDe(usuario, s.turno_id);
+            } catch {
+              progreso = null;
+            }
+            if (progreso) yield { tipo: 'progreso', progreso };
             s = await this.agente.ejecutar(usuario, s.turno_id);
             break;
+          }
           case 'avisar':
             yield { tipo: 'progreso', progreso: s.progreso! };
             s = await this.agente.ejecutar(usuario, s.turno_id);

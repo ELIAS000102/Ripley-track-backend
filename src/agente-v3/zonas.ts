@@ -1,5 +1,5 @@
 import { agendasDeDatos, CON_AGENDA, deLasOficinas } from './agendas.js';
-import type { AgendaConocida, ContextoTurno, Pregunta } from './interfaces/agente-v3.interface.js';
+import type { AgendaConocida, ContextoTurno, PasoEjecutado, Pregunta } from './interfaces/agente-v3.interface.js';
 
 /**
  * A qué agenda (o zona) va un cambio cuando la persona no lo dice (decisiones
@@ -30,6 +30,22 @@ export const esDelAnterior = (v: unknown) => Boolean(v && typeof v === 'object' 
 /** Las agendas que ENSEÑÓ el mensaje anterior (no las buscadas en este turno) */
 export function agendasDelAnterior(contexto: ContextoTurno): AgendaConocida[] {
   return (contexto.anterior?.resultados ?? []).filter((r) => r.datos).flatMap((r) => agendasDeDatos(r.herramienta, r.datos));
+}
+
+/** Lo que trajo otro paso del plan ({ ref: 'paso', n }) o el mensaje anterior: sus agendas se vieron */
+export const esReferencia = (v: unknown) => Boolean(v && typeof v === 'object' && !Array.isArray(v) && ['anterior', 'paso'].includes(String((v as { ref?: string }).ref)));
+
+/**
+ * Las agendas que se vieron en lo que nombra la referencia: el mensaje
+ * anterior, o el paso N de este plan ("cierra la fecha 15-11 para todo el bt
+ * lima": el atajo del paso 1 ya trae la zona y la agenda de cada operador).
+ */
+export function agendasDeLaReferencia(v: unknown, hechos: PasoEjecutado[], contexto: ContextoTurno): AgendaConocida[] {
+  if (esDelAnterior(v)) return agendasDelAnterior(contexto);
+  const r = v as { ref?: string; n?: number } | null;
+  if (r?.ref !== 'paso' || !r.n) return [];
+  const paso = hechos[r.n - 1];
+  return paso?.datos ? agendasDeDatos(paso.herramienta, paso.datos) : [];
 }
 
 /** El tipo del paso, si sus agendas viven en zonas (despacho, OPL); si no, null */

@@ -816,6 +816,20 @@ export class AgenteV3Service {
     return this.aEjecutar(turno, { origen: 'deshacer', pasos, ver: null });
   }
 
+  /**
+   * Los pasos con el que va ahora, para enseñarlos ANTES de hacerlo: al seguir
+   * tras una pregunta (la zona, «¿Procedo?») no hay aviso de paso que los
+   * enseñe, y el panel se quedaba en "Pensando…" hasta el final. Null si aún
+   * no se anunció el plan (ejecutar lo anuncia) o ya no queda nada.
+   */
+  async progresoDe(usuario: UsuarioAutenticado, id: string): Promise<RespuestaPanel | null> {
+    const turno = await this.turnos.obtener(id, usuario.id);
+    const plan = turno.plan as PlanV3 | null;
+    if (turno.estado !== 'en_curso' || !plan || !turno.contexto?.anunciado) return null;
+    if (turno.etapa === 'ejecutar' && (turno.pasos ?? []).length < plan.pasos.length) return this.conAvisos(turno, respuestaProgreso(turno));
+    return null;
+  }
+
   /** El turno del chat que espera respuesta (si lo hay) */
   pendienteDelChat(usuario: UsuarioAutenticado, chatId: string): Promise<Turno | null> {
     return this.turnos.pendienteDelChat(chatId, usuario.id);

@@ -242,3 +242,37 @@ describe('Los inversos, herramienta por herramienta', () => {
     expect(inv.cuerpos).toEqual([]);
   });
 });
+
+describe('"Cierra la fecha 15-11 para todo el bt lima": la zona y la agenda, las del atajo del paso 1', () => {
+  const capacidad = (oficina: string, agenda: string, zona: string) => ({ tipo: 'despacho', oficinas: [{ oficina, agendas: [{ agenda, zona, servicio: 'S', dias: [{ fecha: '2026-11-15', activo: true, asignado: 50, ocupado: 0, disponible: 50, uso: 0 }] }] }] });
+  const ATAJO = {
+    atajo: 'Big Ticket Lima',
+    bloques: [{ orden: 1, tipo: 'despacho', accion: 'consultar', nota: null, items: [
+      { orden: 1, nota: 'Zona 1401', resultado: capacidad('1401 - Zona 1401', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana') },
+      { orden: 2, nota: 'Zona 1403', resultado: capacidad('1403 - Zona 1403', 'Zona BT Playas', 'Zona BT Playas') },
+    ] }],
+    resumen: { items: 2, correctas: 2, fallidas: 0 },
+  };
+  const hechos = [{ n: 1, que: 'Atajo «Big Ticket Lima»', herramienta: 'ejecutar_atajo', estado: 'ok' as const, resumen: '', ms: 1, datos: ATAJO }];
+  const plan = { origen: 'cambio' as const, ver: null, pasos: [
+    { herramienta: 'ejecutar_atajo', param: { nombre: 'Big Ticket Lima' } },
+    { herramienta: 'editar_capacidad', param: { tipo: 'despacho', codigo: { ref: 'paso', n: 1 }, fecha: '2026-11-15', activa: false } },
+  ] };
+
+  it('no pregunta la zona y manda cada operador a la suya', async () => {
+    const editar = vi.fn(async (_u: unknown, dto: Record<string, unknown>) => ({ tipo: 'despacho', oficinas: [{ oficina: String(dto.codigo), agendas: [{ agenda: String(dto.agenda), zona: dto.zona, dias: [{ fecha: '2026-11-15', antes: { activo: true, asignado: 50, ocupado: 0, disponible: 50, uso: 0 }, despues: { activo: false, asignado: 50, ocupado: 0, disponible: 50, uso: 0 } }] }] }], resumen: { pedidos: 1, cambiados: 1, sinCambiar: 0 } }));
+    const buscar = vi.fn();
+    const auditoria = { activarSimulacro: vi.fn(), enSimulacro: vi.fn(() => true) };
+    const ejecucion = new EjecucionV3Service({} as never, {} as never, {} as never, { consultar: buscar } as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+      auditoria as never, { editarCapacidad: editar } as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    expect(await ejecucion.zonasPorElegir(USUARIO as never, plan, 1, hechos, CTX)).toEqual([]);
+    const paso = await ejecucion.ejecutar(USUARIO as never, plan, 1, hechos, CTX);
+    expect(paso.error ?? null).toBeNull();
+    expect(buscar).not.toHaveBeenCalled();
+    expect(editar.mock.calls.map(([, d]) => [d.codigo, d.zona, d.agenda])).toEqual([
+      ['1401', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana'],
+      ['1403', 'Zona BT Playas', 'Zona BT Playas'],
+    ]);
+    expect(paso.cuerpos).toHaveLength(2);
+  });
+});

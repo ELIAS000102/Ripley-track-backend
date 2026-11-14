@@ -22,7 +22,7 @@ import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
 import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
 import { calcular, fuenteDe } from './calcular/calcular.js';
-import { agendasDelAnterior, agendasPorElegir, esDelAnterior, oficinasConVariasZonas, porEleccion, tipoConZona, type Grupo, type PorElegir } from './zonas.js';
+import { agendasDeLaReferencia, agendasPorElegir, esReferencia, oficinasConVariasZonas, porEleccion, tipoConZona, type Grupo, type PorElegir } from './zonas.js';
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
 import { queEs } from './que.js';
@@ -215,8 +215,8 @@ export class EjecucionV3Service {
     // Sobre lo que se vio: de cada oficina con VARIAS agendas a la vista, ¿a cuál? (con una, a esa)
     let sinVer = codigos;
     let porElegir: PorElegir[] = [];
-    if (esDelAnterior(v)) {
-      const vistas = deLasOficinas(agendasDelAnterior(contexto), codigos, conAgenda.tipo(paso.param));
+    if (esReferencia(v)) {
+      const vistas = deLasOficinas(agendasDeLaReferencia(v, hechos, contexto), codigos, conAgenda.tipo(paso.param));
       porElegir = agendasPorElegir(vistas, codigos, conAgenda.tipo(paso.param));
       sinVer = codigos.filter((c) => !vistas.some((a) => a.codigo === c));
     }
@@ -363,7 +363,7 @@ export class EjecucionV3Service {
     // La agenda que eligió Armar, con su nombre y su zona exactos, solo en las oficinas que la tienen
     // Un cambio sobre lo del anterior: a las agendas que se vieron; si no, a la zona que eligió la persona; si no, por agenda
     // Un cambio sin agenda ni zona: lo que eligió la persona o, sobre lo del anterior, la agenda que se vio
-    const vistas = h.edicion && esDelAnterior(h.lista ? paso.param[h.lista] : undefined) ? agendasDelAnterior(contexto) : [];
+    const vistas = h.edicion ? agendasDeLaReferencia(h.lista ? paso.param[h.lista] : undefined, hechos, contexto) : [];
     const elegido = h.edicion ? porEleccion(h.id, plano0, codigos, vistas, contexto.zonas_elegidas?.[String(hechos.length + 1)]) : null;
     const { grupos, notas: deAgenda, nombres }: { grupos: Grupo[]; notas: string[]; nombres?: string[] } = elegido ?? porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
     notas = [...notas, ...deAgenda];

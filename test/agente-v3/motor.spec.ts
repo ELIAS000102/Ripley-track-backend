@@ -135,3 +135,18 @@ describe('MotorV3Service: el turno entero, sin n8n', () => {
     expect(motor).toBeDefined();
   });
 });
+
+describe('El progreso, a la vista antes de cada paso que se retoma', () => {
+  it('al seguir tras una pregunta (camino ejecutar), primero los pasos y luego la respuesta', async () => {
+    const progreso = { tipo: 'progreso', pasos: [{ n: 1, que: 'Vista previa', estado: 'en_curso' }] };
+    const agente = {
+      respuesta: vi.fn(async () => ({ turno_id: 't1', camino: 'ejecutar' })),
+      progresoDe: vi.fn(async () => progreso),
+      ejecutar: vi.fn(async () => ({ turno_id: 't1', camino: 'responder', respuesta: { frase: 'listo' } })),
+      obtener: vi.fn(async () => null),
+    };
+    const motor = new MotorV3Service(agente as never, {} as never, { estaInterrumpida: () => false } as never);
+    const eventos = await motor.todo(motor.contestar(USUARIO, 't1', { respuestas: { 'zona:2': 'todas' } }));
+    expect(eventos.map((e) => e.tipo)).toEqual(['turno', 'progreso', 'respuesta']);
+  });
+});
