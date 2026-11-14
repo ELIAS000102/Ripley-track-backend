@@ -97,11 +97,12 @@ describe('Los ids de Ripley en el Excel de configuración', () => {
     const filaDe = (hoja: string, n: number) => (libro.getWorksheet(hoja)!.getRow(n).values as unknown[]).slice(1).map((v) => String(v ?? ''));
     const sims = [filaDe('Simulación', 1), filaDe('Simulación', 2), filaDe('Simulación', 3)];
     // Una sola columna de ids, la última
-    expect(sims[0].at(-1)).toBe('Ids de Ripley');
-    expect(sims[0].filter((t) => t.startsWith('Id'))).toEqual(['Ids de Ripley']);
-    expect(sims[1].at(-1)).toBe('Región r-15 · Distrito c-isidro (150131) · Operador id-20027 · Almacén id-alm · SKU 2013435160001');
+    // Un id por columna, con su nombre en la cabecera; en la celda, solo el id
+    expect(sims[0].slice(-5)).toEqual(['Id región', 'Id distrito', 'Código distrito', 'Id operador', 'Id almacén']);
+    expect(sims[1].slice(-5)).toEqual(['r-15', 'c-isidro', '150131', 'id-20027', 'id-alm']);
     // Miraflores no tiene ids guardados todavía
-    expect(sims[2].at(-1)).toBe('Sin consultar: en la próxima actualización');
+    expect(sims[2].slice(-5)[0]).toBe('Sin consultar');
+    expect(filaDe('Picking', 1).at(-1)).toBe('Id agenda');
     expect(filaDe('Picking', 2).at(-1)).toBe('sch-1');
     // La portada dice cuántos tienen ids
     expect(String(libro.getWorksheet('Léeme')!.getColumn(2).values.join(' '))).toMatch(/2 de 3 ítems con sus ids guardados.*1 se consulta en la próxima actualización/);
