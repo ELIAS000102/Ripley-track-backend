@@ -96,11 +96,15 @@ describe('Los ids de Ripley en el Excel de configuración', () => {
     await libro.xlsx.load(xlsx as unknown as ArrayBuffer);
     const filaDe = (hoja: string, n: number) => (libro.getWorksheet(hoja)!.getRow(n).values as unknown[]).slice(1).map((v) => String(v ?? ''));
     const sims = [filaDe('Simulación', 1), filaDe('Simulación', 2), filaDe('Simulación', 3)];
-    expect(sims[0]).toEqual(expect.arrayContaining(['Id región', 'Id distrito', 'Código del distrito', 'Id operador', 'Id almacén', 'SKU (Ripley)', 'Ids consultados']));
-    expect(sims[1]).toEqual(expect.arrayContaining(['r-15', 'c-isidro', '150131', 'id-20027', 'id-alm', '2013435160001', '14/11/2026 10:40']));
+    // Una sola columna de ids, la última
+    expect(sims[0].at(-1)).toBe('Ids de Ripley');
+    expect(sims[0].filter((t) => t.startsWith('Id'))).toEqual(['Ids de Ripley']);
+    expect(sims[1].at(-1)).toBe('Región r-15 · Distrito c-isidro (150131) · Operador id-20027 · Almacén id-alm · SKU 2013435160001');
     // Miraflores no tiene ids guardados todavía
     expect(sims[2].at(-1)).toBe('Sin consultar: en la próxima actualización');
-    expect(filaDe('Picking', 2)).toEqual(expect.arrayContaining(['Agenda Picking RT - 20027 = sch-1']));
+    expect(filaDe('Picking', 2).at(-1)).toBe('sch-1');
+    // La portada dice cuántos tienen ids
+    expect(String(libro.getWorksheet('Léeme')!.getColumn(2).values.join(' '))).toMatch(/2 de 3 ítems con sus ids guardados.*1 se consulta en la próxima actualización/);
 
     const { configuracion, errores } = await xlsxAConfiguracion(xlsx);
     expect(errores).toEqual([]);

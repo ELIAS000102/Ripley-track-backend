@@ -40,25 +40,11 @@ const ETIQUETA: Record<string, string> = {
   lun: 'Lun', mar: 'Mar', mie: 'Mié', jue: 'Jue', vie: 'Vie', sab: 'Sáb', dom: 'Dom',
 };
 
-const NARANJA = 'FFC2410C';
 
 const comparable = (s: unknown) =>
   String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ]+/g, ' ').trim();
 
 // ───────────────────────── Exportar ─────────────────────────
-
-/**
- * Las columnas de ids de cada tipo de ítem (2026-11-14): lo que se consultó en
- * Ripley y se usa para pedir, sacado de g12_ids. Solo para verlo: al importar
- * se ignoran, y los ids salen otra vez de los nombres y códigos de cada ítem.
- */
-const COLUMNAS_IDS: Record<TipoBloqueG12, Array<[string, number]>> = {
-  simulacion: [['Id región', 16], ['Id distrito', 26], ['Código del distrito', 14], ['Id operador', 26], ['Id almacén', 26], ['SKU (Ripley)', 16], ['Ids consultados', 18]],
-  picking: [['Ids de agendas', 70], ['Ids consultados', 18]],
-  recepcion: [['Ids de agendas', 70], ['Ids de capacidad', 50], ['Ids consultados', 18]],
-  despacho: [['Ids de zonas', 50], ['Ids de agendas', 70], ['Ids consultados', 18]],
-  capacidad: [],
-};
 
 /** "14/11/2026 13:40", hora de Lima o de Santiago */
 function cuandoEnPais(iso: string, pais: string): string {
@@ -66,108 +52,228 @@ function cuandoEnPais(iso: string, pais: string): string {
   return new Date(iso).toLocaleString('es-PE', { timeZone: zona, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
 }
 
-/** Los valores de las columnas de ids de un ítem, en el orden de COLUMNAS_IDS */
-function valoresIds(tipo: TipoBloqueG12, fila: FilaIdsG12 | undefined, pais: string): string[] {
-  const columnas = COLUMNAS_IDS[tipo];
-  if (!columnas.length) return [];
-  if (!fila) return [...columnas.slice(0, -1).map(() => ''), 'Sin consultar: en la próxima actualización'];
-  const cuando = cuandoEnPais(fila.consultadoEn, pais);
+/**
+ * Los ids de Ripley de un ítem, en **una sola columna** (pedido del usuario,
+ * 2026-11-14): lo que se consultó y se usa para pedir, sacado de g12_ids. Una
+ * agenda sola es solo su id —su nombre ya está en la fila—; varias, cada una
+ * con su nombre en una línea. Solo para verlos: al importar se ignoran.
+ */
+function textoIds(tipo: TipoBloqueG12, fila: FilaIdsG12 | undefined): string {
+  if (!fila) return 'Sin consultar: en la próxima actualización';
   const ids = fila.ids;
   if (ids.tipo === 'simulacion') {
-    return [ids.regionId, ids.comuna.id, ids.comuna.identifier || ids.comuna.code, ids.operador.id, ids.almacen?.id ?? '', ids.productos.map((p) => String(p.sku)).join(' | '), cuando];
+    return [
+      `Región ${ids.regionId}`,
+      `Distrito ${ids.comuna.id} (${ids.comuna.identifier || ids.comuna.code})`,
+      `Operador ${ids.operador.id}`,
+      ...(ids.almacen ? [`Almacén ${ids.almacen.id}`] : []),
+      `SKU ${ids.productos.map((p) => String(p.sku)).join(', ')}`,
+    ].join(' · ');
   }
-  if (ids.tipo === 'region') return columnas.map(() => '');
-  const agendas = ids.agendas.map((a) => `${a.nombre} = ${a.id}`).join(' | ');
-  if (tipo === 'recepcion') return [agendas, ids.agendas.map((a) => `${a.nombre} = ${a.capacidadId ?? '—'}`).join(' | '), cuando];
-  if (tipo === 'despacho') {
-    const zonas = [...new Map(ids.agendas.filter((a) => a.zona).map((a) => [a.zona, `${a.zona} = ${a.zonaId ?? '—'}`])).values()].join(' | ');
-    return [zonas, agendas, cuando];
-  }
-  return [agendas, cuando];
+  if (ids.tipo === 'region') return '';
+  const una = (a: (typeof ids.agendas)[number]) => [
+    a.id,
+    ...(tipo === 'recepcion' && a.capacidadId ? [`capacidad ${a.capacidadId}`] : []),
+    ...(tipo === 'despacho' && a.zonaId ? [`zona ${a.zonaId}`] : []),
+  ].join(' · ');
+  return ids.agendas.length === 1 ? una(ids.agendas[0]) : ids.agendas.map((a) => `${a.nombre}: ${una(a)}`).join('\n');
+}
+
+// Los colores de la plantilla, para reconocer cada cuadro de un vistazo
+const TINTA = 'FF1F2A44';
+const GRIS_IDS = 'FF475467';
+const FONDO_PAR = 'FFF5F6F8';
+const LINEA = 'FFE4E7EC';
+const COLOR_CUADRO: Record<ClaveComponente, string> = {
+  dd_lima: 'FFE36C09', sfs: 'FFE36C09', store_to_store: 'FFE36C09',
+  pickup_lima: 'FF4F81BD', pickup_provincia: 'FF4F81BD',
+  sts_lima: 'FF7030A0', sts_provincia: 'FF7030A0', se_express: 'FF7030A0',
+  dd_troncal: 'FFC0504D', retiro_cercano: 'FF2E9BBD',
+};
+const FUENTE = 'Segoe UI';
+
+interface Columna {
+  titulo: string;
+  ancho: number;
+  /** Texto largo: se parte en líneas */
+  partir?: boolean;
+  /** Número o código corto: centrado */
+  centrar?: boolean;
+  /** Los ids: en gris y monoespaciada */
+  ids?: boolean;
+}
+
+/**
+ * Una hoja con cabecera azul marino, filas alternas, líneas finas, filtros y la
+ * cabecera fija (y las primeras columnas, si se dice). La primera fila sigue
+ * siendo la de los títulos: es la que lee el importador.
+ */
+function hojaConEstilo(libro: ExcelJS.Workbook, nombre: string, columnas: Columna[], filas: unknown[][], opciones: { fijas?: number; cuadroEn?: number; claves?: ClaveComponente[]; color?: string } = {}) {
+  const hoja = libro.addWorksheet(nombre, { properties: { tabColor: { argb: opciones.color ?? TINTA } } });
+  hoja.columns = columnas.map((c) => ({ header: c.titulo, width: c.ancho }));
+
+  const cab = hoja.getRow(1);
+  cab.height = 26;
+  columnas.forEach((c, i) => {
+    const celda = cab.getCell(i + 1);
+    celda.font = { name: FUENTE, size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.ids ? GRIS_IDS : TINTA } };
+    celda.alignment = { vertical: 'middle', horizontal: c.centrar ? 'center' : 'left', indent: c.centrar ? 0 : 1, wrapText: true };
+    celda.border = { bottom: { style: 'medium', color: { argb: 'FFE36C09' } } };
+  });
+
+  filas.forEach((valores, n) => {
+    const fila = hoja.addRow(valores);
+    const par = n % 2 === 1;
+    columnas.forEach((c, i) => {
+      const celda = fila.getCell(i + 1);
+      celda.font = c.ids
+        ? { name: 'Consolas', size: 9, color: { argb: GRIS_IDS } }
+        : { name: FUENTE, size: 10, color: { argb: 'FF101828' } };
+      celda.alignment = { vertical: 'top', horizontal: c.centrar ? 'center' : 'left', wrapText: !!(c.partir || c.ids), indent: c.centrar ? 0 : 1 };
+      celda.border = { bottom: { style: 'thin', color: { argb: LINEA } } };
+      if (par) celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FONDO_PAR } };
+    });
+    // El cuadro, en negrita y con su color
+    if (opciones.cuadroEn && opciones.claves?.[n]) {
+      const celda = fila.getCell(opciones.cuadroEn);
+      celda.font = { name: FUENTE, size: 10, bold: true, color: { argb: COLOR_CUADRO[opciones.claves[n]] ?? TINTA } };
+    }
+  });
+
+  hoja.views = [{ state: 'frozen', ySplit: 1, xSplit: opciones.fijas ?? 0, showGridLines: false }];
+  if (filas.length) hoja.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columnas.length } };
+  return hoja;
 }
 
 export async function configuracionAXlsx(config: ConfiguracionG12, pais: string, exportado = new Date(), ids?: Map<string, FilaIdsG12>): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
   libro.creator = 'Ripley Track';
 
-  const cabecera = (hoja: ExcelJS.Worksheet, columnas: Array<[string, number]>) => {
-    hoja.columns = columnas.map(([header, width]) => ({ header, width }));
-    const fila = hoja.getRow(1);
-    fila.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    fila.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NARANJA } };
-    hoja.views = [{ state: 'frozen', ySplit: 1 }];
-  };
+  // Cuántos ítems tienen sus ids, y de cuándo: para la portada
+  const firmas = new Set<string>();
+  for (const c of config.componentes) for (const b of c.bloques) for (const it of b.items) {
+    const f = firmaIdsG12(b.tipo, it.campos);
+    if (f) firmas.add(f);
+  }
+  const conIds = ids ? [...firmas].filter((f) => ids.has(f)) : [];
+  const fechas = conIds.map((f) => ids!.get(f)!.consultadoEn).sort();
 
-  // ── Léeme ──
-  const leeme = libro.addWorksheet('Léeme');
-  leeme.columns = [{ width: 24 }, { width: 110 }];
-  const lineas: Array<[string, string]> = [
-    ['Configuración del G12', ''],
+  // ── Léeme: portada y cómo se lee cada hoja ──
+  const leeme = libro.addWorksheet('Léeme', { properties: { tabColor: { argb: 'FFE36C09' } } });
+  leeme.columns = [{ width: 26 }, { width: 112 }];
+  leeme.mergeCells('A1:B1');
+  const titulo = leeme.getCell('A1');
+  titulo.value = `Configuración del G12 · ${pais === 'CL' ? 'Chile' : 'Perú'}`;
+  titulo.font = { name: FUENTE, size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+  titulo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TINTA } };
+  titulo.alignment = { vertical: 'middle', indent: 1 };
+  leeme.getRow(1).height = 36;
+  leeme.mergeCells('A2:B2');
+  leeme.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE36C09' } };
+  leeme.getRow(2).height = 4;
+
+  const lineas: Array<[string, string] | [string]> = [
+    ['Datos'],
     ['País', pais],
-    ['Exportada', exportado.toISOString()],
-    ['', ''],
-    ['Cómo se importa', 'En el panel: Reporte G12 → Configuración → Importar. Se comprueba entera y entra en el editor; se guarda al pulsar "Guardar".'],
+    ['Exportada', cuandoEnPais(exportado.toISOString(), pais)],
+    ['Ítems', `${firmas.size} ítems en ${config.componentes.filter((c) => c.bloques.some((b) => b.items.length)).length} cuadros`],
+    ['Ids de Ripley', ids
+      ? `${conIds.length} de ${firmas.size} ítems con sus ids guardados${fechas.length ? ` (consultados entre el ${cuandoEnPais(fechas[0], pais)} y el ${cuandoEnPais(fechas.at(-1)!, pais)})` : ''}.`
+        + (firmas.size - conIds.length ? ` ${firmas.size - conIds.length} se consulta${firmas.size - conIds.length === 1 ? '' : 'n'} en la próxima actualización.` : '')
+      : 'No se exportaron.'],
+    ['Cómo se lee'],
+    ['Importar', 'En el panel: Reporte G12 → Configuración → Importar. Se comprueba entera y entra en el editor; se guarda al pulsar "Guardar".'],
     ['Cuadro', `El título del cuadro, tal cual: ${COMPONENTES_G12.map((c) => c.titulo).join(', ')}.`],
     ['Filas', 'Las filas de cada cuadro, en orden. "Suma" solo en las filas de total: los nombres de las filas que suma, separados por " | ".'],
     ['Sub-flujos del Oracle', 'Solo en Despacho domicilio: los SUB_FLUJO del Oracle que suma la fila, separados por " | ". Uno que acaba en * es un prefijo ("SD_RM*"). Vacío: el nombre de la fila (90 MIN y SAME DAY tienen los suyos por defecto).'],
     ['Bloque', 'Cada ítem dice a qué bloque de su cuadro pertenece (1, 2, 3… en el orden del editor). Un bloque es de un solo tipo: todos sus ítems van en la misma hoja.'],
     ['Muestra', 'Solo en Simulación: "Sí" en la primera fila del bloque para probar un ítem antes de pedir los demás.'],
     ['Nombres, no ids', 'Región, provincia, distrito, operador, almacén, zona y agenda van por su nombre o código, como en el editor.'],
-    ['Columnas de ids', 'Las columnas grises de la derecha ("Id región", "Ids de agendas"…) son los ids de Ripley con los que se pide cada ítem: se consultaron una vez y están guardados. Solo para verlos: al importar se ignoran. Un ítem que cambia se vuelve a consultar en la próxima actualización.'],
+    ['Ids de Ripley', 'La última columna, en gris: los ids con los que se pide cada ítem. Se consultaron una vez y están guardados. Solo para verlos: al importar se ignoran. Un ítem que cambia se vuelve a consultar en la próxima actualización.'],
     ['Resumen', 'Cada línea del resumen de consumo y lo que suma: un cuadro entero (Fila vacía) o una fila suya.'],
   ];
-  for (const [k, v] of lineas) leeme.addRow([k, v]).getCell(1).font = { bold: true };
-  leeme.getRow(1).font = { bold: true, size: 14 };
-  leeme.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
+  for (const l of lineas) {
+    const fila = leeme.addRow(l.length === 1 ? [] : l);
+    if (l.length === 1) {
+      // Un título de sección, con su línea naranja
+      fila.height = 26;
+      leeme.mergeCells(`A${fila.number}:B${fila.number}`);
+      const c = fila.getCell(1);
+      c.value = l[0];
+      c.font = { name: FUENTE, size: 12, bold: true, color: { argb: TINTA } };
+      c.alignment = { vertical: 'bottom', indent: 1 };
+      c.border = { bottom: { style: 'medium', color: { argb: 'FFE36C09' } } };
+      continue;
+    }
+    fila.getCell(1).font = { name: FUENTE, size: 10, bold: true, color: { argb: TINTA } };
+    fila.getCell(2).font = { name: FUENTE, size: 10, color: { argb: 'FF344054' } };
+    fila.getCell(1).alignment = { vertical: 'top', indent: 1 };
+    fila.getCell(2).alignment = { vertical: 'top', wrapText: true };
+    fila.getCell(1).border = fila.getCell(2).border = { bottom: { style: 'thin', color: { argb: LINEA } } };
+    // Excel no agranda solo una fila con el texto partido: el alto, según lo largo (~115 caracteres por línea)
+    fila.height = 16 * Math.max(1, Math.ceil(String(l[1]).length / 115)) + 4;
+  }
+  leeme.views = [{ showGridLines: false }];
 
   // ── Filas ──
-  const filas = libro.addWorksheet('Filas');
-  cabecera(filas, [['Cuadro', 28], ['Fila', 34], ['Suma (filas de total)', 60], ['Sub-flujos del Oracle', 50]]);
+  const filas: unknown[][] = [];
+  const clavesFilas: ClaveComponente[] = [];
   for (const c of config.componentes) {
-    for (const f of c.filas) filas.addRow([definicionDe(c.clave).titulo, f.nombre, (f.suma ?? []).join(' | '), (f.oracle ?? []).join(' | ')]);
+    for (const f of c.filas) {
+      filas.push([definicionDe(c.clave).titulo, f.nombre, (f.suma ?? []).join(' | '), (f.oracle ?? []).join(' | ')]);
+      clavesFilas.push(c.clave);
+    }
   }
+  hojaConEstilo(libro, 'Filas', [
+    { titulo: 'Cuadro', ancho: 30 }, { titulo: 'Fila', ancho: 34 },
+    { titulo: 'Suma (filas de total)', ancho: 56, partir: true }, { titulo: 'Sub-flujos del Oracle', ancho: 40, partir: true },
+  ], filas, { fijas: 2, cuadroEn: 1, claves: clavesFilas });
 
   // ── Una hoja por tipo de bloque ──
   for (const tipo of Object.keys(HOJA_DE) as TipoBloqueG12[]) {
     const campos = CAMPOS_G12[tipo].map((c) => c.clave);
-    const hoja = libro.addWorksheet(HOJA_DE[tipo]);
-    const conIds = !!ids && COLUMNAS_IDS[tipo].length > 0;
-    const propias = 2 + (tipo === 'simulacion' ? 1 : 0) + 1 + campos.length + 2;
-    cabecera(hoja, [
-      ['Cuadro', 28], ['Bloque', 8], ...(tipo === 'simulacion' ? [['Muestra', 9] as [string, number]] : []),
-      ['Fila', 30], ...campos.map((k) => [ETIQUETA[k] ?? k, tipo === 'capacidad' ? 8 : 14] as [string, number]),
-      ['Nota del ítem', 30], ['Nota del bloque', 30],
-      ...(conIds ? COLUMNAS_IDS[tipo] : []),
-    ]);
-    // Las de ids, en gris: se leen, no se editan
-    if (conIds) {
-      for (let n = propias + 1; n <= propias + COLUMNAS_IDS[tipo].length; n++) {
-        hoja.getRow(1).getCell(n).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF667085' } };
-        hoja.getColumn(n).font = { color: { argb: 'FF475467' } };
-      }
-    }
+    const conColumnaIds = !!ids && tipo !== 'capacidad';
+    const anchoCampo = (k: string) => (tipo === 'capacidad' ? 7 : ['agenda', 'zona'].includes(k) ? 30 : ['distrito', 'provincia', 'region'].includes(k) ? 18 : k === 'sku' ? 17 : ['operador', 'almacen', 'codigo'].includes(k) ? 13 : 11);
+    const columnas: Columna[] = [
+      { titulo: 'Cuadro', ancho: 26 }, { titulo: 'Bloque', ancho: 8, centrar: true },
+      ...(tipo === 'simulacion' ? [{ titulo: 'Muestra', ancho: 9, centrar: true }] : []),
+      { titulo: 'Fila', ancho: 28 },
+      ...campos.map((k) => ({ titulo: ETIQUETA[k] ?? k, ancho: anchoCampo(k), centrar: tipo === 'capacidad' || ['servicio', 'metodo', 'cantidad', 'canal', 'hora'].includes(k) })),
+      { titulo: 'Nota del ítem', ancho: 26, partir: true }, { titulo: 'Nota del bloque', ancho: 30, partir: true },
+      ...(conColumnaIds ? [{ titulo: 'Ids de Ripley', ancho: tipo === 'simulacion' ? 90 : tipo === 'picking' ? 30 : 62, ids: true }] : []),
+    ];
+    const valores: unknown[][] = [];
+    const claves: ClaveComponente[] = [];
     for (const c of config.componentes) {
       c.bloques.forEach((b, i) => {
         if (b.tipo !== tipo) return;
         b.items.forEach((it, k) => {
           const firma = firmaIdsG12(tipo, it.campos);
-          hoja.addRow([
+          valores.push([
             definicionDe(c.clave).titulo, i + 1, ...(tipo === 'simulacion' ? [k === 0 && b.muestra ? 'Sí' : ''] : []),
             it.fila, ...campos.map((campo) => it.campos[campo] ?? ''),
             it.nota ?? '', k === 0 ? b.nota ?? '' : '',
-            ...(conIds ? valoresIds(tipo, firma ? ids!.get(firma) : undefined, pais) : []),
+            ...(conColumnaIds ? [textoIds(tipo, firma ? ids!.get(firma) : undefined)] : []),
           ]);
+          claves.push(c.clave);
         });
       });
     }
+    const fijas = tipo === 'simulacion' ? 4 : 3;
+    hojaConEstilo(libro, HOJA_DE[tipo], columnas, valores, { fijas, cuadroEn: 1, claves, color: 'FF667085' });
   }
 
   // ── Resumen ──
-  const resumen = libro.addWorksheet('Resumen');
-  cabecera(resumen, [['Línea', 30], ['Cuadro', 28], ['Fila (vacía: el cuadro entero)', 34]]);
+  const lineasResumen: unknown[][] = [];
+  const clavesResumen: ClaveComponente[] = [];
   for (const l of config.resumen) {
-    for (const p of l.partes) resumen.addRow([l.nombre, definicionDe(p.componente).titulo, p.fila ?? '']);
+    for (const p of l.partes) {
+      lineasResumen.push([l.nombre, definicionDe(p.componente).titulo, p.fila ?? '']);
+      clavesResumen.push(p.componente);
+    }
   }
+  hojaConEstilo(libro, 'Resumen', [{ titulo: 'Línea', ancho: 30 }, { titulo: 'Cuadro', ancho: 30 }, { titulo: 'Fila (vacía: el cuadro entero)', ancho: 36 }], lineasResumen, { fijas: 1, cuadroEn: 2, claves: clavesResumen, color: 'FFD99A00' });
 
   return Buffer.from(await libro.xlsx.writeBuffer());
 }
