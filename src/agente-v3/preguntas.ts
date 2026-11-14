@@ -1,6 +1,7 @@
 import { hechoEnPalabras } from './aprender/prompt.js';
 import type { EntidadMencion } from './entidades.js';
-import type { ContextoTurno, Ensenanza, Pregunta } from './interfaces/agente-v3.interface.js';
+import type { ContextoTurno, Ensenanza, PasoEjecutado, Pregunta } from './interfaces/agente-v3.interface.js';
+import { cambiaria, filasDelCambio } from './respuesta/cambio.js';
 
 /**
  * Parte 1d · las preguntas. Las detecta el código (no depende de que el modelo
@@ -89,6 +90,8 @@ export function esRespuesta(p: Pregunta, r: Contestacion): boolean {
   if (r.cancelar || (r.respuestas && Object.keys(r.respuestas).length)) return true;
   const t = planoTexto(r.texto);
   if (!t) return false;
+  // «¿Procedo?»: un sí o un no escrito también la contesta; cualquier otra cosa es un mensaje nuevo (y no se aplica)
+  if (p.etapa === 'aplicar') return siONo(t) !== null;
   if (p.libre !== null && !p.dudas?.length) return true;
   const opciones = [...p.opciones, ...(p.dudas ?? []).flatMap((d) => d.opciones)];
   return opciones.some((o) => planoTexto(o.texto) === t || planoTexto(o.id) === t);
@@ -124,4 +127,42 @@ export function aplicarRespuesta(contexto: ContextoTurno, r: Contestacion): { co
   const dicho = elegida || texto;
   if (!dicho) return { nada: true };
   return { contexto: { ...contexto, pregunta: null, aclaraciones: [...contexto.aclaraciones, dicho] } };
+}
+
+/** "sí", "dale", "no", "mejor no"… → true / false; otra cosa, null */
+function siONo(t: string): boolean | null {
+  const x = t.replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/^(si|si aplica(lo)?|si aplicar|si procede|procede|aplica(lo)?|dale|ok|vale|si deshacer|deshaz(lo)?|si deshazlo)$/.test(x)) return true;
+  if (/^(no|no ahora|ahora no|mejor no|no gracias|no aplicar|no lo apliques|dejalo|dejalo asi|dejarlo como esta|no dejarlo como esta|no dejarlo asi)$/.test(x)) return false;
+  return null;
+}
+
+/**
+ * «¿Procedo?» (decisión del usuario, 2026-11-13): tras la vista previa, con el
+ * modo editor activo. Dice cuántas cosas cambiarían; deshacer pregunta «¿Lo
+ * dejo como estaba?».
+ */
+export function preguntaDeAplicar(cambios: PasoEjecutado[], deshace: boolean): Pregunta {
+  const filas = cambios.flatMap((p) => filasDelCambio(p.herramienta, p.datos)).filter(cambiaria).length;
+  const cuantas = filas === 1 ? 'Es 1 cambio en Ripley' : `Son ${filas} cambios en Ripley`;
+  const texto = deshace
+    ? `¿Lo dejo como estaba? ${cuantas}.`
+    : `${cambios.length > 1 ? `¿Procedo con estos ${cambios.length} cambios?` : '¿Procedo con el cambio?'} ${cuantas}.`;
+  return {
+    id: 'aplicar',
+    etapa: 'aplicar',
+    texto,
+    opciones: [{ id: 'si', texto: deshace ? 'Sí, deshacer' : 'Sí, aplicar' }, { id: 'no', texto: deshace ? 'No, dejarlo así' : 'No, dejarlo como está' }],
+    libre: null,
+  };
+}
+
+/** Lo que contestó a «¿Procedo?»: sí, no, o nada que se entienda (se vuelve a preguntar) */
+export function respuestaDeAplicar(p: Pregunta, r: Contestacion): { si: true } | { no: true } | { nada: true } {
+  if (r.cancelar) return { no: true };
+  const elegida = r.respuestas ? String(r.respuestas[p.id] ?? '').trim() : '';
+  if (elegida === 'si') return { si: true };
+  if (elegida === 'no') return { no: true };
+  const dicho = siONo(planoTexto(r.texto));
+  return dicho === true ? { si: true } : dicho === false ? { no: true } : { nada: true };
 }

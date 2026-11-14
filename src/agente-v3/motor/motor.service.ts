@@ -23,6 +23,8 @@ import { GeminiService } from './gemini.service.js';
 export type EventoV3 =
   | { tipo: 'turno'; turno_id: string }
   | { tipo: 'etapa'; etapa: RolModelo; modelo: string }
+  /** Aplicando de verdad lo de la vista previa (sin modelo) */
+  | { tipo: 'etapa'; etapa: 'aplicar'; modelo: null }
   | { tipo: 'progreso'; progreso: RespuestaPanel }
   | { tipo: 'pregunta'; pregunta: RespuestaPanel }
   | { tipo: 'respuesta'; respuesta: RespuestaPanel }
@@ -93,6 +95,11 @@ export class MotorV3Service {
     yield* this.recorrer(usuario, () => this.agente.respuesta(usuario, turnoId, dto), peticionId);
   }
 
+  /** «Deshacer» lo que aplicó un mensaje: un turno nuevo con el cambio inverso en vista previa y «¿Lo dejo como estaba?» */
+  async *deshacer(usuario: UsuarioAutenticado, turnoId: string, peticionId?: string): AsyncGenerator<EventoV3> {
+    yield* this.recorrer(usuario, () => this.agente.deshacer(usuario, turnoId, peticionId), peticionId);
+  }
+
   /** Todo el recorrido, en una lista (para quien no lee el flujo: pruebas, herramientas) */
   async todo(eventos: AsyncGenerator<EventoV3>): Promise<EventoV3[]> {
     const lista: EventoV3[] = [];
@@ -113,7 +120,8 @@ export class MotorV3Service {
     for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
       try {
         // "Detener": el turno se cierra donde esté (también mientras piensa un modelo)
-        if (peticionId && this.interrupcion.estaInterrumpida(peticionId) && !['responder', 'preguntar', 'fin'].includes(s.camino)) {
+        // Aplicando, lo corta `aplicar` mismo (para responder con lo que ya se aplicó)
+        if (peticionId && this.interrupcion.estaInterrumpida(peticionId) && !['responder', 'preguntar', 'fin', 'aplicar'].includes(s.camino)) {
           s = await this.agente.detener(usuario, s.turno_id);
         }
         switch (s.camino) {
@@ -135,6 +143,10 @@ export class MotorV3Service {
           case 'avisar':
             yield { tipo: 'progreso', progreso: s.progreso! };
             s = await this.agente.ejecutar(usuario, s.turno_id);
+            break;
+          case 'aplicar':
+            yield { tipo: 'etapa', etapa: 'aplicar', modelo: null };
+            s = await this.agente.aplicar(usuario, s.turno_id, peticionId);
             break;
           case 'preguntar':
             yield { tipo: 'pregunta', pregunta: s.pregunta! };

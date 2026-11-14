@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { InterrupcionAgenteService } from '../agente/seguridad/interrupcion.service.js';
+import { ModoAgenteService } from '../agente/seguridad/modo.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { AprendizajeService } from './aprender/aprendizaje.service.js';
 import { leerAprendido, promptAprender } from './aprender/prompt.js';
@@ -16,10 +17,13 @@ import type { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from './dto/
 import { EjecucionV3Service } from './ejecucion.service.js';
 import { ambiguas } from './entidades.js';
 import { filasDe, type Fila } from './filas.js';
-import type { Clasificacion, ContextoTurno, Ensenanza, IntentoModelo, Pais, PlanV3, Pregunta, Presentacion, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
+import type { Clasificacion, ContextoTurno, Ensenanza, IntentoModelo, Pais, PasoAplicado, PasoEjecutado, PasoPlan, PlanV3, Pregunta, Presentacion, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
 import { claseDeFallo, elegirModelo } from './modelos.js';
 import { planDe, serviciosNombrados, type QueSigue } from './plan.js';
-import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAprender } from './preguntas.js';
+import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAplicar, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAplicar, respuestaDeAprender } from './preguntas.js';
+import { filasDelCambio, resumenAplicado, SIN_EDITOR } from './respuesta/cambio.js';
+import { inversoDe } from './deshacer.js';
+import { herramienta } from './herramientas.js';
 import { armarRespuesta, intermedios, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
 import { atajoEsperado, atajosNombrados, motivoNoTrae, NO_TRAE, QUE_TRAE, sinTraer } from './atajos.js';
 import { leerPresentacion, nombresLargos, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
@@ -114,6 +118,14 @@ const esFalloDeCupo = (intentos: IntentoModelo[], rol: RolModelo) => {
   return f.length > 0 && f.every((i) => i.clase === 'cuota' || i.clase === 'saturado' || /sin respuesta/i.test(i.motivo ?? ''));
 };
 
+/** Una vista previa vale para aplicar 10 minutos; después se rehace (Ripley pudo cambiar) */
+export const VIGENCIA_PREVIA_MS = 10 * 60 * 1000;
+
+/** Los pasos de cambio que cambiarían algo y aún no se aplicaron (con sus cuerpos de la vista previa) */
+export function porAplicar(pasos: PasoEjecutado[]): PasoEjecutado[] {
+  return pasos.filter((p) => herramienta(p.herramienta)?.edicion && p.cuerpos?.length && p.estado === 'ok' && !p.aplicado);
+}
+
 @Injectable()
 export class AgenteV3Service {
   private readonly logger = new Logger(AgenteV3Service.name);
@@ -125,7 +137,13 @@ export class AgenteV3Service {
     private readonly interrupcion: InterrupcionAgenteService,
     private readonly supabase: SupabaseService,
     private readonly aprendizaje: AprendizajeService,
+    @Optional() private readonly modo?: ModoAgenteService,
   ) {}
+
+  /** ¿Puede escribir? Lo dice el servidor (el interruptor del panel, 30 minutos), nunca la petición */
+  private esEditor(usuario: UsuarioAutenticado): boolean {
+    return this.modo?.estado(usuario.id).modo === 'editor';
+  }
 
   private salida(turno: Pick<Turno, 'id'>, camino: SalidaRuta['camino'], extra: Partial<SalidaRuta> = {}): SalidaRuta {
     return { turno_id: turno.id, camino, modelo: null, prompt: null, progreso: null, pregunta: null, respuesta: null, ...extra };
@@ -462,8 +480,7 @@ export class AgenteV3Service {
   /** Después de Presentar (o sin él): "¿lo guardo?" si se enseñó algo; si no, la respuesta */
   private trasPresentar(usuario: UsuarioAutenticado, turno: Turno, presentacion: Presentacion | null): Promise<SalidaRuta> {
     turno.contexto = { ...turno.contexto!, presentacion, presentado: true };
-    if (this.tocaAprender(turno)) return this.pedirModelo(usuario, turno, 'aprender');
-    return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
+    return this.alFinal(usuario, turno);
   }
 
   /** Lo pidió y además enseñó algo: se aprende al final, con la respuesta ya hecha */
@@ -523,7 +540,7 @@ export class AgenteV3Service {
 
   private async preguntar(usuario: UsuarioAutenticado, turno: Turno, p: Pregunta): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
-    if (contexto.rondas >= MAX_RONDAS) {
+    if (contexto.rondas >= MAX_RONDAS && p.etapa !== 'aplicar') {
       if (p.etapa === 'aprender') {
         turno.contexto = { ...contexto, ensenanza: contexto.ensenanza ? { ...contexto.ensenanza, final: 'sin_entender' } : null };
         return this.terminar(usuario, turno, this.respuestaFinal(turno, `Lo dejo aquí: después de ${MAX_RONDAS} preguntas no guardé lo que me enseñaste.`), 'terminado');
@@ -553,6 +570,7 @@ export class AgenteV3Service {
       await this.turnos.actualizar(turno.id, { estado: 'cancelado', etapa: 'caducada' });
       return this.salida(turno, 'fin');
     }
+    if (etapa === 'aplicar') return this.contestarAplicar(usuario, turno, dto);
     if (etapa === 'aprender') return this.contestarAprender(usuario, turno, dto);
     if (etapa === 'zona') return this.contestarZona(usuario, turno, dto);
 
@@ -657,9 +675,145 @@ export class AgenteV3Service {
       await this.turnos.actualizar(turno.id, { pasos: turno.pasos });
     }
     if (turno.pasos.length < plan.pasos.length) return this.salida(turno, 'avisar', { progreso: this.conAvisos(turno, respuestaProgreso(turno)) });
+    if (porAplicar(turno.pasos).length) turno.contexto = { ...turno.contexto!, vista_previa_en: new Date().toISOString() };
+    return this.alFinal(usuario, turno);
+  }
+
+  /** Lo que queda al acabar de ejecutar: Presentar, «¿Procedo?», aprender y la respuesta */
+  private async alFinal(usuario: UsuarioAutenticado, turno: Turno): Promise<SalidaRuta> {
     if (this.tocaPresentar(turno)) return this.pedirModelo(usuario, turno, 'presentar');
+    const proceder = this.tocaProceder(usuario, turno);
+    if (proceder) return this.preguntar(usuario, turno, proceder);
     if (this.tocaAprender(turno)) return this.pedirModelo(usuario, turno, 'aprender');
     return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
+  }
+
+  /**
+   * «¿Procedo?» (decisión del usuario, 2026-11-13): tras la vista previa de un
+   * cambio que cambiaría algo, y solo con el modo editor activo. Sin él, la
+   * vista previa y cómo aplicarlo. Se pregunta una vez por turno.
+   */
+  private tocaProceder(usuario: UsuarioAutenticado, turno: Turno): Pregunta | null {
+    const c = turno.contexto!;
+    const cambios = porAplicar(turno.pasos ?? []);
+    if (c.aplicacion?.preguntado || !cambios.length) return null;
+    if (!this.esEditor(usuario)) {
+      turno.contexto = { ...c, avisos: [...new Set([...(c.avisos ?? []), SIN_EDITOR])] };
+      return null;
+    }
+    turno.contexto = { ...c, aplicacion: { preguntado: true, cambios: [] } };
+    return preguntaDeAplicar(cambios, Boolean(c.deshace));
+  }
+
+  /**
+   * La respuesta a «¿Procedo?». "No": nada. "Sí": otra vez el modo editor (en
+   * el servidor) y, si la vista previa tiene más de 10 minutos, se rehace y se
+   * vuelve a preguntar (Ripley pudo cambiar); si no, a aplicar.
+   */
+  private async contestarAplicar(usuario: UsuarioAutenticado, turno: Turno, dto: RespuestaPersonaDto): Promise<SalidaRuta> {
+    const c = turno.contexto!;
+    const p = c.pregunta!;
+    const r = respuestaDeAplicar(p, dto);
+    if ('nada' in r) return this.preguntar(usuario, turno, p);
+    turno.contexto = { ...c, pregunta: null };
+    turno.estado = 'en_curso';
+    if ('no' in r) {
+      turno.contexto = { ...turno.contexto, aplicacion: { ...(c.aplicacion ?? { preguntado: true, cambios: [] }), respuesta: 'no' } };
+      return this.terminar(usuario, turno, this.respuestaFinal(turno, 'De acuerdo: no apliqué nada.'), 'terminado');
+    }
+    if (!this.esEditor(usuario)) {
+      return this.terminar(usuario, turno, this.respuestaFinal(turno, 'El modo editor ya no está activo: no apliqué nada. Actívalo y pídemelo otra vez.'), 'terminado');
+    }
+    const desde = Date.parse(c.vista_previa_en ?? '');
+    if (!Number.isFinite(desde) || Date.now() - desde > VIGENCIA_PREVIA_MS) {
+      turno.pasos = [];
+      turno.contexto = {
+        ...turno.contexto, aplicacion: null, vista_previa_en: null, presentacion: null, presentado: true, anunciado: false,
+        avisos: [...new Set([...(c.avisos ?? []), 'La vista previa tenía más de 10 minutos: la rehice con cómo está ahora. Mírala antes de decir que sí.'])],
+      };
+      await this.turnos.actualizar(turno.id, { pasos: [] });
+      return this.aEjecutar(turno, turno.plan as PlanV3);
+    }
+    turno.contexto = { ...turno.contexto, aplicacion: { preguntado: true, respuesta: 'si', cambios: [] } };
+    turno.etapa = 'aplicar';
+    await this.turnos.actualizar(turno.id, { contexto: turno.contexto, estado: 'en_curso', etapa: 'aplicar' });
+    return this.salida(turno, 'aplicar');
+  }
+
+  /**
+   * APLICA de verdad, un paso de cambio por llamada: los cuerpos de su vista
+   * previa, sin simulacro. Antes de cada uno, el modo editor y "Detener".
+   */
+  async aplicar(usuario: UsuarioAutenticado, id: string, peticionId?: string): Promise<SalidaRuta> {
+    const turno = await this.turnos.obtener(id, usuario.id);
+    if (turno.etapa !== 'aplicar' || turno.estado !== 'en_curso') return this.comoEsta(turno);
+    const c = turno.contexto!;
+    const hechos = c.aplicacion?.cambios ?? [];
+    const pendiente = porAplicar(turno.pasos ?? []).find((p) => !hechos.some((h) => h.n === p.n));
+    if (pendiente) {
+      const parar = this.interrupcion.estaInterrumpida(peticionId ?? turno.peticion_id ?? undefined)
+        ? 'Detenido: no apliqué lo que faltaba.'
+        : !this.esEditor(usuario) ? 'El modo editor se apagó: no apliqué lo que faltaba.' : null;
+      if (parar) return this.terminarAplicado(usuario, turno, parar);
+      let aplicado: PasoAplicado;
+      try {
+        aplicado = await this.ejecucion.aplicar(usuario, pendiente);
+      } catch (e) {
+        const error = (e as Error).message || 'falló';
+        aplicado = { n: pendiente.n, herramienta: pendiente.herramienta, cuerpos: (pendiente.cuerpos ?? []).map((cuerpo) => ({ cuerpo, ok: false, error })), datos: null };
+      }
+      turno.contexto = { ...c, aplicacion: { ...(c.aplicacion ?? { preguntado: true, respuesta: 'si' }), cambios: [...hechos, aplicado] } };
+      await this.turnos.actualizar(turno.id, { contexto: turno.contexto });
+      if (porAplicar(turno.pasos ?? []).some((p) => !turno.contexto!.aplicacion!.cambios.some((h) => h.n === p.n))) return this.salida(turno, 'aplicar');
+    }
+    return this.terminarAplicado(usuario, turno);
+  }
+
+  /** Lo aplicado pasa a los pasos (lo que quedó, "antes" y "quedó") y se responde; con algo aplicado, «Deshacer» */
+  private terminarAplicado(usuario: UsuarioAutenticado, turno: Turno, nota?: string): Promise<SalidaRuta> {
+    const ap = turno.contexto!.aplicacion!;
+    turno.pasos = (turno.pasos ?? []).map((p) => {
+      const a = ap.cambios.find((x) => x.n === p.n);
+      if (!a) return p;
+      const r = resumenAplicado(p.herramienta, a);
+      const datos = a.datos ? { ...(a.datos as object), vista: filasDelCambio(p.herramienta, a.datos), aplicado: true } : p.datos;
+      return { ...p, datos, aplicado: true, estado: r.estado, resumen: r.resumen };
+    });
+    const pres = turno.contexto!.presentacion;
+    // La frase de Presentar hablaba de la vista previa ("quedaría"): ahora manda la del código
+    turno.contexto = { ...turno.contexto!, aplicacion: { ...ap, en: new Date().toISOString() }, presentacion: pres ? { ...pres, frase: null } : null };
+    turno.etapa = 'responder';
+    return this.terminar(usuario, turno, nota ? this.respuestaFinal(turno, nota) : armarRespuesta(turno), 'terminado');
+  }
+
+  /**
+   * «Deshacer» un turno aplicado (de la misma persona): un turno nuevo con el
+   * cambio inverso ya armado (deshacer.ts), que se enseña en vista previa y
+   * pregunta «¿Lo dejo como estaba?» antes de aplicarlo.
+   */
+  async deshacer(usuario: UsuarioAutenticado, id: string, peticionId?: string): Promise<SalidaRuta> {
+    const original = await this.turnos.obtener(id, usuario.id);
+    const ap = original.contexto?.aplicacion;
+    if (!ap?.en || !ap.cambios.some((x) => x.cuerpos.some((c) => c.ok))) throw new Error('Ese mensaje no aplicó ningún cambio: no hay nada que deshacer.');
+    const pais = original.contexto!.pais;
+    const pasos: PasoPlan[] = [];
+    const sin: string[] = [];
+    for (const a of ap.cambios) {
+      const inv = inversoDe(a, pais);
+      sin.push(...inv.sin);
+      const que = original.pasos?.find((p) => p.n === a.n)?.que.replace(/^Vista previa: /, '') ?? a.herramienta;
+      if (inv.cuerpos.length) pasos.push({ herramienta: inv.herramienta, param: {}, cuerpos: inv.cuerpos, titulo: `Deshacer: ${que}` });
+    }
+    if (!pasos.length) throw new Error(`No hay nada que volver atrás${sin.length ? `: ${sin.join('; ')}` : ' (no cambió nada)'}.`);
+    if (peticionId) this.interrupcion.registrar(peticionId, usuario.id);
+    const turno = await this.turnos.crear({ chat_id: original.chat_id, usuario_id: usuario.id, peticion_id: peticionId ?? null, mensaje: `Deshacer «${original.mensaje}»`.slice(0, 2000), responde_a: original.mensaje_id });
+    turno.contexto = {
+      ...original.contexto!, pregunta: null, aclaraciones: [], rondas: 0, aplicacion: null, vista_previa_en: null, deshace: original.id,
+      presentacion: null, presentado: true, anunciado: false, ensenanza: null, aprender_aclaracion: false,
+      avisos: sin.length ? [`No puedo volver atrás ${sin.join('; ')}.`] : [],
+    };
+    turno.clasificacion = { tipo: 'cambio', dep: false, atajo: null, motivo: `deshacer lo aplicado en «${original.mensaje.slice(0, 120)}»` };
+    return this.aEjecutar(turno, { origen: 'deshacer', pasos, ver: null });
   }
 
   /** El turno del chat que espera respuesta (si lo hay) */
@@ -744,6 +898,7 @@ export class AgenteV3Service {
     if (turno.estado === 'pregunta' && turno.respuesta) return this.salida(turno, 'preguntar', { pregunta: turno.respuesta });
     if (turno.respuesta && turno.estado !== 'en_curso') return this.salida(turno, 'responder', { respuesta: turno.respuesta });
     if (turno.etapa === 'ejecutar') return this.salida(turno, 'ejecutar');
+    if (turno.etapa === 'aplicar' && turno.estado === 'en_curso') return this.salida(turno, 'aplicar');
     return this.salida(turno, 'responder', { respuesta: respuestaSinPlan(turno, 'Este turno ya no está en curso.') });
   }
 }

@@ -251,6 +251,7 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
       datos: p.datos,
       vista: vistaDe(p),
       ...(p.total !== undefined ? { total: p.total } : {}),
+      ...(p.aplicado ? { aplicado: true } : {}),
     }));
   const aLaVista = varios ? cambios : variasRespuestas ? contestan : null;
   const cuerpo = aLaVista
@@ -265,6 +266,8 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
     markdown: [texto, ...cuerpo].join('\n\n'),
     ver: ver ?? null,
     ...(pres?.etiquetas && Object.keys(pres.etiquetas).length ? { etiquetas: pres.etiquetas } : {}),
+    // Se aplicó algo de verdad: el panel ofrece «Deshacer»
+    ...(turno.contexto?.aplicacion?.en && turno.contexto.aplicacion.cambios.some((c) => c.cuerpos.some((x) => x.ok)) ? { deshacer: true } : {}),
     pasos: pasos.map(({ n, que, estado, resumen, ms }) => ({ n, que, estado, resumen, ms })),
   };
 }
@@ -289,7 +292,7 @@ export function respuestaPregunta(turno: Turno, p: Pregunta, ahora = new Date())
   const dudas = p.dudas?.length
     ? p.dudas.map((d) => ({ id: d.id, pregunta: d.texto, opciones: d.opciones, libre: null }))
     : [{ id: p.id, pregunta: p.texto, opciones: p.opciones, libre: p.libre }];
-  if (p.etapa === 'aprender' && (turno.pasos ?? []).length) {
+  if ((p.etapa === 'aprender' || p.etapa === 'aplicar') && (turno.pasos ?? []).length) {
     const r = armarRespuesta(turno, ahora);
     return { ...r, tipo: 'pregunta', markdown: `${r.markdown}\n\n${p.texto}`, dudas };
   }

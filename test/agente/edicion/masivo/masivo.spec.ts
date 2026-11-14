@@ -344,3 +344,14 @@ describe('Cambio en bloque: el historial', () => {
     expect(despues.agendas).toHaveLength(3);
   });
 });
+
+describe('Cambio en bloque: solo las agendas pedidas por su nombre (el «Deshacer» de la v3)', () => {
+  it('con `agendas`, toca solo esas, aunque el operador tenga otras', async () => {
+    const { servicio, actualizar } = armar(agendas(3, false));
+
+    const r = await servicio.editar(USUARIO, editar({ activo: true, agendas: ['agenda 1 '] }));
+
+    expect(r.cambiadas.map((c: { agenda: string }) => c.agenda)).toEqual(['Agenda 1']);
+    expect(actualizar.mock.calls[0][0].cambios.map((c: { mainRouteId: string }) => c.mainRouteId)).toEqual(['r-1']);
+  });
+});

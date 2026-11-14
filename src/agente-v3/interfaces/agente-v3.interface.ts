@@ -23,6 +23,7 @@ export type Camino =
   | 'aprender'
   | 'presentar'
   | 'ejecutar'
+  | 'aplicar'
   | 'avisar'
   | 'redactar'
   | 'preguntar'
@@ -151,7 +152,7 @@ export interface Ensenanza {
 export interface Pregunta {
   id: string;
   /** La etapa que preguntó: ahí sigue el turno con la respuesta */
-  etapa: 'entidades' | 'armar' | 'calcular' | 'aprender' | 'zona';
+  etapa: 'entidades' | 'armar' | 'calcular' | 'aprender' | 'zona' | 'aplicar';
   texto: string;
   opciones: Array<{ id: string; texto: string }>;
   libre: string | null;
@@ -198,6 +199,12 @@ export interface ContextoTurno {
   buscadas?: string[];
   /** Las zonas que eligió la persona, por paso: { "2": { "1401": "Zona 1401 - …", "*": "todas" } } */
   zonas_elegidas?: Record<string, Record<string, string>>;
+  /** Cuándo terminó la vista previa de los cambios: pasados 10 minutos, se rehace antes de aplicar */
+  vista_previa_en?: string | null;
+  /** «¿Procedo?» y lo que se aplicó de verdad (con modo editor y un "sí") */
+  aplicacion?: Aplicacion | null;
+  /** Este turno deshace los cambios de otro (su id) */
+  deshace?: string | null;
   /** Lo que decidió Presentar (o null si no hizo falta o no se pudo); `presentado`: ya se pasó por ahí */
   presentacion?: Presentacion | null;
   presentado?: boolean;
@@ -226,6 +233,35 @@ export interface PasoPlan {
   param: Record<string, unknown>;
   condicion?: Condicion;
   comprobar?: Comprobacion;
+  /** Un cambio ya armado (deshacer): los cuerpos tal cual, sin resolver nada; y cómo se llama el paso */
+  cuerpos?: Array<Record<string, unknown>>;
+  titulo?: string;
+}
+
+/** Un cuerpo de un cambio aplicado de verdad, con lo que pasó */
+export interface CuerpoAplicado {
+  cuerpo: Record<string, unknown>;
+  ok: boolean;
+  error?: string;
+}
+
+/** Un paso de cambio aplicado: cada cuerpo y lo que devolvió Ripley (con el antes, para deshacer) */
+export interface PasoAplicado {
+  n: number;
+  herramienta: string;
+  cuerpos: CuerpoAplicado[];
+  datos: unknown;
+}
+
+/** «¿Procedo?» y lo aplicado */
+export interface Aplicacion {
+  /** Ya se preguntó (no se vuelve a preguntar) */
+  preguntado: boolean;
+  /** Lo que contestó la persona */
+  respuesta?: 'si' | 'no';
+  /** Cuándo se terminó de aplicar */
+  en?: string | null;
+  cambios: PasoAplicado[];
 }
 
 /** Lo que devuelve «Qué calcular» (1c): la operación; el número lo saca el código */
@@ -243,7 +279,7 @@ export interface Calculo {
 export interface PlanV3 {
   pasos: PasoPlan[];
   /** De dónde salió */
-  origen: 'atajo' | 'repetir' | 'saber' | 'armar' | 'calcular' | 'charla' | 'cambio' | 'aprender';
+  origen: 'atajo' | 'repetir' | 'saber' | 'armar' | 'calcular' | 'charla' | 'cambio' | 'aprender' | 'deshacer';
   calculo?: Calculo;
   /** Cómo se pidió enseñarlo: "totales", "cuadro", "uso" */
   ver?: string | null;
@@ -265,6 +301,10 @@ export interface PasoEjecutado {
   condicion?: Condicion;
   /** Lo que se comprobó, con su respuesta */
   comprobacion?: { pregunta: Comprobacion; si: boolean; total: number; cumplen: string[]; noCumplen: string[] };
+  /** Un cambio: los cuerpos que se mandaron en la vista previa (los mismos que se aplican con el "sí") */
+  cuerpos?: Array<Record<string, unknown>>;
+  /** Un cambio ya aplicado de verdad: `datos` es lo que quedó */
+  aplicado?: boolean;
 }
 
 export interface Turno {
@@ -298,6 +338,8 @@ export interface ResultadoPanel {
   total?: number;
   /** Cómo se enseña: totales, detalle, uso, solo la frase o plegado */
   vista?: Vista;
+  /** Un cambio aplicado de verdad (no una vista previa): la tabla dice "antes" y "quedó" */
+  aplicado?: boolean;
 }
 
 /** Una duda, como la entiende el panel (el mismo formato que la v2) */
@@ -336,6 +378,8 @@ export interface RespuestaPanel {
   ver?: string | null;
   /** Los nombres largos de las tablas, acortados por Presentar: el panel los usa en lugar del largo */
   etiquetas?: Record<string, string>;
+  /** Se aplicó algo de verdad: el panel ofrece «Deshacer» (POST /agente/v3/turnos/:id/deshacer) */
+  deshacer?: boolean;
 }
 
 /** Lo que contestan todas las rutas: n8n solo mira `camino` */

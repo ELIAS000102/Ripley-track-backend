@@ -117,7 +117,7 @@ describe('Cambios: cómo quedaría, sin aplicar nada', () => {
     const r = await hastaElFinal(servicio, t.turno_id);
     expect(auditoria.activarSimulacro).toHaveBeenCalled();
     expect(editarCapacidad.editarCapacidad).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ tipo: 'despacho', codigo: '1100', fecha: MANANA, activa: false, pais: 'PE' }));
-    expect(r.respuesta!.frase).toBe('Así quedaría: cambiaría 1 de 2; 1 ya estaba así. No apliqué nada: es solo una vista previa. Para aplicarlo, pídeselo al agente v2 con el modo editor.');
+    expect(r.respuesta!.frase).toBe('Así quedaría: cambiaría 1 de 2; 1 ya estaba así. No apliqué nada: es solo una vista previa.');
     expect((r.respuesta!.resultados[0].datos as { vista: unknown[] }).vista[0]).toEqual({ donde: '1100 · Lima metropolitana · Centralizado HUB Surquillo', dia: MANANA, antes: 'abierto · asignado 100 · disponible 100', despues: 'cerrado · asignado 100 · disponible 100' });
     expect(r.respuesta!.markdown).toContain('| Dónde | Día | Ahora | Quedaría |');
   });
@@ -149,7 +149,7 @@ describe('Cambios: cómo quedaría, sin aplicar nada', () => {
     expect(filasDelCambio('cortar_reabrir_cd', { jornadas: [{ cd: '20026', jornada: 'AM', agenda: 'Picking AM', fecha: MANANA, antes: true, despues: false }] })[0]).toMatchObject({ antes: 'abierta', despues: 'cortada' });
     expect(filasDelCambio('editar_servicio_opl', { servicios: [{ opl: '1100', zona: 'Lima', agenda: 'Centralizado', servicio: 'S', antes: { activo: true, enCheckout: true, cortes: ['14:00'], diasHolgura: 1, maxOcurrencia: null }, despues: { activo: true, enCheckout: false, cortes: ['14:00'], diasHolgura: 1, maxOcurrencia: null } }] })[0].despues).toBe('activo · fuera del checkout · corte 14:00 · holgura 1');
     const t = { origen: '20026', destinos: [{ destino: '20048', antes: null, despues: null, error: 'no existe esa relación' }] };
-    expect(resumenCambio('editar_transferencia', t)).toEqual({ estado: 'vacio', resumen: 'No cambiaría nada: ya está así; 1 no se podría tocar (no existe esa relación). No apliqué nada: es solo una vista previa. Para aplicarlo, pídeselo al agente v2 con el modo editor.' });
+    expect(resumenCambio('editar_transferencia', t)).toEqual({ estado: 'vacio', resumen: 'No cambiaría nada: ya está así; 1 no se podría tocar (no existe esa relación). No apliqué nada: es solo una vista previa.' });
     expect(markdownCambio('editar_transferencia', t)).toContain('no se puede: no existe esa relación');
   });
 });

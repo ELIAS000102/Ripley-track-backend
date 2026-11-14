@@ -91,3 +91,11 @@ export class ContestarDto extends RespuestaPersonaDto {
   @MaxLength(100)
   peticion_id?: string;
 }
+
+/** «Deshacer» un mensaje que aplicó cambios: con la petición, para "Detener" */
+export class DeshacerDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  peticion_id?: string;
+}

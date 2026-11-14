@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -485,6 +487,17 @@ export class EditarMasivoDto extends PaisDto {
   @Transform(({ value }) => aBooleano(value))
   @IsBoolean()
   soloActivas?: boolean;
+
+  /**
+   * Solo estas agendas, por su nombre exacto. Lo usa el «Deshacer» del agente
+   * v3: vuelve a como estaban SOLO las agendas que cambió, no las demás del
+   * mismo operador que ya estaban así.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @IsString({ each: true })
+  agendas?: string[];
 
   /** El estado nuevo. Omítelo para dejarlo como está. */
   @IsOptional()

@@ -20,8 +20,9 @@ import { TurnosService } from './turnos.service.js';
  * decide el código: el contexto, los prompts, validar lo que dice el modelo,
  * ejecutar y armar la respuesta. Ejecuta con los services del backend en el
  * mismo proceso: el agente (por `InterrupcionAgenteService`, el botón
- * "Detener") y los atajos. Los cambios, solo en vista previa (simulacro), y lo
- * que se enseña en el chat, al directorio común tras un "sí" (aprender/).
+ * "Detener") y los atajos. Los cambios, primero en vista previa (simulacro) y
+ * de verdad solo con el modo editor y un "sí" (con «Deshacer»); y lo que se
+ * enseña en el chat, al directorio común tras un "sí" (aprender/).
  */
 @Module({
   imports: [AgenteModule, AtajosModule],

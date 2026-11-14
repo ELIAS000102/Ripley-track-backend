@@ -4,7 +4,7 @@ import { SinMarcaSimulacro } from '../../auditoria/simulacro.interceptor.js';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { SinRastroInterceptor } from '../../agente/seguridad/sin-rastro.interceptor.js';
-import { ContestarDto, CrearTurnoDto } from '../dto/turnos.dto.js';
+import { ContestarDto, CrearTurnoDto, DeshacerDto } from '../dto/turnos.dto.js';
 import { MotorV3Service, type EventoV3 } from './motor.service.js';
 
 /**
@@ -39,6 +39,13 @@ export class MensajesV3Controller {
   async contestar(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: ContestarDto, @Res() res: Response): Promise<void> {
     const { peticion_id: peticion, ...respuesta } = body;
     await this.enviar(res, this.motor.contestar(usuario, id, respuesta, peticion));
+  }
+
+  /** POST /agente/v3/turnos/:id/deshacer — vuelve atrás lo que aplicó ese mensaje (con vista previa y «¿Lo dejo como estaba?») */
+  @Post('turnos/:id/deshacer')
+  @SinMarcaSimulacro()
+  async deshacer(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: DeshacerDto, @Res() res: Response): Promise<void> {
+    await this.enviar(res, this.motor.deshacer(usuario, id, body.peticion_id));
   }
 
   /** Escribe cada evento según llega; si el panel se fue, el turno sigue igual (sin escribir) */

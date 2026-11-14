@@ -139,15 +139,17 @@ export class EditarMasivoAgenteService {
 
   // ---------- Qué agendas entran ----------
 
-  /** Solo las de los operadores pedidos, y solo las activas si se pidió */
-  private acotar<T extends { opl?: string; isActive?: boolean }>(
+  /** Solo las de los operadores pedidos (y las agendas pedidas por su nombre), y solo las activas si se pidió */
+  private acotar<T extends { opl?: string; agenda?: string; isActive?: boolean }>(
     agendas: T[],
     dto: EditarMasivoDto,
   ): T[] {
     const pedidos = partirLista(dto.opls).map((o) => o.toLowerCase());
+    const exactas = dto.agendas?.length ? new Set(dto.agendas.map((a) => a.trim().toLowerCase())) : null;
 
     return agendas.filter((a) => {
       if (dto.soloActivas && a.isActive !== true) return false;
+      if (exactas && !exactas.has((a.agenda ?? '').trim().toLowerCase())) return false;
       if (!pedidos.length) return true;
 
       const nombre = (a.opl ?? '').toLowerCase();

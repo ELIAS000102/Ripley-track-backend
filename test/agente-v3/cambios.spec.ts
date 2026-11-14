@@ -95,7 +95,7 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
     expect(resp.frase).toBe('Así quedaría — paso 2 · activar SE en lo del paso 1: cambiarían 2 de 2. '
       + 'paso 3 · desactivar ST en lo del paso 1: cambiarían 2 de 2. '
       + 'paso 5 · activar ST en lo del paso 4 menos lo del paso 1: cambiarían 2 de 2. '
-      + 'No apliqué nada: es solo una vista previa. Para aplicarlo, pídeselo al agente v2 con el modo editor.');
+      + 'No apliqué nada: es solo una vista previa.');
     expect(resp.markdown).toContain('**Vista previa: desactivar ST en lo del paso 1**\n\n| Dónde | Ahora | Quedaría |');
     expect(resp.markdown).toContain('| 20066 · Plaza Lima Norte · Agenda Plaza Lima Norte (Zona Plaza Lima Norte) | inactivo · fuera del checkout | activo · fuera del checkout |');
     expect(resp.resultados.filter((x) => x.herramienta === 'editar_masivo')).toHaveLength(3);
@@ -135,7 +135,7 @@ describe('La vista previa de la edición masiva, sin el tope de 30', () => {
     const { servicio } = armar(() => { throw new Error('Las 21 agendas ya estaban así. No he cambiado nada.'); });
     const r = await hasta(servicio, unPaso('ST', true));
     expect(r.respuesta!.pasos[0].estado).toBe('vacio');
-    expect(r.respuesta!.frase).toBe('No cambiaría nada: las 21 agendas ya están así. No apliqué nada: es solo una vista previa. Para aplicarlo, pídeselo al agente v2 con el modo editor.');
+    expect(r.respuesta!.frase).toBe('No cambiaría nada: las 21 agendas ya están así. No apliqué nada: es solo una vista previa.');
   });
 
   it('el prompt dice cómo es "las de la ST que coinciden con las de la SE"', async () => {

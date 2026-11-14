@@ -1,5 +1,5 @@
 import { partirOficina } from '../filas.js';
-import type { PasoEjecutado } from '../interfaces/agente-v3.interface.js';
+import type { PasoAplicado, PasoEjecutado } from '../interfaces/agente-v3.interface.js';
 
 /**
  * La vista previa de un CAMBIO (decisión del usuario, 2026-11-08): la v3 dice
@@ -116,7 +116,28 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
 /** Lo que cambiaría de verdad: sin error y con el después distinto del antes */
 export const cambiaria = (f: FilaCambio) => !f.error && f.antes !== f.despues;
 
-export const NO_APLICADO = 'No apliqué nada: es solo una vista previa. Para aplicarlo, pídeselo al agente v2 con el modo editor.';
+export const NO_APLICADO = 'No apliqué nada: es solo una vista previa.';
+
+/** Sin modo editor no se pregunta «¿Procedo?»: se dice cómo aplicarlo */
+export const SIN_EDITOR = 'Para aplicarlo, activa el modo editor y pídemelo otra vez.';
+
+/**
+ * Lo que pasó al aplicar un paso de verdad: lo que cambió (Ripley lo relee) y
+ * lo que no se pudo, con su motivo.
+ */
+export function resumenAplicado(herramienta: string, a: PasoAplicado): { estado: 'ok' | 'vacio'; resumen: string } {
+  const filas = a.datos ? filasDelCambio(herramienta, a.datos) : [];
+  const cambiaron = filas.filter(cambiaria).length;
+  const errores = filas.filter((f) => f.error);
+  const fallos = a.cuerpos.filter((c) => !c.ok);
+  const noPudo = Math.max(errores.length, fallos.length);
+  const motivos = [...new Set([...errores.map((e) => e.error), ...fallos.map((f) => f.error)].filter(Boolean))];
+  const partes = [
+    cambiaron ? `Apliqué el cambio: ${cambiaron === 1 ? 'cambió 1' : `cambiaron ${cambiaron}`} de ${filas.length}` : noPudo ? 'No apliqué nada' : 'No cambió nada: ya estaba así',
+    noPudo ? `${noPudo} no se ${noPudo === 1 ? 'pudo' : 'pudieron'} aplicar (${motivos.slice(0, 2).join('; ')})` : null,
+  ].filter(Boolean);
+  return { estado: cambiaron ? 'ok' : 'vacio', resumen: `${partes.join('; ')}.` };
+}
 
 export function resumenCambio(herramienta: string, datos: unknown): { estado: 'ok' | 'vacio'; resumen: string } {
   const filas = filasDelCambio(herramienta, datos);
@@ -144,12 +165,13 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
  * paso 3 · …"), y "No apliqué nada" una sola vez.
  */
 export function fraseDeCambios(cambios: PasoEjecutado[]): string {
+  const aplicados = cambios.some((p) => p.aplicado);
   const parte = (p: PasoEjecutado) => {
     const titulo = `paso ${p.n} · ${p.que.replace(/^Vista previa: /, '')}`;
-    if (p.estado === 'error') return `${titulo}: no se podría (${p.error ?? p.resumen})`;
-    return `${titulo}: ${p.resumen.replace(` ${NO_APLICADO}`, '').replace(/^Así quedaría: /, '').replace(/\.$/, '')}`;
+    if (p.estado === 'error') return `${titulo}: no se ${aplicados ? 'pudo' : 'podría'} (${p.error ?? p.resumen})`;
+    return `${titulo}: ${p.resumen.replace(` ${NO_APLICADO}`, '').replace(/^Así quedaría: /, '').replace(/^Apliqué el cambio: /, '').replace(/\.$/, '')}`;
   };
-  return `Así quedaría — ${cambios.map(parte).join('. ')}. ${NO_APLICADO}`;
+  return aplicados ? `Apliqué los cambios — ${cambios.map(parte).join('. ')}.` : `Así quedaría — ${cambios.map(parte).join('. ')}. ${NO_APLICADO}`;
 }
 
 const celda = (s: unknown) => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
@@ -158,7 +180,9 @@ export function markdownCambio(herramienta: string, datos: unknown): string {
   const filas = filasDelCambio(herramienta, datos);
   if (!filas.length) return '';
   const conDia = filas.some((f) => f.dia);
-  const cab = ['Dónde', ...(conDia ? ['Día'] : []), 'Ahora', 'Quedaría'];
-  const fila = (f: FilaCambio) => [f.donde, ...(conDia ? [ddmm(f.dia)] : []), f.antes, f.error ? `no se puede: ${f.error}` : f.despues === f.antes ? 'igual' : f.despues];
+  // Aplicado de verdad: "antes" y "quedó"; si no, la vista previa: "ahora" y "quedaría"
+  const aplicado = (datos as { aplicado?: boolean } | null)?.aplicado === true;
+  const cab = ['Dónde', ...(conDia ? ['Día'] : []), aplicado ? 'Antes' : 'Ahora', aplicado ? 'Quedó' : 'Quedaría'];
+  const fila = (f: FilaCambio) => [f.donde, ...(conDia ? [ddmm(f.dia)] : []), f.antes, f.error ? `no se ${aplicado ? 'pudo' : 'puede'}: ${f.error}` : f.despues === f.antes ? 'igual' : f.despues];
   return [`| ${cab.join(' | ')} |`, `| ${cab.map(() => '---').join(' | ')} |`, ...filas.slice(0, 60).map((f) => `| ${fila(f).map(celda).join(' | ')} |`), ...(filas.length > 60 ? [`\n…y ${filas.length - 60} más`] : [])].join('\n');
 }

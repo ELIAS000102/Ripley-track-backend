@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { BusquedaMasivaAgenteService } from '../agente/consultas/busqueda-masiva/busqueda-masiva.service.js';
@@ -14,6 +14,7 @@ import { EditarMasivoAgenteService } from '../agente/edicion/masivo/masivo.servi
 import { ReasignarCapacidadAgenteService } from '../agente/edicion/reasignar/reasignar.service.js';
 import { EditarTipoServicioAgenteService } from '../agente/edicion/tipo-servicio/tipo-servicio.service.js';
 import { EditarTransferenciaAgenteService } from '../agente/edicion/transferencia/transferencia.service.js';
+import { AuditoriaService } from '../auditoria/auditoria.service.js';
 import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
@@ -25,7 +26,7 @@ import { agendasDelAnterior, agendasPorElegir, esDelAnterior, oficinasConVariasZ
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
 import { queEs } from './que.js';
-import type { AgendaConocida, ContextoTurno, PasoEjecutado, PasoPlan, PlanV3 } from './interfaces/agente-v3.interface.js';
+import type { AgendaConocida, ContextoTurno, CuerpoAplicado, PasoAplicado, PasoEjecutado, PasoPlan, PlanV3 } from './interfaces/agente-v3.interface.js';
 import { resumenDelPaso, type FilaAtajo } from './respuesta/armar.js';
 import { filasDelCambio } from './respuesta/cambio.js';
 
@@ -132,20 +133,23 @@ export class EjecucionV3Service {
     private readonly editarTipoServicio: EditarTipoServicioAgenteService,
     private readonly editarMasivo: EditarMasivoAgenteService,
     private readonly editarTransferencia: EditarTransferenciaAgenteService,
+    @Optional() private readonly registro?: AuditoriaService,
   ) {}
 
   async ejecutar(usuario: UsuarioAutenticado, plan: PlanV3, k: number, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<PasoEjecutado> {
     const paso = plan.pasos[k];
     const n = k + 1;
     const t0 = Date.now();
-    const base = { n, que: queEs(paso, contexto.pais), herramienta: paso.herramienta };
+    const base = { n, que: paso.titulo ?? queEs(paso, contexto.pais), herramienta: paso.herramienta };
+    // Lo que se manda en la vista previa de un cambio: lo mismo se aplica con el "sí"
+    const cuerpos: Array<Record<string, unknown>> = [];
     try {
       // Un paso que usa lo de otro que falló no se hace
       const refs = Object.values(paso.param).filter((v) => v && typeof v === 'object' && (v as { ref?: string }).ref === 'paso') as Array<{ n: number; sin?: number }>;
       const fallido = refs.flatMap((r) => [r.n, ...(r.sin ? [r.sin] : [])]).find((k) => hechos[k - 1]?.estado === 'error');
       if (fallido) throw new Error(`no se hizo: dependía del paso ${fallido}, que falló`);
 
-      let datos = paso.herramienta === 'calcular' ? this.calcular(plan, contexto) : await this.correr(usuario, paso, hechos, contexto);
+      let datos = paso.herramienta === 'calcular' ? this.calcular(plan, contexto) : await this.correr(usuario, paso, hechos, contexto, cuerpos);
       await this.conNombres(datos, String(paso.param.pais ?? contexto.pais));
       // Un cambio: las filas "dónde · día · ahora · quedaría" van con los datos (el panel las dibuja tal cual)
       if (herramienta(paso.herramienta)?.edicion && datos && typeof datos === 'object') datos = { ...(datos as object), vista: filasDelCambio(paso.herramienta, datos) };
@@ -159,7 +163,7 @@ export class EjecucionV3Service {
       }
       if (paso.comprobar) salida.comprobacion = { pregunta: paso.comprobar, ...comprobar(filas, paso.comprobar) };
       const { estado, resumen } = resumenDelPaso(paso.herramienta, datos, paso.param, contexto.hoy, salida);
-      return { ...base, ...salida, estado, resumen, ms: Date.now() - t0, datos };
+      return { ...base, ...salida, estado, resumen, ms: Date.now() - t0, datos, ...(cuerpos.length ? { cuerpos } : {}) };
     } catch (e) {
       const error = enClaro((e as Error).message || 'falló');
       return { ...base, estado: 'error', resumen: error, error, ms: Date.now() - t0 };
@@ -197,7 +201,7 @@ export class EjecucionV3Service {
     const paso = plan.pasos[k];
     const h = herramienta(paso.herramienta);
     const conAgenda = h?.edicion ? CON_AGENDA[paso.herramienta] : undefined;
-    if (!h?.lista || !conAgenda || paso.param.zona || paso.param.agenda || paso.param.atajo) return [];
+    if (!h?.lista || !conAgenda || paso.cuerpos?.length || paso.param.zona || paso.param.agenda || paso.param.atajo) return [];
     const v = paso.param[h.lista];
     let codigos: string[];
     try {
@@ -274,7 +278,7 @@ export class EjecucionV3Service {
     return [...new Set(res.flatMap((x) => x.cumplen ?? codigosQueCumplen(filasDe(x.herramienta, x.datos, contexto.hoy))))];
   }
 
-  private async correr(usuario: UsuarioAutenticado, paso: PasoPlan, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<unknown> {
+  private async correr(usuario: UsuarioAutenticado, paso: PasoPlan, hechos: PasoEjecutado[], contexto: ContextoTurno, cuerpos?: Array<Record<string, unknown>>): Promise<unknown> {
     const p = paso.param;
     switch (paso.herramienta) {
       case 'ejecutar_atajo': {
@@ -303,7 +307,7 @@ export class EjecucionV3Service {
         return { fase: (data ?? [])[0] ?? null, pais, servicios: await this.serviciosGuardados(pais, { servicio: [], fase: String(p.fase), metodo: null }) };
       }
       default:
-        return this.consultar(usuario, paso, hechos, contexto);
+        return this.consultar(usuario, paso, hechos, contexto, cuerpos);
     }
   }
 
@@ -327,9 +331,11 @@ export class EjecucionV3Service {
   }
 
   /** 1b: una consulta del catálogo, validada con el DTO de su ruta y partida en tandas si hace falta */
-  private async consultar(usuario: UsuarioAutenticado, paso: PasoPlan, hechos: PasoEjecutado[], contexto: ContextoTurno): Promise<unknown> {
+  private async consultar(usuario: UsuarioAutenticado, paso: PasoPlan, hechos: PasoEjecutado[], contexto: ContextoTurno, cuerpos?: Array<Record<string, unknown>>): Promise<unknown> {
     const h = herramienta(paso.herramienta);
     if (!h) throw new Error(`La v3 no sabe usar «${paso.herramienta}»`);
+    // Un cambio ya armado (deshacer): sus cuerpos tal cual, en vista previa
+    if (h.edicion && paso.cuerpos?.length) return this.previaArmada(usuario, h.id, paso.cuerpos, cuerpos);
     const plano0: Record<string, unknown> = { pais: contexto.pais };
     let notas: string[] = [];
     for (const [clave, valor] of Object.entries(paso.param)) {
@@ -371,6 +377,7 @@ export class EjecucionV3Service {
         if (fallos.length) throw new Error(`Los datos no valen para ${h.id}: ${fallos.flatMap((f) => Object.values(f.constraints ?? {})).join('; ')}`);
         try {
           partes.push((await this.llamar(usuario, h.id, dto)) as Record<string, unknown>);
+          if (h.edicion) cuerpos?.push({ ...plano });
         } catch (e) {
           // Varias llamadas de un cambio: una que falla ("ya estaba así") no se lleva las demás
           if (!h.edicion || grupos.length < 2 || !CAPACIDAD_EDITABLE.has(h.id)) throw e;
@@ -404,7 +411,7 @@ export class EjecucionV3Service {
     if (herramienta(id)?.edicion) {
       this.auditoria.activarSimulacro();
       if (!this.auditoria.enSimulacro()) return Promise.reject(new Error('no pude poner la petición en simulacro: no enseño el cambio para no aplicarlo'));
-      return this.vistaPrevia(usuario, id, dto);
+      return this.escribir(usuario, id, dto);
     }
     switch (id) {
       case 'consultar_capacidad': return this.capacidad.consultar(dto as never);
@@ -417,8 +424,96 @@ export class EjecucionV3Service {
     }
   }
 
-  /** Los cambios, siempre en simulacro (ver `llamar`) */
-  private vistaPrevia(usuario: UsuarioAutenticado, id: string, dto: object): Promise<unknown> {
+  /**
+   * La vista previa de un cambio ya armado (deshacer): cada cuerpo, en
+   * simulacro; uno que no se puede (ya está así, no existe) no se lleva los
+   * demás. Si no vale ninguno, el paso falla con el primer motivo.
+   */
+  private async previaArmada(usuario: UsuarioAutenticado, id: string, armados: Array<Record<string, unknown>>, cuerpos?: Array<Record<string, unknown>>): Promise<unknown> {
+    const h = herramienta(id)!;
+    const partes: Array<Record<string, unknown>> = [];
+    const notas: string[] = [];
+    for (const cuerpo of armados) {
+      try {
+        const dto = await this.dtoDe(id, cuerpo);
+        partes.push((await this.llamar(usuario, id, dto)) as Record<string, unknown>);
+        cuerpos?.push(cuerpo);
+      } catch (e) {
+        const motivo = enClaro((e as Error).message || 'falló');
+        if (CAPACIDAD_EDITABLE.has(id)) partes.push(sinCambioDe(lista(cuerpo[h.lista ?? 'codigo'] ?? cuerpo.destino), cuerpo, motivo));
+        else notas.push(motivo);
+      }
+    }
+    if (!partes.length) throw new Error(notas[0] ?? 'no hay nada que deshacer');
+    const datos = juntar(partes);
+    return notas.length ? { ...datos, notas: [...new Set(notas)] } : datos;
+  }
+
+  /** El DTO de un cuerpo guardado, validado otra vez (como en la ruta del agente) */
+  private async dtoDe(id: string, cuerpo: Record<string, unknown>): Promise<object> {
+    const h = herramienta(id);
+    if (!h) throw new Error(`La v3 no sabe usar «${id}»`);
+    const dto = plainToInstance(h.dto, cuerpo, { enableImplicitConversion: true });
+    const fallos = await validate(dto as object, { whitelist: true });
+    if (fallos.length) throw new Error(`Los datos no valen para ${id}: ${fallos.flatMap((f) => Object.values(f.constraints ?? {})).join('; ')}`);
+    return dto as object;
+  }
+
+  /**
+   * APLICA de verdad un paso de cambio: los cuerpos que se mandaron en su
+   * vista previa, sin volver a armar ni resolver nada y SIN simulacro. Solo lo
+   * llama el turno tras el "sí" con el modo editor activo (lo comprueba él).
+   * Uno que falla no para los demás; cada uno queda en la auditoría.
+   */
+  async aplicar(usuario: UsuarioAutenticado, paso: PasoEjecutado): Promise<PasoAplicado> {
+    const h = herramienta(paso.herramienta);
+    if (!h?.edicion || !paso.cuerpos?.length) return { n: paso.n, herramienta: paso.herramienta, cuerpos: [], datos: null };
+    // Una petición que ya está en simulacro no escribe: diría "apliqué" sin haberlo hecho
+    if (this.auditoria.enSimulacro()) throw new Error('esta petición está en simulacro: no apliqué nada');
+    const partes: Array<Record<string, unknown>> = [];
+    const hechos: CuerpoAplicado[] = [];
+    for (const cuerpo of paso.cuerpos) {
+      const t0 = Date.now();
+      try {
+        const dto = await this.dtoDe(h.id, cuerpo);
+        const r = (await this.escribir(usuario, h.id, dto)) as Record<string, unknown>;
+        partes.push(r);
+        hechos.push({ cuerpo, ok: true });
+        this.auditar(usuario, h.id, cuerpo, r, null, Date.now() - t0);
+      } catch (e) {
+        const error = enClaro((e as Error).message || 'falló');
+        if (CAPACIDAD_EDITABLE.has(h.id)) partes.push(sinCambioDe(lista(cuerpo[h.lista ?? 'codigo'] ?? cuerpo.destino), cuerpo, error));
+        hechos.push({ cuerpo, ok: false, error });
+        this.auditar(usuario, h.id, cuerpo, null, error, Date.now() - t0);
+      }
+    }
+    return { n: paso.n, herramienta: h.id, cuerpos: hechos, datos: partes.length ? juntar(partes) : null };
+  }
+
+  /** El cambio aplicado, en la auditoría: quién, qué mandó, cómo estaba y cómo quedó (sin bloquear) */
+  private auditar(usuario: UsuarioAutenticado, id: string, cuerpo: Record<string, unknown>, r: unknown, error: string | null, ms: number): void {
+    const filas = r ? filasDelCambio(id, r) : [];
+    this.registro?.registrar({
+      usuario_id: usuario.id,
+      usuario_email: usuario.email,
+      accion: `agente-v3.${id}`,
+      origen: 'agente',
+      metodo: 'POST',
+      endpoint: '/agente/v3/turnos/:id/aplicar',
+      datos: cuerpo,
+      datos_antes: filas.map((f) => ({ donde: f.donde, dia: f.dia, estado: f.antes })),
+      datos_despues: filas.map((f) => ({ donde: f.donde, dia: f.dia, estado: f.despues })),
+      estado: error ? 500 : 200,
+      exitoso: !error,
+      error,
+      duracion_ms: ms,
+      ip: null,
+      user_agent: null,
+    });
+  }
+
+  /** Los cambios: en la vista previa van en simulacro (ver `llamar`); al aplicar, de verdad */
+  private escribir(usuario: UsuarioAutenticado, id: string, dto: object): Promise<unknown> {
     switch (id) {
       case 'editar_capacidad': return this.editarCapacidad.editarCapacidad(usuario, dto as never);
       case 'editar_capacidad_transferencia': return this.editarCapacidad.editarTransferencia(usuario, dto as never);
@@ -432,14 +527,13 @@ export class EjecucionV3Service {
   }
 
   /**
-   * La edición masiva de la v2 se niega a pasar de 30 agendas: es lo que una
-   * persona puede revisar antes de decir que sí a un cambio REAL, y en la v2
-   * sigue igual. La vista previa de la v3 no escribe nada (va en simulacro),
-   * así que aquí no hay tope (decisión del usuario, 2026-11-08). Y "ya
-   * estaban así" no es un error: es que no cambiaría nada.
+   * La edición masiva de la v2 se niega a pasar de 30 agendas, y en la v2 sigue
+   * igual. En la v3 no hay tope (decisiones del usuario: en la vista previa el
+   * 2026-11-08, y al aplicar el 2026-11-13): la vista previa enseña cuántas
+   * son y el «¿Procedo?» lo dice antes del "sí". Y "ya estaban así" no es un
+   * error: es que no cambiaría nada.
    */
   private async masivoSinTope(usuario: UsuarioAutenticado, dto: Record<string, unknown>): Promise<unknown> {
-    if (!this.auditoria.enSimulacro()) throw new Error('la vista previa sin tope solo va en simulacro');
     dto.maximo = Number.MAX_SAFE_INTEGER;
     try {
       return await this.editarMasivo.editar(usuario, dto as never);
