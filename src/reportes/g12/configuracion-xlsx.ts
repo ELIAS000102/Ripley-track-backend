@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { CAMPOS_G12, COMPONENTES_G12, definicionDe } from './g12.componentes.js';
+import { type FilaIdsG12, firmaIdsG12 } from './ids-g12.service.js';
 import type {
   BloqueG12,
   ClaveComponente,
@@ -17,8 +18,9 @@ import type {
  * Una hoja por tipo de bloque, porque cada tipo tiene sus columnas. Cada fila
  * de esas hojas es un ítem; "Bloque" dice a qué bloque del cuadro pertenece
  * (1, 2, 3… en el orden del editor), y lo que es del bloque entero —la muestra,
- * su nota— se lee de su primera fila. Todo va con nombres y códigos, nunca con
- * ids, como en el editor.
+ * su nota— se lee de su primera fila. Todo va con nombres y códigos, como en el
+ * editor; a la derecha, en gris, los ids de Ripley guardados de cada ítem
+ * (2026-11-14), que al importar se ignoran.
  */
 
 /** Cómo se llama cada tipo de bloque en su hoja */
@@ -45,7 +47,46 @@ const comparable = (s: unknown) =>
 
 // ───────────────────────── Exportar ─────────────────────────
 
-export async function configuracionAXlsx(config: ConfiguracionG12, pais: string, exportado = new Date()): Promise<Buffer> {
+/**
+ * Las columnas de ids de cada tipo de ítem (2026-11-14): lo que se consultó en
+ * Ripley y se usa para pedir, sacado de g12_ids. Solo para verlo: al importar
+ * se ignoran, y los ids salen otra vez de los nombres y códigos de cada ítem.
+ */
+const COLUMNAS_IDS: Record<TipoBloqueG12, Array<[string, number]>> = {
+  simulacion: [['Id región', 16], ['Id distrito', 26], ['Código del distrito', 14], ['Id operador', 26], ['Id almacén', 26], ['SKU (Ripley)', 16], ['Ids consultados', 18]],
+  picking: [['Ids de agendas', 70], ['Ids consultados', 18]],
+  recepcion: [['Ids de agendas', 70], ['Ids de capacidad', 50], ['Ids consultados', 18]],
+  despacho: [['Ids de zonas', 50], ['Ids de agendas', 70], ['Ids consultados', 18]],
+  capacidad: [],
+};
+
+/** "14/11/2026 13:40", hora de Lima o de Santiago */
+function cuandoEnPais(iso: string, pais: string): string {
+  const zona = pais === 'CL' ? 'America/Santiago' : 'America/Lima';
+  return new Date(iso).toLocaleString('es-PE', { timeZone: zona, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+}
+
+/** Los valores de las columnas de ids de un ítem, en el orden de COLUMNAS_IDS */
+function valoresIds(tipo: TipoBloqueG12, fila: FilaIdsG12 | undefined, pais: string): string[] {
+  const columnas = COLUMNAS_IDS[tipo];
+  if (!columnas.length) return [];
+  if (!fila) return [...columnas.slice(0, -1).map(() => ''), 'Sin consultar: en la próxima actualización'];
+  const cuando = cuandoEnPais(fila.consultadoEn, pais);
+  const ids = fila.ids;
+  if (ids.tipo === 'simulacion') {
+    return [ids.regionId, ids.comuna.id, ids.comuna.identifier || ids.comuna.code, ids.operador.id, ids.almacen?.id ?? '', ids.productos.map((p) => String(p.sku)).join(' | '), cuando];
+  }
+  if (ids.tipo === 'region') return columnas.map(() => '');
+  const agendas = ids.agendas.map((a) => `${a.nombre} = ${a.id}`).join(' | ');
+  if (tipo === 'recepcion') return [agendas, ids.agendas.map((a) => `${a.nombre} = ${a.capacidadId ?? '—'}`).join(' | '), cuando];
+  if (tipo === 'despacho') {
+    const zonas = [...new Map(ids.agendas.filter((a) => a.zona).map((a) => [a.zona, `${a.zona} = ${a.zonaId ?? '—'}`])).values()].join(' | ');
+    return [zonas, agendas, cuando];
+  }
+  return [agendas, cuando];
+}
+
+export async function configuracionAXlsx(config: ConfiguracionG12, pais: string, exportado = new Date(), ids?: Map<string, FilaIdsG12>): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
   libro.creator = 'Ripley Track';
 
@@ -72,6 +113,7 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
     ['Bloque', 'Cada ítem dice a qué bloque de su cuadro pertenece (1, 2, 3… en el orden del editor). Un bloque es de un solo tipo: todos sus ítems van en la misma hoja.'],
     ['Muestra', 'Solo en Simulación: "Sí" en la primera fila del bloque para probar un ítem antes de pedir los demás.'],
     ['Nombres, no ids', 'Región, provincia, distrito, operador, almacén, zona y agenda van por su nombre o código, como en el editor.'],
+    ['Columnas de ids', 'Las columnas grises de la derecha ("Id región", "Ids de agendas"…) son los ids de Ripley con los que se pide cada ítem: se consultaron una vez y están guardados. Solo para verlos: al importar se ignoran. Un ítem que cambia se vuelve a consultar en la próxima actualización.'],
     ['Resumen', 'Cada línea del resumen de consumo y lo que suma: un cuadro entero (Fila vacía) o una fila suya.'],
   ];
   for (const [k, v] of lineas) leeme.addRow([k, v]).getCell(1).font = { bold: true };
@@ -89,19 +131,31 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
   for (const tipo of Object.keys(HOJA_DE) as TipoBloqueG12[]) {
     const campos = CAMPOS_G12[tipo].map((c) => c.clave);
     const hoja = libro.addWorksheet(HOJA_DE[tipo]);
+    const conIds = !!ids && COLUMNAS_IDS[tipo].length > 0;
+    const propias = 2 + (tipo === 'simulacion' ? 1 : 0) + 1 + campos.length + 2;
     cabecera(hoja, [
       ['Cuadro', 28], ['Bloque', 8], ...(tipo === 'simulacion' ? [['Muestra', 9] as [string, number]] : []),
       ['Fila', 30], ...campos.map((k) => [ETIQUETA[k] ?? k, tipo === 'capacidad' ? 8 : 14] as [string, number]),
       ['Nota del ítem', 30], ['Nota del bloque', 30],
+      ...(conIds ? COLUMNAS_IDS[tipo] : []),
     ]);
+    // Las de ids, en gris: se leen, no se editan
+    if (conIds) {
+      for (let n = propias + 1; n <= propias + COLUMNAS_IDS[tipo].length; n++) {
+        hoja.getRow(1).getCell(n).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF667085' } };
+        hoja.getColumn(n).font = { color: { argb: 'FF475467' } };
+      }
+    }
     for (const c of config.componentes) {
       c.bloques.forEach((b, i) => {
         if (b.tipo !== tipo) return;
         b.items.forEach((it, k) => {
+          const firma = firmaIdsG12(tipo, it.campos);
           hoja.addRow([
             definicionDe(c.clave).titulo, i + 1, ...(tipo === 'simulacion' ? [k === 0 && b.muestra ? 'Sí' : ''] : []),
             it.fila, ...campos.map((campo) => it.campos[campo] ?? ''),
             it.nota ?? '', k === 0 ? b.nota ?? '' : '',
+            ...(conIds ? valoresIds(tipo, firma ? ids!.get(firma) : undefined, pais) : []),
           ]);
         });
       });

@@ -92,6 +92,11 @@ export interface AgendaCapacidad {
    * no hay ninguno. Calculado en el backend: es una cuenta, no un juicio.
    */
   primerDiaDisponible?: string | null;
+  /**
+   * Los ids de Ripley de la agenda, solo si se piden (`consultar(dto, { conIds: true })`):
+   * el G12 los guarda para leer sus capacidades directamente la próxima vez.
+   */
+  ids?: { agendaId: string; capacidadId?: string | null; zonaId?: string | null };
 }
 
 /**

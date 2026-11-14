@@ -274,6 +274,8 @@ export class RecepcionService {
         try {
           return {
             scheduleId: fila.id,
+            // Con el que se leen sus días: el G12 lo guarda para leerlos directamente
+            capacityId: idDeCapacidad(fila) ?? null,
             nombre: fila.name,
             typeOfService,
             unitMeasure: fila.unitMeasure,
@@ -283,6 +285,7 @@ export class RecepcionService {
         } catch (e) {
           return {
             scheduleId: fila.id,
+            capacityId: idDeCapacidad(fila) ?? null,
             nombre: fila.name,
             typeOfService,
             unitMeasure: fila.unitMeasure,

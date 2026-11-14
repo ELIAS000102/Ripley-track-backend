@@ -26,11 +26,13 @@ import {
   CrearActualizacionG12Dto,
   GuardarConfiguracionG12Dto,
   ListarActualizacionesG12Dto,
+  OlvidarIdsG12Dto,
   ProbarG12Dto,
 } from './dto/g12.dto.js';
 import { HistorialG12Service } from './historial-g12.service.js';
 import { OracleG12Service } from './oracle-g12.service.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
+import type { ClaveComponente } from './interfaces/g12.interface.js';
 
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -188,6 +190,26 @@ export class G12Controller {
     if (!archivo?.buffer?.length) throw new BadRequestException('Falta el archivo: súbelo en el campo "archivo".');
     if (!/\.xlsx$/i.test(archivo.originalname)) throw new BadRequestException('El archivo tiene que ser un Excel .xlsx exportado desde la configuración del G12.');
     return this.configuracion.importar(archivo.buffer);
+  }
+
+  // ───────── Ids de Ripley guardados ─────────
+
+  /** GET /reportes/g12/ids?pais=PE — cuántos ítems tienen sus ids guardados y cuántos se consultan en la próxima actualización */
+  @Get('ids')
+  async ids(@Query() query: PaisDto) {
+    return this.configuracion.resumenIds(query.pais ?? 'PE');
+  }
+
+  /**
+   * POST /reportes/g12/ids/olvidar?pais=PE  { claves? } — olvida los ids guardados
+   * (de esos cuadros, o de todo el país): se consultan otra vez en la próxima
+   * actualización. Para cuando en Ripley aparece una agenda nueva en una zona ya configurada.
+   */
+  @Auditar('reporte-g12.olvidar-ids')
+  @Post('ids/olvidar')
+  @HttpCode(200)
+  async olvidarIds(@Query() query: PaisDto, @Body() body: OlvidarIdsG12Dto) {
+    return this.configuracion.olvidarIds(query.pais ?? 'PE', body.claves as ClaveComponente[] | undefined);
   }
 
   /** POST /reportes/g12/probar?pais=PE — lo que daría un bloque del editor, sin guardarlo */

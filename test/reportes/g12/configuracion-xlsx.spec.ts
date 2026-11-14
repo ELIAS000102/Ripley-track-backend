@@ -72,3 +72,59 @@ describe('La configuración del G12 en Excel', () => {
     expect(nombreXlsxConfiguracion('PE', new Date('2026-11-11T13:31:00.000Z'))).toBe('G12-configuracion-PE-2026-11-11-0831.xlsx');
   });
 });
+
+describe('Los ids de Ripley en el Excel de configuración', () => {
+  it('cada ítem lleva sus ids guardados en columnas grises; al importar se ignoran', async () => {
+    const { firmaIdsG12 } = await import('../../../src/reportes/g12/ids-g12.service.js');
+    const original = config();
+    const pickup = original.componentes.find((x) => x.clave === 'pickup_lima')!;
+    const sim = pickup.bloques[0].items[0];
+    const pick = pickup.bloques[1].items[0];
+    const ids = new Map([
+      [firmaIdsG12('simulacion', sim.campos)!, { firma: 'x', tipo: 'simulacion' as const, consultadoEn: '2026-11-14T15:40:00.000Z', ids: {
+        tipo: 'simulacion' as const, regionId: 'r-15', regionNombre: 'Lima',
+        comuna: { id: 'c-isidro', name: 'San Isidro', code: '150131', identifier: '150131', province: 'Lima', region: 'Lima' },
+        operador: { id: 'id-20027', code: '20027' }, almacen: { id: 'id-alm', code: '20027' }, productos: [{ sku: 2013435160001, quantity: '1', type: {} as never }],
+      } }],
+      [firmaIdsG12('picking', pick.campos)!, { firma: 'y', tipo: 'picking' as const, consultadoEn: '2026-11-14T15:40:00.000Z', ids: {
+        tipo: 'picking' as const, agendas: [{ id: 'sch-1', nombre: 'Agenda Picking RT - 20027', servicio: 'RT' }],
+      } }],
+    ]);
+    const xlsx = await configuracionAXlsx(original, 'PE', new Date(), ids);
+
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(xlsx as unknown as ArrayBuffer);
+    const filaDe = (hoja: string, n: number) => (libro.getWorksheet(hoja)!.getRow(n).values as unknown[]).slice(1).map((v) => String(v ?? ''));
+    const sims = [filaDe('Simulación', 1), filaDe('Simulación', 2), filaDe('Simulación', 3)];
+    expect(sims[0]).toEqual(expect.arrayContaining(['Id región', 'Id distrito', 'Código del distrito', 'Id operador', 'Id almacén', 'SKU (Ripley)', 'Ids consultados']));
+    expect(sims[1]).toEqual(expect.arrayContaining(['r-15', 'c-isidro', '150131', 'id-20027', 'id-alm', '2013435160001', '14/11/2026 10:40']));
+    // Miraflores no tiene ids guardados todavía
+    expect(sims[2].at(-1)).toBe('Sin consultar: en la próxima actualización');
+    expect(filaDe('Picking', 2)).toEqual(expect.arrayContaining(['Agenda Picking RT - 20027 = sch-1']));
+
+    const { configuracion, errores } = await xlsxAConfiguracion(xlsx);
+    expect(errores).toEqual([]);
+    expect(normalizarConfiguracion(configuracion).configuracion).toEqual(original);
+  });
+
+  it('al guardar se olvidan los ids de lo que ya no está y las regiones que nadie usa; lo demás se queda', async () => {
+    const { IdsG12Service, firmaIdsG12, firmaRegionG12 } = await import('../../../src/reportes/g12/ids-g12.service.js');
+    const { supabaseEnMemoria } = await import('../../fixtures/supabase-memoria.js');
+    const original = config();
+    const items = original.componentes.find((x) => x.clave === 'pickup_lima')!.bloques[0].items;
+    const fila = (firma: string, ids: Record<string, unknown>) => ({ pais: 'PE', firma, tipo: ids.tipo, ids, consultado_en: 'x' });
+    const tablas = { g12_ids: [
+      fila(firmaIdsG12('simulacion', items[0].campos)!, { tipo: 'simulacion', regionId: 'r-15' }),
+      fila(firmaIdsG12('simulacion', items[1].campos)!, { tipo: 'simulacion', regionId: 'r-15' }),
+      fila(firmaRegionG12('r-15'), { tipo: 'region' }),
+      fila(firmaRegionG12('r-7'), { tipo: 'region' }),
+      fila('picking|99|rt|', { tipo: 'picking', agendas: [] }),
+    ] };
+    const servicio = new IdsG12Service(supabaseEnMemoria(tablas));
+
+    // Miraflores cambia de distrito: su firma es otra
+    items[1].campos.distrito = 'Surco';
+    await servicio.limpiar('PE', original);
+    expect(tablas.g12_ids.map((f) => f.firma)).toEqual([firmaIdsG12('simulacion', items[0].campos), firmaRegionG12('r-15')]);
+  });
+});

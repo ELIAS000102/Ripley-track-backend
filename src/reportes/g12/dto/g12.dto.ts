@@ -161,6 +161,15 @@ export class GuardarConfiguracionG12Dto {
   resumen: LineaResumenG12Dto[];
 }
 
+/** POST /reportes/g12/ids/olvidar — volver a consultar los ids: los de esos cuadros, o sin claves los de todo el país */
+export class OlvidarIdsG12Dto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CLAVES_COMPONENTES.length)
+  @IsIn(CLAVES_COMPONENTES, { each: true, message: `cada clave debe ser una de: ${CLAVES_COMPONENTES.join(', ')}` })
+  claves?: string[];
+}
+
 /** POST /reportes/g12/probar — un bloque suelto, tal como está en el editor */
 export class ProbarG12Dto {
   @IsIn(CLAVES_COMPONENTES)

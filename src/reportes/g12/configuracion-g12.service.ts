@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
+import { firmasDeConfiguracion, IdsG12Service } from './ids-g12.service.js';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
@@ -25,7 +26,35 @@ export class ConfiguracionG12Service {
     private readonly auditoria: ContextoAuditoria,
     private readonly cuadros: CuadrosG12Service,
     private readonly historial: HistorialG12Service,
+    @Optional() private readonly ids?: IdsG12Service,
   ) {}
+
+  /**
+   * Cuántos ítems de la configuración guardada tienen sus ids de Ripley
+   * guardados, y cuántos se consultarán en la próxima actualización.
+   */
+  async resumenIds(pais: string): Promise<{ items: number; conIds: number; sinIds: number; consultadosEn: string | null }> {
+    const config = await this.configuracion(pais);
+    const firmas = firmasDeConfiguracion(config);
+    const guardados = (await this.ids?.cargar(pais)) ?? new Map();
+    const con = [...firmas].filter((f) => guardados.has(f));
+    const fechas = con.map((f) => guardados.get(f)!.consultadoEn).sort();
+    return { items: firmas.size, conIds: con.length, sinIds: firmas.size - con.length, consultadosEn: fechas.at(-1) ?? null };
+  }
+
+  /**
+   * "Volver a consultar los ids": olvida los guardados (de todo el país o de los
+   * ítems de esos cuadros) y se consultan otra vez en la próxima actualización.
+   * Sirve cuando en Ripley se crea una agenda nueva en una zona que ya está
+   * configurada: con los ids guardados no se vería hasta cambiar el ítem.
+   */
+  async olvidarIds(pais: string, claves?: ClaveComponente[]): Promise<{ olvidados: number }> {
+    if (!this.ids) return { olvidados: 0 };
+    if (!claves?.length) return { olvidados: await this.ids.olvidar(pais) };
+    const config = await this.configuracion(pais);
+    const firmas = firmasDeConfiguracion({ ...config, componentes: config.componentes.filter((c) => claves.includes(c.clave)) });
+    return { olvidados: await this.ids.olvidar(pais, [...firmas]) };
+  }
 
   /** La del país; sin guardar nunca, los cuadros vacíos y el resumen de siempre */
   async leer(pais: string) {
@@ -56,7 +85,9 @@ export class ConfiguracionG12Service {
   /** La configuración que llega (la del editor, guardada o no) en un Excel */
   async exportar(dto: GuardarConfiguracionG12Dto, pais: string): Promise<Buffer> {
     const { configuracion } = normalizarConfiguracion(dto);
-    return configuracionAXlsx(completar(configuracion), pais);
+    // Con los ids de Ripley guardados de cada ítem, en sus columnas grises
+    const ids = this.ids ? await this.ids.cargar(pais) : undefined;
+    return configuracionAXlsx(completar(configuracion), pais, new Date(), ids);
   }
 
   async guardar(pais: string, dto: GuardarConfiguracionG12Dto, usuario: UsuarioAutenticado) {
@@ -76,6 +107,9 @@ export class ConfiguracionG12Service {
     // se olvidaba todo, y corregir una dirección dejaba en blanco las diez tablas
     const cambiados = cuadrosCambiados(anterior.configuracion, configuracion);
     await this.cuadros.olvidar(pais, cambiados);
+    // Los ids de lo que ya no está (un ítem cambiado tiene otra firma) se olvidan;
+    // los de lo que no cambió se quedan. Lo nuevo se consulta en la próxima actualización
+    await this.ids?.limpiar(pais, configuracion);
 
     this.auditoria.registrarCambio(
       anterior.configuracion ? { pais, cuadros: resumir(completar(anterior.configuracion)) } : null,

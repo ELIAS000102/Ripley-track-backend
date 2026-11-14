@@ -133,7 +133,16 @@ export interface MetaPeticionG12 {
    * cada 60 s por token). Va dentro de \`ms\`. Falta en las de antes de medirlo.
    */
   esperaMs?: number;
+  /**
+   * De dónde salieron los ids de Ripley con los que se pidió (2026-11-14):
+   * 'guardados' (de g12_ids, sin buscarlos), 'consultados' (ítem nuevo o
+   * cambiado: se buscaron y se guardaron) o 'reconsultados' (Ripley dijo que
+   * un id guardado ya no existía). Falta en las de antes.
+   */
+  ids?: OrigenIdsG12;
 }
+
+export type OrigenIdsG12 = 'guardados' | 'consultados' | 'reconsultados';
 
 /** Todo lo que devolvió el simulador, por servicio: lo que el Excel volcaba en sus hojas DC, STS, RT… */
 export interface RespuestaSimulacionG12 {
@@ -220,6 +229,8 @@ export interface SimulacionG12 {
   traza?: TrazaSimulacionG12 | null;
   /** Todo lo que devolvió Ripley; solo va en el registro de peticiones, no en las filas */
   respuesta?: RespuestaSimulacionG12 | null;
+  /** De paso, hasta el registro: de dónde salieron sus ids (va a meta.ids) */
+  origenIds?: OrigenIdsG12;
 }
 
 /** Lo que devolvió un ítem de agenda (picking, recepción o despacho) */
@@ -231,6 +242,8 @@ export interface AgendaG12 {
   /** Se encontró, pero no como se pidió (la zona del Excel no existe y el operador tiene una sola) */
   aviso?: string | null;
   meta?: MetaPeticionG12;
+  /** De paso, hasta el registro: de dónde salieron sus ids (va a meta.ids) */
+  origenIds?: OrigenIdsG12;
 }
 
 /** Una petición del G12 a Ripley, para el registro: qué se pidió, qué volvió y cómo fue */

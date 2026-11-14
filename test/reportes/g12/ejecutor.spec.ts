@@ -14,6 +14,8 @@ import type { PerfilService } from '../../../src/auth/perfil.service.js';
 import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js';
 import { ConfiguracionG12Service } from '../../../src/reportes/g12/configuracion-g12.service.js';
 import { EjecutorG12Service, fechaDelServicio } from '../../../src/reportes/g12/ejecutor-g12.service.js';
+import { IdsG12Service } from '../../../src/reportes/g12/ids-g12.service.js';
+import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
 import type { ConfiguracionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
 import { ReporteG12Service } from '../../../src/reportes/g12/reporte-g12.service.js';
 import type { SimulacionService } from '../../../src/simulacion/simulacion.service.js';
@@ -42,8 +44,13 @@ function montar(opciones: {
   consultar?: (dto: { codigo: string; servicio?: string; zona?: string }) => Promise<unknown>;
   /** Lo que tarda cada simulación y cada lectura de agenda, para ver si se pisan */
   retardoMs?: number;
+  /** Con los ids guardados (g12_ids en memoria) */
+  ids?: boolean;
+  /** Lectura de una agenda de picking por su id */
+  capacidadesDePicking?: (id: string) => Promise<unknown>;
 } = {}) {
   const fechas = opciones.fechas ?? {};
+  const tablasIds: Record<string, Fila[]> = {};
   let fallos = opciones.fallos429 ?? 0;
   // Cuántas peticiones a Ripley hay en curso a la vez, y el máximo visto
   const concurrencia = { activas: 0, maximo: 0 };
@@ -76,6 +83,9 @@ function montar(opciones: {
   };
   const catalogos = {
     oficinaExacta: vi.fn(async (code: string) => (code === '9999' ? null : { id: `id-${code}`, code })),
+    capacidadesDePicking: vi.fn(medir(opciones.capacidadesDePicking ?? (async () => ({ capacityByDayArray: [
+      { day: `${sumarDias(hoyEnPais('PE'), 1)}T00:00:00.000Z`, active: true, assigned: 230, occupied: 70 },
+    ] })))),
   };
   const hoy = hoyEnPais('PE');
   const capacidad = {
@@ -95,6 +105,7 @@ function montar(opciones: {
     catalogos as unknown as CatalogosRipleyService,
     despacho as unknown as DespachoService,
     contexto,
+    opciones.ids ? new IdsG12Service(supabaseEnMemoria(tablasIds)) : undefined,
   );
   // Los reintentos esperan 2, 4 y 8 s; aquí no se espera
   ejecutor.esperaBaseMs = 0;
@@ -111,7 +122,7 @@ function montar(opciones: {
   const reporte = new ReporteG12Service(configuracion, ejecutor, cuadros, contexto, oracle);
   const perfiles = { obtener: async (id: string) => ({ rol: id === 'jefa' ? 'admin' : 'user' }) } as unknown as PerfilService;
   const actualizador = new ActualizadorG12Service(reporte, configuracion, cuadros, historial, contexto, perfiles, oracle);
-  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto, actualizador, historial, cuadros, tablas };
+  return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto, actualizador, historial, cuadros, tablas, tablasIds };
 }
 
 const simItem = (fila: string, operador: string, servicio: string, distrito = 'San Isidro') =>
@@ -149,7 +160,7 @@ describe('El ejecutor del G12', () => {
   it('las agendas se leen desde ayer y seis semanas, con su código, servicio y nombre', async () => {
     const { ejecutor, capacidad, hoy } = montar();
     await ejecutor.probar({ tipo: 'picking', items: [{ fila: 'A', campos: { codigo: '20026', servicio: 'RC', agenda: 'Agenda RC Villa' } }] }, 'PE');
-    expect(capacidad.consultar).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'picking', codigo: '20026', servicio: 'RC', agenda: 'Agenda RC Villa', desde: sumarDias(hoy, -1), dias: 45 }));
+    expect(capacidad.consultar).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'picking', codigo: '20026', servicio: 'RC', agenda: 'Agenda RC Villa', desde: sumarDias(hoy, -1), dias: 45 }), { conIds: true });
   });
 
   it('un 429 se reintenta hasta tres veces, y el registro dice cuántas y por qué', async () => {
@@ -523,5 +534,86 @@ describe('Las unidades del Oracle, pedidas al Excel de quien actualiza', () => {
     const { actualizador, tablas } = montar({ config: config() });
     tablas.g12_pedidos_oracle = [{ pais: 'PE', usuario_id: 'ana', usuario_email: 'ana@r.pe', estado: 'pendiente', creado_en: new Date(Date.now() - 16 * 60_000).toISOString(), atendido_en: null }];
     expect((await actualizador.estado('PE', ANA)).oracle.pedido).toMatchObject({ estado: 'vencido' });
+  });
+});
+
+describe('Los ids guardados del G12', () => {
+  // Una agenda de picking que la consulta encuentra con su id de Ripley
+  const conIds = async (dto: { codigo: string; servicio?: string }) => ({
+    tipo: 'picking', pais: 'PE', desde: '', sinDatos: [],
+    oficinas: [{ oficina: dto.codigo, agendas: [{ agenda: `Agenda ${dto.servicio}`, servicio: dto.servicio ?? null, unidad: 'UN', ids: { agendaId: `sch-${dto.codigo}` }, dias: [] }] }],
+  });
+  const config = (distrito = 'San Isidro'): ConfiguracionG12 => ({
+    componentes: [{
+      clave: 'pickup_lima',
+      filas: [{ nombre: 'A' }, { nombre: 'B' }],
+      bloques: [
+        { tipo: 'simulacion', items: [simItem('A', '20027', 'RT', distrito), simItem('B', '20030', 'RT', 'Breña')] },
+        { tipo: 'picking', items: [{ fila: 'A', campos: { codigo: '20027', servicio: 'RT' } }] },
+      ],
+    }],
+    resumen: [],
+  });
+
+  it('se consultan una vez y se guardan; la siguiente actualización pide con ellos y nada más', async () => {
+    const { ejecutor, simulacion, catalogos, capacidad, tablasIds } = montar({ ids: true, consultar: conIds, fechas: { '20027|RT': '2026-11-20', '20030|RT': '2026-11-21' } });
+
+    const primera = await ejecutor.ejecutar(config(), 'PE');
+    expect(primera.registro.map((r) => r.resultado.meta?.ids)).toEqual(['consultados', 'consultados', 'consultados']);
+    // Uno por ítem distinto y la región entera, que el simulador recibe
+    expect(tablasIds.g12_ids.map((f) => f.tipo).sort()).toEqual(['picking', 'region', 'simulacion', 'simulacion']);
+    const sim = tablasIds.g12_ids.find((f) => f.tipo === 'simulacion' && String(f.firma).includes('isidro'))!;
+    expect(sim.ids).toMatchObject({ regionId: 'r-15', comuna: { id: 'c-isidro', identifier: '150131' }, operador: { id: 'id-20027', code: '20027' }, almacen: null });
+    expect(tablasIds.g12_ids.find((f) => f.tipo === 'picking')!.ids).toMatchObject({ agendas: [{ id: 'sch-20027', nombre: 'Agenda RT', servicio: 'RT', unidad: 'UN' }] });
+
+    for (const f of [simulacion.listarRegiones, simulacion.regionDetalle, simulacion.resolverProductos, catalogos.oficinaExacta, capacidad.consultar, simulacion.simularResuelto, catalogos.capacidadesDePicking]) f.mockClear();
+    const segunda = await ejecutor.ejecutar(config(), 'PE');
+    expect(segunda.registro.map((r) => r.resultado.meta?.ids)).toEqual(['guardados', 'guardados', 'guardados']);
+    // Sin buscar región, distrito, oficinas, SKU ni agendas: solo el simulador y la capacidad por id
+    for (const f of [simulacion.listarRegiones, simulacion.regionDetalle, simulacion.resolverProductos, catalogos.oficinaExacta, capacidad.consultar]) expect(f).not.toHaveBeenCalled();
+    expect(simulacion.simularResuelto).toHaveBeenCalledTimes(2);
+    expect(simulacion.simularResuelto).toHaveBeenCalledWith(expect.objectContaining({ comuna: expect.objectContaining({ id: 'c-isidro' }), courier: { id: 'id-20027', code: '20027' }, region: expect.objectContaining({ id: 'r-15' }) }));
+    expect(catalogos.capacidadesDePicking).toHaveBeenCalledWith('sch-20027', 'PE', expect.stringMatching(/^\d{2}-\d{2}-\d{4}$/));
+    const agenda = segunda.registro[2].resultado as { agendas: Array<{ agenda: string; dias: unknown[] }> };
+    expect(agenda.agendas[0]).toMatchObject({ agenda: 'Agenda RT', dias: [expect.objectContaining({ asignado: 230, ocupado: 70, disponible: 160 })] });
+    expect(segunda.registro[0].resultado).toMatchObject({ fecha: '2026-11-20' });
+  });
+
+  it('cambiar un ítem de la configuración solo consulta ese ítem', async () => {
+    const { ejecutor, simulacion, catalogos } = montar({ ids: true, consultar: conIds, fechas: { '20027|RT': '2026-11-20', '20030|RT': '2026-11-21' } });
+    await ejecutor.ejecutar(config(), 'PE');
+    catalogos.oficinaExacta.mockClear();
+    simulacion.listarRegiones.mockClear();
+
+    const r = await ejecutor.ejecutar(config('Breña'), 'PE');
+    expect(r.registro.map((x) => x.resultado.meta?.ids)).toEqual(['consultados', 'guardados', 'guardados']);
+    expect(simulacion.listarRegiones).toHaveBeenCalledTimes(1);
+    expect(catalogos.oficinaExacta).toHaveBeenCalledTimes(1);
+  });
+
+  it('un id guardado que Ripley ya no reconoce se vuelve a consultar, solo para ese ítem', async () => {
+    let vieja = true;
+    const { ejecutor, capacidad, tablasIds } = montar({
+      ids: true, consultar: conIds,
+      capacidadesDePicking: async () => {
+        if (vieja) { vieja = false; throw new RipleyApiError('No hay datos para ese recurso'); }
+        return { capacityByDayArray: [] };
+      },
+    });
+    const soloPicking: ConfiguracionG12 = { componentes: [{ clave: 'pickup_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'picking', items: [{ fila: 'A', campos: { codigo: '20027', servicio: 'RT' } }] }] }], resumen: [] };
+    await ejecutor.ejecutar(soloPicking, 'PE');
+    capacidad.consultar.mockClear();
+    tablasIds.g12_ids[0].consultado_en = 'antes';
+
+    const r = await ejecutor.ejecutar(soloPicking, 'PE');
+    expect(r.registro[0].resultado).toMatchObject({ error: null, meta: { ids: 'reconsultados' } });
+    expect(capacidad.consultar).toHaveBeenCalledTimes(1);
+    expect(tablasIds.g12_ids[0].consultado_en).not.toBe('antes');
+  });
+
+  it('"Probar" usa los ids guardados pero no guarda los que consulta', async () => {
+    const { ejecutor, tablasIds } = montar({ ids: true, consultar: conIds });
+    await ejecutor.probar({ tipo: 'picking', items: [{ fila: 'A', campos: { codigo: '20027', servicio: 'RT' } }] }, 'PE');
+    expect(tablasIds.g12_ids ?? []).toEqual([]);
   });
 });

@@ -95,7 +95,17 @@ export class CapacidadAgenteService {
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
-  async consultar(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {
+  /**
+   * `conIds`: cada agenda trae sus ids de Ripley (el G12 los guarda). Sin él no
+   * salen: el agente no los necesita y un id opaco solo le confunde.
+   */
+  async consultar(dto: ConsultarCapacidadDto, opciones: { conIds?: boolean } = {}): Promise<CapacidadRespuesta> {
+    const r = await this.consultarTodo(dto);
+    if (opciones.conIds) return r;
+    return { ...r, oficinas: r.oficinas.map((o) => ({ ...o, agendas: o.agendas.map(({ ids: _ids, ...a }) => a) })) };
+  }
+
+  private async consultarTodo(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {
     const pais = (dto.pais ?? 'PE').toUpperCase().trim();
     const desde = dto.desde ?? hoyEnPais(pais);
     const dias = dto.dias ?? 7;
@@ -257,6 +267,7 @@ export class CapacidadAgenteService {
           agenda: a.nombre,
           servicio: a.typeOfService,
           unidad: a.unitMeasure ?? null,
+          ids: { agendaId: a.scheduleId },
           dias: this.recortar(
             (capacidades?.capacityByDayArray ?? []).map((d) =>
               this.normalizar(
@@ -303,7 +314,7 @@ export class CapacidadAgenteService {
     const porZona = await Promise.all(
       elegidas.map(async (z) => {
         const agendas = await this.despacho.listarAgendas(z.zoneId, pais);
-        return agendas.map((a) => ({ zona: z.nombre, ...a }));
+        return agendas.map((a) => ({ zona: z.nombre, zonaId: z.zoneId, ...a }));
       }),
     );
 
@@ -335,6 +346,7 @@ export class CapacidadAgenteService {
           servicio: agenda.servicios?.join(', ') || null,
           zona: a.zona,
           unidad: agenda.unitMeasure ?? null,
+          ids: { agendaId: a.mainScheduleId, zonaId: a.zonaId ?? null },
           dias: this.recortar(
             detalle.map((d) =>
               this.normalizar(
@@ -393,6 +405,7 @@ export class CapacidadAgenteService {
         agenda: a.nombre,
         servicio: a.typeOfService,
         unidad: a.unitMeasure ?? null,
+        ids: { agendaId: a.scheduleId, capacidadId: a.capacityId ?? null },
         dias: this.recortar(
           a.dias.map((d) =>
             this.normalizar(
