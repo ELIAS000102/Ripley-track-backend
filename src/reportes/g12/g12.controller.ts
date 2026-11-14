@@ -85,6 +85,22 @@ export class G12Controller {
     return this.oracle.crearClave(usuario);
   }
 
+  /**
+   * POST /reportes/g12/oracle/excel?pais=PE&reemplazar=true — el Excel de carga de
+   * quien lo pide, con su correo en el nombre y una clave nueva dentro (la de
+   * antes deja de valer). 409 si ya tiene uno y no confirma `reemplazar`; 429
+   * pasado el máximo de descargas del día. POST porque crea una clave.
+   */
+  @Auditar('reporte-g12.excel-oracle')
+  @Post('oracle/excel')
+  async excelOracle(@Usuario() usuario: UsuarioAutenticado, @Query() query: PaisDto, @Query('reemplazar') reemplazar: string | undefined, @Res() res: Response) {
+    const { nombre, contenido } = await this.oracle.descargarExcel(usuario, query.pais ?? 'PE', reemplazar === 'true' || reemplazar === '1');
+    res.setHeader('Content-Type', TIPO_XLSX);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombre}"; filename*=UTF-8''${encodeURIComponent(nombre)}`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(contenido);
+  }
+
   // ───────── Actualizar (una a la vez por país) ─────────
 
   /**
