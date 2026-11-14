@@ -32,6 +32,8 @@ import {
 import { HistorialG12Service } from './historial-g12.service.js';
 import { OracleG12Service } from './oracle-g12.service.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
+import { SolicitudesG12Service } from './solicitudes-g12.service.js';
+import { nombreXlsxSolicitudes, solicitudesAXlsx } from './solicitudes-xlsx.js';
 import type { ClaveComponente } from './interfaces/g12.interface.js';
 
 const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -57,6 +59,7 @@ export class G12Controller {
     private readonly historial: HistorialG12Service,
     private readonly actualizador: ActualizadorG12Service,
     private readonly oracle: OracleG12Service,
+    private readonly solicitudes: SolicitudesG12Service,
   ) {}
 
   /** GET /reportes/g12?pais=PE — lo último generado del país, el mismo para todos. No va a Ripley */
@@ -133,6 +136,26 @@ export class G12Controller {
   @Get('actualizaciones/:id')
   async verActualizacion(@Param('id', ParseUUIDPipe) id: string) {
     return this.historial.obtener(id);
+  }
+
+  // ───────── Solicitudes (RS_SOLICITUDES del Excel) ─────────
+
+  /** GET /reportes/g12/solicitudes?pais=PE — las últimas generadas del país, las mismas para todos (null: nunca). Se generan con POST actualizaciones { tipo: 'solicitudes' } */
+  @Get('solicitudes')
+  async verSolicitudes(@Query() query: PaisDto) {
+    return { solicitudes: await this.solicitudes.leer(query.pais ?? 'PE') };
+  }
+
+  /** GET /reportes/g12/solicitudes/xlsx?pais=PE&llenos=true — en un Excel con el formato de la PLT: los días a solicitar (o solo los llenos) */
+  @Get('solicitudes/xlsx')
+  async exportarSolicitudes(@Query() query: PaisDto, @Query('llenos') llenos: string | undefined, @Res() res: Response) {
+    const pais = query.pais ?? 'PE';
+    const s = await this.solicitudes.leer(pais);
+    if (!s) throw new BadRequestException('Todavía no hay Solicitudes de este país: genéralas con «Actualizar solicitudes».');
+    const contenido = await solicitudesAXlsx(s, { soloLlenos: llenos === 'true' || llenos === '1' });
+    res.setHeader('Content-Type', TIPO_XLSX);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreXlsxSolicitudes(pais)}"`);
+    res.send(contenido);
   }
 
   /** GET /reportes/g12/actualizaciones/:id/xlsx — la actualización y sus peticiones en un Excel */

@@ -16,6 +16,7 @@ import {
 } from 'class-validator';
 import { PaisDto } from '../../../common/dto/pais.dto.js';
 import { CLAVES_COMPONENTES, LIMITES_G12, TIPOS_BLOQUE_G12 } from '../g12.componentes.js';
+import { MAXIMO_AGENDAS_SOLICITUD } from '../solicitudes-g12.js';
 
 /**
  * La forma de lo que llega. El sentido —que la fila exista, que el tipo de
@@ -31,8 +32,8 @@ import { CLAVES_COMPONENTES, LIMITES_G12, TIPOS_BLOQUE_G12 } from '../g12.compon
  * - tabla / reintento: las de `claves` (una tabla con ↻, o las que tienen errores).
  */
 export class CrearActualizacionG12Dto {
-  @IsIn(['completa', 'refrescar', 'tabla', 'reintento'], { message: 'tipo debe ser completa, refrescar, tabla o reintento' })
-  tipo: 'completa' | 'refrescar' | 'tabla' | 'reintento';
+  @IsIn(['completa', 'refrescar', 'tabla', 'reintento', 'solicitudes'], { message: 'tipo debe ser completa, refrescar, tabla, reintento o solicitudes' })
+  tipo: 'completa' | 'refrescar' | 'tabla' | 'reintento' | 'solicitudes';
 
   @IsOptional()
   @IsArray()
@@ -147,6 +148,45 @@ export class LineaResumenG12Dto {
   partes: ParteResumenG12Dto[];
 }
 
+/** Una agenda de Solicitudes: el sentido (tipos, clúster, campos) lo comprueba `normalizarSolicitudes` */
+export class AgendaSolicitudG12Dto {
+  @IsString()
+  @MaxLength(20)
+  tipo: string;
+
+  @IsString()
+  @MaxLength(20)
+  cluster: string;
+
+  @IsString()
+  @MaxLength(LIMITES_G12.texto)
+  nombre: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  ventana?: string;
+
+  @IsObject()
+  campos: Record<string, string | number>;
+}
+
+export class SolicitudesG12Dto {
+  @IsOptional()
+  @IsObject()
+  umbrales?: Record<string, number>;
+
+  @IsOptional()
+  @IsObject()
+  ventanas?: Record<string, { desde: number; dias: number }>;
+
+  @IsArray()
+  @ArrayMaxSize(MAXIMO_AGENDAS_SOLICITUD + 1)
+  @ValidateNested({ each: true })
+  @Type(() => AgendaSolicitudG12Dto)
+  agendas: AgendaSolicitudG12Dto[];
+}
+
 export class GuardarConfiguracionG12Dto {
   @IsArray()
   @ArrayMaxSize(CLAVES_COMPONENTES.length)
@@ -159,6 +199,12 @@ export class GuardarConfiguracionG12Dto {
   @ValidateNested({ each: true })
   @Type(() => LineaResumenG12Dto)
   resumen: LineaResumenG12Dto[];
+
+  /** Solicitudes: sin ella, se conservan las guardadas */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SolicitudesG12Dto)
+  solicitudes?: SolicitudesG12Dto;
 }
 
 /** POST /reportes/g12/ids/olvidar — volver a consultar los ids: los de esos cuadros, o sin claves los de todo el país */

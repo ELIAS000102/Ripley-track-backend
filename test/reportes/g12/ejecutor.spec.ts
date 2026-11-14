@@ -15,6 +15,8 @@ import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js
 import { ConfiguracionG12Service } from '../../../src/reportes/g12/configuracion-g12.service.js';
 import { EjecutorG12Service, fechaDelServicio } from '../../../src/reportes/g12/ejecutor-g12.service.js';
 import { IdsG12Service } from '../../../src/reportes/g12/ids-g12.service.js';
+import { SolicitudesG12Service } from '../../../src/reportes/g12/solicitudes-g12.service.js';
+import { solicitudesVacias } from '../../../src/reportes/g12/solicitudes-g12.js';
 import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
 import type { ConfiguracionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
 import { ReporteG12Service } from '../../../src/reportes/g12/reporte-g12.service.js';
@@ -121,7 +123,7 @@ function montar(opciones: {
   const oracle = new OracleG12Service(supabase);
   const reporte = new ReporteG12Service(configuracion, ejecutor, cuadros, contexto, oracle);
   const perfiles = { obtener: async (id: string) => ({ rol: id === 'jefa' ? 'admin' : 'user' }) } as unknown as PerfilService;
-  const actualizador = new ActualizadorG12Service(reporte, configuracion, cuadros, historial, contexto, perfiles, oracle);
+  const actualizador = new ActualizadorG12Service(reporte, configuracion, cuadros, historial, contexto, perfiles, oracle, new SolicitudesG12Service(supabase, ejecutor));
   return { ejecutor, reporte, simulacion, catalogos, capacidad, hoy, concurrencia, contexto, actualizador, historial, cuadros, tablas, tablasIds };
 }
 
@@ -615,5 +617,36 @@ describe('Los ids guardados del G12', () => {
     const { ejecutor, tablasIds } = montar({ ids: true, consultar: conIds });
     await ejecutor.probar({ tipo: 'picking', items: [{ fila: 'A', campos: { codigo: '20027', servicio: 'RT' } }] }, 'PE');
     expect(tablasIds.g12_ids ?? []).toEqual([]);
+  });
+});
+
+
+describe('Solicitudes, con el mismo turno que el G12', () => {
+  const ANA = { id: 'ana', email: 'ana@r.pe' } as never;
+  const LUIS = { id: 'luis', email: 'luis@r.pe' } as never;
+  const config = (conAgendas = true): ConfiguracionG12 => ({
+    componentes: [{ clave: 'pickup_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }] }],
+    resumen: [],
+    solicitudes: { ...solicitudesVacias(), agendas: conAgendas ? [{ tipo: 'picking', cluster: 'LIMA', nombre: 'San Isidro', ventana: 'picking', campos: { codigo: '20027', servicio: 'RT' } }] : [] },
+  });
+
+  it('se lanzan aparte, se guardan para todos y quedan en el historial; mientras, nadie más actualiza', async () => {
+    const { actualizador, historial, tablas } = montar({ config: config(), retardoMs: 20 });
+    const r = await actualizador.lanzar(ANA, 'PE', 'solicitudes');
+    expect(r.actualizacion).toMatchObject({ tipo: 'solicitudes', claves: ['solicitudes'] });
+    // El mismo turno: el G12 espera a que terminen
+    await expect(actualizador.lanzar(LUIS, 'PE', 'refrescar')).rejects.toMatchObject({ status: 409 });
+
+    for (let i = 0; i < 200 && (await historial.leer(r.actualizacion!.id)).estado === 'en_curso'; i++) await new Promise((x) => setTimeout(x, 5));
+    const a = await historial.leer(r.actualizacion!.id);
+    expect(a).toMatchObject({ estado: 'terminada', cuadros: [{ clave: 'solicitudes', titulo: 'Solicitudes', peticiones: 1 }] });
+    expect(tablas.g12_solicitudes).toHaveLength(1);
+    expect(tablas.g12_solicitudes[0]).toMatchObject({ pais: 'PE', usuario_email: 'ana@r.pe', actualizacion_id: a.id });
+    expect((await actualizador.estado('PE', ANA)).solicitudes).toBe(tablas.g12_solicitudes[0].generado);
+  });
+
+  it('sin agendas en la lista, se dice qué hacer', async () => {
+    const { actualizador } = montar({ config: config(false) });
+    await expect(actualizador.lanzar(ANA, 'PE', 'solicitudes')).rejects.toThrow(/no tiene agendas/);
   });
 });

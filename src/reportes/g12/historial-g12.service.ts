@@ -22,11 +22,17 @@ const DIAS_GUARDADOS = 14;
  */
 export const SIN_LATIDO_MS = 3 * 60_000;
 
-export type TipoActualizacionG12 = 'completa' | 'refrescar' | 'tabla' | 'reintento';
+export type TipoActualizacionG12 = 'completa' | 'refrescar' | 'tabla' | 'reintento' | 'solicitudes';
+
+/** Lo que se genera en una actualización: un cuadro, o Solicitudes */
+export type ClaveActualizacionG12 = ClaveComponente | 'solicitudes';
+
+/** El título de lo que se genera, para el registro y los avisos */
+export const tituloDeClave = (clave: ClaveActualizacionG12) => (clave === 'solicitudes' ? 'Solicitudes' : definicionDe(clave).titulo);
 export type EstadoActualizacionG12 = 'en_curso' | 'terminada' | 'cancelada' | 'abandonada' | 'fallida';
 
 export interface CuadroActualizacionG12 {
-  clave: ClaveComponente;
+  clave: ClaveActualizacionG12;
   titulo: string;
   /** Salió de lo ya generado: no hubo peticiones a Ripley (actualizaciones de antes del G12 compartido) */
   desdeCache: boolean;
@@ -60,9 +66,9 @@ export interface ActualizacionG12 {
   inicio: string;
   fin: string | null;
   /** Las tablas que va a actualizar, en orden */
-  claves: ClaveComponente[];
+  claves: ClaveActualizacionG12[];
   /** La que está generando ahora */
-  cuadroActual: ClaveComponente | null;
+  cuadroActual: ClaveActualizacionG12 | null;
   latido: string | null;
   cuadros: CuadroActualizacionG12[];
   resumen: ResumenActualizacionG12 | null;
@@ -170,7 +176,7 @@ export class HistorialG12Service {
    * señales en 3 min se cierra como abandonada y deja paso. De paso borra las
    * de hace más de 60 días.
    */
-  async crear(pais: string, tipo: TipoActualizacionG12, usuario: UsuarioAutenticado, claves: ClaveComponente[]): Promise<ActualizacionG12> {
+  async crear(pais: string, tipo: TipoActualizacionG12, usuario: UsuarioAutenticado, claves: ClaveActualizacionG12[]): Promise<ActualizacionG12> {
     const enCurso = await this.enCurso(pais);
     if (enCurso) throw this.ocupado(enCurso);
 
@@ -218,7 +224,7 @@ export class HistorialG12Service {
   }
 
   /** Señal de vida, y qué tabla está generando */
-  async latir(id: string, cuadroActual?: ClaveComponente | null): Promise<void> {
+  async latir(id: string, cuadroActual?: ClaveActualizacionG12 | null): Promise<void> {
     const cambios: Record<string, unknown> = { latido: new Date().toISOString() };
     if (cuadroActual !== undefined) cambios.cuadro_actual = cuadroActual;
     const { error } = await this.supabase.admin.from(TABLA).update(cambios).eq('id', id);
@@ -229,7 +235,7 @@ export class HistorialG12Service {
   async anotarCuadro(
     id: string,
     pais: string,
-    cuadro: { clave: ClaveComponente; generado: string; peticiones: PeticionG12[] },
+    cuadro: { clave: ClaveActualizacionG12; generado: string; peticiones: PeticionG12[] },
     fallo?: string,
   ): Promise<void> {
     const actual = await this.leer(id);
@@ -270,7 +276,7 @@ export class HistorialG12Service {
 
     const resumen: CuadroActualizacionG12 = {
       clave: cuadro.clave,
-      titulo: definicionDe(cuadro.clave).titulo,
+      titulo: tituloDeClave(cuadro.clave),
       desdeCache: false,
       generado: cuadro.generado,
       peticiones: peticiones.length,
@@ -368,7 +374,7 @@ export class HistorialG12Service {
   /** "Ana lo está actualizando desde las 08:31 (Pickup in store - Lima)" */
   private ocupado(a: ActualizacionG12): ConflictException {
     const hora = horaLocal(a.inicio, a.pais).split(' ')[1]?.slice(0, 5) ?? '';
-    const donde = a.cuadroActual ? ` (va por ${definicionDe(a.cuadroActual).titulo})` : '';
+    const donde = a.cuadroActual ? ` (va por ${tituloDeClave(a.cuadroActual)})` : '';
     return new ConflictException(`${a.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${a.pais} desde las ${hora}${donde}. Espera a que termine: lo verás actualizado aquí.`);
   }
 

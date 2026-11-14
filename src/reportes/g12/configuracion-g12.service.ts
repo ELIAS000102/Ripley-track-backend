@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
 import { firmasDeConfiguracion, IdsG12Service } from './ids-g12.service.js';
+import { solicitudesVacias } from './solicitudes-g12.js';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
@@ -79,7 +80,8 @@ export class ConfiguracionG12Service {
   async importar(contenido: Buffer): Promise<{ configuracion: ConfiguracionG12; errores: string[] }> {
     const leida = await xlsxAConfiguracion(contenido);
     const { configuracion, errores } = normalizarConfiguracion(leida.configuracion);
-    return { configuracion: completar(configuracion), errores: [...leida.errores, ...errores].slice(0, 50) };
+    // Sin hoja de Solicitudes (un Excel de antes) no trae las suyas: el panel conserva las del editor
+    return { configuracion: completar(configuracion, false), errores: [...leida.errores, ...errores].slice(0, 50) };
   }
 
   /** La configuración que llega (la del editor, guardada o no) en un Excel */
@@ -101,6 +103,8 @@ export class ConfiguracionG12Service {
     }
 
     const anterior = await this.configuraciones.leer<ConfiguracionG12>('g12', pais);
+    // Sin Solicitudes en lo que llega, se conservan las guardadas: no se borran por omisión
+    if (!configuracion.solicitudes && anterior.configuracion?.solicitudes) configuracion.solicitudes = anterior.configuracion.solicitudes;
     const actualizadoEn = await this.configuraciones.guardar<ConfiguracionG12>('g12', pais, configuracion, usuario);
 
     // Lo generado de un cuadro que cambió ya no vale; el de los demás, sí. Antes
@@ -132,13 +136,18 @@ export function cuadrosCambiados(anterior: ConfiguracionG12 | null, nueva: Confi
     .map((c) => c.clave);
 }
 
-/** Lo guardado antes de añadir un cuadro nuevo no lo trae: se completa vacío */
-function completar(guardada: ConfiguracionG12 | null): ConfiguracionG12 {
+/**
+ * Lo guardado antes de añadir un cuadro nuevo no lo trae: se completa vacío. Las
+ * Solicitudes, con sus valores por defecto, salvo que se pida no hacerlo (al importar).
+ */
+export function completar(guardada: ConfiguracionG12 | null, conSolicitudes = true): ConfiguracionG12 {
   const vacia = configuracionVacia();
-  if (!guardada) return vacia;
+  const solicitudes = guardada?.solicitudes ?? (conSolicitudes ? solicitudesVacias() : undefined);
+  if (!guardada) return { ...vacia, ...(solicitudes ? { solicitudes } : {}) };
   return {
     componentes: vacia.componentes.map((c) => guardada.componentes?.find((g) => g.clave === c.clave) ?? c),
     resumen: guardada.resumen ?? vacia.resumen,
+    ...(solicitudes ? { solicitudes } : {}),
   };
 }
 

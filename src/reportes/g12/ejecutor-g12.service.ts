@@ -251,6 +251,20 @@ export class EjecutorG12Service {
     return { entradas, registro, hoy: sesion.hoy };
   }
 
+  /**
+   * Una lista de agendas sueltas, cada una como un ítem de su tipo: lo que lee
+   * Solicitudes. Igual que los cuadros: de `aLaVez` en `aLaVez`, con los ids
+   * guardados (y guardando los que consulta), y en el orden de la lista.
+   */
+  async leerAgendas(lista: Array<{ tipo: AgendaG12['tipo']; item: ItemG12 }>, pais: string): Promise<{ hoy: string; resultados: AgendaG12[] }> {
+    const sesion = this.nuevaSesion(pais);
+    await this.cargarIds(sesion);
+    const limitar = limitador(this.aLaVez);
+    const resultados = await Promise.all(lista.map(({ tipo, item }) => limitar(() => this.leerAgenda(tipo, item, sesion))));
+    await this.guardarIds(sesion);
+    return { hoy: sesion.hoy, resultados };
+  }
+
   /** Un bloque suelto, para el botón "Probar" del panel: usa los ids guardados, pero no guarda los que consulta */
   async probar(bloque: BloqueG12, pais: string) {
     const sesion = this.nuevaSesion(pais);

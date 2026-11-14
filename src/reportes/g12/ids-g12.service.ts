@@ -92,6 +92,11 @@ export function firmasDeConfiguracion(config: ConfiguracionG12): Set<string> {
       }
     }
   }
+  // Las agendas de Solicitudes también: sus ids se guardan igual
+  for (const a of config.solicitudes?.agendas ?? []) {
+    const f = firmaIdsG12(a.tipo, a.campos);
+    if (f) firmas.add(f);
+  }
   return firmas;
 }
 

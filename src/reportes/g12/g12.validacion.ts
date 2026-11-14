@@ -14,6 +14,7 @@ import type {
   LineaResumenG12,
   TipoBloqueG12,
 } from './interfaces/g12.interface.js';
+import { normalizarSolicitudes } from './solicitudes-g12.js';
 
 /**
  * Lo que llega del panel, limpio y comprobado.
@@ -33,6 +34,7 @@ type Entrada = {
     bloques?: Array<{ tipo: string; nota?: string; muestra?: boolean; items?: Array<{ fila: string; nota?: string; campos?: Record<string, unknown> }> }>;
   }>;
   resumen?: Array<{ nombre: string; partes?: Array<{ componente: string; fila?: string }> }>;
+  solicitudes?: Parameters<typeof normalizarSolicitudes>[0];
 };
 
 /** Una configuración vacía: los cuadros sin filas y el resumen de siempre */
@@ -194,6 +196,8 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
   }
 
   if (entrada.resumen) base.resumen = normalizarResumen(entrada.resumen, base.componentes, errores);
+  // Solicitudes solo si llega: una configuración sin ellas (un Excel de antes) no borra las guardadas
+  if (entrada.solicitudes) base.solicitudes = normalizarSolicitudes(entrada.solicitudes, errores, limpiarCampos);
 
   return { configuracion: base, errores };
 }

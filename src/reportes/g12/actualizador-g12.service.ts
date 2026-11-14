@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PerfilService } from '../../auth/perfil.service.js';
@@ -10,6 +10,7 @@ import { HistorialG12Service, type ActualizacionG12, type TipoActualizacionG12 }
 import { OracleG12Service, type CargaOracleG12, type MiExcelG12, type PedidoOracleG12 } from './oracle-g12.service.js';
 import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interface.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
+import { SolicitudesG12Service } from './solicitudes-g12.service.js';
 
 /** Cada cuánto da señal de vida una actualización, también mientras espera el cupo de Ripley */
 const LATIDO_MS = 30_000;
@@ -28,6 +29,8 @@ export interface EstadoG12 {
   ultima: ActualizacionG12 | null;
   /** Cambia cuando cambia algún cuadro guardado: si es distinta, el panel vuelve a pedir el reporte */
   version: string;
+  /** Cuándo se generaron las Solicitudes del país (null: nunca); si cambia, el panel las vuelve a pedir */
+  solicitudes: string | null;
   /** Las unidades del Oracle: la última carga, el último pedido y el Excel de quien pregunta */
   oracle: { carga: CargaOracleG12 | null; pedido: PedidoOracleG12 | null; miExcel: MiExcelG12; conectados: string[] };
 }
@@ -57,6 +60,7 @@ export class ActualizadorG12Service {
     private readonly contexto: ContextoAuditoria,
     private readonly perfiles: PerfilService,
     private readonly oracle: OracleG12Service,
+    @Optional() private readonly solicitudes?: SolicitudesG12Service,
   ) {}
 
   /**
@@ -67,6 +71,7 @@ export class ActualizadorG12Service {
    */
   async lanzar(usuario: UsuarioAutenticado, pais: string, tipo: TipoActualizacionG12, pedidas?: string[]): Promise<LanzamientoG12> {
     const config = await this.configuracion.configuracion(pais);
+    if (tipo === 'solicitudes') return this.lanzarSolicitudes(usuario, pais, config);
     const conItems = CLAVES_COMPONENTES.filter((c) => config.componentes.find((x) => x.clave === c)?.bloques.some((b) => b.items.length));
     if (!conItems.length) {
       throw new BadRequestException('El G12 de este país todavía no tiene ítems: configúralo en la pestaña "Configuración".');
@@ -106,6 +111,21 @@ export class ActualizadorG12Service {
     return { actualizacion: a, mensaje: null, oracle };
   }
 
+  /**
+   * Solicitudes: aparte del G12, con su botón (decisión del usuario), pero con
+   * el mismo turno: una actualización a la vez por país, sea del G12 o de esto.
+   */
+  private async lanzarSolicitudes(usuario: UsuarioAutenticado, pais: string, config: ConfiguracionG12): Promise<LanzamientoG12> {
+    if (!this.solicitudes) throw new BadRequestException('Solicitudes no está disponible en este backend.');
+    if (!config.solicitudes?.agendas.length) {
+      throw new BadRequestException('Solicitudes no tiene agendas todavía: agrégalas en Configuración → Solicitudes (o importa la lista).');
+    }
+    const a = await this.historial.crear(pais, 'solicitudes', usuario, ['solicitudes']);
+    this.enMarcha.set(a.id, { cancelar: null });
+    void this.correrSolicitudes(a, usuario, config);
+    return { actualizacion: a, mensaje: null, oracle: null };
+  }
+
   /** El pedido a los Excel de carga; si falla, la actualización sigue igual */
   private async pedirOracle(pais: string, usuario: UsuarioAutenticado, actualizacionId: string | null): Promise<'tu_excel' | 'cualquier_excel' | null> {
     try {
@@ -140,7 +160,7 @@ export class ActualizadorG12Service {
 
   /** Si hay una en curso y por dónde va, la última, si cambió algo de lo guardado, y el Oracle */
   async estado(pais: string, usuario: UsuarioAutenticado): Promise<EstadoG12> {
-    const [enCurso, ultima, versiones, carga, pedido, miExcel, conectados] = await Promise.all([
+    const [enCurso, ultima, versiones, carga, pedido, miExcel, conectados, solicitudes] = await Promise.all([
       this.historial.enCurso(pais),
       this.historial.ultima(pais),
       this.cuadros.versiones(pais),
@@ -148,6 +168,7 @@ export class ActualizadorG12Service {
       this.oracle.ultimoPedido(pais),
       this.oracle.miExcel(usuario.id),
       this.oracle.conectados(),
+      this.solicitudes?.generado(pais) ?? Promise.resolve(null),
     ]);
     // Una carga nueva del Oracle también cambia el reporte (las unidades de DD Lima)
     const version = [...versiones.map((v) => `${v.clave}:${v.generado}`).sort(), `oracle:${carga?.cargadoEn ?? ''}`].join('|');
@@ -155,6 +176,7 @@ export class ActualizadorG12Service {
       enCurso: enCurso ? { ...enCurso, hechas: enCurso.cuadros.length, total: enCurso.claves.length } : null,
       ultima,
       version,
+      solicitudes,
       oracle: { carga, pedido, miExcel, conectados },
     };
   }
@@ -201,6 +223,49 @@ export class ActualizadorG12Service {
         estado = 'fallida';
         motivo = (e as Error).message;
         this.logger.error(`La actualización ${a.id} del G12 de ${a.pais} falló: ${motivo}`);
+      } finally {
+        clearInterval(latido);
+        this.enMarcha.delete(a.id);
+        await this.historial.cerrar(a.id, estado, motivo).catch((e: Error) => this.logger.error(`No se pudo cerrar la actualización ${a.id}: ${e.message}`));
+      }
+    });
+  }
+
+  /** Solicitudes en segundo plano, con la identidad (y el token de Ripley) de quien las lanzó */
+  private async correrSolicitudes(a: ActualizacionG12, usuario: UsuarioAutenticado, config: ConfiguracionG12): Promise<void> {
+    await this.contexto.ejecutar(async () => {
+      this.contexto.identificarUsuario(usuario.id, usuario.email);
+      this.contexto.activarSecuencial({ aLaVez: this.reporte.aLaVez });
+      const latido = setInterval(() => void this.historial.latir(a.id), LATIDO_MS);
+      latido.unref?.();
+      let estado: 'terminada' | 'fallida' | 'cancelada' = 'terminada';
+      let motivo: string | undefined;
+      try {
+        await this.historial.latir(a.id, 'solicitudes');
+        const solicitudes = config.solicitudes!;
+        const r = await this.solicitudes!.generar(a.pais, solicitudes);
+        // Cancelada mientras leía: lo leído no reemplaza lo que había
+        const cancelada = this.enMarcha.get(a.id)?.cancelar;
+        if (cancelada) {
+          estado = 'cancelada';
+          motivo = `Cancelada por ${cancelada}.`;
+          return;
+        }
+        const generado = new Date().toISOString();
+        await this.solicitudes!.guardar({
+          pais: a.pais, hoy: r.hoy, generado, usuarioEmail: usuario.email, actualizacionId: a.id,
+          umbrales: solicitudes.umbrales, filas: r.filas,
+        });
+        await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado, peticiones: r.peticiones });
+        if (r.peticiones.length && r.peticiones.every((p) => p.estado === 'error')) {
+          estado = 'fallida';
+          motivo = 'No se pudo leer ninguna agenda: mira el motivo de cada una en Peticiones.';
+        }
+      } catch (e) {
+        estado = 'fallida';
+        motivo = (e as Error).message;
+        this.logger.error(`Las Solicitudes del G12 de ${a.pais} fallaron: ${motivo}`);
+        await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado: new Date().toISOString(), peticiones: [] }, motivo).catch(() => undefined);
       } finally {
         clearInterval(latido);
         this.enMarcha.delete(a.id);

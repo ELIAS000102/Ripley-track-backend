@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { CAMPOS_G12, COMPONENTES_G12, definicionDe } from './g12.componentes.js';
 import { type FilaIdsG12, firmaIdsG12 } from './ids-g12.service.js';
+import { NOMBRE_TIPO_SOLICITUD, NOMBRE_VENTANA, TIPOS_SOLICITUD, VENTANAS_SOLICITUD } from './solicitudes-g12.js';
 import type {
   BloqueG12,
   ClaveComponente,
@@ -47,7 +48,7 @@ const comparable = (s: unknown) =>
 // ───────────────────────── Exportar ─────────────────────────
 
 /** "14/11/2026 13:40", hora de Lima o de Santiago */
-function cuandoEnPais(iso: string, pais: string): string {
+export function cuandoEnPais(iso: string, pais: string): string {
   const zona = pais === 'CL' ? 'America/Santiago' : 'America/Lima';
   return new Date(iso).toLocaleString('es-PE', { timeZone: zona, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
 }
@@ -103,7 +104,7 @@ const COLOR_CUADRO: Record<ClaveComponente, string> = {
 };
 const FUENTE = 'Segoe UI';
 
-interface Columna {
+export interface Columna {
   titulo: string;
   ancho: number;
   /** Texto largo: se parte en líneas */
@@ -119,7 +120,7 @@ interface Columna {
  * cabecera fija (y las primeras columnas, si se dice). La primera fila sigue
  * siendo la de los títulos: es la que lee el importador.
  */
-function hojaConEstilo(libro: ExcelJS.Workbook, nombre: string, columnas: Columna[], filas: unknown[][], opciones: { fijas?: number; cuadroEn?: number; claves?: ClaveComponente[]; color?: string } = {}) {
+export function hojaConEstilo(libro: ExcelJS.Workbook, nombre: string, columnas: Columna[], filas: unknown[][], opciones: { fijas?: number; cuadroEn?: number; claves?: ClaveComponente[]; color?: string } = {}) {
   const hoja = libro.addWorksheet(nombre, { properties: { tabColor: { argb: opciones.color ?? TINTA } } });
   hoja.columns = columnas.map((c) => ({ header: c.titulo, width: c.ancho }));
 
@@ -286,6 +287,34 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
   }
   hojaConEstilo(libro, 'Resumen', [{ titulo: 'Línea', ancho: 30 }, { titulo: 'Cuadro', ancho: 30 }, { titulo: 'Fila (vacía: el cuadro entero)', ancho: 36 }], lineasResumen, { fijas: 1, cuadroEn: 2, claves: clavesResumen, color: 'FFD99A00' });
 
+  // ── Solicitudes: sus agendas, y sus umbrales y ventanas ──
+  if (config.solicitudes) {
+    const s = config.solicitudes;
+    const conIdsSol = !!ids;
+    const idsDe = (a: (typeof s.agendas)[number]) => {
+      const firma = firmaIdsG12(a.tipo, a.campos);
+      const fila = firma ? ids?.get(firma) : undefined;
+      if (!fila || !('agendas' in fila.ids)) return ['Sin consultar', '', ''];
+      const ag = fila.ids.agendas;
+      return [porLinea(ag.map((x) => x.id)), a.tipo === 'recepcion' ? porLinea(ag.map((x) => x.capacidadId)) : '', a.tipo === 'despacho' ? porLinea(ag.map((x) => x.zonaId)) : ''];
+    };
+    hojaConEstilo(libro, 'Solicitudes', [
+      { titulo: 'Tipo', ancho: 12 }, { titulo: 'Clúster', ancho: 12, centrar: true }, { titulo: 'Nombre', ancho: 28 }, { titulo: 'Ventana', ancho: 22 },
+      { titulo: 'Código', ancho: 11 }, { titulo: 'Servicio', ancho: 10, centrar: true }, { titulo: 'Zona', ancho: 32 }, { titulo: 'Agenda', ancho: 36 },
+      ...(conIdsSol ? [{ titulo: 'Id agenda', ancho: 27, ids: true }, { titulo: 'Id capacidad', ancho: 27, ids: true }, { titulo: 'Id zona', ancho: 27, ids: true }] : []),
+    ], s.agendas.map((a) => [
+      NOMBRE_TIPO_SOLICITUD[a.tipo], a.cluster, a.nombre, NOMBRE_VENTANA[a.ventana],
+      a.campos.codigo ?? '', a.campos.servicio ?? '', a.campos.zona ?? '', a.campos.agenda ?? '',
+      ...(conIdsSol ? idsDe(a) : []),
+    ]), { fijas: 3, color: 'FF0D9488' });
+    hojaConEstilo(libro, 'Solicitudes (parámetros)', [
+      { titulo: 'Parámetro', ancho: 14 }, { titulo: 'De', ancho: 24 }, { titulo: 'Valor', ancho: 10, centrar: true }, { titulo: 'Días', ancho: 8, centrar: true },
+    ], [
+      ...TIPOS_SOLICITUD.map((t) => ['Umbral %', NOMBRE_TIPO_SOLICITUD[t], Math.round(s.umbrales[t] * 1000) / 10, '']),
+      ...VENTANAS_SOLICITUD.map((v) => ['Ventana', NOMBRE_VENTANA[v], s.ventanas[v].desde, s.ventanas[v].dias]),
+    ], { color: 'FF0D9488' });
+  }
+
   return Buffer.from(await libro.xlsx.writeBuffer());
 }
 
@@ -412,8 +441,48 @@ export async function xlsxAConfiguracion(contenido: Buffer): Promise<{ configura
     lineas.get(nombre)!.partes.push({ componente: def.clave, ...(fila ? { fila } : {}) });
   }
 
+  // ── Solicitudes: solo si el Excel las trae (uno de antes no las tiene, y no se borran) ──
+  const hojaSol = filasDe('Solicitudes');
+  let solicitudes: ConfiguracionG12['solicitudes'] | undefined;
+  if (hojaSol) {
+    const deTexto = <T extends string>(texto: string, nombres: Record<T, string>): T | '' => {
+      const b = comparable(texto);
+      return (Object.keys(nombres) as T[]).find((k) => comparable(nombres[k]) === b || comparable(k) === b) ?? '';
+    };
+    const agendas = hojaSol.map((f) => {
+      const campos: Record<string, string> = {};
+      for (const [campo, titulo] of [['codigo', 'Código'], ['servicio', 'Servicio'], ['zona', 'Zona'], ['agenda', 'Agenda']] as const) {
+        const v = f.valor(titulo);
+        if (v) campos[campo] = v;
+      }
+      const tipo = deTexto(f.valor('Tipo'), NOMBRE_TIPO_SOLICITUD);
+      if (!tipo) errores.push(`Solicitudes, fila ${f.n}: el tipo "${f.valor('Tipo')}" no es Picking, Recepción ni Despacho.`);
+      // Solo los campos de su tipo: un despacho no lleva servicio; picking y recepción, zona
+      if (tipo === 'despacho') delete campos.servicio;
+      if (tipo === 'picking' || tipo === 'recepcion') delete campos.zona;
+      return { tipo, cluster: f.valor('Clúster'), nombre: f.valor('Nombre'), ventana: deTexto(f.valor('Ventana'), NOMBRE_VENTANA), campos };
+    });
+    const umbrales: Record<string, number> = {};
+    const ventanas: Record<string, { desde: number; dias: number }> = {};
+    for (const f of filasDe('Solicitudes (parámetros)') ?? []) {
+      const parametro = comparable(f.valor('Parámetro'));
+      if (parametro.startsWith('umbral')) {
+        const t = deTexto(f.valor('De'), NOMBRE_TIPO_SOLICITUD);
+        if (t) umbrales[t] = Number(f.valor('Valor').replace('%', '').replace(',', '.')) / 100;
+      } else if (parametro === 'ventana') {
+        const v = deTexto(f.valor('De'), NOMBRE_VENTANA);
+        if (v) ventanas[v] = { desde: Number(f.valor('Valor')), dias: Number(f.valor('Días')) };
+      }
+    }
+    solicitudes = { umbrales, ventanas, agendas } as unknown as ConfiguracionG12['solicitudes'];
+  }
+
   return {
-    configuracion: { componentes: COMPONENTES_G12.map((d) => porCuadro.get(d.clave)).filter((c): c is ComponenteG12 => !!c), resumen: [...lineas.values()] },
+    configuracion: {
+      componentes: COMPONENTES_G12.map((d) => porCuadro.get(d.clave)).filter((c): c is ComponenteG12 => !!c),
+      resumen: [...lineas.values()],
+      ...(solicitudes ? { solicitudes } : {}),
+    },
     errores,
   };
 }

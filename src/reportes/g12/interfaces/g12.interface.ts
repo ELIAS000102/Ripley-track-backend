@@ -94,6 +94,86 @@ export interface LineaResumenG12 {
 export interface ConfiguracionG12 {
   componentes: ComponenteG12[];
   resumen: LineaResumenG12[];
+  /** Solicitudes (RS_SOLICITUDES del Excel): qué agendas revisar, con qué umbral y en qué días. Falta en las de antes */
+  solicitudes?: ConfiguracionSolicitudesG12;
+}
+
+// ───────────────────────── Solicitudes ─────────────────────────
+
+/**
+ * Solicitudes: los días de agenda que pasan su umbral de ocupación, para pedir
+ * más capacidad (la hoja RS_SOLICITUDES del Excel, 2026-11-14). Revisa una
+ * lista propia de agendas —no las de los cuadros del G12— sin las del CD.
+ */
+export type TipoSolicitudG12 = 'picking' | 'recepcion' | 'despacho';
+export type ClusterG12 = 'LIMA' | 'PROVINCIA';
+
+/**
+ * Qué días se revisan de cada agenda, desde hoy: como los tramos del Excel
+ * (picking desde hoy, recepción de Lima desde mañana, provincia desde pasado…).
+ * Sin fecha mínima teórica (decisión del usuario): se revisan todos.
+ */
+export type VentanaSolicitudG12 = 'picking' | 'recepcion_lima' | 'recepcion_lima_se' | 'recepcion_provincia' | 'recepcion_cronograma' | 'despacho';
+
+export interface AgendaSolicitudG12 {
+  tipo: TipoSolicitudG12;
+  cluster: ClusterG12;
+  /** La tienda u OPL como se ve en la lista: "Breña", "SFS Piura" */
+  nombre: string;
+  ventana: VentanaSolicitudG12;
+  /** Como un ítem del G12 de su tipo: código, servicio, zona, agenda (por nombre, nunca ids) */
+  campos: Record<string, string | number>;
+}
+
+export interface ConfiguracionSolicitudesG12 {
+  /** Ocupación (utilizado / asignado, de 0 a 1) a partir de la cual —estrictamente por encima— se solicita */
+  umbrales: Record<TipoSolicitudG12, number>;
+  /** Días que se revisan: desde (días desde hoy) y cuántos */
+  ventanas: Record<VentanaSolicitudG12, { desde: number; dias: number }>;
+  agendas: AgendaSolicitudG12[];
+}
+
+export type RangoSolicitudG12 = '1. < 50%' | '2. 50-79%' | '3. 80-99%' | '4. 100%+' | 'SIN CAPACIDAD';
+
+export interface DiaSolicitudG12 {
+  fecha: string;
+  utilizado: number;
+  asignado: number;
+  disponible: number;
+  /** Utilizado sobre asignado, en %, entero; null sin capacidad */
+  porcentaje: number | null;
+  rango: RangoSolicitudG12;
+  /** solicitar: pasa el umbral · ok · sin_capacidad: asignado 0 (no se solicita, se avisa) */
+  estado: 'solicitar' | 'ok' | 'sin_capacidad';
+}
+
+/** Una agenda revisada: la de la lista, y los días de su ventana */
+export interface FilaSolicitudG12 {
+  tipo: TipoSolicitudG12;
+  cluster: ClusterG12;
+  nombre: string;
+  /** El servicio (jornada) de la agenda: RT, SS, ST, SG, DT, S… */
+  servicio: string | null;
+  codigo: string;
+  zona: string | null;
+  /** La agenda de Ripley (su nombre) y su id, si se conoce */
+  agenda: string | null;
+  agendaId: string | null;
+  dias: DiaSolicitudG12[];
+  /** No se pudo leer: por qué */
+  error: string | null;
+  aviso?: string | null;
+}
+
+/** Lo último generado de Solicitudes de un país, el mismo para todos */
+export interface SolicitudesG12 {
+  pais: string;
+  hoy: string;
+  generado: string;
+  usuarioEmail: string | null;
+  actualizacionId: string | null;
+  umbrales: Record<TipoSolicitudG12, number>;
+  filas: FilaSolicitudG12[];
 }
 
 // ───────────────────────── Lo que se lee de Ripley ─────────────────────────
@@ -248,7 +328,8 @@ export interface AgendaG12 {
 
 /** Una petición del G12 a Ripley, para el registro: qué se pidió, qué volvió y cómo fue */
 export interface PeticionG12 {
-  componente: ClaveComponente;
+  /** El cuadro, o 'solicitudes' para las de Solicitudes */
+  componente: ClaveComponente | 'solicitudes';
   cuadro: string;
   fila: string;
   /** El número del bloque en el cuadro, desde 1 */
