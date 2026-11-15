@@ -1,5 +1,6 @@
 import { sinAcentos } from '../../nucleo/texto.js';
 import ExcelJS from 'exceljs';
+import { buscarEncabezado, textoDeCelda } from '../excel.util.js';
 import { claveEtiqueta, leerCeldaRecepcion, paresDeTienda } from './matriz.calculo.js';
 import { DIAS, NOMBRE_DIA, type LecturaMatriz, type TiendaMalla } from './interfaces/matriz.interface.js';
 
@@ -28,39 +29,6 @@ const ERRORES_MAXIMOS = 50;
 
 const LETRA_COLUMNA = (n: number) => String.fromCharCode(64 + n);
 
-/**
- * El texto de una celda, venga como venga: número, texto, texto con formato o
- * fórmula. Un espacio suelto —el original tiene muchos— cuenta como vacío.
- */
-export function textoDeCelda(valor: ExcelJS.CellValue): string {
-  if (valor === null || valor === undefined) return '';
-  if (typeof valor === 'number' || typeof valor === 'boolean') return String(valor);
-  if (typeof valor === 'string') return valor.replace(/ /g, ' ').trim();
-  if (valor instanceof Date) return valor.toISOString().slice(0, 10);
-  if (typeof valor === 'object') {
-    if ('richText' in valor)
-      return valor.richText
-        .map((t) => t.text)
-        .join('')
-        .trim();
-    if ('result' in valor) return textoDeCelda(valor.result as ExcelJS.CellValue);
-    if ('text' in valor) return String(valor.text).trim();
-  }
-  return '';
-}
-
-/** La hoja y la fila del encabezado: la primera fila que empieza por "Código" */
-function buscarEncabezado(libro: ExcelJS.Workbook): { hoja: ExcelJS.Worksheet; fila: number } | null {
-  // La de la plantilla se llama "Matriz"; si no, la primera que lo tenga
-  const hojas = [...libro.worksheets].sort((a, b) => Number(b.name === 'Matriz') - Number(a.name === 'Matriz'));
-  for (const hoja of hojas) {
-    for (let fila = 1; fila <= Math.min(10, hoja.rowCount); fila++) {
-      if (sinAcentos(textoDeCelda(hoja.getRow(fila).getCell(1).value)).trim() === 'codigo') return { hoja, fila };
-    }
-  }
-  return null;
-}
-
 export async function leerMatriz(contenido: Buffer): Promise<LecturaMatriz> {
   const libro = new ExcelJS.Workbook();
   try {
@@ -69,7 +37,7 @@ export async function leerMatriz(contenido: Buffer): Promise<LecturaMatriz> {
     return { hoja: '', tiendas: [], avisos: [], errores: ['El archivo no es un Excel .xlsx que se pueda abrir.'] };
   }
 
-  const encontrado = buscarEncabezado(libro);
+  const encontrado = buscarEncabezado(libro, 'Matriz', (t) => sinAcentos(t).trim() === 'codigo');
   if (!encontrado) {
     return {
       hoja: '',

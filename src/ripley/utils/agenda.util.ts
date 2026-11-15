@@ -62,3 +62,17 @@ export function resolverTipoDeAgenda(type: ScheduleType): string {
 
   return TIPOS_DE_AGENDA[activa];
 }
+
+/**
+ * El id de un documento de Ripley que a veces llega como su id en texto y a
+ * veces como el documento entero expandido (`{ id }` o `{ _id }`). Pasa con el
+ * `capacityId` de recepción y de transferencia.
+ */
+export function idDelDocumento(valor: unknown): string | undefined {
+  if (typeof valor === 'string') return valor.trim() || undefined;
+  if (valor && typeof valor === 'object') {
+    const doc = valor as { id?: string; _id?: string };
+    return doc.id ?? doc._id;
+  }
+  return undefined;
+}

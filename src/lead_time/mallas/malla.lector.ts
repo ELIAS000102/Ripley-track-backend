@@ -1,7 +1,7 @@
 import { sinAcentos } from '../../nucleo/texto.js';
 import ExcelJS from 'exceljs';
 import { DIAS, NOMBRE_DIA, type Dia } from '../matrices/interfaces/matriz.interface.js';
-import { textoDeCelda } from '../matrices/matriz.lector.js';
+import { buscarEncabezado, textoDeCelda } from '../excel.util.js';
 import type { Lectura } from '../versionado.service.js';
 import { claveMalla, type DiaMalla, type OplMalla } from './interfaces/malla.interface.js';
 
@@ -91,16 +91,6 @@ function letra(n: number) {
   return s;
 }
 
-function buscarEncabezado(libro: ExcelJS.Workbook): { hoja: ExcelJS.Worksheet; fila: number } | null {
-  const hojas = [...libro.worksheets].sort((a, b) => Number(b.name === 'Malla') - Number(a.name === 'Malla'));
-  for (const hoja of hojas) {
-    for (let fila = 1; fila <= Math.min(10, hoja.rowCount); fila++) {
-      if (normalizar(textoDeCelda(hoja.getRow(fila).getCell(1).value)) === 'opl') return { hoja, fila };
-    }
-  }
-  return null;
-}
-
 export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
   const libro = new ExcelJS.Workbook();
   try {
@@ -109,7 +99,7 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
     return { items: [], avisos: [], errores: ['El archivo no es un Excel .xlsx que se pueda abrir.'] };
   }
 
-  const encontrado = buscarEncabezado(libro);
+  const encontrado = buscarEncabezado(libro, 'Malla', (t) => normalizar(t) === 'opl');
   if (!encontrado) {
     return {
       items: [],

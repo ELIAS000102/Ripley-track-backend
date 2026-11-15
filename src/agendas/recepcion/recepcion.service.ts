@@ -5,7 +5,7 @@ import { RipleyHttpService } from '../../ripley/ripley-http.service.js';
 import { RipleyApiError } from '../../ripley/ripley.errors.js';
 import { isoToRipleyDate, nombreDelDia, recortarDesde } from '../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha } from '../../nucleo/fechas.js';
-import { resolverTipoDeAgenda, unicaPorServicio } from '../../ripley/utils/agenda.util.js';
+import { idDelDocumento, resolverTipoDeAgenda, unicaPorServicio } from '../../ripley/utils/agenda.util.js';
 import { ActualizarRecepcionBodyDto } from './dto/actualizar-recepcion.dto.js';
 import type {
   CapacityByDay,
@@ -27,16 +27,7 @@ import type {
  * y guardar— no puedan discrepar.
  */
 function idDeCapacidad(fila: ReceptionScheduleRow): string | undefined {
-  const valor: unknown = fila.capacities?.[0]?.capacityId;
-
-  if (typeof valor === 'string') return valor.trim() || undefined;
-
-  if (valor && typeof valor === 'object') {
-    const doc = valor as { id?: string; _id?: string };
-    return doc.id ?? doc._id;
-  }
-
-  return undefined;
+  return idDelDocumento(fila.capacities?.[0]?.capacityId);
 }
 
 /**

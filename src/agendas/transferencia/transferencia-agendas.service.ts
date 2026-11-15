@@ -4,7 +4,7 @@ import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.servic
 import { CatalogosRipleyService } from '../../ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../ripley/ripley-http.service.js';
 import { RipleyApiError } from '../../ripley/ripley.errors.js';
-import { resolverTipoDeAgenda } from '../../ripley/utils/agenda.util.js';
+import { idDelDocumento, resolverTipoDeAgenda } from '../../ripley/utils/agenda.util.js';
 import { enLotes } from '../../nucleo/lotes.util.js';
 import { isoToRipleyDate, recortarDesde } from '../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha } from '../../nucleo/fechas.js';
@@ -71,14 +71,7 @@ export interface AgendaTransferenciaPreparada {
 function idDeCapacidad(fila: TransferScheduleRow): string | undefined {
   const origen = fila.warehouses?.[0];
   const capacidad = fila.capacities?.find((c) => c.warehouseId === origen) ?? fila.capacities?.[0];
-  const valor: unknown = capacidad?.capacityId;
-
-  if (typeof valor === 'string') return valor.trim() || undefined;
-  if (valor && typeof valor === 'object') {
-    const doc = valor as { id?: string; _id?: string };
-    return doc.id ?? doc._id;
-  }
-  return undefined;
+  return idDelDocumento(capacidad?.capacityId);
 }
 
 /**
