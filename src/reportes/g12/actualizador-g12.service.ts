@@ -72,9 +72,10 @@ export class ActualizadorG12Service {
    *
    * Completa y refrescar generan también las Solicitudes, al final (decisión del
    * usuario, 2026-11-14), si tienen agendas: completa, solo si no son de hoy o
-   * tienen más de 15 minutos. Se siguen pudiendo generar solas con su botón.
+   * tienen más de 15 minutos. Con `solicitudes: false`, solo el G12. Se siguen
+   * pudiendo generar solas con su botón.
    */
-  async lanzar(usuario: UsuarioAutenticado, pais: string, tipo: TipoActualizacionG12, pedidas?: string[]): Promise<LanzamientoG12> {
+  async lanzar(usuario: UsuarioAutenticado, pais: string, tipo: TipoActualizacionG12, pedidas?: string[], opciones: { solicitudes?: boolean } = {}): Promise<LanzamientoG12> {
     const config = await this.configuracion.configuracion(pais);
     if (tipo === 'solicitudes') return this.lanzarSolicitudes(usuario, pais, config);
     const conItems = CLAVES_COMPONENTES.filter((c) => config.componentes.find((x) => x.clave === c)?.bloques.some((b) => b.items.length));
@@ -95,7 +96,7 @@ export class ActualizadorG12Service {
     } else {
       claves = [];
     }
-    const conSolicitudes = (tipo === 'completa' || tipo === 'refrescar') && !!this.solicitudes && !!config.solicitudes?.agendas.length;
+    const conSolicitudes = (tipo === 'completa' || tipo === 'refrescar') && opciones.solicitudes !== false && !!this.solicitudes && !!config.solicitudes?.agendas.length;
     let pasos: ClaveActualizacionG12[] = claves;
     if (tipo === 'refrescar' && conSolicitudes) pasos = [...claves, 'solicitudes'];
     if (tipo === 'completa') {

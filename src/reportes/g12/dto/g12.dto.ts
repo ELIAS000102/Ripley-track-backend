@@ -40,6 +40,11 @@ export class CrearActualizacionG12Dto {
   @ArrayMaxSize(CLAVES_COMPONENTES.length)
   @IsIn(CLAVES_COMPONENTES, { each: true, message: `cada clave debe ser una de: ${CLAVES_COMPONENTES.join(', ')}` })
   claves?: string[];
+
+  /** Completa o refrescar: false para actualizar solo el G12, sin las Solicitudes (por defecto van al final) */
+  @IsOptional()
+  @IsBoolean({ message: 'solicitudes debe ser true o false' })
+  solicitudes?: boolean;
 }
 
 /** GET /reportes/g12/actualizaciones — el historial, de un día si se dice */

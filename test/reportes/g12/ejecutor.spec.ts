@@ -667,6 +667,10 @@ describe('Solicitudes, con el mismo turno que el G12', () => {
 
   it('una tabla del G12 sola no genera las Solicitudes; sin agendas, el G12 va sin ellas', async () => {
     const { actualizador, historial } = montar({ config: config() });
+    const soloG12 = await actualizador.lanzar(ANA, 'PE', 'refrescar', undefined, { solicitudes: false });
+    expect(soloG12.actualizacion!.claves).toEqual(['pickup_lima']);
+    await esperar(historial, soloG12.actualizacion!.id);
+
     const r = await actualizador.lanzar(ANA, 'PE', 'tabla', ['pickup_lima']);
     expect(r.actualizacion!.claves).toEqual(['pickup_lima']);
     await esperar(historial, r.actualizacion!.id);

@@ -116,7 +116,7 @@ export class G12Controller {
   @Post('actualizaciones')
   @HttpCode(200)
   async lanzar(@Usuario() usuario: UsuarioAutenticado, @Query() query: PaisDto, @Body() body: CrearActualizacionG12Dto) {
-    return this.actualizador.lanzar(usuario, query.pais ?? 'PE', body.tipo, body.claves);
+    return this.actualizador.lanzar(usuario, query.pais ?? 'PE', body.tipo, body.claves, { solicitudes: body.solicitudes });
   }
 
   /** POST /reportes/g12/actualizaciones/:id/cancelar — solo quien la lanzó o un administrador */
