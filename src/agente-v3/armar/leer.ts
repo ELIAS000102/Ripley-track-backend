@@ -63,27 +63,39 @@ export function codigosPermitidos(contexto: ContextoTurno, mensaje: string): Set
 
 type Valor = { ok: true; v: unknown } | { ok: false; motivo: string };
 
+/** "todos", "todas", "*": todos los servicios que se vieron de cada OPL */
+const TODOS_LOS_SERVICIOS = /^(TODOS|TODAS|\*)$/;
+
 function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: Set<string>, n: number): Valor {
   const esRef = (x: unknown) => x && typeof x === 'object' && !Array.isArray(x) && 'ref' in (x as object);
-  if (esRef(v)) {
-    if (!p.ref) return { ok: false, motivo: `${p.nombre} no admite una referencia` };
-    const r = v as { ref: string; n?: number };
-    if (r.ref === 'anterior') {
-      if (!contexto.anterior?.resultados.some((x) => x.datos)) return { ok: false, motivo: `${p.nombre} usa lo que trajo el anterior, y no hay datos guardados de él` };
-      return { ok: true, v: { ref: 'anterior' } };
-    }
-    // "sin": lo del paso N menos lo del paso M ("el resto de las de la ST" = las de la ST sin las de la SE)
-    const sin = (r as { sin?: unknown }).sin;
-    if (sin !== undefined && sin !== null && !(Number.isInteger(sin) && (sin as number) >= 1 && (sin as number) < n && sin !== r.n)) return { ok: false, motivo: `${p.nombre}: "sin" tiene que ser otro paso anterior (${JSON.stringify(v)})` };
-    if (r.ref === 'paso' && Number.isInteger(r.n) && r.n! >= 1 && r.n! < n) return { ok: true, v: { ref: 'paso', n: r.n, ...(sin ? { sin } : {}) } };
-    return { ok: false, motivo: `${p.nombre}: referencia que no vale (${JSON.stringify(v)})` };
-  }
   const fuente = FUENTE_POR_DEFECTO[contexto.pais];
   const codigo = (c: unknown): string | null => {
     const s = String(c ?? '').trim();
     if (!/^\d{3,6}$/.test(s)) return null;
     return permitidos.has(s) || ((p.nombre === 'origen' || p.nombre === 'almacen') && s === fuente) ? s : null;
   };
+  if (esRef(v)) {
+    if (!p.ref) return { ok: false, motivo: `${p.nombre} no admite una referencia` };
+    const r = v as { ref: string; n?: number };
+    // "sin": lo de la referencia menos lo de OTRO PASO (su número: "el resto de las de la ST" = las de la ST sin
+    // las de la SE) o menos unos CÓDIGOS que dijo la persona ("todos menos la 1111" = "sin": ["1111"])
+    const crudo = (r as { sin?: unknown }).sin;
+    let sin: number | string[] | undefined;
+    if (crudo !== undefined && crudo !== null) {
+      if (r.ref === 'paso' && Number.isInteger(crudo) && (crudo as number) >= 1 && (crudo as number) < n && crudo !== r.n) sin = crudo as number;
+      else {
+        const lista = (Array.isArray(crudo) ? crudo : String(crudo).split(/[,\s]+/)).map((x) => String(x).trim()).filter(Boolean);
+        if (!lista.length || lista.some((c) => !codigo(c))) return { ok: false, motivo: `${p.nombre}: "sin" es otro paso anterior (su número) o los códigos que dijo la persona (["1111"]); ${JSON.stringify(crudo)} no vale` };
+        sin = [...new Set(lista)];
+      }
+    }
+    if (r.ref === 'anterior') {
+      if (!contexto.anterior?.resultados.some((x) => x.datos)) return { ok: false, motivo: `${p.nombre} usa lo que trajo el anterior, y no hay datos guardados de él` };
+      return { ok: true, v: { ref: 'anterior', ...(Array.isArray(sin) ? { sin } : {}) } };
+    }
+    if (r.ref === 'paso' && Number.isInteger(r.n) && r.n! >= 1 && r.n! < n) return { ok: true, v: { ref: 'paso', n: r.n, ...(sin ? { sin } : {}) } };
+    return { ok: false, motivo: `${p.nombre}: referencia que no vale (${JSON.stringify(v)})` };
+  }
   switch (p.tipo) {
     case 'codigos': {
       const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/)).map((x) => String(x).trim()).filter(Boolean);
@@ -99,6 +111,8 @@ function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: S
     case 'servicios':
     case 'servicio': {
       const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/)).map((x) => String(x).trim().toUpperCase()).filter(Boolean);
+      // "Todos los servicios" (los que se vieron de cada OPL): lo comprueba leerPlan con su "opl"
+      if (p.tipo === 'servicios' && lista.length === 1 && TODOS_LOS_SERVICIOS.test(lista[0])) return { ok: true, v: ['TODOS'] };
       const conocidos = new Set(contexto.servicios.map((s) => s.codigo));
       const malos = lista.filter((s) => !/^[A-Z]{1,3}$/.test(s) || (conocidos.size > 0 && !conocidos.has(s)));
       if (!lista.length || malos.length) return { ok: false, motivo: `${p.nombre}: ${malos.join(', ') || 'vacío'} no es un servicio de ${contexto.pais}` };
@@ -206,6 +220,12 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
       }
       const falta = h.params.find((p) => p.requerido && limpio[p.nombre] === undefined);
       if (falta) return { ok: false, motivo: `paso ${n} (${h.id}): falta ${falta.nombre}` };
+    }
+
+    // "Todos los servicios": solo en los servicios de OPL y sobre algo que se vio (un paso o el anterior)
+    if (Array.isArray(limpio.servicio) && limpio.servicio[0] === 'TODOS') {
+      const opl = limpio.opl as { ref?: string } | undefined;
+      if (h.id !== 'editar_servicio_opl' || !opl || typeof opl !== 'object' || !opl.ref) return { ok: false, motivo: `paso ${n}: servicio "todos" solo vale en editar_servicio_opl con "opl" de otro paso o del anterior (ahí se ve qué servicios tiene cada OPL); si no, nombra los servicios` };
     }
 
     // La agenda o la zona: una de las conocidas de esas oficinas; si no se conoce ninguna, se buscan

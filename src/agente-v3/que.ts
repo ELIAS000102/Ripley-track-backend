@@ -8,11 +8,14 @@ import type { PasoPlan } from './interfaces/agente-v3.interface.js';
 const NOMBRE_PAIS: Record<string, string> = { PE: 'Perú', CL: 'Chile' };
 const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v === undefined || v === null || v === '' ? [] : String(v).split(',').map((x) => x.trim()));
 
+/** "menos lo del paso 1" o "menos 1111, 1112" */
+const menosDe = (sin: number | string[] | undefined) => (typeof sin === 'number' ? ` menos lo del paso ${sin}` : Array.isArray(sin) && sin.length ? ` menos ${sin.join(', ')}` : '');
+
 export function queEs(p: PasoPlan, paisDelTurno?: string): string {
   const pais = NOMBRE_PAIS[String(p.param.pais ?? paisDelTurno)] ?? '';
   const x = p.param;
   const cods = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v)
-    ? ((v as { ref: string }).ref === 'anterior' ? 'lo del mensaje anterior' : `lo del paso ${(v as { n: number }).n}${(v as { sin?: number }).sin ? ` menos lo del paso ${(v as { sin: number }).sin}` : ''}`)
+    ? `${(v as { ref: string }).ref === 'anterior' ? 'lo del mensaje anterior' : `lo del paso ${(v as { n: number }).n}`}${menosDe((v as { sin?: number | string[] }).sin)}`
     : lista(v).slice(0, 4).join(', ') + (lista(v).length > 4 ? ` y ${lista(v).length - 4} más` : ''));
   const accion = (activo: unknown, si: string, no: string) => (activo === true ? si : activo === false ? no : 'cambiar');
   switch (p.herramienta) {
@@ -38,7 +41,7 @@ export function queEs(p: PasoPlan, paisDelTurno?: string): string {
     case 'editar_capacidad_transferencia': return `Vista previa: capacidad de transferencia${x.origen ? ` de ${String(x.origen)}` : ''}${x.destino ? ` a ${String(x.destino)}` : ''}`;
     case 'cortar_reabrir_cd': return `Vista previa: ${x.activa ? 'reabrir' : 'cortar'} ${x.cd ? `el CD ${String(x.cd)}` : 'los CDs'}`;
     case 'reasignar_capacidad': return `Vista previa: pasar ${String(x.unidades)} de ${String(x.origen)} a ${String(x.destino)} en el ${String(x.cd)}`;
-    case 'editar_servicio_opl': return `Vista previa: ${lista(x.servicio).join(', ')} de ${cods(x.opl)}`;
+    case 'editar_servicio_opl': return `Vista previa: ${accion(x.activo, 'activar', 'desactivar')} ${lista(x.servicio).join(', ') === 'TODOS' ? 'todos los servicios' : lista(x.servicio).join(', ')} de ${cods(x.opl)}`;
     case 'editar_masivo': return `Vista previa: ${accion(x.activo, 'activar', 'desactivar')} ${String(x.servicio)}${x.opls ? ` en ${cods(x.opls)}` : ' en bloque'}`;
     case 'editar_transferencia': return `Vista previa: transferencia a ${cods(x.destino)}`;
     default: return p.herramienta;

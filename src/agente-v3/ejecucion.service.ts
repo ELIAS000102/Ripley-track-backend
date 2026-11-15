@@ -145,8 +145,8 @@ export class EjecucionV3Service {
     const cuerpos: Array<Record<string, unknown>> = [];
     try {
       // Un paso que usa lo de otro que falló no se hace
-      const refs = Object.values(paso.param).filter((v) => v && typeof v === 'object' && (v as { ref?: string }).ref === 'paso') as Array<{ n: number; sin?: number }>;
-      const fallido = refs.flatMap((r) => [r.n, ...(r.sin ? [r.sin] : [])]).find((k) => hechos[k - 1]?.estado === 'error');
+      const refs = Object.values(paso.param).filter((v) => v && typeof v === 'object' && (v as { ref?: string }).ref === 'paso') as Array<{ n: number; sin?: number | string[] }>;
+      const fallido = refs.flatMap((r) => [r.n, ...(typeof r.sin === 'number' ? [r.sin] : [])]).find((k) => hechos[k - 1]?.estado === 'error');
       if (fallido) throw new Error(`no se hizo: dependía del paso ${fallido}, que falló`);
 
       let datos = paso.herramienta === 'calcular' ? this.calcular(plan, contexto) : await this.correr(usuario, paso, hechos, contexto, cuerpos);
@@ -263,7 +263,9 @@ export class EjecucionV3Service {
 
   /** Los códigos de una referencia: lo que cumplió (o trajo) otro paso, o el mensaje anterior */
   private codigosDe(v: unknown, hechos: PasoEjecutado[], contexto: ContextoTurno): string[] {
-    const r = v as { ref: string; n?: number; sin?: number };
+    const r = v as { ref: string; n?: number; sin?: number | string[] };
+    // "Todos menos la 1111": los códigos que se quitan, tal cual
+    const menos = (codigos: string[]) => (Array.isArray(r.sin) ? codigos.filter((c) => !(r.sin as string[]).includes(c)) : codigos);
     if (r.ref === 'paso') {
       const de = (k: number) => {
         const p = hechos[k - 1];
@@ -271,13 +273,13 @@ export class EjecucionV3Service {
         return p.cumplen ?? codigosQueCumplen(filasDe(p.herramienta, p.datos, contexto.hoy));
       };
       const codigos = de(r.n ?? 0);
-      if (!r.sin) return codigos;
+      if (typeof r.sin !== 'number') return menos(codigos);
       // "El resto": lo del paso n que no está en el paso "sin"
       const quitar = new Set(de(r.sin));
       return codigos.filter((c) => !quitar.has(c));
     }
     const res = (contexto.anterior?.resultados ?? []).filter((x) => x.datos);
-    return [...new Set(res.flatMap((x) => x.cumplen ?? codigosQueCumplen(filasDe(x.herramienta, x.datos, contexto.hoy))))];
+    return menos([...new Set(res.flatMap((x) => x.cumplen ?? codigosQueCumplen(filasDe(x.herramienta, x.datos, contexto.hoy))))]);
   }
 
   private async correr(usuario: UsuarioAutenticado, paso: PasoPlan, hechos: PasoEjecutado[], contexto: ContextoTurno, cuerpos?: Array<Record<string, unknown>>): Promise<unknown> {

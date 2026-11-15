@@ -157,13 +157,15 @@ export function porServicioVisto(id: string, p: Record<string, unknown>, codigos
   if (id !== 'editar_servicio_opl' || p.agenda || p.zona || p.atajo || !codigos.length || !vistos.length) return null;
   const pedidos = (Array.isArray(p.servicio) ? p.servicio : String(p.servicio ?? '').split(',')).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
   if (!pedidos.length) return null;
+  // "Todos los servicios": los que se vieron de cada OPL
+  const todos = pedidos.length === 1 && pedidos[0] === 'TODOS';
   const grupos = new Map<string, Grupo>();
   const sinVer: string[] = [];
   for (const c of codigos) {
     // Agenda (y zona) → los servicios pedidos que el OPL tiene ahí
     const suyas = new Map<string, { agenda: string; zona: string | null; servicios: Set<string> }>();
     for (const a of vistos) {
-      if (a.codigo !== c || !a.servicio || !pedidos.includes(a.servicio.toUpperCase())) continue;
+      if (a.codigo !== c || !a.servicio || (!todos && !pedidos.includes(a.servicio.toUpperCase()))) continue;
       const k = `${a.zona ?? ''}›${a.agenda}`;
       const x = suyas.get(k) ?? { agenda: a.agenda, zona: a.zona, servicios: new Set<string>() };
       x.servicios.add(a.servicio.toUpperCase());
@@ -178,12 +180,13 @@ export function porServicioVisto(id: string, p: Record<string, unknown>, codigos
       grupos.set(k, g);
     }
   }
-  if (!grupos.size) return null;
-  if (sinVer.length) grupos.set('{}', { codigos: sinVer, extra: {}, exacta: false });
+  if (!grupos.size) return todos ? { grupos: [], notas: ['no vi qué servicios tiene ninguno de esos OPL'], completo: true } : null;
+  // Con "todos", el que no se vio no se toca (no se sabe qué servicios tiene); con unos servicios nombrados, va tal cual
+  if (sinVer.length && !todos) grupos.set('{}', { codigos: sinVer, extra: {}, exacta: false });
   const con = codigos.length - sinVer.length;
   return {
     grupos: [...grupos.values()],
-    notas: [`cada OPL en la agenda donde tiene ${pedidos.join(' y ')} (${con === 1 ? '1 OPL' : `${con} OPL`})${sinVer.length ? `; sin verlo: ${sinVer.join(', ')}` : ''}`],
+    notas: [`cada OPL en la agenda donde tiene ${todos ? 'sus servicios' : pedidos.join(' y ')} (${con === 1 ? '1 OPL' : `${con} OPL`})${sinVer.length ? `; sin verlo: ${sinVer.join(', ')}` : ''}`],
     completo: !sinVer.length,
   };
 }

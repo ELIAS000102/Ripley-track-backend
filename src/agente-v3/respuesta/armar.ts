@@ -189,10 +189,10 @@ export function intermedios(turno: Pick<Turno, 'plan'>): Set<number> {
   const usados = new Set<number>();
   for (const p of turno.plan?.pasos ?? []) {
     for (const v of Object.values(p.param)) {
-      const r = v as { ref?: string; n?: number; sin?: number } | null;
+      const r = v as { ref?: string; n?: number; sin?: number | string[] } | null;
       if (r && typeof r === 'object' && r.ref === 'paso') {
         if (r.n) usados.add(r.n);
-        if (r.sin) usados.add(r.sin);
+        if (typeof r.sin === 'number') usados.add(r.sin);
       }
     }
   }

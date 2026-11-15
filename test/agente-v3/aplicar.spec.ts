@@ -7,6 +7,7 @@ import { mencionesDe, type EntidadDirectorio } from '../../src/agente-v3/entidad
 import type { ContextoTurno, PasoAplicado, Turno } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
 import { esRespuesta, preguntaDeAplicar } from '../../src/agente-v3/preguntas.js';
 import { promptArmar } from '../../src/agente-v3/armar/prompt.js';
+import { leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { armarRespuesta } from '../../src/agente-v3/respuesta/armar.js';
 
 /**
@@ -324,5 +325,45 @@ describe('"De las sucursales del AT y OP, búscalos en tipo de servicio y desact
     // Sin pregunta (sin modo editor): "No apliqué nada" una vez, al final
     const sin = armarRespuesta({ ...turno, contexto: { ...turno.contexto!, pregunta: null } });
     expect(sin.frase).toBe('En el AT se desactivarían las 6 agendas. No apliqué nada: es solo una vista previa.');
+  });
+});
+
+describe('"Activa todos los servicios menos de la 1111" tras los anillos de la SD (2026-11-15)', () => {
+  // Lo que trajo el anterior: el atajo de anillos, con los servicios de cada OPL
+  const OPL = (opl: string, agenda: string, zona: string, servicios: string[]) => ({ opl, agenda, zona, servicios: servicios.map((code) => ({ code, activo: false, enCheckout: false, diasHolgura: 0 })) });
+  const ATAJO = { atajo: 'OPLs de la SD por Anillos - Por servicios', bloques: [{ orden: 1, tipo: 'opl', accion: 'consultar', nota: null, items: [
+    { orden: 1, nota: null, resultado: { opls: [OPL('1111 - DD_PQT_RM - SD CD A1', 'SD CD A1', 'Zona SD CD A1', ['SD', 'S'])] } },
+    { orden: 2, nota: null, resultado: { opls: [OPL('1113 - DD_PQT_RM - SD CD A1 (2)', 'SD CD A1 (2)', 'Zona SD CD A1 (2)', ['SD', 'S'])] } },
+    { orden: 3, nota: null, resultado: { opls: [OPL('1115 - DD_PQT_RM - SD CD A3 (2)', 'SD CD A3 (2)', 'Zona SD 1115 - SD CD A3 (2)', ['S'])] } },
+  ] }], resumen: { items: 3, correctas: 3, fallidas: 0 } };
+  const m = 'ACTIVA TODOS LOS SERVICIOS MENOS DE LA 1111';
+  const ctx: ContextoTurno = {
+    ...CTX, entidades: [{ texto: '1111', porNombre: false, candidatos: [] }],
+    servicios: ['SD', 'S'].map((codigo) => ({ codigo, nombre: null, metodo_entrega: 'DP', fase: 'DD' })),
+    anterior: { persona: 'DAME LOS ANILLOS DE LA SD', frase: '', herramientas: ['ejecutar_atajo'], plan: null, resultados: [{ n: 1, herramienta: 'ejecutar_atajo', titulo: 'Atajo', principal: true, datos: ATAJO }] } as never,
+  };
+  const PLAN_ = { pasos: [{ herramienta: 'editar_servicio_opl', param: { opl: { ref: 'anterior', sin: ['1111'] }, servicio: ['todos'], activo: true } }] };
+
+  it('el plan vale: "sin" con los códigos que se quitan y servicio "todos"', () => {
+    expect(leerPlan(JSON.stringify(PLAN_), ctx, m, true)).toMatchObject({ ok: true, valor: { plan: { pasos: [{ herramienta: 'editar_servicio_opl', param: { opl: { ref: 'anterior', sin: ['1111'] }, servicio: ['TODOS'], activo: true } }] } } });
+    // Un código que nadie dijo no se puede quitar; "todos" no vale sin algo que se haya visto
+    expect(leerPlan(JSON.stringify({ pasos: [{ ...PLAN_.pasos[0], param: { ...PLAN_.pasos[0].param, opl: { ref: 'anterior', sin: ['1999'] } } }] }), ctx, m, true)).toMatchObject({ ok: false });
+    expect(leerPlan(JSON.stringify({ pasos: [{ ...PLAN_.pasos[0], param: { ...PLAN_.pasos[0].param, opl: ['1111'] } }] }), ctx, m, true)).toMatchObject({ ok: false, motivo: expect.stringContaining('servicio "todos" solo vale') });
+  });
+
+  it('cada OPL (menos la 1111) a su agenda, con TODOS los servicios que se le vieron', async () => {
+    const editar = vi.fn(async (_u: unknown, dto: Record<string, unknown>) => ({ opls: [], servicios: String(dto.servicio).split(',').map((s) => ({ opl: String(dto.opl), agenda: dto.agenda, zona: dto.zona, servicio: s, antes: { activo: false, enCheckout: false }, despues: { activo: true, enCheckout: false } })), resumen: { pedidos: 1, cambiados: 1, sinCambiar: 0 } }));
+    const auditoria = { activarSimulacro: vi.fn(), enSimulacro: vi.fn(() => true) };
+    const ejecucion = new EjecucionV3Service({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, { consultar: vi.fn() } as never, {} as never, {} as never,
+      auditoria as never, {} as never, {} as never, {} as never, { editar } as never, {} as never, {} as never);
+    const plan = { origen: 'cambio' as const, ver: null, pasos: [{ herramienta: 'editar_servicio_opl', param: { opl: { ref: 'anterior', sin: ['1111'] }, servicio: ['TODOS'], activo: true } }] };
+    expect(await ejecucion.zonasPorElegir(USUARIO as never, plan, 0, [], ctx)).toEqual([]);
+    const paso = await ejecucion.ejecutar(USUARIO as never, plan, 0, [], ctx);
+    expect(paso.error ?? null).toBeNull();
+    expect(paso.que).toBe('Vista previa: activar todos los servicios de lo del mensaje anterior menos 1111');
+    expect(editar.mock.calls.map(([, d]) => [d.opl, d.agenda, d.zona, d.servicio])).toEqual([
+      ['1113', 'SD CD A1 (2)', 'Zona SD CD A1 (2)', 'S,SD'],
+      ['1115', 'SD CD A3 (2)', 'Zona SD 1115 - SD CD A3 (2)', 'S'],
+    ]);
   });
 });

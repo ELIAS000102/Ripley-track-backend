@@ -101,9 +101,9 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
     expect(resp.resultados.filter((x) => x.herramienta === 'editar_masivo')).toHaveLength(3);
   });
 
-  it('"sin" tiene que ser otro paso anterior', () => {
+  it('"sin" tiene que ser otro paso anterior (o códigos que se dijeron)', () => {
     const malo = { pasos: [PLAN.pasos[0], { herramienta: 'editar_masivo', param: { servicio: 'ST', opls: { ref: 'paso', n: 1, sin: 2 }, activo: true } }] };
-    expect(leerPlan(JSON.stringify(malo), CTX, MENSAJE, true)).toMatchObject({ ok: false, motivo: 'paso 2 (editar_masivo): opls: "sin" tiene que ser otro paso anterior ({"ref":"paso","n":1,"sin":2})' });
+    expect(leerPlan(JSON.stringify(malo), CTX, MENSAJE, true)).toMatchObject({ ok: false, motivo: 'paso 2 (editar_masivo): opls: "sin" es otro paso anterior (su número) o los códigos que dijo la persona (["1111"]); 2 no vale' });
     expect(leerPlan(JSON.stringify(PLAN), CTX, MENSAJE, true)).toMatchObject({ ok: true, valor: { plan: { origen: 'cambio' } } });
   });
 });
