@@ -1,4 +1,5 @@
 import { agendasDeDatos, CON_AGENDA, deLasOficinas } from './agendas.js';
+import { filasDe } from './filas.js';
 import type { AgendaConocida, ContextoTurno, PasoEjecutado, Pregunta } from './interfaces/agente-v3.interface.js';
 
 /**
@@ -119,6 +120,71 @@ export function porEleccion(id: string, p: Record<string, unknown>, codigos: str
       ...(notas.length ? [`elegido: ${notas.slice(0, 4).join('; ')}${notas.length > 4 ? ` y ${notas.length - 4} más` : ''}`] : []),
       ...(vistas_ ? [`las agendas que se vieron (${vistas_ === 1 ? '1 oficina' : `${vistas_} oficinas`})`] : []),
     ],
+  };
+}
+
+/**
+ * En qué agenda tiene cada OPL cada servicio, según lo que se vio (una
+ * búsqueda masiva o los servicios de OPL, del paso referido o del mensaje
+ * anterior; también dentro de un atajo). "De las sucursales del AT y OP,
+ * búscalos en tipo de servicio y desactívalos" (2026-11-15): cada OPL a la
+ * agenda donde tiene el AT o el OP, y solo con los que tiene.
+ */
+export function serviciosVistos(v: unknown, hechos: PasoEjecutado[], contexto: ContextoTurno): AgendaConocida[] {
+  const de = (herramienta: string, datos: unknown): AgendaConocida[] => {
+    if (!datos || typeof datos !== 'object') return [];
+    if (herramienta === 'ejecutar_atajo') {
+      const bloques = (datos as { bloques?: Array<{ tipo: string; items?: Array<{ resultado?: unknown }> }> }).bloques ?? [];
+      const dentro: Record<string, string> = { masivo: 'busqueda_masiva', opl: 'consultar_servicios_opl' };
+      return bloques.flatMap((b) => (dentro[b.tipo] ? (b.items ?? []).flatMap((i) => de(dentro[b.tipo], i.resultado)) : []));
+    }
+    if (herramienta !== 'busqueda_masiva' && herramienta !== 'consultar_servicios_opl') return [];
+    return filasDe(herramienta, datos).filter((f) => f.agenda && f.servicio).map((f) => ({ codigo: f.codigo, tipo: 'opl', zona: f.zona ?? null, agenda: String(f.agenda), servicio: String(f.servicio) }));
+  };
+  if (esDelAnterior(v)) return (contexto.anterior?.resultados ?? []).flatMap((r) => de(r.herramienta, r.datos));
+  const r = v as { ref?: string; n?: number } | null;
+  const paso = r?.ref === 'paso' && r.n ? hechos[r.n - 1] : undefined;
+  return paso ? de(paso.herramienta, paso.datos) : [];
+}
+
+/**
+ * Un cambio de servicios de OPL sin agenda ni zona sobre algo que dice dónde
+ * tiene cada OPL cada servicio: un grupo por agenda, con su zona y SOLO los
+ * servicios pedidos que tiene ahí. Los OPL sin nada visto siguen como estaban
+ * (sin grupo propio). `completo`: todos los OPL tienen dónde ir.
+ */
+export function porServicioVisto(id: string, p: Record<string, unknown>, codigos: string[], vistos: AgendaConocida[]): { grupos: Grupo[]; notas: string[]; completo: boolean } | null {
+  if (id !== 'editar_servicio_opl' || p.agenda || p.zona || p.atajo || !codigos.length || !vistos.length) return null;
+  const pedidos = (Array.isArray(p.servicio) ? p.servicio : String(p.servicio ?? '').split(',')).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+  if (!pedidos.length) return null;
+  const grupos = new Map<string, Grupo>();
+  const sinVer: string[] = [];
+  for (const c of codigos) {
+    // Agenda (y zona) → los servicios pedidos que el OPL tiene ahí
+    const suyas = new Map<string, { agenda: string; zona: string | null; servicios: Set<string> }>();
+    for (const a of vistos) {
+      if (a.codigo !== c || !a.servicio || !pedidos.includes(a.servicio.toUpperCase())) continue;
+      const k = `${a.zona ?? ''}›${a.agenda}`;
+      const x = suyas.get(k) ?? { agenda: a.agenda, zona: a.zona, servicios: new Set<string>() };
+      x.servicios.add(a.servicio.toUpperCase());
+      suyas.set(k, x);
+    }
+    if (!suyas.size) { sinVer.push(c); continue; }
+    for (const x of suyas.values()) {
+      const extra = { agenda: x.agenda, ...(x.zona ? { zona: x.zona } : {}), servicio: [...x.servicios].sort().join(',') };
+      const k = JSON.stringify(extra);
+      const g: Grupo = grupos.get(k) ?? { codigos: [], extra, exacta: true };
+      if (!g.codigos.includes(c)) g.codigos.push(c);
+      grupos.set(k, g);
+    }
+  }
+  if (!grupos.size) return null;
+  if (sinVer.length) grupos.set('{}', { codigos: sinVer, extra: {}, exacta: false });
+  const con = codigos.length - sinVer.length;
+  return {
+    grupos: [...grupos.values()],
+    notas: [`cada OPL en la agenda donde tiene ${pedidos.join(' y ')} (${con === 1 ? '1 OPL' : `${con} OPL`})${sinVer.length ? `; sin verlo: ${sinVer.join(', ')}` : ''}`],
+    completo: !sinVer.length,
   };
 }
 

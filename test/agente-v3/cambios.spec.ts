@@ -92,9 +92,9 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
       ['ST', '20066,20027', true],
     ]);
     const resp = r.respuesta!;
-    expect(resp.frase).toBe('Así quedaría — paso 2 · activar SE en lo del paso 1: cambiarían 2 de 2. '
-      + 'paso 3 · desactivar ST en lo del paso 1: cambiarían 2 de 2. '
-      + 'paso 5 · activar ST en lo del paso 4 menos lo del paso 1: cambiarían 2 de 2. '
+    expect(resp.frase).toBe('Así quedaría — paso 2 · activar SE en lo del paso 1: cambiarían 2 de 2 agendas. '
+      + 'paso 3 · desactivar ST en lo del paso 1: cambiarían 2 de 2 agendas. '
+      + 'paso 5 · activar ST en lo del paso 4 menos lo del paso 1: cambiarían 2 de 2 agendas. '
       + 'No apliqué nada: es solo una vista previa.');
     expect(resp.markdown).toContain('**Vista previa: desactivar ST en lo del paso 1**\n\n| Dónde | Ahora | Quedaría |');
     expect(resp.markdown).toContain('| 20066 · Plaza Lima Norte · Agenda Plaza Lima Norte (Zona Plaza Lima Norte) | inactivo · fuera del checkout | activo · fuera del checkout |');
@@ -128,7 +128,7 @@ describe('La vista previa de la edición masiva, sin el tope de 30', () => {
     });
     const r = await hasta(servicio, unPaso('ST', false));
     expect(edicion.editar).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ maximo: Number.MAX_SAFE_INTEGER }));
-    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 32 de 32\. No apliqué nada/);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 32 de 32 agendas\. No apliqué nada/);
   });
 
   it('"ya estaban así" no es un error: no cambiaría nada', async () => {

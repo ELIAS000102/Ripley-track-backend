@@ -118,6 +118,18 @@ export const cambiaria = (f: FilaCambio) => !f.error && f.antes !== f.despues;
 
 export const NO_APLICADO = 'No apliqué nada: es solo una vista previa.';
 
+/** De qué son las filas de cada cambio: "cambiarían 6 de 6 agendas" */
+const UNIDAD: Record<string, [string, string]> = {
+  editar_capacidad: ['día', 'días'],
+  editar_capacidad_transferencia: ['día', 'días'],
+  cortar_reabrir_cd: ['jornada', 'jornadas'],
+  reasignar_capacidad: ['jornada', 'jornadas'],
+  editar_servicio_opl: ['servicio', 'servicios'],
+  editar_masivo: ['agenda', 'agendas'],
+  editar_transferencia: ['relación', 'relaciones'],
+};
+const unidad = (herramienta: string, n: number) => { const u = UNIDAD[herramienta]; return u ? ` ${n === 1 ? u[0] : u[1]}` : ''; };
+
 /** Sin modo editor no se pregunta «¿Procedo?»: se dice cómo aplicarlo */
 export const SIN_EDITOR = 'Para aplicarlo, activa el modo editor y pídemelo otra vez.';
 
@@ -133,7 +145,7 @@ export function resumenAplicado(herramienta: string, a: PasoAplicado): { estado:
   const noPudo = Math.max(errores.length, fallos.length);
   const motivos = [...new Set([...errores.map((e) => e.error), ...fallos.map((f) => f.error)].filter(Boolean))];
   const partes = [
-    cambiaron ? `Apliqué el cambio: ${cambiaron === 1 ? 'cambió 1' : `cambiaron ${cambiaron}`} de ${filas.length}` : noPudo ? 'No apliqué nada' : 'No cambió nada: ya estaba así',
+    cambiaron ? `Apliqué el cambio: ${cambiaron === 1 ? 'cambió 1' : `cambiaron ${cambiaron}`} de ${filas.length}${unidad(herramienta, filas.length)}` : noPudo ? 'No apliqué nada' : 'No cambió nada: ya estaba así',
     noPudo ? `${noPudo} no se ${noPudo === 1 ? 'pudo' : 'pudieron'} aplicar (${motivos.slice(0, 2).join('; ')})` : null,
   ].filter(Boolean);
   return { estado: cambiaron ? 'ok' : 'vacio', resumen: `${partes.join('; ')}.` };
@@ -146,17 +158,18 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
   const iguales = filas.length - cambian.length - errores.length;
   // La edición masiva dice cuántas ya estaban así (no cambiaría ninguna)
   const yaEstaban = (datos as { yaEstaban?: number } | null)?.yaEstaban;
-  if (!filas.length && yaEstaban) return { estado: 'vacio', resumen: `No cambiaría nada: ${yaEstaban === 1 ? 'la agenda ya está así' : `las ${yaEstaban} agendas ya están así`}. ${NO_APLICADO}` };
-  if (!filas.length) return { estado: 'vacio', resumen: `No encontré nada a lo que aplicar el cambio. ${NO_APLICADO}` };
+  if (!filas.length && yaEstaban) return { estado: 'vacio', resumen: `No cambiaría nada: ${yaEstaban === 1 ? 'la agenda ya está así' : `las ${yaEstaban} agendas ya están así`}.` };
+  if (!filas.length) return { estado: 'vacio', resumen: 'No encontré nada a lo que aplicar el cambio.' };
   // Las notas del paso ("agenda: …; sin ella: 1007, 1021") dicen a qué se aplicaría: van en la frase
   const notas = ((datos as { notas?: unknown[] } | null)?.notas ?? []).map(String).filter((x) => x.trim());
   const aQue = notas.length ? ` (${notas.join('; ')})` : '';
   const partes = [
-    cambian.length ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}${aQue}` : `No cambiaría nada${aQue}: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
+    cambian.length ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}${unidad(herramienta, filas.length)}${aQue}` : `No cambiaría nada${aQue}: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
     iguales && cambian.length ? `${iguales} ya ${iguales === 1 ? 'estaba' : 'estaban'} así` : null,
     errores.length ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${[...new Set(errores.map((e) => e.error))].slice(0, 2).join('; ')})` : null,
   ].filter(Boolean);
-  return { estado: cambian.length ? 'ok' : 'vacio', resumen: `${partes.join('; ')}. ${NO_APLICADO}` };
+  // "No apliqué nada" lo dice la respuesta, una vez y solo si no pregunta «¿Procedo?» (armarRespuesta)
+  return { estado: cambian.length ? 'ok' : 'vacio', resumen: `${partes.join('; ')}.` };
 }
 
 /**
@@ -171,7 +184,7 @@ export function fraseDeCambios(cambios: PasoEjecutado[]): string {
     if (p.estado === 'error') return `${titulo}: no se ${aplicados ? 'pudo' : 'podría'} (${p.error ?? p.resumen})`;
     return `${titulo}: ${p.resumen.replace(` ${NO_APLICADO}`, '').replace(/^Así quedaría: /, '').replace(/^Apliqué el cambio: /, '').replace(/\.$/, '')}`;
   };
-  return aplicados ? `Apliqué los cambios — ${cambios.map(parte).join('. ')}.` : `Así quedaría — ${cambios.map(parte).join('. ')}. ${NO_APLICADO}`;
+  return aplicados ? `Apliqué los cambios — ${cambios.map(parte).join('. ')}.` : `Así quedaría — ${cambios.map(parte).join('. ')}.`;
 }
 
 const celda = (s: unknown) => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();

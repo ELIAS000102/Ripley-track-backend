@@ -719,7 +719,8 @@ export class AgenteV3Service {
     turno.estado = 'en_curso';
     if ('no' in r) {
       turno.contexto = { ...turno.contexto, aplicacion: { ...(c.aplicacion ?? { preguntado: true, cambios: [] }), respuesta: 'no' } };
-      return this.terminar(usuario, turno, this.respuestaFinal(turno, 'De acuerdo: no apliqué nada.'), 'terminado');
+      // Corta: "De acuerdo: no apliqué nada." y la vista previa plegada (armarRespuesta)
+      return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
     }
     if (!this.esEditor(usuario)) {
       return this.terminar(usuario, turno, this.respuestaFinal(turno, 'El modo editor ya no está activo: no apliqué nada. Actívalo y pídemelo otra vez.'), 'terminado');

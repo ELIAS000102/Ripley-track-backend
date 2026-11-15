@@ -22,7 +22,7 @@ import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
 import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
 import { calcular, fuenteDe } from './calcular/calcular.js';
-import { agendasDeLaReferencia, agendasPorElegir, esReferencia, oficinasConVariasZonas, porEleccion, tipoConZona, type Grupo, type PorElegir } from './zonas.js';
+import { agendasDeLaReferencia, agendasPorElegir, esReferencia, oficinasConVariasZonas, porEleccion, porServicioVisto, serviciosVistos, tipoConZona, type Grupo, type PorElegir } from './zonas.js';
 import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
 import { herramienta } from './herramientas.js';
 import { queEs } from './que.js';
@@ -212,6 +212,8 @@ export class EjecucionV3Service {
     const elegidas = contexto.zonas_elegidas?.[String(k + 1)] ?? {};
     codigos = codigos.filter((c) => !elegidas[c] && !elegidas['*']);
     if (!codigos.length) return [];
+    // Se vio en qué agenda tiene cada OPL cada servicio pedido: no hay nada que preguntar
+    if (porServicioVisto(paso.herramienta, paso.param, codigos, serviciosVistos(v, hechos, contexto))?.completo) return [];
     // Sobre lo que se vio: de cada oficina con VARIAS agendas a la vista, ¿a cuál? (con una, a esa)
     let sinVer = codigos;
     let porElegir: PorElegir[] = [];
@@ -364,7 +366,8 @@ export class EjecucionV3Service {
     // Un cambio sobre lo del anterior: a las agendas que se vieron; si no, a la zona que eligió la persona; si no, por agenda
     // Un cambio sin agenda ni zona: lo que eligió la persona o, sobre lo del anterior, la agenda que se vio
     const vistas = h.edicion ? agendasDeLaReferencia(h.lista ? paso.param[h.lista] : undefined, hechos, contexto) : [];
-    const elegido = h.edicion ? porEleccion(h.id, plano0, codigos, vistas, contexto.zonas_elegidas?.[String(hechos.length + 1)]) : null;
+    const deServicio = h.edicion ? porServicioVisto(h.id, plano0, codigos, serviciosVistos(h.lista ? paso.param[h.lista] : undefined, hechos, contexto)) : null;
+    const elegido = deServicio ?? (h.edicion ? porEleccion(h.id, plano0, codigos, vistas, contexto.zonas_elegidas?.[String(hechos.length + 1)]) : null);
     const { grupos, notas: deAgenda, nombres }: { grupos: Grupo[]; notas: string[]; nombres?: string[] } = elegido ?? porAgenda(h.id, plano0, codigos, despues.agenda, agendasConocidas(contexto));
     notas = [...notas, ...deAgenda];
     const partes: Array<Record<string, unknown>> = [];

@@ -90,7 +90,7 @@ describe('"Cierra la fecha 11-11 para los tres": las agendas que se vieron', () 
       ['1402', 'Zona 1402 - Suc. Aldea 6 Perif.', 'Agenda 1402 - Suc. Aldea 6 Perif.'],
       ['1403', 'Zona BT Playas', 'Zona BT Playas'],
     ]);
-    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 3 de 3 \(las agendas que se vieron \(3 oficinas\)\)/);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 3 de 3 días \(las agendas que se vieron \(3 oficinas\)\)/);
   });
 });
 
@@ -267,7 +267,7 @@ describe('"Cierra la fecha 18-11" tras el despacho de la 1401 (dos agendas a la 
     await servicio.respuesta(USUARIO, t.turno_id, { respuestas: { [duda.id]: 'todas' } });
     const r = await seguir(servicio, t.turno_id, await servicio.ejecutar(USUARIO, t.turno_id));
     expect(editarCapacidad.editarCapacidad).toHaveBeenCalledTimes(2);
-    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiaría 1 de 2 \(.*\); 1 ya estaba así\./);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiaría 1 de 2 días \(.*\); 1 ya estaba así\./);
     expect(r.respuesta!.markdown).toContain('| ya está así | igual |');
   });
 });

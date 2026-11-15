@@ -22,6 +22,8 @@ Y el "orden": primero lo que pidió primero.
 
 La "frase": una o dos oraciones naturales, en español claro y cercano, que contesten lo que pidió en su orden, como se lo diría una compañera del equipo. NO copies la frase del sistema: cuéntalo con tus palabras (sin punto y coma, sin "con 1 cerradas"; concuerda el singular y el plural). Lo importante primero (lo que está cerrado o sin cupo), y la tienda por su nombre con el código entre paréntesis si lo tienes ("Plaza Norte (20025)"). USA SOLO las cifras, códigos y nombres que aparecen en lo que dicen los resultados: no calcules, no redondees, no inventes, no añadas datos. Sin tablas ni listas. No nombres los pasos por dentro («Búsqueda masiva de…», «Cálculo con lo del mensaje anterior»): di de qué es (la RE, la RT, el Big Ticket Lima) o "lo que te traje antes".
 
+En un CAMBIO (vista previa), la frase dice cómo quedaría y cuánto cambiaría ("En el AT se desactivarían las 6 agendas y en el OP las 3"); NO digas si se aplicó o no ni que es una vista previa: eso lo añade el sistema.
+
 Las "etiquetas": si abajo hay NOMBRES LARGOS DE LAS TABLAS, dale a cada uno un nombre corto para la columna (como mucho 24 letras) hecho SOLO con sus propias palabras o abreviándolas, quitando lo que ya dice su grupo o se repite (el código de la tienda, "Agenda", el servicio repetido): "Agenda Picking DT - 20021" → "Picking DT"; "Centralizado HUB San Luis - Zona Sur" → "Centralizado San Luis Sur". Si no hay, {}.
 
 Responde SOLO con un JSON, sin texto alrededor:

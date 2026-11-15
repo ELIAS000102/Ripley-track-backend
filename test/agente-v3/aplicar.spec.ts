@@ -6,6 +6,8 @@ import { EjecucionV3Service } from '../../src/agente-v3/ejecucion.service.js';
 import { mencionesDe, type EntidadDirectorio } from '../../src/agente-v3/entidades.js';
 import type { ContextoTurno, PasoAplicado, Turno } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
 import { esRespuesta, preguntaDeAplicar } from '../../src/agente-v3/preguntas.js';
+import { promptArmar } from '../../src/agente-v3/armar/prompt.js';
+import { armarRespuesta } from '../../src/agente-v3/respuesta/armar.js';
 
 /**
  * Habilitar la edición (decisiones del usuario, 2026-11-13): modo editor +
@@ -78,7 +80,7 @@ describe('Sin modo editor: solo la vista previa', () => {
     const s = armar({ editor: false });
     const { r } = await vistaPrevia(s);
     expect(r.camino).toBe('responder');
-    expect(r.respuesta!.frase).toBe('Así quedaría: cambiaría 1 de 1. No apliqué nada: es solo una vista previa.');
+    expect(r.respuesta!.frase).toBe('Así quedaría: cambiaría 1 de 1 día. No apliqué nada: es solo una vista previa.');
     expect(r.respuesta!.avisos).toContain('Para aplicarlo, activa el modo editor y pídemelo otra vez.');
     expect(s.llamadas.map((l) => l.simulacro)).toEqual([true]);
     expect(r.respuesta!.deshacer).toBeUndefined();
@@ -100,7 +102,9 @@ describe('Con modo editor: «¿Procedo?» y se aplica lo que se previsualizó', 
     s.nuevaPeticion();
     const r = await s.servicio.respuesta(USUARIO, id, { respuestas: { aplicar: 'no' } });
     expect(r.camino).toBe('responder');
-    expect(r.respuesta!.notas).toContain('De acuerdo: no apliqué nada.');
+    // Corta: solo eso, y la vista previa plegada
+    expect(r.respuesta!.frase).toBe('De acuerdo: no apliqué nada.');
+    expect(r.respuesta!.resultados[0].vista).toBe('plegado');
     expect(s.llamadas).toHaveLength(1);
     expect(s.estado.activo).toBe(true);
   });
@@ -116,7 +120,7 @@ describe('Con modo editor: «¿Procedo?» y se aplica lo que se previsualizó', 
     expect(s.llamadas.map((l) => l.simulacro)).toEqual([true, false]);
     expect(s.llamadas[1].dto).toEqual(s.llamadas[0].dto);
     expect(s.estado.activo).toBe(false);
-    expect(r.respuesta!.frase).toBe('Apliqué el cambio: cambió 1 de 1.');
+    expect(r.respuesta!.frase).toBe('Apliqué el cambio: cambió 1 de 1 día.');
     expect(r.respuesta!.deshacer).toBe(true);
     expect(r.respuesta!.resultados[0]).toMatchObject({ aplicado: true, datos: { aplicado: true } });
     expect(r.respuesta!.markdown).toContain('| Dónde | Día | Antes | Quedó |');
@@ -172,7 +176,7 @@ describe('«Deshacer»: el inverso, en vista previa y con otra pregunta', () => 
     s.nuevaPeticion();
     await s.servicio.respuesta(USUARIO, d.turno_id, { respuestas: { aplicar: 'si' } });
     const f = await s.servicio.aplicar(USUARIO, d.turno_id);
-    expect(f.respuesta!.frase).toBe('Apliqué el cambio: cambió 1 de 1.');
+    expect(f.respuesta!.frase).toBe('Apliqué el cambio: cambió 1 de 1 día.');
     expect(s.estado.activo).toBe(true);
   });
 
@@ -274,5 +278,51 @@ describe('"Cierra la fecha 15-11 para todo el bt lima": la zona y la agenda, las
       ['1403', 'Zona BT Playas', 'Zona BT Playas'],
     ]);
     expect(paso.cuerpos).toHaveLength(2);
+  });
+});
+
+describe('"De las sucursales del AT y OP, búscalos en tipo de servicio y desactívalos" (2026-11-15)', () => {
+  const MASIVA = { busquedas: [
+    { servicio: 'AT', agendas: [{ opl: '1401 - San Luis', agenda: 'Agenda 1401', zona: 'Zona 1401', activa: true, enCheckout: true }] },
+    { servicio: 'OP', agendas: [
+      { opl: '1401 - San Luis', agenda: 'Agenda 1401', zona: 'Zona 1401', activa: true, enCheckout: true },
+      { opl: '1402 - Perif', agenda: 'Agenda 1402', zona: 'Zona 1402', activa: true, enCheckout: true },
+    ] },
+  ] };
+  const hechos = [{ n: 1, que: 'Búsqueda masiva de AT, OP', herramienta: 'busqueda_masiva', estado: 'ok' as const, resumen: '', ms: 1, datos: MASIVA }];
+  const plan = { origen: 'cambio' as const, ver: null, pasos: [
+    { herramienta: 'busqueda_masiva', param: { servicio: ['AT', 'OP'] } },
+    { herramienta: 'editar_servicio_opl', param: { opl: { ref: 'paso', n: 1 }, servicio: ['AT', 'OP'], activo: false } },
+  ] };
+
+  it('cada OPL a su agenda, y solo con los servicios que tiene ahí; sin preguntar zonas', async () => {
+    const editar = vi.fn(async (_u: unknown, dto: Record<string, unknown>) => ({ opls: [], servicios: String(dto.servicio).split(',').map((s) => ({ opl: `${String(dto.opl)} - X`, agenda: dto.agenda, zona: dto.zona, servicio: s, antes: { activo: true, enCheckout: true }, despues: { activo: false, enCheckout: true } })), resumen: { pedidos: 1, cambiados: 1, sinCambiar: 0 } }));
+    const auditoria = { activarSimulacro: vi.fn(), enSimulacro: vi.fn(() => true) };
+    const ejecucion = new EjecucionV3Service({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, { consultar: vi.fn() } as never, {} as never, {} as never,
+      auditoria as never, {} as never, {} as never, {} as never, { editar } as never, {} as never, {} as never);
+    expect(await ejecucion.zonasPorElegir(USUARIO as never, plan, 1, hechos, CTX)).toEqual([]);
+    const paso = await ejecucion.ejecutar(USUARIO as never, plan, 1, hechos, CTX);
+    expect(paso.error ?? null).toBeNull();
+    expect(editar.mock.calls.map(([, d]) => [d.opl, d.agenda, d.zona, d.servicio, d.activo])).toEqual([
+      ['1401', 'Agenda 1401', 'Zona 1401', 'AT,OP', false],
+      ['1402', 'Agenda 1402', 'Zona 1402', 'OP', false],
+    ]);
+    expect(paso.resumen).toMatch(/^Así quedaría: cambiarían 3 de 3 servicios \(cada OPL en la agenda donde tiene AT y OP \(2 OPL\)\)\.$/);
+  });
+
+  it('Armar sabe que "tipo de servicio" son los servicios de OPL, no la edición en bloque', () => {
+    expect(promptArmar('x', CTX, { tipo: 'cambio', dep: false, atajo: null, motivo: '' }).sistema).toContain('"TIPO DE SERVICIO" es la pantalla de los servicios de cada OPL');
+  });
+
+  it('antes de «¿Procedo?» la tabla se ve aunque Presentar diga "frase", y la frase no dice "no apliqué nada"', () => {
+    const paso = { n: 1, que: 'Vista previa: desactivar AT en bloque', herramienta: 'editar_masivo', estado: 'ok' as const, resumen: 'Así quedaría: cambiarían 6 de 6 agendas.', ms: 1, datos: { vista: [] }, cuerpos: [{}] };
+    const turno = { id: 't', chat_id: 'c', usuario_id: 'u1', peticion_id: null, mensaje: 'm', responde_a: null, etapa: 'pregunta', estado: 'pregunta', clasificacion: null, plan: null, pasos: [paso], modelos: [], respuesta: null, mensaje_id: null, creado_en: new Date().toISOString(),
+      contexto: { ...CTX, presentacion: { vistas: { 1: 'frase' }, orden: [1], frase: 'En el AT se desactivarían las 6 agendas.' }, pregunta: { id: 'aplicar', etapa: 'aplicar', texto: '¿Procedo?', opciones: [], libre: null } } } as unknown as Turno;
+    const r = armarRespuesta(turno);
+    expect(r.resultados[0].vista).toBe('detalle');
+    expect(r.frase).toBe('En el AT se desactivarían las 6 agendas.');
+    // Sin pregunta (sin modo editor): "No apliqué nada" una vez, al final
+    const sin = armarRespuesta({ ...turno, contexto: { ...turno.contexto!, pregunta: null } });
+    expect(sin.frase).toBe('En el AT se desactivarían las 6 agendas. No apliqué nada: es solo una vista previa.');
   });
 });

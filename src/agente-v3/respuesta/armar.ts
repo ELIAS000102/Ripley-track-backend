@@ -5,7 +5,7 @@ import type { Pais, PasoEjecutado, Pregunta, RespuestaPanel, ResultadoPanel, Tur
 import { vistasDe } from '../presentar/prompt.js';
 import { herramienta as herramientaDe } from '../herramientas.js';
 import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto } from './atajo.js';
-import { fraseDeCambios, markdownCambio, resumenCambio } from './cambio.js';
+import { fraseDeCambios, markdownCambio, NO_APLICADO, resumenCambio } from './cambio.js';
 import { queEs } from '../que.js';
 
 /**
@@ -237,7 +237,16 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
   const pres = turno.contexto?.presentacion ?? null;
   const texto = pres?.frase ? `${pres.frase}${fallidos.length && !varios ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}` : delCodigo;
   const esPrincipal = (p: PasoEjecutado) => (varios ? cambios.includes(p) : variasRespuestas ? contestan.includes(p) : p === principal);
-  const vistaDe = (p: PasoEjecutado): Vista => pres?.vistas[String(p.n)] ?? vistaPorDefecto(p, esPrincipal(p), variasRespuestas, turno);
+  // Un cambio que cambia algo se ENSEÑA siempre (antes de «¿Procedo?» hay que ver qué cambiaría); con "no", plegado
+  const aplicacion = turno.contexto?.aplicacion;
+  const dijoQueNo = aplicacion?.respuesta === 'no' && !aplicacion.en;
+  const vistaDe = (p: PasoEjecutado): Vista => (herramientaDe(p.herramienta)?.edicion && p.estado === 'ok'
+    ? (dijoQueNo && !p.aplicado ? 'plegado' : 'detalle')
+    : pres?.vistas[String(p.n)] ?? vistaPorDefecto(p, esPrincipal(p), variasRespuestas, turno));
+  // "No apliqué nada", una vez: tras un "no", solo eso; en una vista previa que no pregunta «¿Procedo?», al final
+  const previa = cambios.some((p) => p.estado !== 'error' && !p.aplicado);
+  const preguntando = turno.contexto?.pregunta?.etapa === 'aplicar';
+  const frase_ = dijoQueNo ? 'De acuerdo: no apliqué nada.' : previa && !preguntando && !cambios.some((p) => p.aplicado) ? `${texto.replace(` ${NO_APLICADO}`, '')} ${NO_APLICADO}` : texto;
   const orden = pres?.orden ?? pasos.map((p) => p.n);
   const enOrden = [...pasos].sort((a, b) => (orden.indexOf(a.n) + 1 || 99) - (orden.indexOf(b.n) + 1 || 99));
   const resultados: ResultadoPanel[] = enOrden
@@ -261,9 +270,9 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
   return {
     ...base(turno, ahora),
     tipo: principal ? 'resultado' : 'error',
-    frase: texto,
+    frase: frase_,
     resultados,
-    markdown: [texto, ...cuerpo].join('\n\n'),
+    markdown: [frase_, ...cuerpo].join('\n\n'),
     ver: ver ?? null,
     ...(pres?.etiquetas && Object.keys(pres.etiquetas).length ? { etiquetas: pres.etiquetas } : {}),
     // Se aplicó algo de verdad: el panel ofrece «Deshacer»
