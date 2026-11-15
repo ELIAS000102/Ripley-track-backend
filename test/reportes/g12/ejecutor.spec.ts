@@ -645,6 +645,38 @@ describe('Solicitudes, con el mismo turno que el G12', () => {
     expect((await actualizador.estado('PE', ANA)).solicitudes).toBe(tablas.g12_solicitudes[0].generado);
   });
 
+  const esperar = async (historial: { leer: (id: string) => Promise<{ estado: string }> }, id: string) => {
+    for (let i = 0; i < 400 && (await historial.leer(id)).estado === 'en_curso'; i++) await new Promise((x) => setTimeout(x, 5));
+    return historial.leer(id);
+  };
+
+  it('generar y actualizar el G12 también generan las Solicitudes, al final', async () => {
+    const { actualizador, historial, tablas } = montar({ config: config() });
+    const r = await actualizador.lanzar(ANA, 'PE', 'refrescar');
+    expect(r.actualizacion!.claves).toEqual(['pickup_lima', 'solicitudes']);
+    const a = await esperar(historial, r.actualizacion!.id);
+    expect(a).toMatchObject({ estado: 'terminada' });
+    expect((a as never as { cuadros: { clave: string }[] }).cuadros.map((c) => c.clave)).toEqual(['pickup_lima', 'solicitudes']);
+    expect(tablas.g12_solicitudes).toHaveLength(1);
+
+    // Generar: todo es de hace un momento, así que no hace falta nada
+    const otra = await actualizador.lanzar(ANA, 'PE', 'completa');
+    expect(otra.actualizacion).toBeNull();
+    expect(otra.mensaje).toMatch(/y las Solicitudes son de hace menos de 15 minutos/);
+  });
+
+  it('una tabla del G12 sola no genera las Solicitudes; sin agendas, el G12 va sin ellas', async () => {
+    const { actualizador, historial } = montar({ config: config() });
+    const r = await actualizador.lanzar(ANA, 'PE', 'tabla', ['pickup_lima']);
+    expect(r.actualizacion!.claves).toEqual(['pickup_lima']);
+    await esperar(historial, r.actualizacion!.id);
+
+    const sin = montar({ config: config(false) });
+    const s = await sin.actualizador.lanzar(ANA, 'PE', 'completa');
+    expect(s.actualizacion!.claves).toEqual(['pickup_lima']);
+    await esperar(sin.historial, s.actualizacion!.id);
+  });
+
   it('sin agendas en la lista, se dice qué hacer', async () => {
     const { actualizador } = montar({ config: config(false) });
     await expect(actualizador.lanzar(ANA, 'PE', 'solicitudes')).rejects.toThrow(/no tiene agendas/);

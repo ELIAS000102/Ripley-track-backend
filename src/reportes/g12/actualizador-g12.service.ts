@@ -8,6 +8,7 @@ import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { CLAVES_COMPONENTES, definicionDe, VIDA_REPORTE_MS } from './g12.componentes.js';
 import { HistorialG12Service, type ActualizacionG12, type TipoActualizacionG12 } from './historial-g12.service.js';
 import { OracleG12Service, type CargaOracleG12, type MiExcelG12, type PedidoOracleG12 } from './oracle-g12.service.js';
+import type { ClaveActualizacionG12 } from './historial-g12.service.js';
 import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interface.js';
 import { ReporteG12Service } from './reporte-g12.service.js';
 import { SolicitudesG12Service } from './solicitudes-g12.service.js';
@@ -68,6 +69,10 @@ export class ActualizadorG12Service {
    * - completa: las que no son de hoy o tienen más de 15 minutos;
    * - refrescar: todas las que tienen ítems;
    * - tabla / reintento: las pedidas.
+   *
+   * Completa y refrescar generan también las Solicitudes, al final (decisión del
+   * usuario, 2026-11-14), si tienen agendas: completa, solo si no son de hoy o
+   * tienen más de 15 minutos. Se siguen pudiendo generar solas con su botón.
    */
   async lanzar(usuario: UsuarioAutenticado, pais: string, tipo: TipoActualizacionG12, pedidas?: string[]): Promise<LanzamientoG12> {
     const config = await this.configuracion.configuracion(pais);
@@ -88,25 +93,33 @@ export class ActualizadorG12Service {
     } else if (tipo === 'refrescar') {
       claves = conItems;
     } else {
+      claves = [];
+    }
+    const conSolicitudes = (tipo === 'completa' || tipo === 'refrescar') && !!this.solicitudes && !!config.solicitudes?.agendas.length;
+    let pasos: ClaveActualizacionG12[] = claves;
+    if (tipo === 'refrescar' && conSolicitudes) pasos = [...claves, 'solicitudes'];
+    if (tipo === 'completa') {
       const hoy = hoyEnPais(pais);
       const frescas = new Set((await this.cuadros.versiones(pais))
         .filter((v) => v.hoy === hoy && Date.now() - new Date(v.generado).getTime() < VIDA_REPORTE_MS)
         .map((v) => v.clave));
       claves = conItems.filter((c) => !frescas.has(c));
-      if (!claves.length) {
+      const solicitudesFrescas = conSolicitudes && (await this.solicitudesFrescas(pais));
+      pasos = conSolicitudes && !solicitudesFrescas ? [...claves, 'solicitudes'] : claves;
+      if (!pasos.length) {
         const oracle = conOracle ? await this.pedirOracle(pais, usuario, null) : null;
         return {
           actualizacion: null,
-          mensaje: 'Todas las tablas son de hace menos de 15 minutos. "Actualizar" las vuelve a pedir todas.'
+          mensaje: `Todas las tablas${conSolicitudes ? ' y las Solicitudes' : ''} son de hace menos de 15 minutos. "Actualizar" las vuelve a pedir todas.`
             + (oracle ? ' Las unidades de DD Lima se pidieron a los Excel de carga.' : ''),
           oracle,
         };
       }
     }
 
-    const a = await this.historial.crear(pais, tipo, usuario, claves);
+    const a = await this.historial.crear(pais, tipo, usuario, pasos);
     this.enMarcha.set(a.id, { cancelar: null });
-    void this.correr(a, usuario, config, claves);
+    void this.correr(a, usuario, config, pasos);
     const oracle = conOracle ? await this.pedirOracle(pais, usuario, a.id) : null;
     return { actualizacion: a, mensaje: null, oracle };
   }
@@ -124,6 +137,12 @@ export class ActualizadorG12Service {
     this.enMarcha.set(a.id, { cancelar: null });
     void this.correrSolicitudes(a, usuario, config);
     return { actualizacion: a, mensaje: null, oracle: null };
+  }
+
+  /** Si las Solicitudes del país son de hoy y de menos de 15 minutos, como una tabla del G12 */
+  private async solicitudesFrescas(pais: string): Promise<boolean> {
+    const s = await this.solicitudes?.leer(pais).catch(() => null);
+    return !!s && s.hoy === hoyEnPais(pais) && Date.now() - new Date(s.generado).getTime() < VIDA_REPORTE_MS;
   }
 
   /** El pedido a los Excel de carga; si falla, la actualización sigue igual */
@@ -182,7 +201,7 @@ export class ActualizadorG12Service {
   }
 
   /** La actualización en sí, tabla por tabla, con la identidad (y el token de Ripley) de quien la lanzó */
-  private async correr(a: ActualizacionG12, usuario: UsuarioAutenticado, config: ConfiguracionG12, claves: ClaveComponente[]): Promise<void> {
+  private async correr(a: ActualizacionG12, usuario: UsuarioAutenticado, config: ConfiguracionG12, claves: ClaveActualizacionG12[]): Promise<void> {
     await this.contexto.ejecutar(async () => {
       this.contexto.identificarUsuario(usuario.id, usuario.email);
       // Una sola fila para toda la actualización: lo leído en una tabla no se repite en la siguiente
@@ -203,6 +222,14 @@ export class ActualizadorG12Service {
             break;
           }
           await this.historial.latir(a.id, clave);
+          if (clave === 'solicitudes') {
+            const r = await this.pasoSolicitudes(a, usuario, config);
+            if (r.cancelada) {
+              estado = 'cancelada';
+              motivo = `Cancelada por ${r.cancelada}.`;
+            } else if (r.fallo) fallidas++;
+            continue;
+          }
           try {
             const cuadro = await this.reporte.generarCuadro(a.pais, clave, config);
             await this.cuadros.guardar(a.pais, { ...cuadro, actualizacionId: a.id, usuarioEmail: usuario.email });
@@ -231,6 +258,35 @@ export class ActualizadorG12Service {
     });
   }
 
+  /**
+   * Genera las Solicitudes, las guarda para todos y las anota en la actualización.
+   * Sola (su botón) o como último paso del G12. Cancelada mientras leía, lo leído
+   * no reemplaza lo que había. No lanza: el fallo vuelve con su motivo.
+   */
+  private async pasoSolicitudes(a: ActualizacionG12, usuario: UsuarioAutenticado, config: ConfiguracionG12): Promise<{ cancelada?: string; fallo?: string }> {
+    try {
+      const solicitudes = config.solicitudes!;
+      const r = await this.solicitudes!.generar(a.pais, solicitudes);
+      const cancelada = this.enMarcha.get(a.id)?.cancelar;
+      if (cancelada) return { cancelada };
+      const generado = new Date().toISOString();
+      await this.solicitudes!.guardar({
+        pais: a.pais, hoy: r.hoy, generado, usuarioEmail: usuario.email, actualizacionId: a.id,
+        umbrales: solicitudes.umbrales, filas: r.filas,
+      });
+      await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado, peticiones: r.peticiones });
+      if (r.peticiones.length && r.peticiones.every((p) => p.estado === 'error')) {
+        return { fallo: 'No se pudo leer ninguna agenda de Solicitudes: mira el motivo de cada una en Peticiones.' };
+      }
+      return {};
+    } catch (e) {
+      const fallo = (e as Error).message;
+      this.logger.error(`Las Solicitudes del G12 de ${a.pais} fallaron: ${fallo}`);
+      await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado: new Date().toISOString(), peticiones: [] }, fallo).catch(() => undefined);
+      return { fallo };
+    }
+  }
+
   /** Solicitudes en segundo plano, con la identidad (y el token de Ripley) de quien las lanzó */
   private async correrSolicitudes(a: ActualizacionG12, usuario: UsuarioAutenticado, config: ConfiguracionG12): Promise<void> {
     await this.contexto.ejecutar(async () => {
@@ -242,30 +298,14 @@ export class ActualizadorG12Service {
       let motivo: string | undefined;
       try {
         await this.historial.latir(a.id, 'solicitudes');
-        const solicitudes = config.solicitudes!;
-        const r = await this.solicitudes!.generar(a.pais, solicitudes);
-        // Cancelada mientras leía: lo leído no reemplaza lo que había
-        const cancelada = this.enMarcha.get(a.id)?.cancelar;
-        if (cancelada) {
+        const r = await this.pasoSolicitudes(a, usuario, config);
+        if (r.cancelada) {
           estado = 'cancelada';
-          motivo = `Cancelada por ${cancelada}.`;
-          return;
-        }
-        const generado = new Date().toISOString();
-        await this.solicitudes!.guardar({
-          pais: a.pais, hoy: r.hoy, generado, usuarioEmail: usuario.email, actualizacionId: a.id,
-          umbrales: solicitudes.umbrales, filas: r.filas,
-        });
-        await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado, peticiones: r.peticiones });
-        if (r.peticiones.length && r.peticiones.every((p) => p.estado === 'error')) {
+          motivo = `Cancelada por ${r.cancelada}.`;
+        } else if (r.fallo) {
           estado = 'fallida';
-          motivo = 'No se pudo leer ninguna agenda: mira el motivo de cada una en Peticiones.';
+          motivo = r.fallo;
         }
-      } catch (e) {
-        estado = 'fallida';
-        motivo = (e as Error).message;
-        this.logger.error(`Las Solicitudes del G12 de ${a.pais} fallaron: ${motivo}`);
-        await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado: new Date().toISOString(), peticiones: [] }, motivo).catch(() => undefined);
       } finally {
         clearInterval(latido);
         this.enMarcha.delete(a.id);
