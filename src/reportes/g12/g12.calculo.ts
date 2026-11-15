@@ -344,6 +344,26 @@ export function aplicarUnidadesOracle(comp: ComponenteReporteG12, filasConfig: F
   return { ...comp, filas, total: totalDe(filas) };
 }
 
+/**
+ * Los SUB_FLUJO de la carga que no suma ninguna fila, con sus unidades. Pasa
+ * cuando el Excel de carga trae la consulta de antes de un cambio (el 2026-11-15
+ * "Centralizado URBANO" pasó a "Centralizado SHARF" y "Centralizado FLOTA Ñ" se
+ * fue) o cuando el Oracle estrena un sub-flujo que todavía no tiene fila.
+ * Los que son solo una jornada ("S", "SD"…) no cuentan: es el ELSE de la
+ * consulta, lo que no cae en ningún flujo, y el Excel tampoco lo enseñaba.
+ */
+export function subFlujosSinFila(filas: Array<{ nombre: string; esTotal?: boolean }>, filasConfig: FilaG12[], unidades: UnidadOracleG12[]): Array<{ subFlujo: string; unidades: number }> {
+  const patrones = filas
+    .filter((f) => !f.esTotal && !filasConfig.find((c) => c.nombre === f.nombre)?.suma?.length)
+    .flatMap((f) => subFlujosDeFila(f.nombre, filasConfig.find((c) => c.nombre === f.nombre)));
+  const sueltos = new Map<string, number>();
+  for (const u of unidades) {
+    if (encajaSubFlujo(u.subFlujo, patrones) || /^[A-Z]{1,3}$/.test(u.subFlujo.trim())) continue;
+    sueltos.set(u.subFlujo, (sueltos.get(u.subFlujo) ?? 0) + (Number(u.unidades) || 0));
+  }
+  return [...sueltos].map(([subFlujo, n]) => ({ subFlujo, unidades: n }));
+}
+
 /** Suma de filas: las de total no entran, que ya cuentan en sus partes */
 export function totalDe(filas: FilaReporteG12[]): TotalG12 {
   const simples = filas.filter((f) => !f.esTotal);

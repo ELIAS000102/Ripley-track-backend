@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   agendasDeLaFila,
   aplicarUnidadesOracle,
+  subFlujosSinFila,
   calcularFilas,
   calcularResumen,
   elegirFecha,
@@ -282,6 +283,25 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
     const configurado = aplicarUnidadesOracle(filas(), [{ nombre: 'SAME DAY', oracle: ['sd_rm - 1ER turno'] }], unidades, 'x');
     expect(configurado.filas[1].unidades).toBe(53);
     expect(configurado.filas[1].detalle.avisos.at(-1)).toBe('Unidades del Oracle (x): suma «SD_RM - 1er Turno».');
+  });
+
+  it('los sub-flujos de la carga que no suma ninguna fila (un Excel con la consulta de antes del 15/11)', () => {
+    const filas = [
+      { nombre: 'Paquetería Lima Total', esTotal: true }, { nombre: 'Centralizado MailAmericas' }, { nombre: 'Centralizado SHARF' },
+      { nombre: 'Courrier Lima Periferia' }, { nombre: 'SAME DAY' }, { nombre: '90 MIN' },
+    ];
+    const config = [{ nombre: 'Paquetería Lima Total', suma: ['Centralizado MailAmericas', 'Centralizado SHARF', 'Courrier Lima Periferia'] }];
+    const sueltos = subFlujosSinFila(filas, config, [
+      { fecha: '2026-11-16', subFlujo: 'Centralizado MailAmericas', unidades: 204 },
+      { fecha: '2026-11-16', subFlujo: 'Centralizado URBANO', unidades: 50 },
+      { fecha: '2026-11-17', subFlujo: 'Centralizado URBANO', unidades: 9 },
+      { fecha: '2026-11-16', subFlujo: 'Centralizado FLOTA Ñ', unidades: 12 },
+      { fecha: '2026-11-16', subFlujo: 'SD_RM - 2do Turno', unidades: 4 },
+      { fecha: '2026-11-16', subFlujo: 'Serv. 90min', unidades: 3 },
+      // El ELSE de la consulta (solo la jornada) no es un flujo: no se avisa
+      { fecha: '2026-11-16', subFlujo: 'S', unidades: 7 },
+    ]);
+    expect(sueltos).toEqual([{ subFlujo: 'Centralizado URBANO', unidades: 59 }, { subFlujo: 'Centralizado FLOTA Ñ', unidades: 12 }]);
   });
 
   it('una fila cuyo sub-flujo no está en la carga lo dice', () => {

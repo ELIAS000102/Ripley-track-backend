@@ -4,7 +4,7 @@ import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { EjecutorG12Service, type RegistroG12 } from './ejecutor-g12.service.js';
-import { aplicarUnidadesOracle, calcularFilas, calcularResumen, sumarTotales, totalDe } from './g12.calculo.js';
+import { aplicarUnidadesOracle, calcularFilas, calcularResumen, subFlujosSinFila, sumarTotales, totalDe } from './g12.calculo.js';
 import { CLAVES_COMPONENTES, definicionDe, GRUPOS_G12 } from './g12.componentes.js';
 import { normalizarConfiguracion } from './g12.validacion.js';
 import { OracleG12Service } from './oracle-g12.service.js';
@@ -87,8 +87,8 @@ export class ReporteG12Service {
     });
     // Las unidades de DD Lima, del Oracle que sube el Excel de carga (como el SUMIFS de la plantilla)
     const iDd = CLAVES_COMPONENTES.indexOf(COMPONENTE_ORACLE);
+    const filasDd = config.componentes.find((c) => c.clave === COMPONENTE_ORACLE)?.filas ?? [];
     if (oracle.carga && guardados.has(COMPONENTE_ORACLE)) {
-      const filasDd = config.componentes.find((c) => c.clave === COMPONENTE_ORACLE)?.filas ?? [];
       componentes[iDd] = aplicarUnidadesOracle(componentes[iDd], filasDd, oracle.unidades, `carga del ${fechaHora(oracle.carga.cargadoEn, pais)}`);
     }
 
@@ -124,6 +124,14 @@ export class ReporteG12Service {
       avisos.push('Las unidades de Despacho a domicilio Lima salen del Oracle interno y todavía no se han cargado: usa el Excel de carga dentro de la red de Ripley.');
     } else if (oracle.carga && diaEnPais(oracle.carga.cargadoEn, pais) !== hoy) {
       avisos.push(`Las unidades de Despacho a domicilio Lima son del Oracle del ${fechaHora(oracle.carga.cargadoEn, pais)}: vuelve a cargarlas con el Excel.`);
+    }
+    // Unidades del Oracle que no suma ninguna fila: un Excel de carga con la consulta vieja, o un sub-flujo nuevo
+    const sueltos = oracle.carga ? subFlujosSinFila(filasDd, filasDd, oracle.unidades).filter((s) => s.unidades > 0) : [];
+    if (sueltos.length) {
+      avisos.push(
+        `Hay unidades del Oracle que ninguna fila de Despacho a domicilio Lima suma: ${sueltos.map((s) => `«${s.subFlujo}» (${s.unidades.toLocaleString('es-PE')} u.)`).join(', ')}. `
+        + 'Si el Excel de carga es de antes del 15/11, descárgalo otra vez desde Configuración; si es un sub-flujo nuevo, añádelo a una fila.',
+      );
     }
     const corregidas = peticiones.filter((p) => p.tipo === 'despacho' && p.mensaje?.startsWith('La zona «') && p.estado === 'ok').length;
     if (corregidas) avisos.push(`${corregidas} agenda(s) de despacho tienen en la configuración una zona que no existe y se leyó la única del operador: corrígelas (mira "Peticiones").`);
