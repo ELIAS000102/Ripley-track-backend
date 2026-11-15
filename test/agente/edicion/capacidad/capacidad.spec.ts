@@ -5,7 +5,7 @@ import type { DespachoService } from '../../../../src/agendas/despacho/despacho.
 import type { RecepcionService } from '../../../../src/agendas/recepcion/recepcion.service.js';
 import type { PickingService } from '../../../../src/agendas/picking/picking.service.js';
 import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
-import { hoyEnPais, sumarDias } from '../../../../src/common/ripley/utils/date.util.js';
+import { hoyEnPais, sumarDias } from '../../../../src/nucleo/fechas.js';
 import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarCapacidadAgenteService } from '../../../../src/agente/edicion/capacidad/capacidad.service.js';

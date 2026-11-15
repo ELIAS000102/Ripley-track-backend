@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import { hoyEnPais, isoToRipleyDate, soloFecha, ventanaFechas } from '../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, soloFecha, ventanaFechas } from '../../nucleo/fechas.js';
 import { ConfiguracionCdsService } from './configuracion-cds.service.js';
 import { Cd, FalloReporte, RegistroReporte, ReporteCds, ScheduleRow } from './interfaces/reporte-cds.interface.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';

@@ -4,13 +4,8 @@ import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { RecepcionService } from '../../../agendas/recepcion/recepcion.service.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  ripleyDateToIso,
-  soloFecha,
-  sumarDias,
-} from '../../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate, ripleyDateToIso } from '../../../common/ripley/utils/date.util.js';
+import { hoyEnPais, soloFecha, sumarDias } from '../../../nucleo/fechas.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { AgendasDeAtajoService } from './agendas-de-atajo.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';

@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { hoyEnPais, sumarDias } from '../../../src/common/ripley/utils/date.util.js';
+import { hoyEnPais, sumarDias } from '../../../src/nucleo/fechas.js';
 import {
   HistorialG12Service,
   libroDeActualizacion,

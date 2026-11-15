@@ -1,3 +1,4 @@
+import { plano } from '../nucleo/texto.js';
 import { codigosQueCumplen, filasDe } from './filas.js';
 import type { AgendaConocida, ContextoTurno } from './interfaces/agente-v3.interface.js';
 
@@ -27,13 +28,6 @@ const BLOQUE: Record<string, { herramienta: string; tipo: string | null }> = {
   opl: { herramienta: 'consultar_servicios_opl', tipo: 'opl' },
 };
 
-const plano = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 export const mismoNombre = (a: unknown, b: unknown) => Boolean(plano(a)) && plano(a) === plano(b);
 
 function sinRepetir(l: AgendaConocida[]): AgendaConocida[] {

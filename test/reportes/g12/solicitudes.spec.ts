@@ -4,7 +4,7 @@ import type { CapacidadAgenteService } from '../../../src/agente/consultas/capac
 import type { DespachoService } from '../../../src/agendas/despacho/despacho.service.js';
 import { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import { hoyEnPais, sumarDias } from '../../../src/common/ripley/utils/date.util.js';
+import { hoyEnPais, sumarDias } from '../../../src/nucleo/fechas.js';
 import { configuracionAXlsx, xlsxAConfiguracion } from '../../../src/reportes/g12/configuracion-xlsx.js';
 import { EjecutorG12Service } from '../../../src/reportes/g12/ejecutor-g12.service.js';
 import { configuracionVacia, normalizarConfiguracion } from '../../../src/reportes/g12/g12.validacion.js';

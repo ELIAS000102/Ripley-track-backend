@@ -1,3 +1,4 @@
+import { plano } from '../../nucleo/texto.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { ContextoTurno, Hecho } from '../interfaces/agente-v3.interface.js';
@@ -45,13 +46,7 @@ const NOMBRE_CAMPO: Record<string, string> = {
   clase: 'tipo',
   es_cd: 'CD',
 };
-const plano = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+
 /** Los alias que el hecho añade (los que la entidad no tenía) */
 const aliasNuevos = (h: Hecho, e: FilaEntidadGuardada | undefined) =>
   (h.alias ?? []).filter((a) => plano(a) && !(e?.alias ?? []).some((x) => plano(x) === plano(a)));
@@ -224,19 +219,17 @@ export class AprendizajeService {
           omitidos.push(`«${h.codigo}» (puesto a mano)`);
           continue;
         }
-        const { error } = await this.supabase.admin
-          .from('agente_vocabulario')
-          .upsert(
-            {
-              pais: h.pais,
-              termino: h.codigo,
-              significa: h.significa,
-              fuente: 'usuario',
-              ensenado_por: email,
-              ensenado_en: ahora,
-            },
-            { onConflict: 'pais,termino' },
-          );
+        const { error } = await this.supabase.admin.from('agente_vocabulario').upsert(
+          {
+            pais: h.pais,
+            termino: h.codigo,
+            significa: h.significa,
+            fuente: 'usuario',
+            ensenado_por: email,
+            ensenado_en: ahora,
+          },
+          { onConflict: 'pais,termino' },
+        );
         if (error) {
           this.logger.warn(`No se pudo guardar el término ${h.codigo}: ${error.message}`);
           omitidos.push(

@@ -1,3 +1,4 @@
+import { diasEntre } from '../../nucleo/fechas.js';
 import type { PasoLog } from '../interfaces/simulacion.interface.js';
 
 /** Un paso del cálculo con lo que aporta a la fecha de entrega */
@@ -33,9 +34,6 @@ function diaDe(iso: string | null | undefined): string | null {
 }
 
 /** Días de calendario entre dos días YYYY-MM-DD */
-function diasEntre(desde: string, hasta: string): number {
-  return Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000);
-}
 
 /**
  * El "tiempo agregado" de cada paso, como lo enseña el simulador de Ripley.

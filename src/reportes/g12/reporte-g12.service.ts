@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { EjecutorG12Service, type RegistroG12 } from './ejecutor-g12.service.js';

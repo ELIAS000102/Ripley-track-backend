@@ -1,3 +1,4 @@
+import { soloPalabras } from '../../nucleo/texto.js';
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
@@ -5,7 +6,8 @@ import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { resolverTipoDeAgenda } from '../../common/ripley/utils/agenda.util.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
-import { hoyEnPais, isoToRipleyDate, recortarDesde, soloFecha } from '../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate, recortarDesde } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, soloFecha } from '../../nucleo/fechas.js';
 import type {
   CapacityByDay,
   ClusterRow,
@@ -59,14 +61,6 @@ export interface AgendaTransferenciaPreparada {
   idOffice: string;
 }
 
-const normalizar = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9ñ]+/g, ' ')
-    .trim();
-
 /**
  * El id de la capacidad de una agenda: la del almacén de origen.
  *
@@ -115,12 +109,12 @@ export class TransferenciaAgendasService {
   /** Los clústeres de destino, filtrados por código de su almacén o por nombre */
   async buscarClusters(q: string | undefined, pais = 'PE') {
     const todos = await this.catalogos.clusters(pais);
-    const termino = normalizar(q ?? '');
+    const termino = soloPalabras(q ?? '');
 
     const filas = termino
       ? todos.filter(
           (c) =>
-            normalizar(c.name).includes(termino) ||
+            soloPalabras(c.name).includes(termino) ||
             (c.warehouses ?? []).some((w) => String(w.code).startsWith(termino)),
         )
       : todos;
@@ -167,16 +161,16 @@ export class TransferenciaAgendasService {
    * El exacto gana al parecido.
    */
   private destinosDe(pedido: string, clusters: ClusterRow[]): ClusterRow[] {
-    const termino = normalizar(pedido);
+    const termino = soloPalabras(pedido);
     if (!termino) return [];
 
     const porCodigo = clusters.filter((c) => (c.warehouses ?? []).some((w) => String(w.code) === termino));
     if (porCodigo.length) return porCodigo;
 
-    const exactos = clusters.filter((c) => normalizar(c.name) === termino);
+    const exactos = clusters.filter((c) => soloPalabras(c.name) === termino);
     if (exactos.length) return exactos;
 
-    return clusters.filter((c) => normalizar(c.name).includes(termino));
+    return clusters.filter((c) => soloPalabras(c.name).includes(termino));
   }
 
   /**

@@ -1,3 +1,4 @@
+import { sinAcentos } from '../../nucleo/texto.js';
 import ExcelJS from 'exceljs';
 import { claveEtiqueta, leerCeldaRecepcion, paresDeTienda } from './matriz.calculo.js';
 import { DIAS, NOMBRE_DIA, type LecturaMatriz, type TiendaMalla } from './interfaces/matriz.interface.js';
@@ -27,10 +28,6 @@ const ERRORES_MAXIMOS = 50;
 
 const LETRA_COLUMNA = (n: number) => String.fromCharCode(64 + n);
 
-function normalizar(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-}
-
 /**
  * El texto de una celda, venga como venga: número, texto, texto con formato o
  * fórmula. Un espacio suelto —el original tiene muchos— cuenta como vacío.
@@ -58,7 +55,7 @@ function buscarEncabezado(libro: ExcelJS.Workbook): { hoja: ExcelJS.Worksheet; f
   const hojas = [...libro.worksheets].sort((a, b) => Number(b.name === 'Matriz') - Number(a.name === 'Matriz'));
   for (const hoja of hojas) {
     for (let fila = 1; fila <= Math.min(10, hoja.rowCount); fila++) {
-      if (normalizar(textoDeCelda(hoja.getRow(fila).getCell(1).value)) === 'codigo') return { hoja, fila };
+      if (sinAcentos(textoDeCelda(hoja.getRow(fila).getCell(1).value)).trim() === 'codigo') return { hoja, fila };
     }
   }
   return null;
@@ -94,7 +91,7 @@ export async function leerMatriz(contenido: Buffer): Promise<LecturaMatriz> {
   // Las 24 columnas, en su sitio: si una se movió, todo lo demás se leería corrido
   const encabezado = hoja.getRow(filaEncabezado);
   ENCABEZADO.forEach((esperado, i) => {
-    const visto = normalizar(textoDeCelda(encabezado.getCell(i + 1).value));
+    const visto = sinAcentos(textoDeCelda(encabezado.getCell(i + 1).value)).trim();
     if (visto !== esperado) {
       anotar(
         `El encabezado de la columna ${LETRA_COLUMNA(i + 1)} dice "${visto || '(vacío)'}" y debería decir "${esperado.toUpperCase()}". No muevas ni borres columnas de la plantilla.`,

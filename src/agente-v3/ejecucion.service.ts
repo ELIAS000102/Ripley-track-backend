@@ -1,3 +1,4 @@
+import { sinAcentos } from '../nucleo/texto.js';
 import { Injectable, Optional } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -55,12 +56,6 @@ import { filasDelCambio } from './respuesta/cambio.js';
  * con su error, los que dependían de él no se hacen, y la respuesta lo dice.
  */
 
-const plano = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim();
 const lista = (v: unknown): string[] =>
   Array.isArray(v)
     ? v.map(String)
@@ -584,8 +579,9 @@ export class EjecucionV3Service {
           agendas: (Array.isArray(o.agendas) ? o.agendas : []).filter(
             (a: Record<string, unknown>) =>
               (!despues.servicios || despues.servicios.includes(String(a.servicio ?? '').toUpperCase())) &&
-              (!despues.agenda || plano(a.agenda).includes(plano(despues.agenda).replace(/s$/, ''))) &&
-              (!despues.exactas || despues.exactas.some((x) => plano(x) === plano(a.agenda))),
+              (!despues.agenda ||
+                sinAcentos(a.agenda).trim().includes(sinAcentos(despues.agenda).trim().replace(/s$/, ''))) &&
+              (!despues.exactas || despues.exactas.some((x) => sinAcentos(x).trim() === sinAcentos(a.agenda).trim())),
           ),
         })),
       };

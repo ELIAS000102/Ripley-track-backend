@@ -2,7 +2,8 @@ import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nes
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
-import { hoyEnPais, isoToRipleyDate, recortarDesde, ripleyDateToIso } from '../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate, recortarDesde, ripleyDateToIso } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ActualizarDespachoBodyDto } from './dto/actualizar-despacho.dto.js';
 import {
   CapacityBaseResponse,

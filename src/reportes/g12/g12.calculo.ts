@@ -1,4 +1,4 @@
-import { sumarDias } from '../../common/ripley/utils/date.util.js';
+import { diasEntre, sumarDias } from '../../nucleo/fechas.js';
 import { DIAS_PRIMER_DIA, type DefinicionComponente } from './g12.componentes.js';
 import type {
   AgendaG12,
@@ -20,11 +20,6 @@ import type {
  */
 
 /** Días de una fecha a otra, YYYY-MM-DD, sin horas de por medio */
-export function diasEntre(desde: string, hasta: string): number {
-  const a = Date.UTC(+desde.slice(0, 4), +desde.slice(5, 7) - 1, +desde.slice(8, 10));
-  const b = Date.UTC(+hasta.slice(0, 4), +hasta.slice(5, 7) - 1, +hasta.slice(8, 10));
-  return Math.round((b - a) / 86_400_000);
-}
 
 /** El día de la semana, de lunes (0) a domingo (6) */
 export function diaSemana(fecha: string): number {

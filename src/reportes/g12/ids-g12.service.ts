@@ -1,3 +1,4 @@
+import { plano } from '../../nucleo/texto.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { Comuna, RegionDetalle, SimulacionPayload } from '../../simulacion/interfaces/simulacion.interface.js';
@@ -62,14 +63,6 @@ export interface FilaIdsG12 {
   consultadoEn: string;
 }
 
-const comparable = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
 /** Los campos con los que se buscan los ids de cada tipo: si cambia uno, cambia la firma */
 const CAMPOS_FIRMA: Record<Exclude<TipoBloqueG12, 'capacidad'>, string[]> = {
   simulacion: ['region', 'provincia', 'distrito', 'operador', 'almacen', 'sku'],
@@ -81,7 +74,7 @@ const CAMPOS_FIRMA: Record<Exclude<TipoBloqueG12, 'capacidad'>, string[]> = {
 /** "simulacion|lima|lima|brena|20048|20026|" — sin mayúsculas, tildes ni espacios de más */
 export function firmaIdsG12(tipo: TipoBloqueG12, campos: ItemG12['campos']): string | null {
   if (tipo === 'capacidad') return null;
-  return [tipo, ...CAMPOS_FIRMA[tipo].map((c) => comparable(campos[c]))].join('|');
+  return [tipo, ...CAMPOS_FIRMA[tipo].map((c) => plano(campos[c]))].join('|');
 }
 
 export const firmaRegionG12 = (regionId: string) => `region|${regionId}`;

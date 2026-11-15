@@ -3,7 +3,8 @@ import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
-import { hoyEnPais, isoToRipleyDate, soloFecha } from '../../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../../common/ripley/utils/date.util.js';
+import { hoyEnPais, soloFecha } from '../../../nucleo/fechas.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import {
   listaDeCds,

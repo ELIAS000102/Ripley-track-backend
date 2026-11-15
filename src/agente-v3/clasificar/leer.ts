@@ -1,3 +1,4 @@
+import { plano } from '../../nucleo/texto.js';
 import { PIDE } from '../atajos.js';
 import { LIMITES, SIN_ATAJO } from '../constantes.js';
 import { TIPOS_PETICION, type Clasificacion, type TipoPeticion } from '../interfaces/agente-v3.interface.js';
@@ -26,8 +27,6 @@ export function primerJson(texto: string): Record<string, unknown> | null {
     return null;
   }
 }
-
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
 export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clasificacion> {
   const j = primerJson(texto);

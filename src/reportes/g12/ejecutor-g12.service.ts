@@ -1,3 +1,4 @@
+import { soloPalabras } from '../../nucleo/texto.js';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { CapacidadAgenteService } from '../../agente/consultas/capacidad/capacidad.service.js';
 import { metodoDeServicio } from '../../agente/constantes/servicios.constants.js';
@@ -9,13 +10,8 @@ import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js
 import { CatalogosRipleyService, type TipoOficina } from '../../common/ripley/catalogos.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { dormir } from '../../common/ripley/ritmo.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  ripleyDateToIso,
-  soloFecha,
-  sumarDias,
-} from '../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate, ripleyDateToIso } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, soloFecha, sumarDias } from '../../nucleo/fechas.js';
 import {
   type AgendaIdsG12,
   type FilaIdsG12,
@@ -96,19 +92,11 @@ const ESPERA_BASE_MS = 2000;
 const PASAJERO =
   /\b429\b|ir más despacio|no está respondiendo|No se pudo contactar|respondió 5\d\d|tard[oó] demasiado|timeout|ECONNRESET|socket hang up/i;
 
-const comparable = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9ñ]+/g, ' ')
-    .trim();
-
 /** Exacto primero, después por parecido */
 function porNombre<T>(lista: T[], buscado: string, de: (x: T) => string): T[] {
-  const b = comparable(buscado);
-  const exactas = lista.filter((x) => comparable(de(x)) === b);
-  return exactas.length ? exactas : lista.filter((x) => comparable(de(x)).includes(b));
+  const b = soloPalabras(buscado);
+  const exactas = lista.filter((x) => soloPalabras(de(x)) === b);
+  return exactas.length ? exactas : lista.filter((x) => soloPalabras(de(x)).includes(b));
 }
 
 /**
@@ -553,7 +541,7 @@ export class EjecutorG12Service {
     );
     if (!comunas.length)
       throw new Error(`"${distritoNombre}" no es un distrito de ${provinciaNombre.trim() || region.name}`);
-    if (comunas.length > 1 && !comunas.every((d) => comparable(d.name) === comparable(comunas[0].name))) {
+    if (comunas.length > 1 && !comunas.every((d) => soloPalabras(d.name) === soloPalabras(comunas[0].name))) {
       throw new Error(
         `"${distritoNombre}" encaja con varios distritos: ${comunas
           .slice(0, 5)

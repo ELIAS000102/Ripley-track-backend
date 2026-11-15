@@ -1,3 +1,4 @@
+import { soloPalabras } from '../nucleo/texto.js';
 /**
  * Etapa 3 · Entidades: los códigos y los nombres del mensaje, buscados en el
  * directorio (agente_entidades). "Chorrillos" → 20021 es buscar en una tabla,
@@ -19,14 +20,6 @@ export interface EntidadMencion {
   porNombre: boolean;
   candidatos: Array<Pick<EntidadDirectorio, 'codigo' | 'tipo' | 'es_cd' | 'nombre' | 'pais'>>;
 }
-
-const plano = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
 
 /** Palabras que, solas, no nombran una tienda: están en muchos nombres o en cualquier mensaje */
 const GENERICAS = new Set([
@@ -58,7 +51,7 @@ const sinPrefijos = (s: string) =>
 
 /** Los nombres por los que se puede nombrar una entidad */
 function nombresDe(e: EntidadDirectorio): string[] {
-  const base = [e.nombre ?? '', ...(e.alias ?? [])].map((n) => sinPrefijos(plano(n))).filter(Boolean);
+  const base = [e.nombre ?? '', ...(e.alias ?? [])].map((n) => sinPrefijos(soloPalabras(n))).filter(Boolean);
   return [...new Set(base)].filter((n) => n.length >= 4 && !GENERICAS.has(n) && !/^\d+$/.test(n));
 }
 
@@ -140,14 +133,16 @@ export function parecidosDe(
   yaNombrados: string[] = [],
   max = 15,
 ): Parecido[] {
-  const palabras = [...new Set(plano(mensaje).split(' '))].filter(
+  const palabras = [...new Set(soloPalabras(mensaje).split(' '))].filter(
     (w) => (/^\d+$/.test(w) ? w.length >= 2 : w.length >= 3) && !VACIAS.has(w) && !GENERICAS.has(w),
   );
   if (!palabras.length) return [];
   const puntuados = directorio
     .filter((e) => e.pais === pais && !yaNombrados.includes(e.codigo))
     .map((e) => {
-      const suyas = new Set([e.nombre ?? '', ...(e.alias ?? [])].flatMap((n) => plano(n).split(' ')).filter(Boolean));
+      const suyas = new Set(
+        [e.nombre ?? '', ...(e.alias ?? [])].flatMap((n) => soloPalabras(n).split(' ')).filter(Boolean),
+      );
       const puntos = palabras.filter((w) =>
         [...suyas].some((s) => s === w || (w.length >= 3 && !/^\d+$/.test(w) && s.startsWith(w))),
       ).length;
@@ -199,7 +194,7 @@ export function almacenesParaPrompt(
 }
 
 export function mencionesDe(mensaje: string, directorio: EntidadDirectorio[], pais: string): EntidadMencion[] {
-  const m = ` ${plano(mensaje)} `;
+  const m = ` ${soloPalabras(mensaje)} `;
   const delPais = directorio.filter((e) => e.pais === pais);
   const salida: EntidadMencion[] = [];
 

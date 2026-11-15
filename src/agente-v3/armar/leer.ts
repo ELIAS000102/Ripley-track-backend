@@ -1,3 +1,4 @@
+import { plano } from '../../nucleo/texto.js';
 import { agendasConocidas, CON_AGENDA, codigosDelAnterior, deLasOficinas, lasQueEncajan } from '../agendas.js';
 import { primerJson, type Lectura } from '../clasificar/leer.js';
 import { motivoNoTrae, sinTraer, traePaso } from '../atajos.js';
@@ -25,7 +26,6 @@ export interface PlanLeido {
   sinCambio?: boolean;
 }
 
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const CAMPOS = new Set([
   'activa',
   'enCheckout',

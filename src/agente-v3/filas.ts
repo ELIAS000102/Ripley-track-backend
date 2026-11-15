@@ -1,3 +1,4 @@
+import { sinAcentos } from '../nucleo/texto.js';
 /**
  * Lo que trajo cualquier consulta (o un atajo), visto como FILAS iguales para
  * todas las herramientas. Sobre las filas se evalúan las condiciones ("solo las
@@ -271,13 +272,6 @@ function filasDeClase(clase: Clase | undefined, datos: unknown, hoy: string): Fi
 
 // ───────────── Condiciones ─────────────
 
-const plano = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim();
-
 export function cumple(f: Fila, c: Condicion): boolean {
   const v = (f as unknown as Record<string, unknown>)[c.campo];
   if (v === undefined) return false;
@@ -302,8 +296,8 @@ export function cumple(f: Fila, c: Condicion): boolean {
         return v === n;
     }
   }
-  const a = plano(v);
-  const b = plano(w).replace(/s$/, '');
+  const a = sinAcentos(v).trim();
+  const b = sinAcentos(w).trim().replace(/s$/, '');
   return c.op === '!=' ? !a.includes(b) : a.includes(b);
 }
 
@@ -443,7 +437,9 @@ export interface ResultadoComprobacion {
  * cifra, si alguna.
  */
 export function comprobar(filas: Fila[], c: Comprobacion): ResultadoComprobacion {
-  const aqui = c.servicio ? filas.filter((f) => plano(f.servicio) === plano(c.servicio)) : filas;
+  const aqui = c.servicio
+    ? filas.filter((f) => sinAcentos(f.servicio).trim() === sinAcentos(c.servicio).trim())
+    : filas;
   const porCodigo = new Map<string, Fila[]>();
   for (const f of aqui) {
     if (!porCodigo.has(f.codigo)) porCodigo.set(f.codigo, []);

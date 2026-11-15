@@ -10,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais } from '../../nucleo/fechas.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { excelDeCarga, leerPlantillaExcelCarga, nombreExcelDeCarga } from './excel-carga-g12.js';
 import type { UnidadOracleG12 } from './g12.calculo.js';

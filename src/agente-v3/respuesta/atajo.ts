@@ -1,3 +1,4 @@
+import { ddmm } from '../../nucleo/fechas.js';
 import type { BloqueEjecutado, Ejecucion } from '../../configuracion/atajos/interfaces/atajos.interface.js';
 import type {
   AgendaCapacidad,
@@ -32,13 +33,6 @@ export function nombreCorto(s: string | null | undefined): string {
 }
 
 /** "2026-11-08" o "08/11/2026 00:00" → "08/11" */
-export function ddmm(fecha: string | null | undefined): string {
-  const f = String(fecha ?? '');
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(f);
-  if (iso) return `${iso[3]}/${iso[2]}`;
-  const dmy = /^(\d{2})\/(\d{2})/.exec(f);
-  return dmy ? `${dmy[1]}/${dmy[2]}` : f;
-}
 
 const celda = (s: unknown) =>
   String(s ?? '')

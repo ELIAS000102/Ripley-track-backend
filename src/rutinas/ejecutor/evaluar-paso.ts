@@ -1,3 +1,4 @@
+import { plano } from '../../nucleo/texto.js';
 import type { LlamadaHerramienta, RespuestaAgente } from '../interfaces/rutinas.interface.js';
 
 export interface Evaluacion {
@@ -8,14 +9,6 @@ export interface Evaluacion {
 
 /** Lo que el flujo llama por su cuenta y el backend no anota como herramienta */
 const DEL_FLUJO = new Set(['Atajos disponibles']);
-
-const normalizar = (s?: string) =>
-  String(s ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
 
 const recorte = (s?: string, n = 300) => {
   const t = String(s ?? '')
@@ -137,9 +130,9 @@ export function evaluarPaso(e: {
     );
   }
 
-  const usados = e.llamadas.map((l) => normalizar(l.atajo)).filter(Boolean);
+  const usados = e.llamadas.map((l) => plano(l.atajo)).filter(Boolean);
   const sinUsar = e.atajos.filter((a) => {
-    const pedido = normalizar(a);
+    const pedido = plano(a);
     return !usados.some((u) => u === pedido || u.includes(pedido) || pedido.includes(u));
   });
   if (sinUsar.length) {

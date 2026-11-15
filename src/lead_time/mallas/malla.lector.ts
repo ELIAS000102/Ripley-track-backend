@@ -1,3 +1,4 @@
+import { sinAcentos } from '../../nucleo/texto.js';
 import ExcelJS from 'exceljs';
 import { DIAS, NOMBRE_DIA, type Dia } from '../matrices/interfaces/matriz.interface.js';
 import { textoDeCelda } from '../matrices/matriz.lector.js';
@@ -26,10 +27,7 @@ import { claveMalla, type DiaMalla, type OplMalla } from './interfaces/malla.int
 const ERRORES_MAXIMOS = 50;
 
 const normalizar = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+  sinAcentos(s)
     .replace(/[\s_.]+/g, ' ')
     .trim();
 

@@ -4,7 +4,8 @@ import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import type { CapacityByDay } from '../../common/ripley/interfaces/ripley.interface.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
-import { hoyEnPais, isoToRipleyDate, sumarDias, ventanaFechas } from '../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, sumarDias, ventanaFechas } from '../../nucleo/fechas.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
 import { GruposLeadtimeService } from '../../lead_time/grupos.service.js';

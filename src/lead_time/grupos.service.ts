@@ -1,3 +1,4 @@
+import { diasEntre } from '../nucleo/fechas.js';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
@@ -52,9 +53,6 @@ export interface FechasDeCodigo {
 }
 
 const dentroDe = (fecha: string, v: VigenciaTienda) => v.desde <= fecha && fecha <= v.hasta;
-
-const diasEntre = (a: string, b: string) =>
-  Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 
 /**
  * Los grupos de lead time de cada país. Un grupo tiene nombre, una breve

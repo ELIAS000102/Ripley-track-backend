@@ -1,3 +1,4 @@
+import { sumarDias } from '../../nucleo/fechas.js';
 import { DIAS } from '../matrices/interfaces/matriz.interface.js';
 import type { OplInterpretada, OplMalla, VentaMalla } from './interfaces/malla.interface.js';
 
@@ -48,11 +49,6 @@ export function interpretarOpl(o: OplMalla): OplInterpretada {
 }
 
 /** YYYY-MM-DD más n días; a mediodía UTC para que ninguna zona horaria lo corra */
-export function sumarDias(fecha: string, n: number) {
-  const d = new Date(`${fecha}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 /** Las fechas de una venta concreta (YYYY-MM-DD) en una malla, o `null` si no tiene filas */
 export function fechasDeVentaOpl(o: OplMalla, fechaVenta: string) {

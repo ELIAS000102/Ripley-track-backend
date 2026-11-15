@@ -1,3 +1,4 @@
+import { sinAcentos } from '../nucleo/texto.js';
 import type { Clasificacion, ContextoTurno, PlanV3 } from './interfaces/agente-v3.interface.js';
 
 /**
@@ -15,8 +16,6 @@ export type QueSigue =
   | { ok: true; charla: true }
   | { ok: true; aprender: true }
   | { ok: false; motivo: string };
-
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: string): QueSigue {
   switch (c.tipo) {
@@ -76,7 +75,7 @@ export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: strin
 
 /** "fase 1", "F2", "fase tres", "despacho directo" → F1, F2, F3, DD */
 export function faseDe(mensaje: string): string | null {
-  const m = plano(mensaje);
+  const m = sinAcentos(mensaje);
   const n = /\bf\s?([123])\b|\bfase\s*(1|2|3|uno|dos|tres|i{1,3})\b|\b(primera|segunda|tercera) fase\b/.exec(m);
   if (n) {
     const v = n[1] ?? n[2] ?? n[3];
@@ -110,7 +109,7 @@ export function serviciosNombrados(mensaje: string, conocidos: string[]): string
  * claro, se dice que no y se pregunta con palabras.
  */
 function queSaber(mensaje: string, contexto: ContextoTurno): PlanV3['pasos'] | null {
-  const m = plano(mensaje);
+  const m = sinAcentos(mensaje);
   const pais = /chile/.test(m) ? 'CL' : /peru/.test(m) ? 'PE' : contexto.pais;
   const fase = faseDe(mensaje);
   const servicios = serviciosNombrados(

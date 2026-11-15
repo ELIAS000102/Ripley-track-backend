@@ -1,3 +1,4 @@
+import { plano } from '../../../nucleo/texto.js';
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../../../common/supabase/supabase.service.js';
 
@@ -29,7 +30,6 @@ const QUE_GUARDA: Record<TipoAgenda, string> = {
   opl: 'operadores con su agenda de servicios',
 };
 
-const comparable = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
 /**
@@ -57,8 +57,8 @@ export class AgendasDeAtajoService {
     if (error) this.fallo(error);
 
     const lista = (atajos ?? []) as Array<{ id: string; nombre: string }>;
-    const buscada = comparable(nombrePedido);
-    const atajo = lista.find((p) => comparable(p.nombre) === buscada);
+    const buscada = plano(nombrePedido);
+    const atajo = lista.find((p) => plano(p.nombre) === buscada);
     if (!atajo) {
       throw new NotFoundException(
         `No hay ningún atajo "${nombrePedido}". Los que hay: ${lista.map((p) => p.nombre).join(', ') || 'ninguno'}.`,

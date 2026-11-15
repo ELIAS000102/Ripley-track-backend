@@ -1,3 +1,5 @@
+import { sinAcentos } from '../../nucleo/texto.js';
+import { ddmm } from '../../nucleo/fechas.js';
 import type { Fila } from '../filas.js';
 import type { Calculo } from '../interfaces/agente-v3.interface.js';
 
@@ -18,14 +20,6 @@ export interface ResultadoCalculo {
   usadas: number;
 }
 
-const plano = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim();
-const ddmm = (f?: string) =>
-  f && /^\d{4}-\d{2}-\d{2}/.test(f) ? `${f.slice(8, 10)}/${f.slice(5, 7)}` : String(f ?? '');
 const redondo = (x: number) => Math.round(x * 10) / 10;
 
 const NOMBRE_CAMPO: Record<string, string> = {
@@ -70,15 +64,21 @@ export const GLOSARIO: Record<string, string> = {
 
 export function filtrar(filas: Fila[], f: Calculo['filtro']): Fila[] {
   return filas.filter((x) => {
-    if (f.agenda && !plano(x.agenda ?? x.jornada).includes(plano(f.agenda).replace(/s$/, ''))) return false;
+    if (
+      f.agenda &&
+      !sinAcentos(x.agenda ?? x.jornada)
+        .trim()
+        .includes(sinAcentos(f.agenda).trim().replace(/s$/, ''))
+    )
+      return false;
     if (f.codigo?.length && !f.codigo.includes(x.codigo)) return false;
     if (f.fecha && x.fecha !== f.fecha) return false;
     if (f.servicio?.length && !f.servicio.map((s) => s.toUpperCase()).includes(String(x.servicio ?? '').toUpperCase()))
       return false;
     if (typeof f.activa === 'boolean' && x.activa !== f.activa) return false;
-    if (f.nombre && !plano(x.nombre).includes(plano(f.nombre))) return false;
+    if (f.nombre && !sinAcentos(x.nombre).trim().includes(sinAcentos(f.nombre).trim())) return false;
     if (f.fase && String(x.fase ?? '').toUpperCase() !== f.fase.toUpperCase()) return false;
-    if (f.tipo && plano(x.tipo) !== plano(f.tipo)) return false;
+    if (f.tipo && sinAcentos(x.tipo).trim() !== sinAcentos(f.tipo).trim()) return false;
     return true;
   });
 }

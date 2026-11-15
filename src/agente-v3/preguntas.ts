@@ -1,3 +1,4 @@
+import { sinAcentos } from '../nucleo/texto.js';
 import { hechoEnPalabras } from './aprender/prompt.js';
 import type { EntidadMencion } from './entidades.js';
 import type { ContextoTurno, Ensenanza, PasoEjecutado, Pregunta } from './interfaces/agente-v3.interface.js';
@@ -69,11 +70,9 @@ export function preguntaDeAprender(e: Ensenanza): Pregunta {
   };
 }
 
-const plano = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+/** Solo letras y espacios (sin dígitos ni signos) */
+const soloLetras = (s: string) =>
+  sinAcentos(s)
     .replace(/[^a-z ]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -90,7 +89,7 @@ export function respuestaDeAprender(
     .slice(0, 500);
   if (elegida === 'si' && p.opciones.some((o) => o.id === 'si')) return { si: true };
   if (elegida === 'no') return { no: true };
-  const t = plano(texto);
+  const t = soloLetras(texto);
   if (/^(no|no ahora|ahora no|no gracias|no lo guardes|dejalo|mejor no)$/.test(t)) return { no: true };
   if (
     /^(si|si guardalo|guardalo|dale|ok|vale|correcto|esta bien|si esta bien)$/.test(t) &&

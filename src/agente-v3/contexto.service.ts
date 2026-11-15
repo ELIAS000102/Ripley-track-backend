@@ -1,3 +1,4 @@
+import { sinAcentos } from '../nucleo/texto.js';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
@@ -24,7 +25,6 @@ import type {
  *   descripción lo dicen).
  */
 
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface FilaMensaje {
@@ -70,11 +70,11 @@ export function hoyEn(pais: Pais, ahora = new Date()): string {
 }
 
 export function paisDelAtajo(nombre: string, descripcion: string | null): Pais {
-  return /\bchile\b/.test(plano(`${nombre} ${descripcion ?? ''}`)) ? 'CL' : 'PE';
+  return /\bchile\b/.test(sinAcentos(`${nombre} ${descripcion ?? ''}`)) ? 'CL' : 'PE';
 }
 
 export function paisDelMensaje(mensaje: string): Pais | null {
-  const m = plano(mensaje);
+  const m = sinAcentos(mensaje);
   const cl = /\bchile(no|na)?\b/.test(m);
   const pe = /\bperu(ano|ana)?\b/.test(m);
   return cl && !pe ? 'CL' : pe && !cl ? 'PE' : null;

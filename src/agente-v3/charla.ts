@@ -1,3 +1,4 @@
+import { sinAcentos } from '../nucleo/texto.js';
 /**
  * La conversación genérica: un saludo, un gracias, "¿qué puedes hacer?". La
  * redacta el modelo en la misma llamada de Clasificar (no gasta otra), pero la
@@ -6,8 +7,6 @@
  *
  * Lo que la v3 sabe hacer lo dice el código, no el modelo: es la lista de verdad.
  */
-
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export const AYUDA = [
   'Puedo ejecutar tus **atajos** ("simula la SE", "dame la PQT LIMA", "dame la recepción SE").',
@@ -19,7 +18,7 @@ export const AYUDA = [
 ];
 
 export const esPedidoDeAyuda = (m: string) =>
-  /\b(ayuda|ayudame|que (puedes|sabes) hacer|que haces|como (te uso|funcionas)|para que sirves)\b/.test(plano(m));
+  /\b(ayuda|ayudame|que (puedes|sabes) hacer|que haces|como (te uso|funcionas)|para que sirves)\b/.test(sinAcentos(m));
 
 export function respuestaDeCharla(
   mensaje: string,
@@ -31,7 +30,7 @@ export function respuestaDeCharla(
   const cifrasDelMensaje = new Set(mensaje.match(/\d+/g) ?? []);
   const inventa = (t.match(/\d+/g) ?? []).some((c) => !cifrasDelMensaje.has(c));
   if (t && t.length <= 400 && !inventa && !/\|/.test(t)) return { texto: t, deModelo: true };
-  const m = plano(mensaje);
+  const m = sinAcentos(mensaje);
   if (/\b(gracias|grax|genial|perfecto|excelente)\b/.test(m))
     return { texto: '¡De nada! Si necesitas otra consulta, aquí estoy.', deModelo: false };
   if (/\b(chau|adios|hasta luego|nos vemos)\b/.test(m)) return { texto: '¡Hasta luego!', deModelo: false };

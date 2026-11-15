@@ -1,3 +1,4 @@
+import { soloPalabras } from '../../nucleo/texto.js';
 import ExcelJS from 'exceljs';
 import { CAMPOS_G12, COMPONENTES_G12, definicionDe } from './g12.componentes.js';
 import { type FilaIdsG12, firmaIdsG12 } from './ids-g12.service.js';
@@ -57,14 +58,6 @@ const ETIQUETA: Record<string, string> = {
   sab: 'Sáb',
   dom: 'Dom',
 };
-
-const comparable = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9ñ]+/g, ' ')
-    .trim();
 
 // ───────────────────────── Exportar ─────────────────────────
 
@@ -552,8 +545,8 @@ export async function xlsxAConfiguracion(
   const errores: string[] = [];
   const porCuadro = new Map<ClaveComponente, ComponenteG12>();
   const cuadro = (texto: unknown, donde: string): ComponenteG12 | null => {
-    const buscado = comparable(texto);
-    const def = COMPONENTES_G12.find((c) => comparable(c.titulo) === buscado || comparable(c.clave) === buscado);
+    const buscado = soloPalabras(texto);
+    const def = COMPONENTES_G12.find((c) => soloPalabras(c.titulo) === buscado || soloPalabras(c.clave) === buscado);
     if (!def) {
       if (buscado) errores.push(`${donde}: "${texto}" no es un cuadro del G12.`);
       else errores.push(`${donde}: falta el cuadro.`);
@@ -564,15 +557,15 @@ export async function xlsxAConfiguracion(
   };
 
   const filasDe = (nombre: string) => {
-    const hoja = libro.worksheets.find((h) => comparable(h.name) === comparable(nombre));
+    const hoja = libro.worksheets.find((h) => soloPalabras(h.name) === soloPalabras(nombre));
     if (!hoja) return null;
-    const titulos = (hoja.getRow(1).values as unknown[]).map((v) => comparable(textoDe(v)));
+    const titulos = (hoja.getRow(1).values as unknown[]).map((v) => soloPalabras(textoDe(v)));
     const filas: Array<{ n: number; valor: (titulo: string) => string }> = [];
     hoja.eachRow((fila, n) => {
       if (n === 1) return;
       const valores = fila.values as unknown[];
       if (!valores.some((v) => textoDe(v) !== '')) return;
-      filas.push({ n, valor: (titulo) => textoDe(valores[titulos.indexOf(comparable(titulo))]) });
+      filas.push({ n, valor: (titulo) => textoDe(valores[titulos.indexOf(soloPalabras(titulo))]) });
     });
     return filas;
   };
@@ -678,8 +671,8 @@ export async function xlsxAConfiguracion(
       errores.push(`${donde}: falta el nombre de la línea.`);
       continue;
     }
-    const buscado = comparable(f.valor('Cuadro'));
-    const def = COMPONENTES_G12.find((c) => comparable(c.titulo) === buscado || comparable(c.clave) === buscado);
+    const buscado = soloPalabras(f.valor('Cuadro'));
+    const def = COMPONENTES_G12.find((c) => soloPalabras(c.titulo) === buscado || soloPalabras(c.clave) === buscado);
     if (!def) {
       errores.push(`${donde}: "${f.valor('Cuadro')}" no es un cuadro del G12.`);
       continue;
@@ -694,8 +687,8 @@ export async function xlsxAConfiguracion(
   let solicitudes: ConfiguracionG12['solicitudes'] | undefined;
   if (hojaSol) {
     const deTexto = <T extends string>(texto: string, nombres: Record<T, string>): T | '' => {
-      const b = comparable(texto);
-      return (Object.keys(nombres) as T[]).find((k) => comparable(nombres[k]) === b || comparable(k) === b) ?? '';
+      const b = soloPalabras(texto);
+      return (Object.keys(nombres) as T[]).find((k) => soloPalabras(nombres[k]) === b || soloPalabras(k) === b) ?? '';
     };
     const agendas = hojaSol.map((f) => {
       const campos: Record<string, string> = {};
@@ -725,7 +718,7 @@ export async function xlsxAConfiguracion(
     const umbrales: Record<string, number> = {};
     const ventanas: Record<string, { desde: number; dias: number }> = {};
     for (const f of filasDe('Solicitudes (parámetros)') ?? []) {
-      const parametro = comparable(f.valor('Parámetro'));
+      const parametro = soloPalabras(f.valor('Parámetro'));
       if (parametro.startsWith('umbral')) {
         const t = deTexto(f.valor('De'), NOMBRE_TIPO_SOLICITUD);
         if (t) umbrales[t] = Number(f.valor('Valor').replace('%', '').replace(',', '.')) / 100;

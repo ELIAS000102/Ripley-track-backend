@@ -1,3 +1,4 @@
+import { ddmm } from '../../nucleo/fechas.js';
 import { partirOficina } from '../filas.js';
 import type { PasoAplicado, PasoEjecutado } from '../interfaces/agente-v3.interface.js';
 
@@ -28,10 +29,7 @@ const conZona = (agenda: unknown, zona: unknown) => {
   return z && z.toLowerCase() !== a.toLowerCase() ? `${a} (${z})` : a;
 };
 /** "2026-11-12" → "12/11" */
-const ddmm = (f: unknown) => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f ?? ''));
-  return m ? `${m[3]}/${m[2]}` : String(f ?? '');
-};
+
 /** "Ya estaba así": no es un fallo, es que no cambiaría nada */
 const YA_ESTABA = /^ya estaba(n)? as[ií]/i;
 const si = (b: boolean | null | undefined, s: string, n: string) => (b === null || b === undefined ? '—' : b ? s : n);

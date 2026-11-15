@@ -1,3 +1,4 @@
+import { soloPalabras } from '../nucleo/texto.js';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { InterrupcionAgenteService } from '../agente/seguridad/interrupcion.service.js';
@@ -78,19 +79,12 @@ import { preguntaDeZonas, zonasDeLaRespuesta } from './zonas.js';
  * FINAL, con la respuesta ya hecha: la pregunta no interrumpe la petición.
  */
 
-const plano = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
 const NOMBRE_PAIS: Record<Pais, string> = { PE: 'Perú', CL: 'Chile' };
 
 /** Sin modelo: un mensaje que nombra UN atajo y nada más se puede ejecutar igual */
 export function atajoPorNombre(mensaje: string, atajos: string[]): string | null {
-  const m = ` ${plano(mensaje)} `;
-  const nombrados = atajos.filter((a) => plano(a) && m.includes(` ${plano(a)} `));
+  const m = ` ${soloPalabras(mensaje)} `;
+  const nombrados = atajos.filter((a) => soloPalabras(a) && m.includes(` ${soloPalabras(a)} `));
   return nombrados.length === 1 ? nombrados[0] : null;
 }
 

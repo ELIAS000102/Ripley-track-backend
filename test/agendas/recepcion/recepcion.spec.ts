@@ -3,7 +3,8 @@ import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogo
 import type { RipleyHttpService } from '../../../src/common/ripley/ripley-http.service.js';
 import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
-import { hoyEnPais, isoToRipleyDate } from '../../../src/common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../../src/common/ripley/utils/date.util.js';
+import { hoyEnPais } from '../../../src/nucleo/fechas.js';
 import { RecepcionService } from '../../../src/agendas/recepcion/recepcion.service.js';
 
 /**

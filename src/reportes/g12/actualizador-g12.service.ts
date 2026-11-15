@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, Optional }
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PerfilService } from '../../auth/perfil.service.js';
-import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { CLAVES_COMPONENTES, definicionDe, VIDA_REPORTE_MS } from './g12.componentes.js';

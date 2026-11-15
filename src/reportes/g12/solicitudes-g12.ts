@@ -1,3 +1,5 @@
+import { plano } from '../../nucleo/texto.js';
+import { sumarDias } from '../../nucleo/fechas.js';
 import { CAMPOS_G12, DIAS_LECTURA_AGENDAS, LIMITES_G12 } from './g12.componentes.js';
 import type {
   AgendaG12,
@@ -98,14 +100,6 @@ export function ventanaPorDefecto(
     : 'recepcion_lima';
 }
 
-const comparable = (s: unknown) =>
-  String(s ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
 type EntradaSolicitudes = {
   umbrales?: Partial<Record<string, unknown>>;
   ventanas?: Partial<Record<string, { desde?: unknown; dias?: unknown }>>;
@@ -202,7 +196,7 @@ export function normalizarSolicitudes(
       return;
     }
     // La misma agenda dos veces saldría dos veces en la lista
-    const huella = [tipo, ...CAMPOS_G12[tipo].map((c) => comparable(campos[c.clave]))].join('|');
+    const huella = [tipo, ...CAMPOS_G12[tipo].map((c) => plano(campos[c.clave]))].join('|');
     if (vistas.has(huella)) {
       errores.push(`${donde} (${nombre}): está dos veces.`);
       return;
@@ -245,12 +239,6 @@ export function diaSolicitud(fecha: string, utilizado: number, asignado: number,
     estado: sinCapacidad ? 'sin_capacidad' : u / a > umbral ? 'solicitar' : 'ok',
   };
 }
-
-const sumarDias = (iso: string, n: number) => {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 /**
  * Las filas de una agenda de la lista ya leída: una por agenda de Ripley que

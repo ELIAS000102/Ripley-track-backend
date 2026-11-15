@@ -1,3 +1,4 @@
+import { soloPalabras } from '../../nucleo/texto.js';
 import type { Cd } from '../../reportes/cds/interfaces/reporte-cds.interface.js';
 
 /**
@@ -13,14 +14,6 @@ import type { Cd } from '../../reportes/cds/interfaces/reporte-cds.interface.js'
 
 /** Los CDs de cada país, como los devuelve la configuración */
 export type CdsPorPais = Record<string, Cd[]>;
-
-const normalizar = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9ñ]+/g, ' ')
-    .trim();
 
 /**
  * El país de la petición, corregido por el código del CD.
@@ -59,16 +52,16 @@ export function resolverCd(termino: string, cds: Cd[]): Cd | undefined {
   const porCodigo = cds.find((c) => c.code === buscado);
   if (porCodigo) return porCodigo;
 
-  const texto = ` ${normalizar(buscado)} `;
+  const texto = ` ${soloPalabras(buscado)} `;
   const alias = cds
-    .flatMap((cd) => cd.alias.map((a) => ({ cd, a: normalizar(a) })))
+    .flatMap((cd) => cd.alias.map((a) => ({ cd, a: soloPalabras(a) })))
     .filter(({ a }) => a)
     .sort((x, y) => y.a.length - x.a.length);
   const porAlias = alias.find(({ a }) => texto.includes(` ${a} `));
   if (porAlias) return porAlias.cd;
 
   return cds.find(
-    (c) => c.nombre && normalizar(c.nombre).includes(normalizar(buscado)) && normalizar(buscado).length > 0,
+    (c) => c.nombre && soloPalabras(c.nombre).includes(soloPalabras(buscado)) && soloPalabras(buscado).length > 0,
   );
 }
 

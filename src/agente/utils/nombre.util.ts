@@ -1,3 +1,4 @@
+import { soloPalabras } from '../../nucleo/texto.js';
 /**
  * Filtra por nombre, y **lo exacto gana sobre lo parecido**.
  *
@@ -23,23 +24,16 @@
  * pedido. Si aun así no hay una igual, se prueba sin espacios ("Zona 1" es
  * "Zona1") y solo después el parecido.
  */
-const comparable = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9ñ]+/g, ' ')
-    .trim();
 
 export function filtrarPorNombre<T>(
   lista: T[],
   buscado: string | undefined,
   de: (item: T) => string | null | undefined,
 ): T[] {
-  const termino = comparable(buscado ?? '');
+  const termino = soloPalabras(buscado ?? '');
   if (!termino) return lista;
 
-  const valor = (item: T) => comparable(de(item) ?? '');
+  const valor = (item: T) => soloPalabras(de(item) ?? '');
 
   const exactas = lista.filter((item) => valor(item) === termino);
   if (exactas.length) return exactas;

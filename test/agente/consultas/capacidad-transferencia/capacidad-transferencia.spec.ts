@@ -4,7 +4,7 @@ import type { ContextoAgenteService } from '../../../../src/agente/contexto.serv
 import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
 import { CapacidadTransferenciaAgenteService } from '../../../../src/agente/consultas/capacidad-transferencia/capacidad-transferencia.service.js';
 import { EditarCapacidadAgenteService } from '../../../../src/agente/edicion/capacidad/capacidad.service.js';
-import { hoyEnPais, sumarDias } from '../../../../src/common/ripley/utils/date.util.js';
+import { hoyEnPais, sumarDias } from '../../../../src/nucleo/fechas.js';
 import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
 
 /**
@@ -58,15 +58,13 @@ function armar(agendas = [ST, SG, PICKIT], sinDatos: string[] = []) {
   const transferencias = {
     agendasDeVarios: vi.fn().mockResolvedValue({ agendas, sinDatos }),
     diasDeLaAgenda: vi.fn().mockResolvedValue(DIAS),
-    preparada: vi
-      .fn()
-      .mockImplementation((fila, a) => ({
-        fila,
-        agenda: a,
-        capacityId: `${a.scheduleId}-cap`,
-        typeOfService: a.typeOfService,
-        idOffice: a.origen.code,
-      })),
+    preparada: vi.fn().mockImplementation((fila, a) => ({
+      fila,
+      agenda: a,
+      capacityId: `${a.scheduleId}-cap`,
+      typeOfService: a.typeOfService,
+      idOffice: a.origen.code,
+    })),
     guardarDia: vi.fn().mockResolvedValue({}),
   } as unknown as TransferenciaAgendasService;
   return { transferencias, consulta: new CapacidadTransferenciaAgenteService(transferencias) };

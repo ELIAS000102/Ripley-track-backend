@@ -2,7 +2,7 @@ import { BadGatewayException, ConflictException, Injectable, Logger, NotFoundExc
 import ExcelJS from 'exceljs';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
-import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, sumarDias } from '../../nucleo/fechas.js';
 import { definicionDe } from './g12.componentes.js';
 import type {
   AgendaLeidaG12,

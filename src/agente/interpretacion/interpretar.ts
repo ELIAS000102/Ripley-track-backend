@@ -1,4 +1,5 @@
-import { hoyEnPais } from '../../common/ripley/utils/date.util.js';
+import { soloPalabras } from '../../nucleo/texto.js';
+import { hoyEnPais } from '../../nucleo/fechas.js';
 import { resolverAliasOpl } from '../constantes/alias-opl.constants.js';
 import { resolverCd, type CdsPorPais } from '../constantes/cds.constants.js';
 
@@ -109,15 +110,6 @@ export interface AtajoPosible {
 
 // ───────────────────────── Normalización ─────────────────────────
 
-export function normalizar(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9ñ]+/g, ' ')
-    .trim();
-}
-
 // ───────────────────────── Fechas ─────────────────────────
 
 const MESES: Record<string, number> = {
@@ -226,7 +218,7 @@ function fechasDelTexto(original: string, plano: string, hoy: string): string[] 
  * de hoy a seis días después. Una sola fecha es un día.
  */
 export function rangoDeFechas(original: string, hoy: string): RangoFechas | null {
-  const plano = normalizar(original);
+  const plano = soloPalabras(original);
 
   // "del 17 al 21" (del mes en curso), "del 17 al 21 de octubre"
   const delAl = plano.match(/\bdel? (\d{1,2}) al (\d{1,2})(?: de ([a-z]+))?\b/);
@@ -254,7 +246,7 @@ export function rangoDeFechas(original: string, hoy: string): RangoFechas | null
 
 /** Todas las fechas del mensaje, sin repetir: las sueltas en su orden y los extremos del rango */
 export function fechasDichas(original: string, hoy: string): string[] {
-  const sueltas = fechasDelTexto(original, normalizar(original), hoy);
+  const sueltas = fechasDelTexto(original, soloPalabras(original), hoy);
   const rango = rangoDeFechas(original, hoy);
   return [...new Set([...sueltas, ...(rango ? [rango.desde, rango.hasta] : [])])];
 }
@@ -296,7 +288,7 @@ function serviciosDelTexto(original: string): string[] {
     const codigo = token.toUpperCase();
     if (!SERVICIOS_CONOCIDOS.includes(codigo)) continue;
 
-    const antes = normalizar(original.slice(Math.max(0, m.index - 14), m.index + 1));
+    const antes = soloPalabras(original.slice(Math.max(0, m.index - 14), m.index + 1));
     const anunciado = /(?:^| )(la|el|las|los|del|servicio|servicios|jornada|jornadas|tipo)$/.test(antes);
     const mayusculas = token === codigo;
 
@@ -383,24 +375,24 @@ const COMUNES = new Set(
 /** Lo que se dice entre paréntesis en una descripción es su apodo: "(BT LIMA)" */
 function apodos(p: AtajoConocido): string[] {
   return [...(p.descripcion ?? '').matchAll(/\(([^)]{2,40})\)/g)]
-    .map((m) => normalizar(m[1]))
+    .map((m) => soloPalabras(m[1]))
     .filter((a) => a.length >= 4 && !/^opl \d+$/.test(a));
 }
 
 function atajosNombrados(plano: string, lista: AtajoConocido[]): string[] {
   const dentro = (frase: string) => frase.length >= 4 && ` ${plano} `.includes(` ${frase} `);
-  const dichas = lista.filter((p) => dentro(normalizar(p.nombre)) || apodos(p).some(dentro));
+  const dichas = lista.filter((p) => dentro(soloPalabras(p.nombre)) || apodos(p).some(dentro));
 
   // Si un nombre contiene a otro ("Simulación SD" y "Simulación SDX"), gana el largo
   return dichas
-    .filter((p) => !dichas.some((q) => q !== p && normalizar(q.nombre).includes(normalizar(p.nombre))))
+    .filter((p) => !dichas.some((q) => q !== p && soloPalabras(q.nombre).includes(soloPalabras(p.nombre))))
     .map((p) => p.nombre);
 }
 
 function tocaAtajo(plano: string, lista: AtajoConocido[]): boolean {
   const propias = new Set<string>();
   for (const p of lista) {
-    for (const t of normalizar(`${p.nombre} ${p.descripcion ?? ''}`).split(' ')) {
+    for (const t of soloPalabras(`${p.nombre} ${p.descripcion ?? ''}`).split(' ')) {
       if (t.length >= 2 && !COMUNES.has(t) && !/^\d$/.test(t)) propias.add(t);
     }
   }
@@ -431,7 +423,7 @@ const GENERICAS = new Set(
 
 const palabrasPropias = (texto: string) =>
   new Set(
-    normalizar(texto)
+    soloPalabras(texto)
       .split(' ')
       .filter((t) => t.length >= 4 && !/^\d+$/.test(t) && !COMUNES.has(t) && !GENERICAS.has(t)),
   );
@@ -478,7 +470,7 @@ function atajosPosibles(
     const suyosTemas = new Set([
       ...(p.tipos ?? []).map((t) => TEMA_DEL_TIPO[t]).filter(Boolean),
       ...Object.keys(TEMAS)
-        .filter((t) => TEMAS[t].test(normalizar(texto)))
+        .filter((t) => TEMAS[t].test(soloPalabras(texto)))
         .map(temaDe),
     ]);
     const temaComun = [...temasDichos].find((t) => suyosTemas.has(t));
@@ -487,7 +479,7 @@ function atajosPosibles(
       motivos.push(`tema ${temaComun}`);
     } else if (temasDichos.size && suyosTemas.size) puntos -= 2;
 
-    const plano2 = ` ${normalizar(texto)} `;
+    const plano2 = ` ${soloPalabras(texto)} `;
     const codigos = dicho.codigos.filter((c) => plano2.includes(` ${c} `));
     if (codigos.length) {
       puntos += 4 * codigos.length;
@@ -532,7 +524,7 @@ export function interpretar(
   } = {},
 ): Interpretacion {
   const original = pregunta.trim();
-  const plano = normalizar(original);
+  const plano = soloPalabras(original);
   const lista = opciones.atajos ?? [];
 
   // ── El país: dicho, o deducido del CD ──
@@ -570,8 +562,8 @@ export function interpretar(
 
   for (const m of sinF.matchAll(/(?<![\d.,])(-?\d+)(?![\d.,]*\d)/g)) {
     const t = m[1];
-    const antes = normalizar(sinF.slice(Math.max(0, m.index - 12), m.index));
-    const despues = normalizar(sinF.slice(m.index + t.length, m.index + t.length + 12));
+    const antes = soloPalabras(sinF.slice(Math.max(0, m.index - 12), m.index));
+    const despues = soloPalabras(sinF.slice(m.index + t.length, m.index + t.length + 12));
     const esCantidad =
       (/(?:^| )(a|en|de a|hasta|por|unidades)$/.test(antes) && !/(?:^| )(opl|operador)$/.test(antes)) ||
       /^(unidades|und|uds|u)\b/.test(despues);
