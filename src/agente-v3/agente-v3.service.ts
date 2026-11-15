@@ -66,8 +66,8 @@ import { queEs } from './que.js';
 import { preguntaDeZonas, zonasDeLaRespuesta } from './zonas.js';
 
 /**
- * Las etapas de un turno, una por ruta. Cada una devuelve `camino`: lo único
- * que mira n8n para saber qué hace después.
+ * Las etapas de un turno. Cada una devuelve `camino`: por ahí sigue el motor
+ * (motor/motor.service.ts).
  *
  * contexto → clasificar → (atajo · repetir · saber · charla: sin otra llamada)
  *                       → consulta: Armar (1b) → ejecutar
@@ -245,7 +245,7 @@ export class AgenteV3Service {
 
   async crear(usuario: UsuarioAutenticado, dto: CrearTurnoDto): Promise<SalidaRuta> {
     await this.contexto.comprobarChat(dto.chat_id, usuario.id);
-    if (dto.peticion_id) this.interrupcion.registrar(dto.peticion_id, usuario.id, dto.ejecucion);
+    if (dto.peticion_id) this.interrupcion.registrar(dto.peticion_id, usuario.id);
 
     const turno = await this.turnos.crear({
       chat_id: dto.chat_id,

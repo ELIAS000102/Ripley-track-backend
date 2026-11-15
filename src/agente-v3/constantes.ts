@@ -7,7 +7,6 @@
  * Los nodos Gemini del flujo, en el orden en que se prueban. Todos son
  * Flash-Lite: con la cuota gratuita, el Flash da 20 llamadas al día por cuenta
  * y el Flash-Lite 500 (agente-v3/PLAN.md, "Límite: la cuota gratuita").
- * El nombre del nodo es el que tiene en n8n: el Switch del flujo va por él.
  */
 export const MODELOS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'] as const;
 /**
@@ -16,11 +15,9 @@ export const MODELOS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'] as con
  * cuenta, pero aprender es raro; si se agota, siguen los Flash-Lite.
  */
 export const MODELOS_DE_APRENDER = ['gemini-3.5-flash', ...MODELOS] as const;
-/** Todos los modelos que puede usar algún rol (y que tienen su nodo en n8n) */
+/** Todos los modelos que puede usar algún rol */
 export const TODOS_LOS_MODELOS = MODELOS_DE_APRENDER;
 export const CUENTAS = [1, 2, 3] as const;
-export const nombreDelNodo = (modelo: string, cuenta: number) =>
-  `${modelo.replace('gemini-', 'Gemini ').replace('-flash-lite', ' Flash-Lite').replace('-flash', ' Flash')} · cuenta ${cuenta}`;
 
 /** Cuántas veces se prueba un modelo distinto en cada rol antes de seguir sin IA */
 export const INTENTOS_POR_ROL = {

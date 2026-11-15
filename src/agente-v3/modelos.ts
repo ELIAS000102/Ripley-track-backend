@@ -1,9 +1,8 @@
-import { CUENTAS, INTENTOS_POR_ROL, MODELOS, MODELOS_DE_APRENDER, nombreDelNodo } from './constantes.js';
+import { CUENTAS, INTENTOS_POR_ROL, MODELOS, MODELOS_DE_APRENDER } from './constantes.js';
 import type { IntentoModelo, ModeloElegido, RolModelo } from './interfaces/agente-v3.interface.js';
 
 /**
- * Qué nodo Gemini usa cada llamada. Lo decide el backend (no un Code node de
- * n8n): n8n solo va al nodo que se le dice.
+ * Qué modelo de Gemini, y con qué cuenta, usa cada llamada.
  *
  * Cada turno empieza por una cuenta (se turnan por turno, para repartir la
  * cuota) y prueba los modelos en orden. Si uno falla, el motivo dice qué se
@@ -23,7 +22,7 @@ export function cuentaDelTurno(turnoId: string): number {
   return CUENTAS[h % CUENTAS.length];
 }
 
-/** Por qué falló un modelo, leído del error que mandó n8n */
+/** Por qué falló un modelo, leído del error que devolvió Gemini */
 export function claseDeFallo(motivo: string): 'saturado' | 'cuota' | 'otro' {
   if (/\b503\b|overloaded|high demand|unavailable/i.test(motivo)) return 'saturado';
   if (/\b429\b|quota|resource.?exhausted|rate.?limit/i.test(motivo)) return 'cuota';
@@ -52,7 +51,7 @@ export function elegirModelo(rol: RolModelo, turnoId: string, intentos: IntentoM
   // Aprender empieza por el 3.5 Flash; los demás roles, por los Flash-Lite
   for (const nombre of rol === 'aprender' ? MODELOS_DE_APRENDER : MODELOS) {
     for (const cuenta of cuentas) {
-      if (!descartado(nombre, cuenta)) return { rol, cuenta, nombre, nodo: nombreDelNodo(nombre, cuenta) };
+      if (!descartado(nombre, cuenta)) return { rol, cuenta, nombre };
     }
   }
   return null;

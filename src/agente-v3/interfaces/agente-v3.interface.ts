@@ -1,9 +1,9 @@
 /**
  * Los tipos de la v3 del agente.
  *
- * Un mensaje del chat es un **turno**: una fila de `agente_turnos` que crean y
- * van llenando las rutas de `/agente/v3/turnos`. n8n une las etapas y llama a
- * los modelos; todo lo que decide el código vive aquí.
+ * Un mensaje del chat es un **turno**: una fila de `agente_turnos` que crea y
+ * va llenando el motor (motor/motor.service.ts), que une las etapas y llama a
+ * los modelos.
  */
 
 import type { EntidadMencion } from '../entidades.js';
@@ -24,7 +24,7 @@ export const TIPOS_PETICION: TipoPeticion[] = [
   'enseñar',
 ];
 
-/** Lo que le dice cada ruta a n8n que haga después ("fin": nada, nadie espera respuesta) */
+/** Lo que toca después de cada etapa ("fin": nada, nadie espera respuesta) */
 export type Camino =
   | 'clasificar'
   | 'armar'
@@ -62,8 +62,6 @@ export interface ModeloElegido {
   rol: RolModelo;
   cuenta: number;
   nombre: string;
-  /** El nombre del nodo en n8n, para que el Switch sepa a cuál ir */
-  nodo: string;
 }
 
 /** Una llamada a un modelo, tal como quedó anotada en el turno */
@@ -413,7 +411,7 @@ export interface RespuestaPanel {
   deshacer?: boolean;
 }
 
-/** Lo que contestan todas las rutas: n8n solo mira `camino` */
+/** Lo que devuelve cada etapa: el motor sigue por `camino` */
 export interface SalidaRuta {
   turno_id: string;
   camino: Camino;

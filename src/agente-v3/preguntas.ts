@@ -6,7 +6,7 @@ import { cambiaria, filasDelCambio } from './respuesta/cambio.js';
 
 /**
  * Parte 1d · las preguntas. Las detecta el código (no depende de que el modelo
- * se acuerde de preguntar) y el turno espera la respuesta (Wait en n8n). Lo que
+ * se acuerde de preguntar) y el turno espera la respuesta (otra petición: `contestar`). Lo que
  * se contesta se suma a las aclaraciones del turno y la etapa que preguntó
  * vuelve a empezar con ellas. Como mucho 3 rondas por mensaje.
  */

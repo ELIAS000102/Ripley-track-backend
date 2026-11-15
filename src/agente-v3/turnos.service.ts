@@ -10,7 +10,7 @@ import type { Turno } from './interfaces/agente-v3.interface.js';
 
 /**
  * La tabla `agente_turnos` (agente-v3/sql/01-agente-v3.sql): un turno por
- * mensaje, para que el estado no viaje por n8n. Se lee y se escribe con el
+ * mensaje, con todo su estado. Se lee y se escribe con el
  * cliente admin; quién puede tocar cada turno lo decide este service, no RLS.
  */
 @Injectable()

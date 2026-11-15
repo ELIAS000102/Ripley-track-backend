@@ -343,7 +343,6 @@ describe('Aprender: se pregunta al final y se guarda con un "sí"', () => {
     expect(a.modelo).toMatchObject({
       rol: 'aprender',
       nombre: 'gemini-3.5-flash',
-      nodo: expect.stringMatching(/^Gemini 3\.5 Flash · cuenta \d$/),
     });
     expect(a.prompt!.sistema).toBe(SISTEMA_APRENDER);
     expect(a.prompt!.mensaje).toContain('LO QUE YA SÉ DE LO QUE SE NOMBRA\n- servicio SG: {"fase":"F3"}');

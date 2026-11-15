@@ -8,7 +8,6 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  Matches,
   Max,
   MaxLength,
   Min,
@@ -16,7 +15,7 @@ import {
 } from 'class-validator';
 import { CUENTAS, LIMITES, TODOS_LOS_MODELOS } from '../constantes.js';
 
-/** POST /agente/v3/turnos — lo que manda n8n al recibir un mensaje del chat */
+/** POST /agente/v3/mensajes — un mensaje del chat */
 export class CrearTurnoDto {
   @IsString()
   @IsNotEmpty()
@@ -39,14 +38,9 @@ export class CrearTurnoDto {
   @IsString()
   @MaxLength(100)
   peticion_id?: string;
-
-  /** La ejecución de n8n que la atiende, para poder pararla */
-  @IsOptional()
-  @Matches(/^\d{1,12}$/)
-  ejecucion?: string;
 }
 
-/** El modelo que usó n8n: el que le dijo el backend */
+/** El modelo que se usó: el que eligió el motor */
 export class ModeloUsadoDto {
   @IsInt()
   @Min(1)
@@ -75,9 +69,8 @@ export class SalidaModeloDto {
 }
 
 /**
- * Lo que contestó la persona a una pregunta (1d), tal como lo reenvía n8n al
- * reanudar el Wait: una opción por duda, texto, o cancelar. "caducada": nadie
- * contestó en 10 minutos.
+ * Lo que contestó la persona a una pregunta (1d): una opción por duda, texto,
+ * o cancelar. "caducada": nadie contestó en 10 minutos.
  */
 export class RespuestaPersonaDto {
   @IsOptional()
@@ -98,7 +91,7 @@ export class RespuestaPersonaDto {
   caducada?: boolean;
 }
 
-/** La respuesta a una pregunta, desde el panel (sin n8n): con la petición, para "Detener" */
+/** La respuesta a una pregunta, desde el panel: con la petición, para "Detener" */
 export class ContestarDto extends RespuestaPersonaDto {
   @IsOptional()
   @IsString()

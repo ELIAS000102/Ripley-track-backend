@@ -202,12 +202,11 @@ describe('Un turno de un atajo, de punta a punta', () => {
       mensaje: 'simula la se',
       chat_id: 'chat-1',
       peticion_id: 'p1',
-      ejecucion: '123',
     });
     expect(t.camino).toBe('clasificar');
     expect(t.modelo?.nombre).toBe('gemini-3.5-flash-lite');
     expect(t.prompt?.mensaje).toContain('«simula la se»');
-    expect(interrupcion.registrar).toHaveBeenCalledWith('p1', 'u1', '123');
+    expect(interrupcion.registrar).toHaveBeenCalledWith('p1', 'u1');
 
     const c = await servicio.clasificacion(USUARIO, t.turno_id, {
       salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }),

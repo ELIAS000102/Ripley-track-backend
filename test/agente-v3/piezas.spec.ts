@@ -38,7 +38,6 @@ describe('Qué modelo usa cada llamada', () => {
   it('empieza por el Flash-Lite 3.5 de la cuenta del turno, siempre la misma para el mismo turno', () => {
     const m = elegirModelo('clasificar', TURNO, []);
     expect(m).toMatchObject({ nombre: 'gemini-3.5-flash-lite', cuenta: cuentaDelTurno(TURNO) });
-    expect(m!.nodo).toBe(`Gemini 3.5 Flash-Lite · cuenta ${cuentaDelTurno(TURNO)}`);
     expect(cuentaDelTurno(TURNO)).toBe(cuentaDelTurno(TURNO));
   });
 
