@@ -1,23 +1,23 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { CapacidadAgenteService } from '../../../src/agente/consultas/capacidad/capacidad.service.js';
-import { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
+import { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
 import type { DespachoService } from '../../../src/agendas/despacho/despacho.service.js';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
 import { hoyEnPais, sumarDias } from '../../../src/nucleo/fechas.js';
 import { ConfiguracionReportesService } from '../../../src/reportes/comun/configuracion-reportes.service.js';
 import { ActualizadorG12Service } from '../../../src/reportes/g12/actualizador-g12.service.js';
 import { CuadrosG12Service } from '../../../src/reportes/g12/cuadros-g12.service.js';
 import { HistorialG12Service } from '../../../src/reportes/g12/historial-g12.service.js';
 import { OracleG12Service } from '../../../src/reportes/g12/oracle-g12.service.js';
-import type { PerfilService } from '../../../src/auth/perfil.service.js';
+import type { PerfilService } from '../../../src/seguridad/sesion/perfil.service.js';
 import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js';
 import { ConfiguracionG12Service } from '../../../src/reportes/g12/configuracion-g12.service.js';
 import { EjecutorG12Service, fechaDelServicio } from '../../../src/reportes/g12/ejecutor-g12.service.js';
 import { IdsG12Service } from '../../../src/reportes/g12/ids-g12.service.js';
 import { SolicitudesG12Service } from '../../../src/reportes/g12/solicitudes-g12.service.js';
 import { solicitudesVacias } from '../../../src/reportes/g12/solicitudes-g12.js';
-import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
+import { RipleyApiError } from '../../../src/ripley/ripley.errors.js';
 import type { ConfiguracionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
 import { ReporteG12Service } from '../../../src/reportes/g12/reporte-g12.service.js';
 import type { SimulacionService } from '../../../src/simulacion/simulacion.service.js';
@@ -65,7 +65,7 @@ function montar(
   let fallos = opciones.fallos429 ?? 0;
   // Cuántas peticiones a Ripley hay en curso a la vez, y el máximo visto
   const concurrencia = { activas: 0, maximo: 0 };
-  const contexto = new ContextoAuditoria();
+  const contexto = new ContextoPeticion();
   const medir =
     <A extends unknown[], R>(fn: (...a: A) => Promise<R>) =>
     async (...a: A): Promise<R> => {
@@ -178,7 +178,7 @@ function montar(
   const historial = new HistorialG12Service(supabase);
   const configuracion = new ConfiguracionG12Service(
     new ConfiguracionReportesService(supabase),
-    { registrarCambio: vi.fn() } as unknown as ContextoAuditoria,
+    { registrarCambio: vi.fn() } as unknown as ContextoPeticion,
     cuadros,
     historial,
   );

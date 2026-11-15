@@ -3,7 +3,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
-import { VaciosComoAusentesPipe } from './common/pipes/vacios-como-ausentes.pipe.js';
+import { VaciosComoAusentesPipe } from './nucleo/pipes/vacios-como-ausentes.pipe.js';
 
 /** Arranca el servidor HTTP con CORS abierto y validación global de DTOs (whitelist + transform). */
 async function bootstrap() {

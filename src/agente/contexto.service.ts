@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PerfilService } from '../auth/perfil.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import { PerfilService } from '../seguridad/sesion/perfil.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
 import { hoyEnPais } from '../nucleo/fechas.js';
 import type { ContextoAgente, ContextoUsuarioAgente } from './interfaces/agente.interface.js';
 

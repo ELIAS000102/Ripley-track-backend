@@ -1,6 +1,6 @@
 import { plano } from '../../../nucleo/texto.js';
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { SupabaseService } from '../../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../../nucleo/supabase/supabase.service.js';
 
 /** Lo que un atajo dice de un código: con qué servicio, zona y agenda se consulta */
 export interface AgendaGuardada {

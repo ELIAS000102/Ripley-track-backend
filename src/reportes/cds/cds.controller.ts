@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
-import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 import { CdsService } from './cds.service.js';
 import { ConfiguracionCdsService } from './configuracion-cds.service.js';
 import { GuardarConfiguracionCdsDto } from './dto/configuracion-cds.dto.js';

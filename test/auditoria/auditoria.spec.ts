@@ -4,9 +4,9 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuditoriaInterceptor } from '../../src/auditoria/auditoria.interceptor.js';
-import { AuditoriaMiddleware } from '../../src/auditoria/auditoria.middleware.js';
+import { ContextoPeticionMiddleware } from '../../src/nucleo/contexto/contexto-peticion.middleware.js';
 import { AuditoriaService } from '../../src/auditoria/auditoria.service.js';
-import { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
+import { ContextoPeticion } from '../../src/nucleo/contexto/contexto-peticion.service.js';
 import { Auditar } from '../../src/auditoria/decorators/auditar.decorator.js';
 import type { RegistroUso } from '../../src/auditoria/interfaces/auditoria.interface.js';
 
@@ -21,7 +21,7 @@ import type { RegistroUso } from '../../src/auditoria/interfaces/auditoria.inter
 
 @Injectable()
 class ServicioDePrueba {
-  constructor(private readonly contexto: ContextoAuditoria) {}
+  constructor(private readonly contexto: ContextoPeticion) {}
 
   async cambiarAlgo() {
     // Varios saltos asíncronos: el contexto tiene que sobrevivir a todos
@@ -81,15 +81,15 @@ describe('Auditoría de cambios', () => {
       controllers: [ControladorDePrueba],
       providers: [
         ServicioDePrueba,
-        ContextoAuditoria,
-        AuditoriaMiddleware,
+        ContextoPeticion,
+        ContextoPeticionMiddleware,
         { provide: AuditoriaService, useValue: auditoriaFalsa },
         { provide: APP_INTERCEPTOR, useClass: AuditoriaInterceptor },
       ],
     })
     class ModuloDePrueba implements NestModule {
       configure(consumer: MiddlewareConsumer) {
-        consumer.apply(AuditoriaMiddleware).forRoutes('*');
+        consumer.apply(ContextoPeticionMiddleware).forRoutes('*');
       }
     }
 

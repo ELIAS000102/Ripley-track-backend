@@ -1,12 +1,12 @@
 import { soloPalabras } from '../../nucleo/texto.js';
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
-import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
-import { resolverTipoDeAgenda } from '../../common/ripley/utils/agenda.util.js';
-import { enLotes } from '../../common/utils/lotes.util.js';
-import { isoToRipleyDate, recortarDesde } from '../../common/ripley/utils/date.util.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { CatalogosRipleyService } from '../../ripley/catalogos.service.js';
+import { RipleyHttpService } from '../../ripley/ripley-http.service.js';
+import { RipleyApiError } from '../../ripley/ripley.errors.js';
+import { resolverTipoDeAgenda } from '../../ripley/utils/agenda.util.js';
+import { enLotes } from '../../nucleo/lotes.util.js';
+import { isoToRipleyDate, recortarDesde } from '../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha } from '../../nucleo/fechas.js';
 import type {
   CapacityByDay,
@@ -14,7 +14,7 @@ import type {
   OfficeRow,
   ResultadoEscritura,
   TransferScheduleRow,
-} from '../../common/ripley/interfaces/ripley.interface.js';
+} from '../../ripley/interfaces/ripley.interface.js';
 import { ActualizarTransferenciaBodyDto } from './dto/actualizar-transferencia.dto.js';
 
 /** Por qué lado se buscan las agendas: el origen, el destino o los dos */
@@ -101,7 +101,7 @@ export class TransferenciaAgendasService {
   constructor(
     private readonly catalogos: CatalogosRipleyService,
     private readonly ripley: RipleyHttpService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Los buscadores ----------

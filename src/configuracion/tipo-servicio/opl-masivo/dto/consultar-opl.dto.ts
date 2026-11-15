@@ -1,5 +1,5 @@
 import { ArrayMinSize, IsArray, IsNotEmpty, IsString } from 'class-validator';
-import { PaisDto } from '../../../../common/dto/pais.dto.js';
+import { PaisDto } from '../../../../nucleo/dto/pais.dto.js';
 
 export class ConsultarOplDto extends PaisDto {
   /** Código del método de entrega: "RT", "DP", "V"... */

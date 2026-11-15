@@ -11,7 +11,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 import type { MallaElegida } from '../versionado.service.js';
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RipleyModule } from '../../common/ripley/ripley.module.js';
+import { RipleyModule } from '../../ripley/ripley.module.js';
 import { TransferenciaAgendasController } from './transferencia-agendas.controller.js';
 import { TransferenciaAgendasService } from './transferencia-agendas.service.js';
 

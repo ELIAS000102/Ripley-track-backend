@@ -1,5 +1,5 @@
 import { IsBoolean, IsInt, IsNotEmpty, IsString, Matches, Min } from 'class-validator';
-import { PaisDto } from '../../../common/dto/pais.dto.js';
+import { PaisDto } from '../../../nucleo/dto/pais.dto.js';
 
 /**
  * Query params del PUT: qué agenda, de qué oficina y de qué país.

@@ -1,6 +1,6 @@
 import { plano } from '../../nucleo/texto.js';
 import { Injectable, Logger } from '@nestjs/common';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { ContextoTurno, Hecho } from '../interfaces/agente-v3.interface.js';
 import { serviciosNombrados } from '../plan.js';
 

@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { DespachoService } from '../../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { RecepcionService } from '../../../agendas/recepcion/recepcion.service.js';
-import { RipleyApiError } from '../../../common/ripley/ripley.errors.js';
-import { isoToRipleyDate, ripleyDateToIso } from '../../../common/ripley/utils/date.util.js';
+import { RipleyApiError } from '../../../ripley/ripley.errors.js';
+import { isoToRipleyDate, ripleyDateToIso } from '../../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha } from '../../../nucleo/fechas.js';
 import { aliasUsado, resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ConsultarCapacidadDto } from '../../dto/consultas.dto.js';
@@ -17,7 +17,7 @@ import type {
   DiaCapacidad,
 } from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
-import { enLotes } from '../../../common/utils/lotes.util.js';
+import { enLotes } from '../../../nucleo/lotes.util.js';
 import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**

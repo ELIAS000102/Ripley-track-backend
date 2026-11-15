@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AgenteModule } from '../agente/agente.module.js';
-import { AuthModule } from '../auth/auth.module.js';
+import { AuthModule } from '../seguridad/sesion/auth.module.js';
 import { ChatsModule } from '../chats/chats.module.js';
 import { NotificacionesModule } from '../notificaciones/notificaciones.module.js';
 import { EjecutorRutinasService } from './ejecutor/ejecutor.service.js';

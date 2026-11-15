@@ -16,15 +16,15 @@ import { of } from 'rxjs';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuditoriaInterceptor } from '../../src/auditoria/auditoria.interceptor.js';
-import { AuditoriaMiddleware, pideSimulacro } from '../../src/auditoria/auditoria.middleware.js';
+import { ContextoPeticionMiddleware, pideSimulacro } from '../../src/nucleo/contexto/contexto-peticion.middleware.js';
 import { AuditoriaService } from '../../src/auditoria/auditoria.service.js';
-import { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
+import { ContextoPeticion } from '../../src/nucleo/contexto/contexto-peticion.service.js';
 import { Auditar } from '../../src/auditoria/decorators/auditar.decorator.js';
 import type { RegistroUso } from '../../src/auditoria/interfaces/auditoria.interface.js';
 import { SimulacroInterceptor, SinMarcaSimulacro } from '../../src/auditoria/simulacro.interceptor.js';
-import type { CacheCatalogosService } from '../../src/common/ripley/cache-catalogos.service.js';
-import { RipleyHttpService } from '../../src/common/ripley/ripley-http.service.js';
-import type { TokenRipleyService } from '../../src/configuracion/token-ripley/token-ripley.service.js';
+import type { CacheCatalogosService } from '../../src/ripley/cache-catalogos.service.js';
+import { RipleyHttpService } from '../../src/ripley/ripley-http.service.js';
+import type { TokenRipleyService } from '../../src/ripley/token/token-ripley.service.js';
 
 /**
  * El simulacro: una petición que recorre todo como si fuera de verdad, pero
@@ -46,7 +46,7 @@ const USUARIO = { id: 'u1', email: 'ana@ejemplo.com' };
 class ControladorDePrueba {
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   /** Como un service de agendas: lee, escribe y mira la respuesta */
@@ -110,13 +110,13 @@ async function montar() {
   @Module({
     controllers: [ControladorDePrueba],
     providers: [
-      ContextoAuditoria,
-      AuditoriaMiddleware,
+      ContextoPeticion,
+      ContextoPeticionMiddleware,
       { provide: AuditoriaService, useValue: auditoriaFalsa },
       {
         provide: RipleyHttpService,
-        inject: [ContextoAuditoria],
-        useFactory: (contexto: ContextoAuditoria) =>
+        inject: [ContextoPeticion],
+        useFactory: (contexto: ContextoPeticion) =>
           new RipleyHttpService(
             http as unknown as HttpService,
             config,
@@ -131,7 +131,7 @@ async function montar() {
   })
   class ModuloDePrueba implements NestModule {
     configure(consumer: MiddlewareConsumer) {
-      consumer.apply(AuditoriaMiddleware).forRoutes('*');
+      consumer.apply(ContextoPeticionMiddleware).forRoutes('*');
     }
   }
 
@@ -262,21 +262,21 @@ describe('Qué pide un simulacro', () => {
 
 describe('Una vez en simulacro, no se sale', () => {
   it('activarlo a mitad de petición vale desde ese momento, y no hay forma de apagarlo', () => {
-    const contexto = new ContextoAuditoria();
+    const contexto = new ContextoPeticion();
 
     contexto.ejecutar(() => {
       expect(contexto.enSimulacro()).toBe(false);
       contexto.activarSimulacro();
       contexto.activarSimulacro();
       expect(contexto.enSimulacro()).toBe(true);
-      expect(
-        Object.getOwnPropertyNames(ContextoAuditoria.prototype).filter((m) => /desactivar|salir/i.test(m)),
-      ).toEqual([]);
+      expect(Object.getOwnPropertyNames(ContextoPeticion.prototype).filter((m) => /desactivar|salir/i.test(m))).toEqual(
+        [],
+      );
     });
   });
 
   it('las escrituras evitadas se cuentan por petición', () => {
-    const contexto = new ContextoAuditoria();
+    const contexto = new ContextoPeticion();
 
     contexto.ejecutar(
       () => {

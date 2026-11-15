@@ -3,7 +3,7 @@ import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { PickingService } from './picking.service.js';
 import { ActualizarPickingBodyDto, ActualizarPickingQueryDto } from './dto/actualizar-picking.dto.js';
 import { BuscarCapacidadesDto, ListarAgendasDto, ObtenerPickingDto } from './dto/buscar-picking.dto.js';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 
 /**
  * Endpoints de agendas de picking: catálogos para poblar selectores

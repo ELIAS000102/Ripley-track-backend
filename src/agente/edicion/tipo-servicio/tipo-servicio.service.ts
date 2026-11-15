@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplService } from '../../../configuracion/tipo-servicio/opl/opl.service.js';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarTipoServicioDto } from '../../dto/edicion.dto.js';
@@ -94,7 +94,7 @@ export class EditarTipoServicioAgenteService {
   constructor(
     private readonly opl: OplService,
     private readonly contexto: ContextoAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly agendasGuardadas: AgendasDeAtajoService,
   ) {}
 

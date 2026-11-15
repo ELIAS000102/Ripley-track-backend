@@ -1,11 +1,11 @@
 import type { ConfigService } from '@nestjs/config';
 import { describe, expect, it, vi } from 'vitest';
-import type { InterrupcionAgenteService } from '../../src/agente/seguridad/interrupcion.service.js';
-import type { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../src/auth/interfaces/auth.interface.js';
-import { TokenRutinaService } from '../../src/auth/token-rutina.service.js';
+import type { InterrupcionAgenteService } from '../../src/seguridad/agente/interrupcion.service.js';
+import type { ContextoPeticion } from '../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../src/nucleo/contexto/usuario.interface.js';
+import { TokenRutinaService } from '../../src/seguridad/sesion/token-rutina.service.js';
 import { ChatsService } from '../../src/chats/chats.service.js';
-import { CifradoService } from '../../src/common/cifrado/cifrado.service.js';
+import { CifradoService } from '../../src/nucleo/cifrado/cifrado.service.js';
 import { NotificacionesService } from '../../src/notificaciones/notificaciones.service.js';
 import { EjecutorRutinasService } from '../../src/rutinas/ejecutor/ejecutor.service.js';
 import { LlamadasRutinaService } from '../../src/rutinas/ejecutor/llamadas.js';
@@ -136,7 +136,7 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
   const interrupcion = {
     interrumpir: vi.fn().mockResolvedValue({ interrumpida: true }),
   } as unknown as InterrupcionAgenteService;
-  const rutinas = new RutinasService(supabase, { registrarCambio: vi.fn() } as unknown as ContextoAuditoria);
+  const rutinas = new RutinasService(supabase, { registrarCambio: vi.fn() } as unknown as ContextoPeticion);
   ejecutor = new EjecutorRutinasService(
     supabase,
     rutinas,

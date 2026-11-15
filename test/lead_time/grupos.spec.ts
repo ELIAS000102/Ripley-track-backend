@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
+import type { ContextoPeticion } from '../../src/nucleo/contexto/contexto-peticion.service.js';
 import { GruposLeadtimeService } from '../../src/lead_time/grupos.service.js';
 import { MallasService } from '../../src/lead_time/mallas/mallas.service.js';
 import { MatricesService } from '../../src/lead_time/matrices/matrices.service.js';
@@ -133,7 +133,7 @@ function montar() {
     ],
   };
   const supabase = supabaseEnMemoria(tablas);
-  const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+  const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
   const grupos = new GruposLeadtimeService(
     supabase,
     auditoria,

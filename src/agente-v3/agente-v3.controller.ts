@@ -1,8 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, UseInterceptors } from '@nestjs/common';
-import { Usuario } from '../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { PermitidoAgente } from '../agente/seguridad/permitido-agente.decorator.js';
-import { SinRastroInterceptor } from '../agente/seguridad/sin-rastro.interceptor.js';
+import { Usuario } from '../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
+import { PermitidoAgente } from '../seguridad/agente/permitido-agente.decorator.js';
+import { SinRastroInterceptor } from '../seguridad/agente/sin-rastro.interceptor.js';
 import { AgenteV3Service } from './agente-v3.service.js';
 import { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from './dto/turnos.dto.js';
 

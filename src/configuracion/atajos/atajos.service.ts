@@ -6,9 +6,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { BloqueDto, CrearAtajoDto, EditarAtajoDto, ListarAtajosDto } from './dto/atajos.dto.js';
 import { TABLA_POR_TIPO, type Bloque, type Atajo, type Item, type Tipo } from './interfaces/atajos.interface.js';
 
@@ -45,7 +45,7 @@ export class AtajosService {
 
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Lectura ----------

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { SupabaseService } from '../../../src/nucleo/supabase/supabase.service.js';
 import { AtajosService } from '../../../src/configuracion/atajos/atajos.service.js';
 
 /**
@@ -50,7 +50,7 @@ function armar(fila = { id: 'p1', nombre: 'Paquetería Lima', descripcion: 'la d
 
   const servicio = new AtajosService(
     { admin: { from } } as unknown as SupabaseService,
-    { registrarCambio: vi.fn() } as unknown as ContextoAuditoria,
+    { registrarCambio: vi.fn() } as unknown as ContextoPeticion,
   );
 
   /** Lo que se mandó a la tabla, sin la marca de tiempo */

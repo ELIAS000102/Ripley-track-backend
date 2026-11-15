@@ -1,10 +1,10 @@
 import { BadGatewayException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import type { CapacityByDay } from '../../../src/common/ripley/interfaces/ripley.interface.js';
-import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
-import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
+import type { CapacityByDay } from '../../../src/ripley/interfaces/ripley.interface.js';
+import { RipleyApiError } from '../../../src/ripley/ripley.errors.js';
+import type { SupabaseService } from '../../../src/nucleo/supabase/supabase.service.js';
 import { ConfiguracionReportesService } from '../../../src/reportes/comun/configuracion-reportes.service.js';
 import { interpretarTienda } from '../../../src/lead_time/matrices/matriz.calculo.js';
 import type { MatricesService } from '../../../src/lead_time/matrices/matrices.service.js';
@@ -245,7 +245,7 @@ describe('El servicio', () => {
       gruposDeMatrices: async () => (opciones.sinGrupo ? [] : [grupoSt]),
       grupoDeMatrices: async () => (opciones.sinGrupo ? null : grupoSt),
     } as unknown as GruposLeadtimeService;
-    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
     const servicio = new ReporteStService(
       new ConfiguracionReportesService(supabase),
       catalogos as unknown as CatalogosRipleyService,

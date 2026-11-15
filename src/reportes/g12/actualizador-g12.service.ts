@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, Optional } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { PerfilService } from '../../auth/perfil.service.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { PerfilService } from '../../seguridad/sesion/perfil.service.js';
 import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
@@ -58,7 +58,7 @@ export class ActualizadorG12Service {
     private readonly configuracion: ConfiguracionG12Service,
     private readonly cuadros: CuadrosG12Service,
     private readonly historial: HistorialG12Service,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
     private readonly perfiles: PerfilService,
     private readonly oracle: OracleG12Service,
     @Optional() private readonly solicitudes?: SolicitudesG12Service,

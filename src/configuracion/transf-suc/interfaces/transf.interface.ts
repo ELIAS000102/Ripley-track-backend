@@ -1,4 +1,4 @@
-export type { OfficeRow, RipleyListResponse } from '../../../common/ripley/interfaces/ripley.interface.js';
+export type { OfficeRow, RipleyListResponse } from '../../../ripley/interfaces/ripley.interface.js';
 
 /** Días hábiles de la relación. La API usa los nombres en inglés como claves. */
 export interface DiasDisponibles {

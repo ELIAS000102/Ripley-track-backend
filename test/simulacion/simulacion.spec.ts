@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CatalogosRipleyService } from '../../src/common/ripley/catalogos.service.js';
-import type { RipleyHttpService } from '../../src/common/ripley/ripley-http.service.js';
+import type { CatalogosRipleyService } from '../../src/ripley/catalogos.service.js';
+import type { RipleyHttpService } from '../../src/ripley/ripley-http.service.js';
 import { SimulacionService } from '../../src/simulacion/simulacion.service.js';
 import type { SimularDto } from '../../src/simulacion/dto/simular.dto.js';
 

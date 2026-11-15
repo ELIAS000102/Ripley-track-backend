@@ -136,7 +136,7 @@ function armarServicio(contexto: ContextoTurno, { simulacro = true, capacidadDat
   const rpc = vi.fn(async () => ({ data: 'm-1', error: null }));
   const supabase = { admin: { rpc } };
   const capacidad = { consultar: vi.fn(async () => structuredClone(capacidadDatos)) };
-  // El simulacro: lo que hace ContextoAuditoria (no tiene vuelta atrás)
+  // El simulacro: lo que hace ContextoPeticion (no tiene vuelta atrás)
   let enSimulacro = false;
   const auditoria = {
     activarSimulacro: vi.fn(() => {

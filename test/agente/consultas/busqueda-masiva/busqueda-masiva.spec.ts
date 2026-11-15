@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { BusquedaMasivaAgenteService } from '../../../../src/agente/consultas/busqueda-masiva/busqueda-masiva.service.js';
 import type { OplMasivoService } from '../../../../src/configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type {
   BusquedaMasivaRespuesta,
   BusquedaMasivaVarias,

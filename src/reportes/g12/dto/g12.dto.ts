@@ -14,7 +14,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PaisDto } from '../../../common/dto/pais.dto.js';
+import { PaisDto } from '../../../nucleo/dto/pais.dto.js';
 import { CLAVES_COMPONENTES, LIMITES_G12, TIPOS_BLOQUE_G12 } from '../g12.componentes.js';
 import { MAXIMO_AGENDAS_SOLICITUD } from '../solicitudes-g12.js';
 

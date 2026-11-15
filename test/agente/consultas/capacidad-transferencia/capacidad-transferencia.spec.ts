@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TransferenciaAgendasService } from '../../../../src/agendas/transferencia/transferencia-agendas.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
 import { CapacidadTransferenciaAgenteService } from '../../../../src/agente/consultas/capacidad-transferencia/capacidad-transferencia.service.js';
 import { EditarCapacidadAgenteService } from '../../../../src/agente/edicion/capacidad/capacidad.service.js';
 import { hoyEnPais, sumarDias } from '../../../../src/nucleo/fechas.js';
@@ -135,7 +135,7 @@ describe('Editar la capacidad de transferencia', () => {
   function editor(agendas = [ST, PICKIT]) {
     const { transferencias } = armar(agendas);
     const contexto = { armar: vi.fn().mockResolvedValue({ pais: 'PE', hoy: HOY }) } as unknown as ContextoAgenteService;
-    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
     const servicio = new EditarCapacidadAgenteService(
       undefined as never,
       undefined as never,

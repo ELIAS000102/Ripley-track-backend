@@ -6,7 +6,7 @@ export type {
   RipleyListResponse,
   ScheduleRow,
   ServiceRow,
-} from '../../../common/ripley/interfaces/ripley.interface.js';
+} from '../../../ripley/interfaces/ripley.interface.js';
 
 /**
  * Un centro de distribución, tal como lo configura la operación en el panel.

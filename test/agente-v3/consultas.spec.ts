@@ -441,17 +441,15 @@ function armarServicio(contexto: ContextoTurno) {
   const masivo = { buscar: vi.fn(async () => MASIVA) };
   const transferencia = {
     consultar: vi.fn(async (_u: unknown, dto: { destino: string }) => ({
-      destinos: dto.destino
-        .split(',')
-        .map((d) => ({
-          origen: '20026 - CD',
-          destino: `${d} - Ripley ${d}`,
-          habilitada: d !== '20048',
-          preparacion: 0,
-          transito: 1,
-          desfase: 1,
-          dias: 'L-D',
-        })),
+      destinos: dto.destino.split(',').map((d) => ({
+        origen: '20026 - CD',
+        destino: `${d} - Ripley ${d}`,
+        habilitada: d !== '20048',
+        preparacion: 0,
+        transito: 1,
+        desfase: 1,
+        dias: 'L-D',
+      })),
     })),
   };
   const ejecucion = new EjecucionV3Service(

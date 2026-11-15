@@ -16,9 +16,9 @@ import { ReasignarCapacidadAgenteService } from '../agente/edicion/reasignar/rea
 import { EditarTipoServicioAgenteService } from '../agente/edicion/tipo-servicio/tipo-servicio.service.js';
 import { EditarTransferenciaAgenteService } from '../agente/edicion/transferencia/transferencia.service.js';
 import { AuditoriaService } from '../auditoria/auditoria.service.js';
-import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { EjecutorAtajoService } from '../configuracion/atajos/ejecutor.service.js';
 import { agendasConocidas, agendasDeDatos, CON_AGENDA, deLasOficinas, lasQueEncajan } from './agendas.js';
@@ -183,7 +183,7 @@ export class EjecucionV3Service {
     private readonly tipoServicio: TipoServicioAgenteService,
     private readonly masivo: BusquedaMasivaAgenteService,
     private readonly simulacion: SimulacionAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly editarCapacidad: EditarCapacidadAgenteService,
     private readonly editarCd: EditarCdAgenteService,
     private readonly reasignar: ReasignarCapacidadAgenteService,

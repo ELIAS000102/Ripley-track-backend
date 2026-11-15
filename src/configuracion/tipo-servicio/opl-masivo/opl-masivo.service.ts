@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import { RipleyHttpService } from '../../../ripley/ripley-http.service.js';
 import { ActualizarOplDto } from './dto/actualizar-opl.dto.js';
 import { ConsultarOplDto } from './dto/consultar-opl.dto.js';
 import {
@@ -36,7 +36,7 @@ export class OplMasivoService {
 
   constructor(
     private readonly ripley: RipleyHttpService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Paso 1: métodos de entrega ----------

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
-import { BuscarDto } from '../../common/dto/pais.dto.js';
+import { BuscarDto } from '../../nucleo/dto/pais.dto.js';
 import { ActualizarTransferenciaBodyDto, ActualizarTransferenciaQueryDto } from './dto/actualizar-transferencia.dto.js';
 import { BuscarClustersDto, BuscarTransferenciaDto, FiltroTransferenciaDto } from './dto/buscar-transferencia.dto.js';
 import { TransferenciaAgendasService } from './transferencia-agendas.service.js';

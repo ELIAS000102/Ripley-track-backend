@@ -3,7 +3,7 @@ import { DespachoModule } from '../agendas/despacho/despacho.module.js';
 import { PickingModule } from '../agendas/picking/picking.module.js';
 import { RecepcionModule } from '../agendas/recepcion/recepcion.module.js';
 import { TransferenciaAgendasModule } from '../agendas/transferencia/transferencia-agendas.module.js';
-import { AuthModule } from '../auth/auth.module.js';
+import { AuthModule } from '../seguridad/sesion/auth.module.js';
 import { OplMasivoModule } from '../configuracion/tipo-servicio/opl-masivo/opl-masivo.module.js';
 import { OplModule } from '../configuracion/tipo-servicio/opl/opl.module.js';
 import { TransfModule } from '../configuracion/transf-suc/transf.module.js';
@@ -30,11 +30,11 @@ import { EditarMasivoAgenteService } from './edicion/masivo/masivo.service.js';
 import { EditarTipoServicioAgenteService } from './edicion/tipo-servicio/tipo-servicio.service.js';
 import { EditarTransferenciaAgenteService } from './edicion/transferencia/transferencia.service.js';
 
-import { ModoAgenteController } from './seguridad/modo.controller.js';
-import { ModoAgenteService } from './seguridad/modo.service.js';
-import { InterrupcionAgenteController } from './seguridad/interrupcion.controller.js';
-import { InterrupcionAgenteService } from './seguridad/interrupcion.service.js';
-import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
+import { ModoAgenteController } from '../seguridad/agente/modo.controller.js';
+import { ModoAgenteService } from '../seguridad/agente/modo.service.js';
+import { InterrupcionAgenteController } from '../seguridad/agente/interrupcion.controller.js';
+import { InterrupcionAgenteService } from '../seguridad/agente/interrupcion.service.js';
+import { SinRastroInterceptor } from '../seguridad/agente/sin-rastro.interceptor.js';
 
 /**
  * Feature del agente de IA.

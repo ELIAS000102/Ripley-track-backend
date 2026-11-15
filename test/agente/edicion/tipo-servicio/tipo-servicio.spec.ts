@@ -2,8 +2,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { EditarTipoServicioDto } from '../../../../src/agente/dto/edicion.dto.js';
 import type { OplService } from '../../../../src/configuracion/tipo-servicio/opl/opl.service.js';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarTipoServicioAgenteService } from '../../../../src/agente/edicion/tipo-servicio/tipo-servicio.service.js';
 
@@ -58,12 +58,10 @@ function armar(
 ) {
   const actualizarServicio = vi.fn().mockResolvedValue({ ok: true });
   const guardadas = {
-    leer: vi
-      .fn()
-      .mockResolvedValue({
-        nombre: 'Estado del Next Day y Same Day de chile',
-        agendas: (opciones.guardadas ?? []).map((g) => ({ servicio: null, ...g })),
-      }),
+    leer: vi.fn().mockResolvedValue({
+      nombre: 'Estado del Next Day y Same Day de chile',
+      agendas: (opciones.guardadas ?? []).map((g) => ({ servicio: null, ...g })),
+    }),
   } as never;
 
   const opl = {
@@ -108,7 +106,7 @@ function armar(
       {
         registrarCambio,
         enSimulacro: () => false,
-      } as unknown as ContextoAuditoria,
+      } as unknown as ContextoPeticion,
       guardadas,
     ),
     actualizarServicio,

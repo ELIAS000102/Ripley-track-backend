@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { BusquedaMasivaAgenteService } from '../../agente/consultas/busqueda-masiva/busqueda-masiva.service.js';
 import { CapacidadAgenteService } from '../../agente/consultas/capacidad/capacidad.service.js';
 import { SimulacionAgenteService } from '../../agente/consultas/simulacion/simulacion.service.js';
@@ -15,7 +15,7 @@ import {
   SimularAgenteDto,
 } from '../../agente/dto/consultas.dto.js';
 import { motivoDelFallo } from '../../agente/utils/error.util.js';
-import { enParalelo } from '../../common/utils/lotes.util.js';
+import { enParalelo } from '../../nucleo/lotes.util.js';
 
 /**
  * Cuántos ítems de un bloque a la vez. Iban de uno en uno: cuarenta tiendas

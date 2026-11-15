@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RipleyModule } from '../../common/ripley/ripley.module.js';
+import { RipleyModule } from '../../ripley/ripley.module.js';
 import { ReportesComunModule } from '../comun/reportes-comun.module.js';
 import { CdsController } from './cds.controller.js';
 import { CdsService } from './cds.service.js';

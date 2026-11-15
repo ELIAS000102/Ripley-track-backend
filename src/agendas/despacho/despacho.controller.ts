@@ -2,7 +2,7 @@ import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { DespachoService } from './despacho.service.js';
 import { BuscarCapacidadesDto, ListarAgendasDto, ListarZonasDto } from './dto/buscar-despacho.dto.js';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 import { ActualizarDespachoBodyDto, ActualizarDespachoQueryDto } from './dto/actualizar-despacho.dto.js';
 
 /**

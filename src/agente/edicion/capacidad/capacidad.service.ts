@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { DespachoService } from '../../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { RecepcionService } from '../../../agendas/recepcion/recepcion.service.js';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
-import { isoToRipleyDate, ripleyDateToIso } from '../../../common/ripley/utils/date.util.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
+import { isoToRipleyDate, ripleyDateToIso } from '../../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha, sumarDias } from '../../../nucleo/fechas.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { AgendasDeAtajoService } from './agendas-de-atajo.service.js';
@@ -146,7 +146,7 @@ export class EditarCapacidadAgenteService {
     private readonly despacho: DespachoService,
     private readonly recepcion: RecepcionService,
     private readonly contexto: ContextoAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly transferencias: TransferenciaAgendasService,
     private readonly agendasGuardadas: AgendasDeAtajoService,
     private readonly almacenes: AlmacenesAgenteService,

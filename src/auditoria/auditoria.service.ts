@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import type { RegistroSinRol } from './interfaces/auditoria.interface.js';
 
 /** Campos que nunca deben quedar guardados en claro */

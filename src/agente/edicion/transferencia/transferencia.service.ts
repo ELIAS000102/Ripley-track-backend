@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TransfService } from '../../../configuracion/transf-suc/transf.service.js';
 import type { DiasDisponibles } from '../../../configuracion/transf-suc/interfaces/transf.interface.js';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarTransferenciaDto } from '../../dto/edicion.dto.js';
@@ -42,7 +42,7 @@ export class EditarTransferenciaAgenteService {
   constructor(
     private readonly transf: TransfService,
     private readonly contexto: ContextoAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 

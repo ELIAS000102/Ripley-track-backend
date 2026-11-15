@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import { isoToRipleyDate } from '../../common/ripley/utils/date.util.js';
+import { CatalogosRipleyService } from '../../ripley/catalogos.service.js';
+import { isoToRipleyDate } from '../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha, ventanaFechas } from '../../nucleo/fechas.js';
 import { ConfiguracionCdsService } from './configuracion-cds.service.js';
 import { Cd, FalloReporte, RegistroReporte, ReporteCds, ScheduleRow } from './interfaces/reporte-cds.interface.js';
-import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
-import { enLotes } from '../../common/utils/lotes.util.js';
+import { RipleyApiError } from '../../ripley/ripley.errors.js';
+import { enLotes } from '../../nucleo/lotes.util.js';
 
 /** Una agenda lista para consultar */
 interface Tarea {

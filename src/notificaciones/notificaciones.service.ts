@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 
 export interface Aviso {
   /** 'rutina_detenida', 'rutina_probada'… */

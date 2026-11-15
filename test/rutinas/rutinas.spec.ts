@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../src/auth/interfaces/auth.interface.js';
+import type { ContextoPeticion } from '../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../src/nucleo/contexto/usuario.interface.js';
 import { RutinasService } from '../../src/rutinas/rutinas.service.js';
 import { supabaseEnMemoria, type Fila } from '../fixtures/supabase-memoria.js';
 
@@ -29,7 +29,7 @@ function montar(extra: Record<string, Fila[]> = {}) {
     ...extra,
   };
   const registrarCambio = vi.fn();
-  const servicio = new RutinasService(supabaseEnMemoria(tablas), { registrarCambio } as unknown as ContextoAuditoria);
+  const servicio = new RutinasService(supabaseEnMemoria(tablas), { registrarCambio } as unknown as ContextoPeticion);
   return { servicio, tablas, registrarCambio };
 }
 

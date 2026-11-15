@@ -7,7 +7,7 @@ export type {
   ScheduleRow,
   ScheduleType,
   ServiceRow,
-} from '../../../common/ripley/interfaces/ripley.interface.js';
+} from '../../../ripley/interfaces/ripley.interface.js';
 
 /** El objeto "schedules" que exige el PUT de picking */
 export interface ScheduleConfig {

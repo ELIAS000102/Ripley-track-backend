@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { VersionadoLeadtime, type GrupoRef, type MallaElegida } from '../versionado.service.js';
 import { fechasDeVenta, interpretarTienda } from './matriz.calculo.js';
 import { leerMatriz } from './matriz.lector.js';
@@ -19,7 +19,7 @@ const siete = (v: unknown) => Array.from({ length: 7 }, (_, i) => (v as (string 
  */
 @Injectable()
 export class MatricesService extends VersionadoLeadtime<TiendaMalla, TiendaInterpretada, 'tiendas'> {
-  constructor(supabase: SupabaseService, auditoria: ContextoAuditoria) {
+  constructor(supabase: SupabaseService, auditoria: ContextoPeticion) {
     super(supabase, auditoria, {
       tabla: 'matrices',
       tablaDetalle: 'matriz_tiendas',

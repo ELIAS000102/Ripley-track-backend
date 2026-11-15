@@ -5,13 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ContextoAgenteService } from '../../../src/agente/contexto.service.js';
 import { EditarTipoServicioAgenteService } from '../../../src/agente/edicion/tipo-servicio/tipo-servicio.service.js';
 import { EditarTransferenciaAgenteService } from '../../../src/agente/edicion/transferencia/transferencia.service.js';
-import { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../src/auth/interfaces/auth.interface.js';
-import type { CacheCatalogosService } from '../../../src/common/ripley/cache-catalogos.service.js';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../../../src/common/ripley/ripley-http.service.js';
+import { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../src/nucleo/contexto/usuario.interface.js';
+import type { CacheCatalogosService } from '../../../src/ripley/cache-catalogos.service.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
+import { RipleyHttpService } from '../../../src/ripley/ripley-http.service.js';
 import { OplService } from '../../../src/configuracion/tipo-servicio/opl/opl.service.js';
-import type { TokenRipleyService } from '../../../src/configuracion/token-ripley/token-ripley.service.js';
+import type { TokenRipleyService } from '../../../src/ripley/token/token-ripley.service.js';
 import { TransfService } from '../../../src/configuracion/transf-suc/transf.service.js';
 import { almacenesDePrueba } from '../../fixtures/almacenes.js';
 
@@ -82,7 +82,7 @@ const SERVICIOS = {
 
 /** El cliente de Ripley de verdad, sobre un HTTP que responde según la ruta */
 function cadena() {
-  const contexto = new ContextoAuditoria();
+  const contexto = new ContextoPeticion();
 
   const responder = (url: string) => {
     if (url.endsWith('/officeRelationship')) return DOCUMENTO;

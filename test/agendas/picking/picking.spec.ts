@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import type { RipleyHttpService } from '../../../src/common/ripley/ripley-http.service.js';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
+import type { RipleyHttpService } from '../../../src/ripley/ripley-http.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import { RipleyApiError } from '../../../src/ripley/ripley.errors.js';
 import { PickingService } from '../../../src/agendas/picking/picking.service.js';
 
 /**
@@ -53,7 +53,7 @@ function armar(agendas: Array<Record<string, unknown>>) {
     mapaServicios: vi.fn().mockResolvedValue(SERVICIOS),
   } as unknown as CatalogosRipleyService;
 
-  const servicio = new PickingService(catalogos, {} as RipleyHttpService, {} as ContextoAuditoria);
+  const servicio = new PickingService(catalogos, {} as RipleyHttpService, {} as ContextoPeticion);
 
   return { servicio, catalogos };
 }

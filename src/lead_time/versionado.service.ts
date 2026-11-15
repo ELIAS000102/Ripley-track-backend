@@ -1,7 +1,7 @@
 import { BadGatewayException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import type { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import type { SupabaseService } from '../common/supabase/supabase.service.js';
+import type { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
+import type { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 
 /**
  * El nombre con el que se guarda la versión base (la regular). Hay una sola
@@ -114,7 +114,7 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
 
   protected constructor(
     protected readonly supabase: SupabaseService,
-    protected readonly auditoria: ContextoAuditoria,
+    protected readonly auditoria: ContextoPeticion,
     protected readonly def: DefinicionVersionado<Item, Interpretado, P>,
   ) {
     this.logger = new Logger(new.target.name);

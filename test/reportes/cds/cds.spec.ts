@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
+import type { SupabaseService } from '../../../src/nucleo/supabase/supabase.service.js';
 import type { ContextoAgenteService } from '../../../src/agente/contexto.service.js';
 import { ReporteAgenteService } from '../../../src/agente/consultas/reporte/reporte.service.js';
 import { ConfiguracionReportesService } from '../../../src/reportes/comun/configuracion-reportes.service.js';
@@ -71,7 +71,7 @@ function tablaFalsa(inicial: Array<{ tipo: string; pais: string; configuracion: 
 
 function configuracion(inicial?: Parameters<typeof tablaFalsa>[0]) {
   const tabla = tablaFalsa(inicial);
-  const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+  const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
   return {
     servicio: new ConfiguracionCdsService(new ConfiguracionReportesService(tabla.supabase), auditoria),
     ...tabla,

@@ -1,5 +1,5 @@
 import { BadGatewayException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import type { Chat, Mensaje } from './interfaces/chats.interface.js';
 
 /** El nombre del chat donde Silvana cuenta lo que hicieron las rutinas */

@@ -6,21 +6,21 @@ import { Test } from '@nestjs/testing';
 import { of } from 'rxjs';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AgenteGuard } from '../../src/agente/seguridad/agente.guard.js';
-import { InterrupcionAgenteService } from '../../src/agente/seguridad/interrupcion.service.js';
-import { ModoAgenteService } from '../../src/agente/seguridad/modo.service.js';
-import { PermitidoAgente, PermitidoAgenteEditor } from '../../src/agente/seguridad/permitido-agente.decorator.js';
-import { AuditoriaMiddleware } from '../../src/auditoria/auditoria.middleware.js';
-import { ContextoAuditoria } from '../../src/auditoria/contexto-auditoria.service.js';
+import { AgenteGuard } from '../../src/seguridad/agente/agente.guard.js';
+import { InterrupcionAgenteService } from '../../src/seguridad/agente/interrupcion.service.js';
+import { ModoAgenteService } from '../../src/seguridad/agente/modo.service.js';
+import { PermitidoAgente, PermitidoAgenteEditor } from '../../src/seguridad/agente/permitido-agente.decorator.js';
+import { ContextoPeticionMiddleware } from '../../src/nucleo/contexto/contexto-peticion.middleware.js';
+import { ContextoPeticion } from '../../src/nucleo/contexto/contexto-peticion.service.js';
 import { SimulacroInterceptor } from '../../src/auditoria/simulacro.interceptor.js';
-import { CacheSesiones } from '../../src/auth/cache-sesiones.service.js';
-import { SupabaseAuthGuard } from '../../src/auth/guards/supabase-auth.guard.js';
-import { TokenRutinaService } from '../../src/auth/token-rutina.service.js';
-import { CifradoService } from '../../src/common/cifrado/cifrado.service.js';
-import type { CacheCatalogosService } from '../../src/common/ripley/cache-catalogos.service.js';
-import { RipleyHttpService } from '../../src/common/ripley/ripley-http.service.js';
-import { SupabaseService } from '../../src/common/supabase/supabase.service.js';
-import type { TokenRipleyService } from '../../src/configuracion/token-ripley/token-ripley.service.js';
+import { CacheSesiones } from '../../src/seguridad/sesion/cache-sesiones.service.js';
+import { SupabaseAuthGuard } from '../../src/seguridad/sesion/guards/supabase-auth.guard.js';
+import { TokenRutinaService } from '../../src/seguridad/sesion/token-rutina.service.js';
+import { CifradoService } from '../../src/nucleo/cifrado/cifrado.service.js';
+import type { CacheCatalogosService } from '../../src/ripley/cache-catalogos.service.js';
+import { RipleyHttpService } from '../../src/ripley/ripley-http.service.js';
+import { SupabaseService } from '../../src/nucleo/supabase/supabase.service.js';
+import type { TokenRipleyService } from '../../src/ripley/token/token-ripley.service.js';
 import { LlamadasRutinaInterceptor, LlamadasRutinaService } from '../../src/rutinas/ejecutor/llamadas.js';
 import { supabaseEnMemoria, type Fila } from '../fixtures/supabase-memoria.js';
 
@@ -95,15 +95,15 @@ async function montar() {
       CifradoService,
       TokenRutinaService,
       CacheSesiones,
-      ContextoAuditoria,
-      AuditoriaMiddleware,
+      ContextoPeticion,
+      ContextoPeticionMiddleware,
       ModoAgenteService,
       InterrupcionAgenteService,
       LlamadasRutinaService,
       {
         provide: RipleyHttpService,
-        inject: [ContextoAuditoria],
-        useFactory: (contexto: ContextoAuditoria) =>
+        inject: [ContextoPeticion],
+        useFactory: (contexto: ContextoPeticion) =>
           new RipleyHttpService(
             http as unknown as HttpService,
             config as unknown as ConfigService,
@@ -120,7 +120,7 @@ async function montar() {
   })
   class ModuloDePrueba implements NestModule {
     configure(consumer: MiddlewareConsumer) {
-      consumer.apply(AuditoriaMiddleware).forRoutes('*');
+      consumer.apply(ContextoPeticionMiddleware).forRoutes('*');
     }
   }
 

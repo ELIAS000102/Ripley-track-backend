@@ -1,7 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { OplService } from '../../../../src/configuracion/tipo-servicio/opl/opl.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarTipoServicioDto } from '../../../../src/agente/dto/edicion.dto.js';
@@ -57,7 +57,7 @@ function armar(servicios = SERVICIOS) {
       {
         registrarCambio: vi.fn(),
         enSimulacro: () => false,
-      } as unknown as ContextoAuditoria,
+      } as unknown as ContextoPeticion,
       { leer: vi.fn() } as never,
     ),
     actualizarServicio,

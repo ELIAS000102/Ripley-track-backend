@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { OplMasivoService } from '../../../../src/configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarMasivoAgenteService } from '../../../../src/agente/edicion/masivo/masivo.service.js';
 
@@ -67,7 +67,7 @@ function armar(lista = agendas(3)) {
   return {
     servicio: new EditarMasivoAgenteService(masivo, contexto, {
       registrarCambio,
-    } as unknown as ContextoAuditoria),
+    } as unknown as ContextoPeticion),
     masivo: masivo as unknown as {
       consultarEstado: ReturnType<typeof vi.fn>;
     },

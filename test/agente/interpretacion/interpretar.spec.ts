@@ -3,7 +3,7 @@ import { interpretar, rangoDeFechas } from '../../../src/agente/interpretacion/i
 // Arriba y no dentro del test: importar el controlador arrastra medio Nest, y
 // bajo la carga de toda la batería pasaba del tiempo de un test
 import { ConsultasAgenteController } from '../../../src/agente/consultas/consultas.controller.js';
-import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
+import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/seguridad/agente/permitido-agente.decorator.js';
 import { CDS_DE_PRUEBA, configuracionCdsFalsa } from '../../fixtures/cds.js';
 
 /**

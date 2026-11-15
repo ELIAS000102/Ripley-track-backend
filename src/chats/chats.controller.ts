@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, PayloadTooLargeException, Post, Put } from '@nestjs/common';
-import { Usuario } from '../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import { Usuario } from '../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
 import { ChatsService } from './chats.service.js';
 import { AgregarMensajeDto, CrearChatDto, ReemplazarMensajeDto, RenombrarChatDto } from './dto/chats.dto.js';
 

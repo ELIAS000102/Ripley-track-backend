@@ -3,7 +3,7 @@ import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { TransfService } from './transf.service.js';
 import { ListarRelacionesDto } from './dto/buscar-transf.dto.js';
 import { ActualizarRelacionDto } from './dto/actualizar-relacion.dto.js';
-import { BuscarDto } from '../../common/dto/pais.dto.js';
+import { BuscarDto } from '../../nucleo/dto/pais.dto.js';
 
 /**
  * Relaciones de transferencia de un almacén origen hacia sus destinos:

@@ -1,16 +1,15 @@
 import { Global, Module } from '@nestjs/common';
 import { AuditoriaService } from './auditoria.service.js';
-import { ContextoAuditoria } from './contexto-auditoria.service.js';
 
 /**
  * Registro de cambios: quién modificó qué, con qué datos y cuándo.
  *
- * Global porque todos los services que escriben en Ripley reportan su cambio
- * por ContextoAuditoria, y no tiene sentido importarlo en cada módulo.
+ * Global porque el interceptor y varios services escriben en el registro. El
+ * antes y el después de cada cambio llegan por ContextoPeticion (nucleo/contexto).
  */
 @Global()
 @Module({
-  providers: [AuditoriaService, ContextoAuditoria],
-  exports: [AuditoriaService, ContextoAuditoria],
+  providers: [AuditoriaService],
+  exports: [AuditoriaService],
 })
 export class AuditoriaModule {}

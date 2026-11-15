@@ -1,9 +1,9 @@
 import { Body, Controller, Put, UseInterceptors } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
-import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { PermitidoAgenteEditor } from '../seguridad/permitido-agente.decorator.js';
-import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
+import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { PermitidoAgenteEditor } from '../../seguridad/agente/permitido-agente.decorator.js';
+import { SinRastroInterceptor } from '../../seguridad/agente/sin-rastro.interceptor.js';
 import { EditarCapacidadAgenteService } from './capacidad/capacidad.service.js';
 import { EditarCdAgenteService } from './cd/cd.service.js';
 import { ReasignarCapacidadAgenteService } from './reasignar/reasignar.service.js';

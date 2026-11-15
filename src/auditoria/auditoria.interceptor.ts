@@ -2,9 +2,9 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nes
 import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import { Observable, tap } from 'rxjs';
-import type { RequestConUsuario } from '../auth/interfaces/auth.interface.js';
+import type { RequestConUsuario } from '../nucleo/contexto/usuario.interface.js';
 import { AuditoriaService } from './auditoria.service.js';
-import { ContextoAuditoria } from './contexto-auditoria.service.js';
+import { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
 import { ACCION_AUDITADA } from './decorators/auditar.decorator.js';
 import type { RegistroUso } from './interfaces/auditoria.interface.js';
 
@@ -38,14 +38,14 @@ type DatosPeticion = Pick<RegistroUso, 'accion' | 'origen' | 'metodo' | 'endpoin
  * tabla de chats.
  *
  * En los cambios, además de lo que envió el cliente, se guarda el estado previo
- * y el resultante: el service los reporta por ContextoAuditoria mientras atiende
+ * y el resultante: el service los reporta por ContextoPeticion mientras atiende
  * la petición.
  */
 @Injectable()
 export class AuditoriaInterceptor implements NestInterceptor {
   constructor(
     private readonly auditoria: AuditoriaService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
     private readonly reflector: Reflector,
   ) {}
 
@@ -74,7 +74,7 @@ export class AuditoriaInterceptor implements NestInterceptor {
       user_agent: request.get('user-agent') ?? null,
     };
 
-    // El contexto lo abre AuditoriaMiddleware, así que aquí ya se puede leer
+    // El contexto lo abre ContextoPeticionMiddleware, así que aquí ya se puede leer
     // lo que el service haya reportado con registrarCambio().
     return next.handle().pipe(
       tap({

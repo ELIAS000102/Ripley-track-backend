@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
-import type { UsuarioAutenticado } from '../../../src/auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../src/nucleo/contexto/usuario.interface.js';
 import {
   excelDeCarga,
   leerPlantillaExcelCarga,

@@ -4,7 +4,7 @@ export type {
   MainZoneRow,
   OfficeRow,
   RipleyListResponse,
-} from '../../../../common/ripley/interfaces/ripley.interface.js';
+} from '../../../../ripley/interfaces/ripley.interface.js';
 
 /** Hora de corte de un día: id 1 = lunes … 7 = domingo */
 export interface HoraCorte {

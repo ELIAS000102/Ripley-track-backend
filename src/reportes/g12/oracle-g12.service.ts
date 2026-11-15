@@ -9,9 +9,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { hoyEnPais } from '../../nucleo/fechas.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { excelDeCarga, leerPlantillaExcelCarga, nombreExcelDeCarga } from './excel-carga-g12.js';
 import type { UnidadOracleG12 } from './g12.calculo.js';
 

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
 import type { GuardarConfiguracionCdsDto } from './dto/configuracion-cds.dto.js';
 import type { Cd } from './interfaces/reporte-cds.interface.js';
@@ -34,7 +34,7 @@ export class ConfiguracionCdsService {
 
   constructor(
     private readonly configuraciones: ConfiguracionReportesService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
   ) {}
 
   /** Los CDs de un país */

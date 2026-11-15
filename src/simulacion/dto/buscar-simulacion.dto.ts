@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsString } from 'class-validator';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 
 export class ProvinciasDto extends PaisDto {
   @IsString()

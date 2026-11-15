@@ -1,6 +1,6 @@
 import { plano } from '../../nucleo/texto.js';
 import { Injectable, Logger } from '@nestjs/common';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { Comuna, RegionDetalle, SimulacionPayload } from '../../simulacion/interfaces/simulacion.interface.js';
 import type { ConfiguracionG12, ItemG12, TipoBloqueG12 } from './interfaces/g12.interface.js';
 

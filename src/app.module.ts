@@ -2,18 +2,19 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import configuration from './config/configuration.js';
-import { AuthModule } from './auth/auth.module.js';
-import { SupabaseAuthGuard } from './auth/guards/supabase-auth.guard.js';
+import { AuthModule } from './seguridad/sesion/auth.module.js';
+import { SupabaseAuthGuard } from './seguridad/sesion/guards/supabase-auth.guard.js';
 import { AuditoriaModule } from './auditoria/auditoria.module.js';
 import { AuditoriaInterceptor } from './auditoria/auditoria.interceptor.js';
-import { AuditoriaMiddleware } from './auditoria/auditoria.middleware.js';
+import { ContextoModule } from './nucleo/contexto/contexto.module.js';
+import { ContextoPeticionMiddleware } from './nucleo/contexto/contexto-peticion.middleware.js';
 import { SimulacroInterceptor } from './auditoria/simulacro.interceptor.js';
 import { AgenteModule } from './agente/agente.module.js';
 import { ChatsModule } from './chats/chats.module.js';
-import { AgenteGuard } from './agente/seguridad/agente.guard.js';
-import { CifradoModule } from './common/cifrado/cifrado.module.js';
-import { SupabaseModule } from './common/supabase/supabase.module.js';
-import { TokenRipleyModule } from './configuracion/token-ripley/token-ripley.module.js';
+import { AgenteGuard } from './seguridad/agente/agente.guard.js';
+import { CifradoModule } from './nucleo/cifrado/cifrado.module.js';
+import { SupabaseModule } from './nucleo/supabase/supabase.module.js';
+import { TokenRipleyModule } from './ripley/token/token-ripley.module.js';
 import { PickingModule } from './agendas/picking/picking.module.js';
 import { DespachoModule } from './agendas/despacho/despacho.module.js';
 import { RecepcionModule } from './agendas/recepcion/recepcion.module.js';
@@ -44,6 +45,7 @@ import { AgenteV3Module } from './agente-v3/agente-v3.module.js';
       isGlobal: true,
       load: [configuration],
     }),
+    ContextoModule,
     SupabaseModule,
     CifradoModule,
     AuthModule,
@@ -84,8 +86,8 @@ import { AgenteV3Module } from './agente-v3/agente-v3.module.js';
   ],
 })
 export class AppModule implements NestModule {
-  /** Abre el contexto de auditoría antes que nada, para toda la petición */
+  /** Abre el contexto de la petición antes que nada, para toda la petición */
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuditoriaMiddleware).forRoutes('*');
+    consumer.apply(ContextoPeticionMiddleware).forRoutes('*');
   }
 }

@@ -2,8 +2,8 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it, vi } from 'vitest';
 import type { CapacidadAgenteService } from '../../../src/agente/consultas/capacidad/capacidad.service.js';
 import type { DespachoService } from '../../../src/agendas/despacho/despacho.service.js';
-import { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
+import { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
 import { hoyEnPais, sumarDias } from '../../../src/nucleo/fechas.js';
 import { configuracionAXlsx, xlsxAConfiguracion } from '../../../src/reportes/g12/configuracion-xlsx.js';
 import { EjecutorG12Service } from '../../../src/reportes/g12/ejecutor-g12.service.js';
@@ -205,7 +205,7 @@ describe('La configuración de Solicitudes', () => {
 describe('Generar Solicitudes', () => {
   function montar() {
     const hoy = hoyEnPais('PE');
-    const contexto = new ContextoAuditoria();
+    const contexto = new ContextoPeticion();
     const capacidad = {
       consultar: vi.fn(async (dto: { codigo: string; servicio?: string }) => ({
         tipo: 'picking',

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
-import { Usuario } from '../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import { Usuario } from '../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
 import { CrearRutinaDto, EditarRutinaDto } from './dto/rutinas.dto.js';
 import { EjecutorRutinasService } from './ejecutor/ejecutor.service.js';
 import { RutinasService } from './rutinas.service.js';

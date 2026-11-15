@@ -1,10 +1,10 @@
 import { Body, Controller, Get, HttpCode, Post, Query, Req, UseInterceptors } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { RequestConUsuario, UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js';
+import type { RequestConUsuario, UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { ContextoAgenteService } from '../contexto.service.js';
-import { PermitidoAgente } from '../seguridad/permitido-agente.decorator.js';
-import { SinRastroInterceptor } from '../seguridad/sin-rastro.interceptor.js';
+import { PermitidoAgente } from '../../seguridad/agente/permitido-agente.decorator.js';
+import { SinRastroInterceptor } from '../../seguridad/agente/sin-rastro.interceptor.js';
 import { BusquedaMasivaAgenteService } from './busqueda-masiva/busqueda-masiva.service.js';
 import { CapacidadAgenteService } from './capacidad/capacidad.service.js';
 import { CapacidadTransferenciaAgenteService } from './capacidad-transferencia/capacidad-transferencia.service.js';
@@ -14,7 +14,7 @@ import { TipoServicioAgenteService } from './tipo-servicio/tipo-servicio.service
 import { TransferenciaAgenteService } from './transferencia/transferencia.service.js';
 import { interpretar } from '../interpretacion/interpretar.js';
 import { ConfiguracionCdsService } from '../../reportes/cds/configuracion-cds.service.js';
-import { InterrupcionAgenteService } from '../seguridad/interrupcion.service.js';
+import { InterrupcionAgenteService } from '../../seguridad/agente/interrupcion.service.js';
 import {
   BuscarMasivoDto,
   ConsultarCapacidadDto,

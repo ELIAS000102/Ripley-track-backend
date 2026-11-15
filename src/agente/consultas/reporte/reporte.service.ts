@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CdsService } from '../../../reportes/cds/cds.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
 import { esTodoElPais, listaDeCds, paisDelCd, resolverCd } from '../../constantes/cds.constants.js';

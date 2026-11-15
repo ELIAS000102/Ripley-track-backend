@@ -7,9 +7,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import { CrearRutinaDto, EditarRutinaDto, HorarioDto, TareaDto } from './dto/rutinas.dto.js';
 import { choques, horaCorta, proximoTurno } from './horarios.util.js';
 import type {
@@ -82,7 +82,7 @@ export class RutinasService {
 
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Lectura ----------

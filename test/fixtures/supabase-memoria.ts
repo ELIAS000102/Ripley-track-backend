@@ -1,4 +1,4 @@
-import type { SupabaseService } from '../../src/common/supabase/supabase.service.js';
+import type { SupabaseService } from '../../src/nucleo/supabase/supabase.service.js';
 
 export type Fila = Record<string, unknown>;
 

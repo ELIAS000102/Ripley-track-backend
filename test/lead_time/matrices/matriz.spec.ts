@@ -10,8 +10,8 @@ import { leerMatriz } from '../../../src/lead_time/matrices/matriz.lector.js';
 import { crearPlantilla } from '../../../src/lead_time/matrices/matriz.plantilla.js';
 import { MatricesService } from '../../../src/lead_time/matrices/matrices.service.js';
 import type { TiendaMalla } from '../../../src/lead_time/matrices/interfaces/matriz.interface.js';
-import type { SupabaseService } from '../../../src/common/supabase/supabase.service.js';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
+import type { SupabaseService } from '../../../src/nucleo/supabase/supabase.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
 
 /**
  * La matriz de valle (Regular): cómo se lee, cómo se valida y cómo se calcula.
@@ -261,7 +261,7 @@ describe('Guardar y leer la matriz', () => {
       return q;
     };
     const supabase = { admin: { from: vi.fn(consulta) } } as unknown as SupabaseService;
-    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
     return { servicio: new MatricesService(supabase, auditoria), insertados, borrados, auditoria };
   }
   const USUARIO = { id: 'u-1', email: 'u@ripley.cl' };

@@ -16,9 +16,9 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
-import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 import { ActualizadorG12Service } from './actualizador-g12.service.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { nombreXlsxConfiguracion } from './configuracion-xlsx.js';

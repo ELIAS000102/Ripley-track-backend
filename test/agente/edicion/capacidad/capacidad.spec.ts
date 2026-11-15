@@ -4,9 +4,9 @@ import { EditarCapacidadDto } from '../../../../src/agente/dto/edicion.dto.js';
 import type { DespachoService } from '../../../../src/agendas/despacho/despacho.service.js';
 import type { RecepcionService } from '../../../../src/agendas/recepcion/recepcion.service.js';
 import type { PickingService } from '../../../../src/agendas/picking/picking.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import { hoyEnPais, sumarDias } from '../../../../src/nucleo/fechas.js';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarCapacidadAgenteService } from '../../../../src/agente/edicion/capacidad/capacidad.service.js';
 import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
@@ -128,7 +128,7 @@ function armar(
   } as unknown as ContextoAgenteService;
 
   const registrarCambio = vi.fn();
-  const auditoria = { registrarCambio } as unknown as ContextoAuditoria;
+  const auditoria = { registrarCambio } as unknown as ContextoPeticion;
 
   return {
     servicio: new EditarCapacidadAgenteService(

@@ -1,8 +1,8 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Response } from 'express';
 import { Observable, tap } from 'rxjs';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import type { RequestConUsuario } from '../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import type { RequestConUsuario } from '../../nucleo/contexto/usuario.interface.js';
 import type { LlamadaHerramienta } from '../interfaces/rutinas.interface.js';
 
 /**
@@ -192,7 +192,7 @@ export class LlamadasRutinaService {
 export class LlamadasRutinaInterceptor implements NestInterceptor {
   constructor(
     private readonly llamadas: LlamadasRutinaService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {

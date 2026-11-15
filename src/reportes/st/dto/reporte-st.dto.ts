@@ -14,7 +14,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PaisDto } from '../../../common/dto/pais.dto.js';
+import { PaisDto } from '../../../nucleo/dto/pais.dto.js';
 
 /**
  * Topes de la configuración.

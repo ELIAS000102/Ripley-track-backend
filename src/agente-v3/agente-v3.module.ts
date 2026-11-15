@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AgenteModule } from '../agente/agente.module.js';
-import { SinRastroInterceptor } from '../agente/seguridad/sin-rastro.interceptor.js';
+import { SinRastroInterceptor } from '../seguridad/agente/sin-rastro.interceptor.js';
 import { AtajosModule } from '../configuracion/atajos/atajos.module.js';
 import { AgenteV3Controller } from './agente-v3.controller.js';
 import { AgenteV3Service } from './agente-v3.service.js';

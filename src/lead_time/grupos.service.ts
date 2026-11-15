@@ -1,8 +1,8 @@
 import { diasEntre } from '../nucleo/fechas.js';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import type { GrupoDto, TipoGrupo } from './dto/lead-time.dto.js';
 import { fechasDeVentaOpl } from './mallas/malla.calculo.js';
 import { MallasService } from './mallas/mallas.service.js';
@@ -71,7 +71,7 @@ export class GruposLeadtimeService {
 
   constructor(
     private readonly supabase: SupabaseService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     readonly matrices: MatricesService,
     readonly mallas: MallasService,
   ) {}

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplService } from '../../../configuracion/tipo-servicio/opl/opl.service.js';
 import type { HoraCorte } from '../../../configuracion/tipo-servicio/opl/interfaces/opl.interface.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';

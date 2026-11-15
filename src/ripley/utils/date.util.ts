@@ -1,0 +1,77 @@
+import { hoyEnPais } from '../../nucleo/fechas.js';
+
+/*
+ * Los formatos de fecha de la API de Ripley. Las fechas de calendario
+ * (YYYY-MM-DD, hoy en un país, sumar días) viven en nucleo/fechas.ts.
+ */
+
+/**
+ * Convierte una fecha ISO al formato que espera Ripley en el query.
+ * "2026-09-14T00:00:00.000Z" -> "14-09-2026"
+ * "2026-09-14"               -> "14-09-2026"
+ */
+export function isoToRipleyDate(isoDate: string): string {
+  const [datePart] = isoDate.split('T');
+  const [year, month, day] = datePart.split('-');
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * "14-09-2026" -> "14/09/2026"
+ *
+ * Las capacidades de recepción se piden con barras y no con guiones, mientras
+ * que picking y despacho usan guiones. La conversión vive en el borde, justo
+ * antes de llamar: hacia fuera este backend habla en DD-MM-YYYY en las tres.
+ */
+export function ripleyDateToBarras(fecha: string): string {
+  return fecha.replace(/-/g, '/');
+}
+
+/**
+ * "2026-10-02T00:00:00.000Z" -> "Friday"
+ *
+ * El nombre del día en inglés, que es como lo manda el panel corporativo en el
+ * PUT de recepción. Se lee en UTC a propósito: la fecha llega a las 00:00Z y
+ * cualquier zona al oeste la correría al día anterior.
+ */
+export function nombreDelDia(isoDate: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(isoDate));
+}
+
+/** "14-09-2026" -> "2026-09-14". El inverso de isoToRipleyDate. */
+export function ripleyDateToIso(fecha: string): string {
+  const [day, month, year] = fecha.split('-');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Los primeros `dias` días de una agenda, contados desde la fecha pedida.
+ *
+ * Ripley entrega la agenda **completa** aunque se le pase "from": arranca más
+ * de un año atrás y llega a 2028. Por eso hay que filtrar por fecha antes de
+ * cortar; cortar sin filtrar devuelve los primeros días de la agenda, que son
+ * historia vieja y se leen como si fueran los próximos.
+ *
+ * Picking y despacho tenían cada uno su copia de esto, con el mismo comentario
+ * y distinto nombre de campo —`day` en ISO, `date` en DD-MM-YYYY—. La forma de
+ * leer la fecha la pone quien llama; la regla, que es lo que importa, vive aquí.
+ */
+export function recortarDesde<T>(
+  todos: T[],
+  desde: string | undefined,
+  pais: string,
+  dias: number,
+  fechaIso: (dia: T) => string,
+): T[] {
+  const limite = desde ? ripleyDateToIso(desde) : hoyEnPais(pais);
+
+  return todos
+    .map((dia) => ({ dia, iso: fechaIso(dia) }))
+    .filter(({ iso }) => iso >= limite)
+    .sort((a, b) => a.iso.localeCompare(b.iso))
+    .slice(0, dias)
+    .map(({ dia }) => dia);
+}

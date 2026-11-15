@@ -1,7 +1,7 @@
 import { BadGatewayException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { hoyEnPais, sumarDias } from '../../nucleo/fechas.js';
 import { definicionDe } from './g12.componentes.js';
 import type {

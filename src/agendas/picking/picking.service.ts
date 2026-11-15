@@ -1,12 +1,12 @@
 import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
-import { isoToRipleyDate, recortarDesde } from '../../common/ripley/utils/date.util.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { CatalogosRipleyService } from '../../ripley/catalogos.service.js';
+import { RipleyHttpService } from '../../ripley/ripley-http.service.js';
+import { isoToRipleyDate, recortarDesde } from '../../ripley/utils/date.util.js';
 import { soloFecha } from '../../nucleo/fechas.js';
-import { resolverTipoDeAgenda, unicaPorServicio } from '../../common/ripley/utils/agenda.util.js';
+import { resolverTipoDeAgenda, unicaPorServicio } from '../../ripley/utils/agenda.util.js';
 import { ActualizarPickingBodyDto } from './dto/actualizar-picking.dto.js';
-import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
+import { RipleyApiError } from '../../ripley/ripley.errors.js';
 import { CapacitiesResponse, CapacityByDay, ScheduleConfig, ScheduleRow } from './interfaces/picking.interface.js';
 
 /**
@@ -22,7 +22,7 @@ export class PickingService {
   constructor(
     private readonly catalogos: CatalogosRipleyService,
     private readonly ripley: RipleyHttpService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Paso 1: capacidades ----------

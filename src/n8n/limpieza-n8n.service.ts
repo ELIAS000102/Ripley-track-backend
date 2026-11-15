@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
-import { enParalelo } from '../common/utils/lotes.util.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
+import { enParalelo } from '../nucleo/lotes.util.js';
 import { momentoLocal } from '../rutinas/horarios.util.js';
 
 /** Las que ya terminaron: las demás (en curso, esperando, nuevas) no se tocan nunca */

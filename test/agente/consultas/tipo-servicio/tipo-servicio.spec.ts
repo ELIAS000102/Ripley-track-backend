@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { OplService } from '../../../../src/configuracion/tipo-servicio/opl/opl.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { TipoServicioAgenteService } from '../../../../src/agente/consultas/tipo-servicio/tipo-servicio.service.js';
 

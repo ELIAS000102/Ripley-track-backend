@@ -12,7 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { PaisDto } from '../../common/dto/pais.dto.js';
+import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 
 /**
  * Entradas de las consultas del agente.

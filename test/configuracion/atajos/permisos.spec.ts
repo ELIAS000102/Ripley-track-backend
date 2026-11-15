@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
-import type { UsuarioAutenticado } from '../../../src/auth/interfaces/auth.interface.js';
+import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/seguridad/agente/permitido-agente.decorator.js';
+import type { UsuarioAutenticado } from '../../../src/nucleo/contexto/usuario.interface.js';
 import type { EjecutorAtajoService } from '../../../src/configuracion/atajos/ejecutor.service.js';
 import { AtajosController } from '../../../src/configuracion/atajos/atajos.controller.js';
 import type { AtajosService } from '../../../src/configuracion/atajos/atajos.service.js';

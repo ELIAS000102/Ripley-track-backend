@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InterrupcionAgenteService } from '../../agente/seguridad/interrupcion.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { InterrupcionAgenteService } from '../../seguridad/agente/interrupcion.service.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { AgenteV3Service } from '../agente-v3.service.js';
 import type { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from '../dto/turnos.dto.js';
 import type { RespuestaPanel, RolModelo, SalidaRuta } from '../interfaces/agente-v3.interface.js';

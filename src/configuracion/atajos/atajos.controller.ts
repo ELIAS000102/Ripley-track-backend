@@ -1,8 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
-import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { PermitidoAgente } from '../../agente/seguridad/permitido-agente.decorator.js';
+import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { PermitidoAgente } from '../../seguridad/agente/permitido-agente.decorator.js';
 import { EjecutorAtajoService } from './ejecutor.service.js';
 import { AtajosService } from './atajos.service.js';
 import { CrearAtajoDto, EditarAtajoDto, EjecutarAtajoDto, ListarAtajosDto } from './dto/atajos.dto.js';

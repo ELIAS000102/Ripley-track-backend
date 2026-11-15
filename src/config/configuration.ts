@@ -25,7 +25,7 @@ export default () => {
       /*
        * El ritmo hacia la API corporativa, por país: cuántas peticiones a la
        * vez y cuánto entre el arranque de una y la siguiente. Vacío, los de
-       * por defecto (ver src/common/ripley/ritmo.ts). El simulador va aparte.
+       * por defecto (ver src/ripley/ritmo.ts). El simulador va aparte.
        */
       ritmo: {
         general: {
@@ -40,7 +40,7 @@ export default () => {
       /*
        * El cupo de Ripley por token: llamadas por ventana, lo que dura la
        * ventana y el margen al cerrarla. Vacío, 110 cada 60 s + 1 s (ver
-       * src/common/ripley/ritmo.ts: el 429 llega hacia la llamada 120).
+       * src/ripley/ritmo.ts: el 429 llega hacia la llamada 120).
        */
       cupo: {
         llamadas: process.env.RIPLEY_CUPO_LLAMADAS,
@@ -48,7 +48,7 @@ export default () => {
         margenMs: process.env.RIPLEY_CUPO_MARGEN_MS,
       },
       // Los tokens ya no viven aquí: cada usuario guarda el suyo cifrado
-      // (ver src/configuracion/token-ripley).
+      // (ver src/ripley/token).
       endpoints: {
         // Compartidos
         offices: ruta(process.env.RIPLEY_EP_OFFICES),

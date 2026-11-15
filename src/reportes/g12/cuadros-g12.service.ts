@@ -1,5 +1,5 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { ClaveComponente, ComponenteReporteG12, PeticionG12 } from './interfaces/g12.interface.js';
 
 const TABLA = 'g12_cuadros';

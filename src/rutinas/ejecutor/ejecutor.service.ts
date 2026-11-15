@@ -7,11 +7,11 @@ import {
   Logger,
   OnApplicationBootstrap,
 } from '@nestjs/common';
-import { InterrupcionAgenteService } from '../../agente/seguridad/interrupcion.service.js';
-import type { PermisoRutina, UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { TokenRutinaService } from '../../auth/token-rutina.service.js';
+import { InterrupcionAgenteService } from '../../seguridad/agente/interrupcion.service.js';
+import type { PermisoRutina, UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { TokenRutinaService } from '../../seguridad/sesion/token-rutina.service.js';
 import { ChatsService } from '../../chats/chats.service.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service.js';
 import type { EjecucionDetalle, Paso, PasoEjecutado, Tarea, TareaEjecutada } from '../interfaces/rutinas.interface.js';
 import { CAMPOS_DETALLE, RutinasService, type RutinaParaEjecutar } from '../rutinas.service.js';

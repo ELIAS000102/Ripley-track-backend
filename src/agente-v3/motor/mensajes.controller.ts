@@ -1,9 +1,9 @@
 import { Body, Controller, Logger, Param, ParseUUIDPipe, Post, Res, UseInterceptors } from '@nestjs/common';
 import type { Response } from 'express';
 import { SinMarcaSimulacro } from '../../auditoria/simulacro.interceptor.js';
-import { Usuario } from '../../auth/decorators/usuario.decorator.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import { SinRastroInterceptor } from '../../agente/seguridad/sin-rastro.interceptor.js';
+import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
+import { SinRastroInterceptor } from '../../seguridad/agente/sin-rastro.interceptor.js';
 import { ContestarDto, CrearTurnoDto, DeshacerDto } from '../dto/turnos.dto.js';
 import { MotorV3Service, type EventoV3 } from './motor.service.js';
 

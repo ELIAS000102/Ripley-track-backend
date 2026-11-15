@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TransferenciaAgendasService } from '../../../agendas/transferencia/transferencia-agendas.service.js';
 import type { AgendaTransferencia } from '../../../agendas/transferencia/transferencia-agendas.service.js';
-import { isoToRipleyDate } from '../../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha } from '../../../nucleo/fechas.js';
-import { enLotes } from '../../../common/utils/lotes.util.js';
+import { enLotes } from '../../../nucleo/lotes.util.js';
 import { POR_VEZ } from '../../constantes/limites.constants.js';
 import { ConsultarCapacidadTransferenciaDto } from '../../dto/consultas.dto.js';
 import type {

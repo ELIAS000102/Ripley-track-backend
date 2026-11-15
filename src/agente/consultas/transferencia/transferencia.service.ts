@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TransfService } from '../../../configuracion/transf-suc/transf.service.js';
 import type { DiasDisponibles } from '../../../configuracion/transf-suc/interfaces/transf.interface.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ConsultarTransferenciaDto } from '../../dto/consultas.dto.js';

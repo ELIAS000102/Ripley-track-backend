@@ -1,5 +1,5 @@
 // ---------- GET /catalogs ----------
-export type { CatalogoResponse } from '../../../../common/ripley/interfaces/ripley.interface.js';
+export type { CatalogoResponse } from '../../../../ripley/interfaces/ripley.interface.js';
 
 /** Referencia corta que usa la API en los payloads: id, código y etiqueta */
 export interface OpcionRef {

@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AgenteModule } from '../../agente/agente.module.js';
-import { AuthModule } from '../../auth/auth.module.js';
+import { AuthModule } from '../../seguridad/sesion/auth.module.js';
 import { DespachoModule } from '../../agendas/despacho/despacho.module.js';
 import { PickingModule } from '../../agendas/picking/picking.module.js';
 import { RecepcionModule } from '../../agendas/recepcion/recepcion.module.js';
-import { RipleyModule } from '../../common/ripley/ripley.module.js';
+import { RipleyModule } from '../../ripley/ripley.module.js';
 import { SimulacionModule } from '../../simulacion/simulacion.module.js';
 import { ReportesComunModule } from '../comun/reportes-comun.module.js';
 import { ActualizadorG12Service } from './actualizador-g12.service.js';

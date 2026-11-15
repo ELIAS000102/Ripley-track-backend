@@ -1,9 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
-import { isoToRipleyDate } from '../../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha } from '../../../nucleo/fechas.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import {
@@ -40,7 +40,7 @@ export class ReasignarCapacidadAgenteService {
   constructor(
     private readonly picking: PickingService,
     private readonly contexto: ContextoAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 

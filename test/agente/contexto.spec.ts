@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PerfilService } from '../../src/auth/perfil.service.js';
-import type { UsuarioAutenticado } from '../../src/auth/interfaces/auth.interface.js';
+import type { PerfilService } from '../../src/seguridad/sesion/perfil.service.js';
+import type { UsuarioAutenticado } from '../../src/nucleo/contexto/usuario.interface.js';
 import { ContextoAgenteService } from '../../src/agente/contexto.service.js';
 
 /**

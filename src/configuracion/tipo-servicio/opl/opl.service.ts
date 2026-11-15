@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import { CatalogosRipleyService } from '../../../common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import { CatalogosRipleyService } from '../../../ripley/catalogos.service.js';
+import { RipleyHttpService } from '../../../ripley/ripley-http.service.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
 import { ListarServiciosDto } from './dto/buscar-opl.dto.js';
 import {
@@ -30,7 +30,7 @@ export class OplService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly catalogos: CatalogosRipleyService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Paso 1: canales de venta ----------

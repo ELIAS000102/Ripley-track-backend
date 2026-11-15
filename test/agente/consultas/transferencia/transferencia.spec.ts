@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TransfService } from '../../../../src/configuracion/transf-suc/transf.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { TransferenciaAgenteService } from '../../../../src/agente/consultas/transferencia/transferencia.service.js';
 import { almacenesDePrueba } from '../../../fixtures/almacenes.js';

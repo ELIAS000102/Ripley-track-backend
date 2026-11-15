@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
 import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
@@ -77,7 +77,7 @@ export class ReporteG12Service {
     private readonly configuracion: ConfiguracionG12Service,
     private readonly ejecutor: EjecutorG12Service,
     private readonly cuadros: CuadrosG12Service,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
     private readonly oracle: OracleG12Service,
   ) {}
 

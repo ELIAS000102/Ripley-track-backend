@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import type { Turno } from './interfaces/agente-v3.interface.js';
 
 /**

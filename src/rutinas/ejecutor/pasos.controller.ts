@@ -1,9 +1,9 @@
 import { Body, Controller, ForbiddenException, HttpCode, Post, Req } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsInt, IsObject, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { PermitidoAgente } from '../../agente/seguridad/permitido-agente.decorator.js';
+import { PermitidoAgente } from '../../seguridad/agente/permitido-agente.decorator.js';
 import { SinMarcaSimulacro } from '../../auditoria/simulacro.interceptor.js';
-import type { RequestConUsuario } from '../../auth/interfaces/auth.interface.js';
+import type { RequestConUsuario } from '../../nucleo/contexto/usuario.interface.js';
 import { EjecutorRutinasService } from './ejecutor.service.js';
 
 /** Lo que cuenta el flujo al terminar un paso de una rutina */

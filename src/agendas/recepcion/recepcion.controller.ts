@@ -3,7 +3,7 @@ import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { RecepcionService } from './recepcion.service.js';
 import { BuscarRecepcionDto, ListarAgendasRecepcionDto } from './dto/buscar-recepcion.dto.js';
 import { ActualizarRecepcionBodyDto, ActualizarRecepcionQueryDto } from './dto/actualizar-recepcion.dto.js';
-import { BuscarDto, PaisDto } from '../../common/dto/pais.dto.js';
+import { BuscarDto, PaisDto } from '../../nucleo/dto/pais.dto.js';
 
 /**
  * Endpoints de agendas de recepción.

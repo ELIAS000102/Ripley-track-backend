@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import type { SupabaseService } from '../../src/common/supabase/supabase.service.js';
+import type { SupabaseService } from '../../src/nucleo/supabase/supabase.service.js';
 import { ChatsService } from '../../src/chats/chats.service.js';
 import { supabaseEnMemoria, type Fila } from '../fixtures/supabase-memoria.js';
 

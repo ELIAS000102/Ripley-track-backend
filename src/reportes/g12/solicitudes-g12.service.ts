@@ -1,5 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { EjecutorG12Service } from './ejecutor-g12.service.js';
 import { firmaIdsG12, IdsG12Service } from './ids-g12.service.js';
 import type {

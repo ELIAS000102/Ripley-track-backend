@@ -3,7 +3,7 @@ import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplService } from './opl.service.js';
 import { ListarAgendasDto, ListarServiciosDto, ListarZonasDto } from './dto/buscar-opl.dto.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
-import { BuscarDto, PaisDto } from '../../../common/dto/pais.dto.js';
+import { BuscarDto, PaisDto } from '../../../nucleo/dto/pais.dto.js';
 
 /**
  * Catálogos en cascada (canal → OPL → zona → agenda) y edición de los servicios

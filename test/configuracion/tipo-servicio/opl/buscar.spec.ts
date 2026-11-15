@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
-import type { CatalogosRipleyService } from '../../../../src/common/ripley/catalogos.service.js';
-import type { RipleyHttpService } from '../../../../src/common/ripley/ripley-http.service.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { CatalogosRipleyService } from '../../../../src/ripley/catalogos.service.js';
+import type { RipleyHttpService } from '../../../../src/ripley/ripley-http.service.js';
 import { OplService } from '../../../../src/configuracion/tipo-servicio/opl/opl.service.js';
 
 /**
@@ -22,7 +22,7 @@ function armar(filas: Array<Record<string, unknown>>) {
     {} as unknown as RipleyHttpService,
     { oficinasConTotal } as unknown as CatalogosRipleyService,
     // Buscar no escribe nada, así que el registro de uso no se toca
-    { registrarCambio: vi.fn() } as unknown as ContextoAuditoria,
+    { registrarCambio: vi.fn() } as unknown as ContextoPeticion,
   );
 
   return { servicio, oficinasConTotal };

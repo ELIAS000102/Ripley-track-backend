@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { CatalogosRipleyService } from '../../ripley/catalogos.service.js';
+import { RipleyHttpService } from '../../ripley/ripley-http.service.js';
 import { ActualizarRelacionDto } from './dto/actualizar-relacion.dto.js';
 import { DiasDisponibles, Relacion, RelacionesResponse, RelacionPayload } from './interfaces/transf.interface.js';
 
@@ -20,7 +20,7 @@ export class TransfService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly catalogos: CatalogosRipleyService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Paso 1: buscar el almacén origen ----------

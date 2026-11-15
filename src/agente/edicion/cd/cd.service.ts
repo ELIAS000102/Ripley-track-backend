@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
-import { isoToRipleyDate } from '../../../common/ripley/utils/date.util.js';
+import { isoToRipleyDate } from '../../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha, sumarDias } from '../../../nucleo/fechas.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import { esTodoElPais, listaDeCds, paisDelCd, resolverCd } from '../../constantes/cds.constants.js';
@@ -38,7 +38,7 @@ export class EditarCdAgenteService {
   constructor(
     private readonly picking: PickingService,
     private readonly contexto: ContextoAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 

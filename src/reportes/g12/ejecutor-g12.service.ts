@@ -6,11 +6,11 @@ import { SKU_POR_DEFECTO } from '../../agente/constantes/simulacion.constants.js
 import type { ConsultarCapacidadDto } from '../../agente/dto/consultas.dto.js';
 import { motivoDelFallo } from '../../agente/utils/error.util.js';
 import { DespachoService } from '../../agendas/despacho/despacho.service.js';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { CatalogosRipleyService, type TipoOficina } from '../../common/ripley/catalogos.service.js';
-import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
-import { dormir } from '../../common/ripley/ritmo.js';
-import { isoToRipleyDate, ripleyDateToIso } from '../../common/ripley/utils/date.util.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { CatalogosRipleyService, type TipoOficina } from '../../ripley/catalogos.service.js';
+import { RipleyApiError } from '../../ripley/ripley.errors.js';
+import { dormir } from '../../ripley/ritmo.js';
+import { isoToRipleyDate, ripleyDateToIso } from '../../ripley/utils/date.util.js';
 import { hoyEnPais, soloFecha, sumarDias } from '../../nucleo/fechas.js';
 import {
   type AgendaIdsG12,
@@ -198,7 +198,7 @@ export class EjecutorG12Service {
     private readonly capacidad: CapacidadAgenteService,
     private readonly catalogos: CatalogosRipleyService,
     private readonly despacho: DespachoService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
     @Optional() private readonly ids?: IdsG12Service,
   ) {}
 

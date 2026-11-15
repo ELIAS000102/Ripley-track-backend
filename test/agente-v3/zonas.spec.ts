@@ -174,20 +174,16 @@ function armar(contexto: ContextoTurno) {
   const editarCapacidad = {
     editarCapacidad: vi.fn(async (_u: unknown, dto: { codigo: string; zona?: string; agenda?: string }) => ({
       tipo: 'despacho',
-      oficinas: dto.codigo
-        .split(',')
-        .map((c) => ({
-          oficina: c,
-          agendas: [
-            {
-              agenda: dto.agenda ?? dto.zona ?? '?',
-              zona: dto.zona,
-              dias: [
-                { fecha: '2026-11-11', antes: dia('2026-11-11'), despues: { ...dia('2026-11-11'), activo: false } },
-              ],
-            },
-          ],
-        })),
+      oficinas: dto.codigo.split(',').map((c) => ({
+        oficina: c,
+        agendas: [
+          {
+            agenda: dto.agenda ?? dto.zona ?? '?',
+            zona: dto.zona,
+            dias: [{ fecha: '2026-11-11', antes: dia('2026-11-11'), despues: { ...dia('2026-11-11'), activo: false } }],
+          },
+        ],
+      })),
       resumen: { pedidos: 1, cambiados: 1, sinCambiar: 0 },
     })),
   };

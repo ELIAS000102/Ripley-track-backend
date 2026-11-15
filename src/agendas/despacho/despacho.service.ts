@@ -1,8 +1,8 @@
 import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
-import { isoToRipleyDate, recortarDesde, ripleyDateToIso } from '../../common/ripley/utils/date.util.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { CatalogosRipleyService } from '../../ripley/catalogos.service.js';
+import { RipleyHttpService } from '../../ripley/ripley-http.service.js';
+import { isoToRipleyDate, recortarDesde, ripleyDateToIso } from '../../ripley/utils/date.util.js';
 import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ActualizarDespachoBodyDto } from './dto/actualizar-despacho.dto.js';
 import {
@@ -30,7 +30,7 @@ export class DespachoService {
   constructor(
     private readonly ripley: RipleyHttpService,
     private readonly catalogos: CatalogosRipleyService,
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
   ) {}
 
   // ---------- Paso 0 y 1: operadores logísticos y sus zonas ----------

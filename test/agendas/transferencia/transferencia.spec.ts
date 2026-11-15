@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import type { RipleyHttpService } from '../../../src/common/ripley/ripley-http.service.js';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
-import { idDePais } from '../../../src/common/ripley/utils/pais.util.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
+import type { RipleyHttpService } from '../../../src/ripley/ripley-http.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import { RipleyApiError } from '../../../src/ripley/ripley.errors.js';
+import { idDePais } from '../../../src/ripley/utils/pais.util.js';
 import { TransferenciaAgendasService } from '../../../src/agendas/transferencia/transferencia-agendas.service.js';
 
 /**
@@ -125,7 +125,7 @@ function armar(agendas: Array<Record<string, unknown>> = [agendaST, agendaPickit
       .mockResolvedValue({ acknowledged: true, modifiedCount: 1, upsertedId: null, upsertedCount: 0, matchedCount: 1 }),
   } as unknown as RipleyHttpService;
 
-  const contexto = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+  const contexto = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
 
   return { servicio: new TransferenciaAgendasService(catalogos, ripley, contexto), catalogos, ripley, contexto };
 }

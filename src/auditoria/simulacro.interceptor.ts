@@ -2,7 +2,7 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor, SetMetadata
 import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import { map, Observable } from 'rxjs';
-import { ContextoAuditoria } from './contexto-auditoria.service.js';
+import { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
 
 const SIN_MARCA_SIMULACRO = 'sinMarcaSimulacro';
 
@@ -46,7 +46,7 @@ export function marcaSimulacro(evitadas: number): MarcaSimulacro {
 @Injectable()
 export class SimulacroInterceptor implements NestInterceptor {
   constructor(
-    private readonly contexto: ContextoAuditoria,
+    private readonly contexto: ContextoPeticion,
     private readonly reflector: Reflector,
   ) {}
 

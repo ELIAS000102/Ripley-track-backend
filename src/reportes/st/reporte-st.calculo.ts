@@ -1,4 +1,4 @@
-import type { CapacityByDay } from '../../common/ripley/interfaces/ripley.interface.js';
+import type { CapacityByDay } from '../../ripley/interfaces/ripley.interface.js';
 import { soloFecha, sumarDias } from '../../nucleo/fechas.js';
 import { DIAS, type Dia, type TiendaInterpretada } from '../../lead_time/matrices/interfaces/matriz.interface.js';
 import type {

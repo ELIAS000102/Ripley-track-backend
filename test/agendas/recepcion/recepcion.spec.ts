@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogos.service.js';
-import type { RipleyHttpService } from '../../../src/common/ripley/ripley-http.service.js';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
-import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
-import { isoToRipleyDate } from '../../../src/common/ripley/utils/date.util.js';
+import type { CatalogosRipleyService } from '../../../src/ripley/catalogos.service.js';
+import type { RipleyHttpService } from '../../../src/ripley/ripley-http.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
+import { RipleyApiError } from '../../../src/ripley/ripley.errors.js';
+import { isoToRipleyDate } from '../../../src/ripley/utils/date.util.js';
 import { hoyEnPais } from '../../../src/nucleo/fechas.js';
 import { RecepcionService } from '../../../src/agendas/recepcion/recepcion.service.js';
 
@@ -77,7 +77,7 @@ function armar(filas: Array<Record<string, unknown>>, dias = DIAS) {
 
   const contexto = {
     registrarCambio: vi.fn(),
-  } as unknown as ContextoAuditoria;
+  } as unknown as ContextoPeticion;
 
   return {
     servicio: new RecepcionService(catalogos, ripley, contexto),

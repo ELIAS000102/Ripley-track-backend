@@ -3,7 +3,7 @@ export type {
   MainZoneRow,
   OfficeRow,
   RipleyListResponse,
-} from '../../../common/ripley/interfaces/ripley.interface.js';
+} from '../../../ripley/interfaces/ripley.interface.js';
 
 /** Tipo de servicio ya resuelto por la API */
 export interface ServiceTypeRef {

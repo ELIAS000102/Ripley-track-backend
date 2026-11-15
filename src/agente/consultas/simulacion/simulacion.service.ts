@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SimulacionService } from '../../../simulacion/simulacion.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { SimularAgenteDto } from '../../dto/consultas.dto.js';
@@ -14,7 +14,7 @@ import {
 import type { ResultadoSimulacion, SimulacionRespuesta } from '../../interfaces/agente.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 import { resumirCalculo, type OpcionCalculada } from '../../utils/calculo-simulacion.util.js';
-import { enLotes } from '../../../common/utils/lotes.util.js';
+import { enLotes } from '../../../nucleo/lotes.util.js';
 
 /**
  * "2026-10-03T00:46:00.000Z" → "03/10/2026 00:46".

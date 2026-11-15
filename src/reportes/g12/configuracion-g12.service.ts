@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
 import { firmasDeConfiguracion, IdsG12Service } from './ids-g12.service.js';
 import { solicitudesVacias } from './solicitudes-g12.js';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
 import { configuracionAXlsx, xlsxAConfiguracion } from './configuracion-xlsx.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
@@ -24,7 +24,7 @@ import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interfa
 export class ConfiguracionG12Service {
   constructor(
     private readonly configuraciones: ConfiguracionReportesService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
     private readonly cuadros: CuadrosG12Service,
     private readonly historial: HistorialG12Service,
     @Optional() private readonly ids?: IdsG12Service,

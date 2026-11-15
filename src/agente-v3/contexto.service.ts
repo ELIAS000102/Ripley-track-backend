@@ -1,6 +1,6 @@
 import { sinAcentos } from '../nucleo/texto.js';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { almacenesDe, codigosDichos, mencionesDe, parecidosDe, type EntidadDirectorio } from './entidades.js';
 import type {

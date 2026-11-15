@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplMasivoService } from '../../../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { metodoDeServicio } from '../../constantes/servicios.constants.js';
 import { BuscarMasivoDto } from '../../dto/consultas.dto.js';
@@ -13,7 +13,7 @@ import type {
 import { partirLista, partirListaUnica } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { POR_VEZ } from '../../constantes/limites.constants.js';
-import { enLotes } from '../../../common/utils/lotes.util.js';
+import { enLotes } from '../../../nucleo/lotes.util.js';
 
 /** Cuántos servicios se consultan a la vez cuando piden varios */
 const SERVICIOS_A_LA_VEZ = 3;

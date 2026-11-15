@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { OplMasivoService } from '../../../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
-import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
+import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarMasivoDto } from '../../dto/edicion.dto.js';
 import type { MasivoEditado } from '../../interfaces/edicion.interface.js';
@@ -35,7 +35,7 @@ export class EditarMasivoAgenteService {
   constructor(
     private readonly masivo: OplMasivoService,
     private readonly contexto: ContextoAgenteService,
-    private readonly auditoria: ContextoAuditoria,
+    private readonly auditoria: ContextoPeticion,
   ) {}
 
   async editar(usuario: UsuarioAutenticado, dto: EditarMasivoDto): Promise<MasivoEditado> {

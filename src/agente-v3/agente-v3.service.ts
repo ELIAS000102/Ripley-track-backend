@@ -1,9 +1,9 @@
 import { soloPalabras } from '../nucleo/texto.js';
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { SupabaseService } from '../common/supabase/supabase.service.js';
-import { InterrupcionAgenteService } from '../agente/seguridad/interrupcion.service.js';
-import { ModoAgenteService } from '../agente/seguridad/modo.service.js';
-import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
+import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
+import { InterrupcionAgenteService } from '../seguridad/agente/interrupcion.service.js';
+import { ModoAgenteService } from '../seguridad/agente/modo.service.js';
+import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
 import { AprendizajeService } from './aprender/aprendizaje.service.js';
 import { leerAprendido, promptAprender } from './aprender/prompt.js';
 import { leerPlan } from './armar/leer.js';

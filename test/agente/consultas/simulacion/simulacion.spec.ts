@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { SimulacionService } from '../../../../src/simulacion/simulacion.service.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { SimulacionAgenteService } from '../../../../src/agente/consultas/simulacion/simulacion.service.js';

@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
-import { PaisDto } from '../../../common/dto/pais.dto.js';
+import { PaisDto } from '../../../nucleo/dto/pais.dto.js';
 
 // El catálogo de oficinas solo necesita el país: el controller usa PaisDto
 

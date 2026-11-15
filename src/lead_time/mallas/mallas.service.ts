@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
-import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
+import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { VersionadoLeadtime, type GrupoRef, type MallaElegida } from '../versionado.service.js';
 import { fechasDeVentaOpl, interpretarOpl } from './malla.calculo.js';
 import { leerMalla } from './malla.lector.js';
@@ -23,7 +23,7 @@ const diaDe = (d: Partial<DiaMalla> | null | undefined): DiaMalla | null =>
  */
 @Injectable()
 export class MallasService extends VersionadoLeadtime<OplMalla, OplInterpretada, 'opls'> {
-  constructor(supabase: SupabaseService, auditoria: ContextoAuditoria) {
+  constructor(supabase: SupabaseService, auditoria: ContextoPeticion) {
     super(supabase, auditoria, {
       tabla: 'mallas_despacho',
       tablaDetalle: 'malla_despacho_opls',

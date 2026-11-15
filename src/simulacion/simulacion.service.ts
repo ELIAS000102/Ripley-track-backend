@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CatalogosRipleyService, type TipoOficina } from '../common/ripley/catalogos.service.js';
-import { RipleyHttpService } from '../common/ripley/ripley-http.service.js';
+import { CatalogosRipleyService, type TipoOficina } from '../ripley/catalogos.service.js';
+import { RipleyHttpService } from '../ripley/ripley-http.service.js';
 import { hoyEnPais } from '../nucleo/fechas.js';
 import { SimularDto } from './dto/simular.dto.js';
 import {

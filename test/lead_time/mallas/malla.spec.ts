@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it, vi } from 'vitest';
-import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
+import type { ContextoPeticion } from '../../../src/nucleo/contexto/contexto-peticion.service.js';
 import { fechasDeVentaOpl, ventasDeOpl } from '../../../src/lead_time/mallas/malla.calculo.js';
 import { leerMalla } from '../../../src/lead_time/mallas/malla.lector.js';
 import { crearPlantillaMalla } from '../../../src/lead_time/mallas/malla.plantilla.js';
@@ -238,7 +238,7 @@ describe('Leer mallas con el formato de la operación', () => {
 describe('El servicio de mallas', () => {
   function montar() {
     const tablas: Record<string, Fila[]> = {};
-    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
+    const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoPeticion;
     return { servicio: new MallasService(supabaseEnMemoria(tablas), auditoria), tablas };
   }
 

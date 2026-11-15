@@ -1,8 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { TransfService } from '../../../../src/configuracion/transf-suc/transf.service.js';
-import type { ContextoAuditoria } from '../../../../src/auditoria/contexto-auditoria.service.js';
-import type { UsuarioAutenticado } from '../../../../src/auth/interfaces/auth.interface.js';
+import type { ContextoPeticion } from '../../../../src/nucleo/contexto/contexto-peticion.service.js';
+import type { UsuarioAutenticado } from '../../../../src/nucleo/contexto/usuario.interface.js';
 import type { ContextoAgenteService } from '../../../../src/agente/contexto.service.js';
 import { EditarTransferenciaAgenteService } from '../../../../src/agente/edicion/transferencia/transferencia.service.js';
 import { almacenesDePrueba } from '../../../fixtures/almacenes.js';
@@ -74,7 +74,7 @@ function armar(relaciones = RELACIONES) {
       {
         registrarCambio,
         enSimulacro: () => false,
-      } as unknown as ContextoAuditoria,
+      } as unknown as ContextoPeticion,
       almacenesDePrueba(),
     ),
     actualizarRelacion,
