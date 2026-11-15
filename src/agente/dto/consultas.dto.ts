@@ -372,15 +372,6 @@ export class InterpretarDto {
   atajos?: Array<{ nombre?: unknown; descripcion?: unknown; tipos?: unknown }>;
 
   /**
-   * El nombre de antes de `atajos`. Lo sigue mandando el flujo de n8n hasta
-   * que se reimporte; quitar cuando ya no llegue.
-   * @deprecated usa `atajos`
-   */
-  @IsOptional()
-  @IsArray()
-  preconfiguraciones?: Array<{ nombre?: unknown; descripcion?: unknown; tipos?: unknown }>;
-
-  /**
    * El id que el panel le puso a este mensaje, y el de la ejecución de n8n que
    * lo atiende. Con los dos, "Detener" sabe qué ejecución parar. Vacíos se
    * ignoran: n8n manda la expresión aunque el panel sea antiguo y no lo envíe.

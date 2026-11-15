@@ -433,17 +433,6 @@ describe('La ruta', () => {
     expect(r).toMatchObject({ caso: 'atajo', atajos: ['Simulación SD'] });
   });
 
-  it('con el nombre de antes, "preconfiguraciones", también: el flujo viejo lo manda hasta que se reimporte', async () => {
-    const r = await ConsultasAgenteController.prototype.interpretar.call(
-      { configuracionCds: configuracionCdsFalsa() },
-      {
-        pregunta: 'ejecuta la Simulación SD',
-        preconfiguraciones: [{ nombre: 'Simulación SD' }],
-      } as never,
-    );
-    expect(r).toMatchObject({ caso: 'atajo', atajos: ['Simulación SD'] });
-  });
-
   it('"qué preconfiguraciones hay", con la palabra de antes, sigue pidiendo la lista de atajos', () => {
     expect(leer('qué preconfiguraciones hay')).toMatchObject({ caso: 'atajos', certeza: 'alta' });
   });

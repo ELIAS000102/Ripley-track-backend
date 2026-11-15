@@ -207,7 +207,7 @@ export class ConsultasAgenteController {
       this.interrupcion.registrar(body.peticion, usuario.id, body.ejecucion);
     }
 
-    const atajos = (body.atajos ?? body.preconfiguraciones ?? [])
+    const atajos = (body.atajos ?? [])
       .filter((p) => typeof p?.nombre === 'string')
       .map((p) => ({
         nombre: p.nombre as string,

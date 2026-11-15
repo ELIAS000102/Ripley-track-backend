@@ -124,8 +124,7 @@ export class EditarTipoServicioAgenteService {
      * chile" lo consulta en la Zona 4, y el cambio sobre lo que enseñó tiene que
      * ir a esa. Sin esto se volvía a buscar entre las cuatro y se preguntaba.
      */
-    // `preconfiguracion` es el nombre de antes: lo manda el flujo hasta que se reimporte
-    const atajo = dto.atajo ?? dto.preconfiguracion;
+    const atajo = dto.atajo;
     const guardadas = atajo ? await this.agendasGuardadas.leer(atajo, 'opl') : null;
     const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.opl);
     // Del código guardado ("1088 - Courier Paquetería") se busca solo el código

@@ -21,7 +21,7 @@ import { CrearAtajoDto, EditarAtajoDto, EjecutarAtajoDto, ListarAtajosDto } from
  * códigos estén escritos en el prompt ni en el código.
  */
 // La ruta de antes sigue respondiendo mientras el flujo de n8n no se reimporte
-@Controller(['configuracion/atajos', 'configuracion/preconfiguraciones'])
+@Controller('configuracion/atajos')
 export class AtajosController {
   constructor(
     private readonly atajos: AtajosService,

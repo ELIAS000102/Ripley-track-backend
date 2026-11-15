@@ -1113,15 +1113,6 @@ describe('Edición del agente: sobre un atajo', () => {
     expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
   });
 
-  it('con el nombre de antes, "preconfiguracion", también: el flujo viejo lo manda hasta que se reimporte', async () => {
-    const { servicio, actualizarDespacho } = conAtajo();
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ tipo: 'despacho', codigo: '1401', disponible: 30, preconfiguracion: 'bt lima' }),
-    );
-    expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
-  });
-
   it('"todos" son todos los códigos del atajo, cada uno con su zona', async () => {
     const { servicio, actualizarDespacho } = conAtajo();
     const r = await servicio.editarCapacidad(

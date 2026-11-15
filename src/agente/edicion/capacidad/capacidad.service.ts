@@ -292,8 +292,7 @@ export class EditarCapacidadAgenteService {
     const fechas = this.diasDelRango(dto, pais);
 
     // De un atajo: cada código con el servicio, la zona y la agenda que tiene guardados
-    // `preconfiguracion` es el nombre de antes: lo manda el flujo hasta que se reimporte
-    const atajo = dto.atajo ?? dto.preconfiguracion;
+    const atajo = dto.atajo;
     const guardadas = atajo ? await this.agendasGuardadas.leer(atajo, dto.tipo) : null;
     const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.codigo);
     const pedidoDeCodigos = todosLosSuyos

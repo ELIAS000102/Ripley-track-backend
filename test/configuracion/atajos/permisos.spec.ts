@@ -19,11 +19,8 @@ import type { Atajo } from '../../../src/configuracion/atajos/interfaces/atajos.
 const USUARIO = { id: 'u1', email: 'jose@ripley.com.pe' } as UsuarioAutenticado;
 
 describe('Las rutas', () => {
-  it('responde en /configuracion/atajos y, mientras se reimporta el flujo, en la de antes', () => {
-    expect(Reflect.getMetadata('path', AtajosController)).toEqual([
-      'configuracion/atajos',
-      'configuracion/preconfiguraciones',
-    ]);
+  it('responde solo en /configuracion/atajos', () => {
+    expect(Reflect.getMetadata('path', AtajosController)).toBe('configuracion/atajos');
   });
 });
 

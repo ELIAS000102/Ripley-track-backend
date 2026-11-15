@@ -214,17 +214,6 @@ export class EditarCapacidadDto extends PaisDto {
   @IsString()
   @MaxLength(80)
   atajo?: string;
-
-  /**
-   * El nombre de antes de `atajo`. Lo sigue mandando el flujo de n8n
-   * hasta que se reimporte; quitar cuando ya no llegue.
-   * @deprecated usa `atajo`
-   */
-  @IsOptional()
-  @Transform(({ value }) => aTexto(value))
-  @IsString()
-  @MaxLength(80)
-  preconfiguracion?: string;
 }
 
 /**
@@ -337,17 +326,6 @@ export class EditarTipoServicioDto extends PaisDto {
   @IsString()
   @MaxLength(80)
   atajo?: string;
-
-  /**
-   * El nombre de antes de `atajo`. Lo sigue mandando el flujo de n8n
-   * hasta que se reimporte; quitar cuando ya no llegue.
-   * @deprecated usa `atajo`
-   */
-  @IsOptional()
-  @Transform(({ value }) => aTexto(value))
-  @IsString()
-  @MaxLength(80)
-  preconfiguracion?: string;
 
   /** Si el servicio está activo. Omítelo para dejarlo como está. */
   @IsOptional()
