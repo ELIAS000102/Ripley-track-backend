@@ -80,8 +80,9 @@ las rutas de la API de Ripley de cada país, más las tres claves de Supabase; c
 está documentada ahí mismo, con comentarios. El token corporativo no va en el entorno: lo
 guarda cada usuario desde el panel.
 
-Antes del primer arranque hay que crear las tablas en Supabase ejecutando el script SQL de
-instalación en su editor de consultas.
+Antes del primer arranque hay que crear las tablas en Supabase ejecutando, en orden, los
+scripts SQL de instalación (de `01` a `09`) en su editor de consultas. En una base que ya
+existía, antes el de actualizar la base existente.
 
 ```bash
 npm install
@@ -101,6 +102,18 @@ para usarlo.
 | `npm run lint` | Linter sobre el código |
 | `npm run format` | Formatea el código |
 | `npm test` | Los tests, en `test/` |
+
+## Cómo está organizado `src/`
+
+| Carpeta | Qué hay |
+| --- | --- |
+| `nucleo/` | La base: el contexto de cada petición, Supabase, el cifrado, fechas y comparación de textos. No importa de ninguna otra carpeta |
+| `ripley/` | El cliente de la API corporativa (ritmo, cupo, simulacro) y la credencial de cada usuario |
+| `seguridad/` | `sesion/`: login, perfil y el guard de sesión. `agente/`: lo que acota a la agente (lista cerrada, modo editor, "Detener") |
+| `auditoria/` | El registro de cambios |
+| `agendas/`, `configuracion/`, `reportes/`, `simulacion/`, `lead_time/` | Las áreas de la operación |
+| `agente/`, `agente-v3/` | Las herramientas de la agente (v2, por n8n) y la v3, que corre en el backend |
+| `rutinas/`, `notificaciones/`, `chats/`, `n8n/` | Lo que la agente hace sola, sus avisos, las conversaciones y la limpieza de n8n |
 
 ## Documentación
 

@@ -379,9 +379,7 @@ export class OracleG12Service {
 
   private fallo(error: { code?: string; message?: string }, accion: string): never {
     if (['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code ?? '')) {
-      throw new BadGatewayException(
-        'Falta la carga del Oracle en Supabase: ejecuta el bloque "unidades de Despacho a domicilio Lima desde el Oracle" de docs/supabase-setup.sql.',
-      );
+      throw new BadGatewayException('Falta la carga del Oracle en Supabase: ejecuta docs/sql/supabase/07-g12.sql.');
     }
     this.logger.error(`No se pudo ${accion}: ${error.message ?? 'sin respuesta'}`);
     throw new BadGatewayException(`No se pudo ${accion}.`);

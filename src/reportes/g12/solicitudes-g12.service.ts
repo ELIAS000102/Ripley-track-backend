@@ -81,7 +81,7 @@ export class SolicitudesG12Service {
     if (error) {
       throw new Error(
         SIN_TABLA.includes(error.code ?? '')
-          ? 'Falta la tabla g12_solicitudes en Supabase: ejecuta el bloque "Solicitudes del G12" de docs/supabase-setup.sql.'
+          ? 'Falta la tabla g12_solicitudes en Supabase: ejecuta docs/sql/supabase/07-g12.sql.'
           : `No se pudieron guardar las Solicitudes: ${error.message}`,
       );
     }

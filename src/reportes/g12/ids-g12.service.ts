@@ -167,7 +167,7 @@ export class IdsG12Service {
     const falta = ['42P01', 'PGRST205'].includes(error.code ?? '');
     this.logger.warn(
       falta
-        ? 'Falta la tabla g12_ids en Supabase: los ids del G12 se consultan en cada actualización (ejecuta el bloque "ids guardados del G12" de docs/supabase-setup.sql).'
+        ? 'Falta la tabla g12_ids en Supabase: los ids del G12 se consultan en cada actualización (ejecuta docs/sql/supabase/07-g12.sql).'
         : `No se pudo ${accion} los ids del G12: ${error.message ?? 'sin respuesta'}`,
     );
   }

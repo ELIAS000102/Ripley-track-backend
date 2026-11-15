@@ -1,7 +1,7 @@
 /**
  * Una fila del registro de uso.
  * Los nombres van en snake_case porque se insertan tal cual como columnas
- * en la tabla de Supabase (ver docs/supabase-setup.sql).
+ * en la tabla de Supabase (ver docs/sql/supabase/01-registro-de-uso.sql).
  */
 export interface RegistroUso {
   usuario_id: string | null;

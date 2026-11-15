@@ -307,7 +307,7 @@ export class HistorialG12Service {
       // Sin las columnas nuevas (falta el ALTER del SQL) se guarda igual, sin ellas
       if (error && SIN_COLUMNA.includes(error.code ?? '')) {
         this.logger.warn(
-          'g12_peticiones no tiene las columnas "llamadas" y "espera_ms": ejecuta los ALTER de docs/supabase-setup.sql',
+          'g12_peticiones no tiene las columnas "llamadas" y "espera_ms": ejecuta docs/sql/supabase/actualizar-base-existente.sql',
         );
         ({ error } = await this.supabase.admin
           .from(TABLA_PETICIONES)
@@ -456,9 +456,7 @@ export class HistorialG12Service {
 
   private fallo(error: { code?: string; message?: string } | null, accion: string): never {
     if (error && ['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code ?? '')) {
-      throw new BadGatewayException(
-        'Falta el G12 compartido en Supabase: ejecuta el SQL de g12_actualizaciones, g12_peticiones y g12_cuadros de docs/supabase-setup.sql.',
-      );
+      throw new BadGatewayException('Falta el G12 compartido en Supabase: ejecuta docs/sql/supabase/07-g12.sql.');
     }
     this.logger.error(`No se pudo ${accion}: ${error?.message ?? 'sin respuesta'}`);
     throw new BadGatewayException(`No se pudo ${accion}.`);
