@@ -24,8 +24,14 @@ export const QUE_TRAE: Record<string, string> = {
 /** Lo que puede pedir una persona (Clasificar lo dice en "pide"): las mismas clases que trae un atajo */
 export const PIDE = Object.keys(QUE_TRAE);
 
-/** Lo que se contesta igual con una clase u otra: el estado de las agendas y los servicios de OPL; la ocupación de un CD y su picking */
-const AFINES: Record<string, string[]> = { masivo: ['opl'], opl: ['masivo'], reporte: ['picking'], picking: ['reporte'] };
+/**
+ * Lo que trae una clase además de la suya. Los servicios de un OPL dicen si
+ * cada uno está activo (sirven para el estado de las agendas), pero el estado
+ * de las agendas de UN servicio no dice qué servicios tiene cada sucursal
+ * ("los tipos de servicio de las sucursales de la SE", 2026-11-15). La
+ * ocupación de un CD y su picking, para lo mismo.
+ */
+const AFINES: Record<string, string[]> = { opl: ['masivo'], reporte: ['picking'], picking: ['reporte'] };
 
 /** Lo que trae un paso del plan */
 export function traePaso(paso: { herramienta: string; param: Record<string, unknown> }, atajos: AtajoDelContexto[]): string[] {

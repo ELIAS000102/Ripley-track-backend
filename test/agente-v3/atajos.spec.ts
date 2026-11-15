@@ -3,6 +3,7 @@ import { atajoQueNoTrae, otrosSinDatos } from '../../src/agente-v3/agente-v3.ser
 import { leerClasificacion } from '../../src/agente-v3/clasificar/leer.js';
 import { leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { promptArmar } from '../../src/agente-v3/armar/prompt.js';
+import { promptClasificar } from '../../src/agente-v3/clasificar/prompt.js';
 import { apodosDe, atajoEsperado, atajosNombrados } from '../../src/agente-v3/atajos.js';
 import { parecidosDe, type EntidadDirectorio } from '../../src/agente-v3/entidades.js';
 import type { AtajoDelContexto, ContextoTurno } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
@@ -101,5 +102,30 @@ describe('Clasificar dice qué se pide ("pide"), y el atajo o el plan tienen que
   it('un plan que ejecuta un atajo trae lo que trae el atajo', () => {
     expect(leerPlan(ejecutar('Big Ticket Lima'), c, MENSAJE, false, null, ['despacho'])).toMatchObject({ ok: true });
     expect(leerPlan(ejecutar(EX.nombre), c, 'dame el despacho del 90 min+', false, null, ['despacho'])).toMatchObject({ ok: false, motivo: expect.stringMatching(/^se pide capacidad de despacho y el plan \(ejecutar_atajo\) no lo trae/) });
+  });
+});
+
+describe('"Dame todos los tipos de servicio que tienen las sucursales de la SE" (2026-11-15)', () => {
+  const SE: AtajoDelContexto = { nombre: 'OPLS de la SE', descripcion: 'las sucursales de la SE', tipos: ['masivo'], pais: 'PE' };
+  const c: ContextoTurno = { ...CTX, atajos: [SE] };
+  const m = 'dame todos los tipos de servicios que tiene las sucursales de la SE';
+
+  it('el atajo solo halla las sucursales: no trae sus tipos de servicio', () => {
+    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }, c)).toMatch(/^se pide servicios de OPL .* y el atajo «OPLS de la SE» \(trae estado de las agendas/);
+    expect(leerPlan(ejecutar(SE.nombre), c, m, false, null, ['opl'])).toMatchObject({ ok: false, motivo: expect.stringMatching(/^se pide servicios de OPL/) });
+  });
+
+  it('el atajo + los servicios de OPL de lo que trajo, sí', () => {
+    const plan = { pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: SE.nombre } }, { herramienta: 'consultar_servicios_opl', param: { opl: { ref: 'paso', n: 1 } } }] };
+    expect(leerPlan(JSON.stringify(plan), c, m, false, null, ['opl'])).toMatchObject({ ok: true });
+  });
+
+  it('al revés sigue valiendo: el estado de las agendas lo dicen también los servicios de OPL', () => {
+    expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_servicios_opl', param: { opl: ['1401'] } }] }), { ...c, entidades: [{ texto: '1401', porNombre: false, candidatos: [] }] }, 'la 1401', false, null, ['masivo'])).toMatchObject({ ok: true });
+  });
+
+  it('Clasificar y Armar lo ven: "tipos de servicio" son los servicios de cada sucursal', () => {
+    expect(promptClasificar(m, c).sistema).toContain('"opl" (los TIPOS DE SERVICIO de cada OPL o sucursal');
+    expect(promptArmar(m, c, { tipo: 'consulta', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }).sistema).toContain('"Todos los tipos de servicio que tienen las sucursales de la SE" = ejecutar_atajo «OPLS de la SE»');
   });
 });
