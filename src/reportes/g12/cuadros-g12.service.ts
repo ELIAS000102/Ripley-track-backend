@@ -1,6 +1,7 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { ClaveComponente, ComponenteReporteG12, PeticionG12 } from './interfaces/g12.interface.js';
+import { faltaTabla, falloSupabase } from '../../nucleo/supabase/errores.js';
 
 const TABLA = 'g12_cuadros';
 
@@ -93,10 +94,9 @@ export class CuadrosG12Service {
   }
 
   private fallo(error: { code?: string; message?: string } | null, accion: string): never {
-    if (error && ['42P01', 'PGRST205'].includes(error.code ?? '')) {
+    if (faltaTabla(error)) {
       throw new BadGatewayException('Falta la tabla g12_cuadros en Supabase: ejecuta docs/sql/supabase/07-g12.sql.');
     }
-    this.logger.error(`No se pudo ${accion}: ${error?.message ?? 'sin respuesta'}`);
-    throw new BadGatewayException(`No se pudo ${accion}.`);
+    falloSupabase(this.logger, error, accion);
   }
 }

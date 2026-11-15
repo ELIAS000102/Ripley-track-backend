@@ -49,6 +49,7 @@ import type {
 } from './interfaces/agente-v3.interface.js';
 import { resumenDelPaso, type FilaAtajo } from './respuesta/armar.js';
 import { filasDelCambio } from './respuesta/cambio.js';
+import { faltaColumna } from '../nucleo/supabase/errores.js';
 
 /**
  * Etapa 6 · Ejecutar: un paso del plan, con los services del backend en el
@@ -463,8 +464,7 @@ export class EjecucionV3Service {
     };
     const base = 'pais, codigo, nombre, metodo_entrega, fase, fuente';
     let { data, error } = await leer(`${base}, origen, descripcion, ensenado_por, ensenado_en`);
-    if (error && /column|does not exist|42703/i.test(`${error.code ?? ''} ${error.message}`))
-      ({ data, error } = await leer(base));
+    if (faltaColumna(error)) ({ data, error } = await leer(base));
     if (error) throw new Error(`No pude leer los servicios: ${error.message}`);
     return (data ?? []) as unknown as Array<Record<string, unknown>>;
   }

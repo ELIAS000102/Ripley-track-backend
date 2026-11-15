@@ -9,11 +9,9 @@ import type {
   SolicitudesG12,
 } from './interfaces/g12.interface.js';
 import { filasDeSolicitud, TIPOS_SOLICITUD } from './solicitudes-g12.js';
+import { faltaTabla } from '../../nucleo/supabase/errores.js';
 
 const TABLA = 'g12_solicitudes';
-
-/** Sin la tabla (SQL sin correr): no se rompe nada, se dice qué falta */
-const SIN_TABLA = ['42P01', 'PGRST205'];
 
 /**
  * Solicitudes del G12: lee las agendas de su lista (con los ids guardados, como
@@ -35,8 +33,7 @@ export class SolicitudesG12Service {
   async leer(pais: string): Promise<SolicitudesG12 | null> {
     const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('pais', pais).maybeSingle();
     if (error) {
-      if (!SIN_TABLA.includes(error.code ?? ''))
-        this.logger.warn(`No se pudieron leer las Solicitudes de ${pais}: ${error.message}`);
+      if (!faltaTabla(error)) this.logger.warn(`No se pudieron leer las Solicitudes de ${pais}: ${error.message}`);
       return null;
     }
     const f = data as {
@@ -80,7 +77,7 @@ export class SolicitudesG12Service {
     );
     if (error) {
       throw new Error(
-        SIN_TABLA.includes(error.code ?? '')
+        faltaTabla(error)
           ? 'Falta la tabla g12_solicitudes en Supabase: ejecuta docs/sql/supabase/07-g12.sql.'
           : `No se pudieron guardar las Solicitudes: ${error.message}`,
       );

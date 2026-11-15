@@ -1,5 +1,4 @@
 import {
-  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -21,6 +20,7 @@ import type {
   RutinaVista,
   Tarea,
 } from './interfaces/rutinas.interface.js';
+import { esDuplicado, falloSupabase } from '../nucleo/supabase/errores.js';
 
 const CAMPOS =
   'id, nombre, descripcion, pais, activa, version, probada_version, probada_en, creado_por, creado_por_id, creado_en, actualizado_en';
@@ -93,7 +93,7 @@ export class RutinasService {
       .from('rutinas')
       .select(CAMPOS)
       .order('nombre', { ascending: true });
-    if (error) this.reventar('listar las rutinas', error.message);
+    if (error) falloSupabase(this.logger, error, 'listar las rutinas');
 
     const rutinas = (data ?? []) as Rutina[];
     if (!rutinas.length) return [];
@@ -148,7 +148,7 @@ export class RutinasService {
    */
   async paraEjecutar(id: string): Promise<RutinaParaEjecutar> {
     const { data, error } = await this.supabase.admin.from('rutinas').select(CAMPOS).eq('id', id).maybeSingle();
-    if (error) this.reventar('leer la rutina', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer la rutina');
     if (!data) throw new NotFoundException('No existe esa rutina');
 
     const [horarios, tareas] = await Promise.all([this.horariosDe([id]), this.tareasDe([id])]);
@@ -172,7 +172,7 @@ export class RutinasService {
       .eq('id', ejecucionId)
       .eq('rutina_id', rutinaId)
       .maybeSingle();
-    if (error) this.reventar('leer la ejecución', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer la ejecución');
     if (!data) throw new NotFoundException('No existe esa ejecución de la rutina');
 
     const fila = data as EjecucionDetalle;
@@ -196,7 +196,7 @@ export class RutinasService {
       .eq('id', id)
       .eq('version', version)
       .select('id');
-    if (error) this.reventar('apuntar la prueba', error.message);
+    if (error) falloSupabase(this.logger, error, 'apuntar la prueba');
     return Boolean((data as unknown[] | null)?.length);
   }
 
@@ -317,7 +317,7 @@ export class RutinasService {
 
     // Sus tareas, pasos, horarios, ejecuciones y avisos caen con ella (cascade)
     const { error } = await this.supabase.admin.from('rutinas').delete().eq('id', id);
-    if (error) this.reventar('borrar la rutina', error.message);
+    if (error) falloSupabase(this.logger, error, 'borrar la rutina');
 
     this.contexto.registrarCambio(this.resumen(antes), null);
     this.logger.log(`Rutina "${antes.nombre}" borrada`);
@@ -475,7 +475,7 @@ export class RutinasService {
       .from('rutinas')
       .update({ activa, actualizado_en: new Date().toISOString() })
       .eq('id', rutina.id);
-    if (error) this.reventar(activa ? 'activar la rutina' : 'desactivar la rutina', error.message);
+    if (error) falloSupabase(this.logger, error, activa ? 'activar la rutina' : 'desactivar la rutina');
     this.contexto.registrarCambio({ nombre: rutina.nombre, activa: !activa }, { nombre: rutina.nombre, activa });
     this.logger.log(`Rutina "${rutina.nombre}" ${activa ? 'activada' : 'desactivada'}`);
     return {
@@ -492,14 +492,14 @@ export class RutinasService {
       .update({ estado: 'cancelada', motivo, fin: new Date().toISOString() })
       .eq('rutina_id', id)
       .eq('estado', 'detenida');
-    if (error) this.reventar('cancelar la ejecución detenida', error.message);
+    if (error) falloSupabase(this.logger, error, 'cancelar la ejecución detenida');
   }
 
   // ---------- Las consultas de cada nivel ----------
 
   private async fila(id: string): Promise<Rutina> {
     const { data, error } = await this.supabase.admin.from('rutinas').select(CAMPOS).eq('id', id).maybeSingle();
-    if (error) this.reventar('leer la rutina', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer la rutina');
     if (!data) throw new NotFoundException('No existe esa rutina');
     return data as Rutina;
   }
@@ -509,7 +509,7 @@ export class RutinasService {
       .from('rutina_horarios')
       .select('id, rutina_id, orden, dias, hora, tareas')
       .in('rutina_id', ids);
-    if (error) this.reventar('leer los horarios', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer los horarios');
     return ((data ?? []) as (Horario & { rutina_id: string })[])
       .map((h) => ({
         ...h,
@@ -525,7 +525,7 @@ export class RutinasService {
       .from('rutina_tareas')
       .select('id, rutina_id, orden, nombre')
       .in('rutina_id', ids);
-    if (error) this.reventar('leer las tareas', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer las tareas');
     return ((data ?? []) as (Omit<Tarea, 'pasos'> & { rutina_id: string })[])
       .map((t) => ({ ...t, pasos: [] as Paso[] }))
       .sort((a, b) => a.orden - b.orden);
@@ -538,7 +538,7 @@ export class RutinasService {
       .from('rutina_pasos')
       .select('tarea_id, orden, instruccion, atajos, guias')
       .in('tarea_id', tareas);
-    if (error) this.reventar('leer los pasos', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer los pasos');
     const filas = (
       (data ?? []) as {
         tarea_id: string;
@@ -585,13 +585,13 @@ export class RutinasService {
       .from('rutina_ejecuciones')
       .select(CAMPOS_EJECUCION)
       .in('rutina_id', ids);
-    if (error) this.reventar('leer las ejecuciones', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer las ejecuciones');
     return ((data ?? []) as FilaEjecucion[]).sort((a, b) => String(b.creado_en).localeCompare(String(a.creado_en)));
   }
 
   private async leer<T>(tabla: string, campos: string, ids: string[]): Promise<T[]> {
     const { data, error } = await this.supabase.admin.from(tabla).select(campos).in('id', ids);
-    if (error) this.reventar(`leer ${tabla}`, error.message);
+    if (error) falloSupabase(this.logger, error, `leer ${tabla}`);
     return (data ?? []) as T[];
   }
 
@@ -602,7 +602,7 @@ export class RutinasService {
         .insert({ rutina_id: rutinaId, orden: i + 1, nombre: tarea.nombre })
         .select('id')
         .single();
-      if (error) this.reventar('guardar la tarea', error.message);
+      if (error) falloSupabase(this.logger, error, 'guardar la tarea');
 
       const { error: fallo } = await this.supabase.admin.from('rutina_pasos').insert(
         tarea.pasos.map((p, j) => ({
@@ -635,22 +635,17 @@ export class RutinasService {
   private async borrarDe(tabla: 'rutina_tareas' | 'rutina_horarios', rutinaId: string) {
     // Los pasos caen con sus tareas (cascade)
     const { error } = await this.supabase.admin.from(tabla).delete().eq('rutina_id', rutinaId);
-    if (error) this.reventar('reemplazar lo de antes', error.message);
+    if (error) falloSupabase(this.logger, error, 'reemplazar lo de antes');
   }
 
   // ---------- Fallos ----------
 
   private fallarAlGuardar(que: string, nombre: string, error: { message: string; code?: string }): never {
-    if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
+    if (esDuplicado(error)) {
       throw new ConflictException(
         `Ya hay una rutina llamada "${nombre}". El nombre es como se la reconoce en el historial y en los avisos.`,
       );
     }
-    this.reventar(`${que} la rutina`, error.message);
-  }
-
-  private reventar(accion: string, detalle: string): never {
-    this.logger.error(`No se pudo ${accion}: ${detalle}`);
-    throw new BadGatewayException(`No se pudo ${accion}`);
+    falloSupabase(this.logger, error, `${que} la rutina`);
   }
 }

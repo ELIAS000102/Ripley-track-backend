@@ -1,6 +1,7 @@
-import { BadGatewayException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import type { Chat, Mensaje } from './interfaces/chats.interface.js';
+import { faltaColumna, falloSupabase } from '../nucleo/supabase/errores.js';
 
 /** El nombre del chat donde Silvana cuenta lo que hicieron las rutinas */
 export const TITULO_NOTIFICACIONES = 'Notificaciones';
@@ -16,9 +17,6 @@ const CAMPOS_CHAT = 'id, titulo, tipo, creado_en, actualizado_en';
 const CAMPOS_MENSAJE = 'id, rol, texto, creado_en, ejecucion_id';
 /** Con la respuesta de la v3 del agente (agente-v3/sql/01-agente-v3.sql añade la columna) */
 const CAMPOS_MENSAJE_CON_DATOS = `${CAMPOS_MENSAJE}, datos`;
-/** "column … does not exist": el SQL de la v3 todavía no se corrió */
-const SIN_COLUMNA = (e: { code?: string; message?: string } | null) =>
-  e?.code === '42703' || /column .*datos.* does not exist/i.test(e?.message ?? '');
 
 /** Lo que cabe en un mensaje de «Notificaciones»: una tarea con sus tablas */
 const LARGO_NOTIFICACION = 60000;
@@ -61,7 +59,7 @@ export class ChatsService {
       .eq('usuario_id', usuarioId)
       .order('actualizado_en', { ascending: false });
 
-    if (error) this.reventar('listar los chats', error.message);
+    if (error) falloSupabase(this.logger, error, 'listar los chats');
 
     return (data ?? []) as Chat[];
   }
@@ -76,7 +74,7 @@ export class ChatsService {
       .select(CAMPOS_CHAT)
       .single();
 
-    if (error) this.reventar('crear el chat', error.message);
+    if (error) falloSupabase(this.logger, error, 'crear el chat');
 
     return data as Chat;
   }
@@ -87,7 +85,7 @@ export class ChatsService {
     // Los mensajes caen solos: la clave foránea va con on delete cascade
     const { error } = await this.supabase.admin.from(TABLA_CHATS).delete().eq('id', chatId).eq('usuario_id', usuarioId);
 
-    if (error) this.reventar('eliminar el chat', error.message);
+    if (error) falloSupabase(this.logger, error, 'eliminar el chat');
 
     this.logger.log(`Chat ${chatId} eliminado por ${usuarioId}`);
     return { id: chatId };
@@ -104,7 +102,7 @@ export class ChatsService {
       .select(CAMPOS_CHAT)
       .single();
 
-    if (error) this.reventar('renombrar el chat', error.message);
+    if (error) falloSupabase(this.logger, error, 'renombrar el chat');
 
     return data as Chat;
   }
@@ -120,12 +118,12 @@ export class ChatsService {
         .order('creado_en', { ascending: true });
     let { data, error } = await leer(this.hayDatos === false ? CAMPOS_MENSAJE : CAMPOS_MENSAJE_CON_DATOS);
     // Sin la columna de la v3 (el SQL aún no se corrió), el chat se sigue leyendo
-    if (SIN_COLUMNA(error)) {
+    if (faltaColumna(error)) {
       this.hayDatos = false;
       ({ data, error } = await leer(CAMPOS_MENSAJE));
     }
 
-    if (error) this.reventar('leer los mensajes', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer los mensajes');
 
     return (data ?? []) as unknown as Mensaje[];
   }
@@ -154,12 +152,12 @@ export class ChatsService {
       { chat_id: chatId, rol, texto, ...(conDatos ? { datos } : {}) },
       conDatos ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE,
     );
-    if (conDatos && SIN_COLUMNA(error)) {
+    if (conDatos && faltaColumna(error)) {
       this.hayDatos = false;
       ({ data, error } = await insertar({ chat_id: chatId, rol, texto }, CAMPOS_MENSAJE));
     }
 
-    if (error) this.reventar('guardar el mensaje', error.message);
+    if (error) falloSupabase(this.logger, error, 'guardar el mensaje');
 
     const renombrar = rol === 'usuario' && chat.titulo === 'Nueva conversación';
 
@@ -205,12 +203,12 @@ export class ChatsService {
       conColumna ? { texto, datos: datos ?? null } : { texto },
       conColumna ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE,
     );
-    if (conColumna && SIN_COLUMNA(error)) {
+    if (conColumna && faltaColumna(error)) {
       this.hayDatos = false;
       ({ data, error } = await cambiar({ texto }, CAMPOS_MENSAJE));
     }
 
-    if (error) this.reventar('reemplazar el mensaje', error.message);
+    if (error) falloSupabase(this.logger, error, 'reemplazar el mensaje');
     if (!data) throw new NotFoundException('No existe esa respuesta en este chat');
 
     await this.supabase.admin.from(TABLA_CHATS).update({ actualizado_en: new Date().toISOString() }).eq('id', chatId);
@@ -297,7 +295,7 @@ export class ChatsService {
       .eq('id', chatId)
       .maybeSingle();
 
-    if (error) this.reventar('comprobar el chat', error.message);
+    if (error) falloSupabase(this.logger, error, 'comprobar el chat');
     if (!data) throw new NotFoundException('No existe ese chat');
 
     if (data.usuario_id !== usuarioId) {
@@ -311,10 +309,5 @@ export class ChatsService {
   private recortar(texto: string): string {
     const limpio = texto.trim().replace(/\s+/g, ' ');
     return limpio.length > LARGO_TITULO ? `${limpio.slice(0, LARGO_TITULO - 1)}…` : limpio;
-  }
-
-  private reventar(que: string, detalle: string): never {
-    this.logger.error(`No se pudo ${que}: ${detalle}`);
-    throw new BadGatewayException(`No se pudo ${que}`);
   }
 }

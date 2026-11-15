@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { Comuna, RegionDetalle, SimulacionPayload } from '../../simulacion/interfaces/simulacion.interface.js';
 import type { ConfiguracionG12, ItemG12, TipoBloqueG12 } from './interfaces/g12.interface.js';
+import { faltaTabla } from '../../nucleo/supabase/errores.js';
 
 /**
  * Los ids de Ripley de la configuración del G12, consultados una vez y guardados
@@ -164,7 +165,7 @@ export class IdsG12Service {
   }
 
   private avisar(error: { code?: string; message?: string }, accion: string): void {
-    const falta = ['42P01', 'PGRST205'].includes(error.code ?? '');
+    const falta = faltaTabla(error);
     this.logger.warn(
       falta
         ? 'Falta la tabla g12_ids en Supabase: los ids del G12 se consultan en cada actualización (ejecuta docs/sql/supabase/07-g12.sql).'

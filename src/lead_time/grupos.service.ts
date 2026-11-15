@@ -8,7 +8,8 @@ import { fechasDeVentaOpl } from './mallas/malla.calculo.js';
 import { MallasService } from './mallas/mallas.service.js';
 import { fechasDeVenta } from './matrices/matriz.calculo.js';
 import { MatricesService } from './matrices/matrices.service.js';
-import { falloSupabase, nombreBase, type CabeceraVersion, type VigenciaTienda } from './versionado.service.js';
+import { FALTA_SQL_LEAD_TIME, nombreBase, type CabeceraVersion, type VigenciaTienda } from './versionado.service.js';
+import { esDuplicado, falloSupabase } from '../nucleo/supabase/errores.js';
 
 const TABLA = 'grupos_leadtime';
 
@@ -329,7 +330,7 @@ export class GruposLeadtimeService {
   }
 
   private fallo(error: { code?: string; message?: string }, accion: string): never {
-    if (error.code === '23505') throw new BadRequestException('Ya hay un grupo con ese nombre en el país.');
-    falloSupabase(this.logger, error, accion);
+    if (esDuplicado(error)) throw new BadRequestException('Ya hay un grupo con ese nombre en el país.');
+    falloSupabase(this.logger, error, accion, FALTA_SQL_LEAD_TIME);
   }
 }

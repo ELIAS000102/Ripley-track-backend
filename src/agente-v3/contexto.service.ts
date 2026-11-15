@@ -11,6 +11,7 @@ import type {
   PasoPlan,
   ResultadoAnterior,
 } from './interfaces/agente-v3.interface.js';
+import { faltaColumna } from '../nucleo/supabase/errores.js';
 
 /**
  * Etapa 1 · Contexto: todo lo que se sabe del mensaje SIN la IA. Una sola
@@ -258,8 +259,7 @@ export class ContextoV3Service {
     const leer = (campos: string) =>
       this.supabase.admin.from('agente_servicios').select(campos).eq('pais', pais).order('codigo');
     let { data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente, origen, descripcion');
-    if (error && /column|does not exist|42703/i.test(`${error.code ?? ''} ${error.message}`))
-      ({ data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente'));
+    if (faltaColumna(error)) ({ data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente'));
     if (error) this.logger.warn(`No se pudieron leer los servicios: ${error.message}`);
     return (data ?? []) as unknown as ContextoTurno['servicios'];
   }

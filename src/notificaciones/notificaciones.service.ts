@@ -1,6 +1,7 @@
-import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
 import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
+import { falloSupabase } from '../nucleo/supabase/errores.js';
 
 export interface Aviso {
   /** 'rutina_detenida', 'rutina_probada'… */
@@ -52,7 +53,7 @@ export class NotificacionesService {
       .eq('usuario_id', usuario.id)
       .order('creado_en', { ascending: false })
       .limit(200);
-    if (error) this.reventar('leer los avisos', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer los avisos');
 
     const todos = (data ?? []) as Notificacion[];
     const avisos = [...todos]
@@ -68,7 +69,7 @@ export class NotificacionesService {
       .eq('id', id)
       .eq('usuario_id', usuario.id)
       .select('id');
-    if (error) this.reventar('marcar el aviso', error.message);
+    if (error) falloSupabase(this.logger, error, 'marcar el aviso');
     // El de otra persona no existe para quien pregunta
     if (!(data as unknown[] | null)?.length) throw new NotFoundException('No existe ese aviso');
     return { id, leida: true };
@@ -81,12 +82,7 @@ export class NotificacionesService {
       .eq('usuario_id', usuario.id)
       .eq('leida', false)
       .select('id');
-    if (error) this.reventar('marcar los avisos', error.message);
+    if (error) falloSupabase(this.logger, error, 'marcar los avisos');
     return { leidas: ((data as unknown[] | null) ?? []).length };
-  }
-
-  private reventar(accion: string, detalle: string): never {
-    this.logger.error(`No se pudo ${accion}: ${detalle}`);
-    throw new BadGatewayException(`No se pudo ${accion}`);
   }
 }

@@ -1,6 +1,7 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
+import { faltaEsquema, falloSupabase } from '../../nucleo/supabase/errores.js';
 
 const TABLA = 'reportes';
 
@@ -83,18 +84,17 @@ export class ConfiguracionReportesService {
   /** Un fallo de Supabase, contado para quien lo lee */
   private fallo(error: { code?: string; message?: string }, accion: string): never {
     // Tabla o columna que no existe: falta el SQL
-    if (error.code === '42P01' || error.code === 'PGRST205' || error.code === '42703' || error.code === 'PGRST204') {
+    if (faltaEsquema(error)) {
       throw new BadGatewayException(
-        'Falta la tabla "reportes" en Supabase: ejecuta la sección "Reportes" del SQL de configuración.',
+        'Falta la tabla "reportes" en Supabase: ejecuta docs/sql/supabase/06-reportes.sql.',
       );
     }
     // La tabla existe pero su check no admite el tipo: falta la línea del SQL del G12
     if (error.code === '23514') {
       throw new BadGatewayException(
-        'La tabla "reportes" todavía no admite este reporte: ejecuta en Supabase el cambio de la sección "Reportes" del SQL de configuración.',
+        'La tabla "reportes" todavía no admite este reporte: ejecuta en Supabase docs/sql/supabase/06-reportes.sql.',
       );
     }
-    this.logger.error(`No se pudo ${accion}: ${error.message ?? 'error desconocido'}`);
-    throw new BadGatewayException(`No se pudo ${accion}.`);
+    falloSupabase(this.logger, error, accion);
   }
 }

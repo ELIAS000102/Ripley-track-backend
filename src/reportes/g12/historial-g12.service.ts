@@ -1,4 +1,4 @@
-import { BadGatewayException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
@@ -10,6 +10,7 @@ import type {
   PeticionG12,
   RespuestaSimulacionG12,
 } from './interfaces/g12.interface.js';
+import { esDuplicado, faltaColumna, falloSupabase } from '../../nucleo/supabase/errores.js';
 
 const TABLA = 'g12_actualizaciones';
 const TABLA_PETICIONES = 'g12_peticiones';
@@ -138,9 +139,6 @@ const aActualizacion = (f: FilaActualizacion): ActualizacionG12 => ({
   error: f.error ?? null,
 });
 
-/** Lo que responde Supabase cuando falta una columna */
-const SIN_COLUMNA = ['42703', 'PGRST204'];
-
 const ZONAS: Record<string, { zona: string; desfase: string }> = {
   PE: { zona: 'America/Lima', desfase: '-05:00' },
   CL: { zona: 'America/Santiago', desfase: '-03:00' },
@@ -216,7 +214,7 @@ export class HistorialG12Service {
       .select('*')
       .single();
     // Otro empezó en el mismo instante: el índice único de la base lo para
-    if (error?.code === '23505') {
+    if (esDuplicado(error)) {
       const otra = await this.enCurso(pais);
       throw otra
         ? this.ocupado(otra)
@@ -305,7 +303,7 @@ export class HistorialG12Service {
       }));
       let { error } = await this.supabase.admin.from(TABLA_PETICIONES).insert(filas);
       // Sin las columnas nuevas (falta el ALTER del SQL) se guarda igual, sin ellas
-      if (error && SIN_COLUMNA.includes(error.code ?? '')) {
+      if (faltaColumna(error)) {
         this.logger.warn(
           'g12_peticiones no tiene las columnas "llamadas" y "espera_ms": ejecuta docs/sql/supabase/actualizar-base-existente.sql',
         );
@@ -347,7 +345,7 @@ export class HistorialG12Service {
       .select('estado, intentos, llamadas, espera_ms')
       .eq('actualizacion_id', id);
     let data = leidas.data as Contada[] | null;
-    if (leidas.error && SIN_COLUMNA.includes(leidas.error.code ?? '')) {
+    if (faltaColumna(leidas.error)) {
       data = (await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos').eq('actualizacion_id', id))
         .data as Contada[] | null;
     }
@@ -455,11 +453,12 @@ export class HistorialG12Service {
   }
 
   private fallo(error: { code?: string; message?: string } | null, accion: string): never {
-    if (error && ['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code ?? '')) {
-      throw new BadGatewayException('Falta el G12 compartido en Supabase: ejecuta docs/sql/supabase/07-g12.sql.');
-    }
-    this.logger.error(`No se pudo ${accion}: ${error?.message ?? 'sin respuesta'}`);
-    throw new BadGatewayException(`No se pudo ${accion}.`);
+    falloSupabase(
+      this.logger,
+      error,
+      accion,
+      'Falta el G12 compartido en Supabase: ejecuta docs/sql/supabase/07-g12.sql.',
+    );
   }
 }
 

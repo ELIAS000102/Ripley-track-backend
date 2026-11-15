@@ -1,16 +1,10 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoPeticion } from '../../nucleo/contexto/contexto-peticion.service.js';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { BloqueDto, CrearAtajoDto, EditarAtajoDto, ListarAtajosDto } from './dto/atajos.dto.js';
 import { TABLA_POR_TIPO, type Bloque, type Atajo, type Item, type Tipo } from './interfaces/atajos.interface.js';
+import { esDuplicado, falloSupabase } from '../../nucleo/supabase/errores.js';
 
 const TABLA = 'atajos';
 const TABLA_BLOQUES = 'atajo_bloques';
@@ -64,7 +58,7 @@ export class AtajosService {
 
     const { data, error } = await consulta.order('nombre', { ascending: true });
 
-    if (error) this.reventar('listar los atajos', error.message);
+    if (error) falloSupabase(this.logger, error, 'listar los atajos');
 
     const filas = (data ?? []) as Atajo[];
     if (!filas.length) return filas;
@@ -93,7 +87,7 @@ export class AtajosService {
   async obtener(id: string): Promise<Atajo> {
     const { data, error } = await this.supabase.admin.from(TABLA).select(CAMPOS).eq('id', id).maybeSingle();
 
-    if (error) this.reventar('leer el atajo', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer el atajo');
     if (!data) throw new NotFoundException('No existe ese atajo');
 
     const atajo = data as Atajo;
@@ -259,7 +253,7 @@ export class AtajosService {
       .update({ activa: false, actualizado_en: new Date().toISOString() })
       .eq('id', id);
 
-    if (error) this.reventar('retirar el atajo', error.message);
+    if (error) falloSupabase(this.logger, error, 'retirar el atajo');
 
     this.contexto.registrarCambio({ nombre: antes.nombre, activa: true }, { nombre: antes.nombre, activa: false });
 
@@ -277,7 +271,7 @@ export class AtajosService {
       .in('atajo_id', ids)
       .order('orden', { ascending: true });
 
-    if (error) this.reventar('leer los bloques', error.message);
+    if (error) falloSupabase(this.logger, error, 'leer los bloques');
 
     return (data ?? []) as (Bloque & { atajo_id: string })[];
   }
@@ -292,7 +286,7 @@ export class AtajosService {
       .eq('bloque_id', bloqueId)
       .order('orden', { ascending: true });
 
-    if (error) this.reventar(`leer los ítems de ${tipo}`, error.message);
+    if (error) falloSupabase(this.logger, error, `leer los ítems de ${tipo}`);
 
     return (data ?? []) as Item[];
   }
@@ -301,7 +295,7 @@ export class AtajosService {
     // Los ítems caen con ellos: la clave foránea va con on delete cascade
     const { error } = await this.supabase.admin.from(TABLA_BLOQUES).delete().eq('atajo_id', atajoId);
 
-    if (error) this.reventar('reemplazar los bloques', error.message);
+    if (error) falloSupabase(this.logger, error, 'reemplazar los bloques');
   }
 
   /**
@@ -325,7 +319,7 @@ export class AtajosService {
         .select('id')
         .single();
 
-      if (error) this.reventar('guardar el bloque', error.message);
+      if (error) falloSupabase(this.logger, error, 'guardar el bloque');
 
       const tabla = TABLA_POR_TIPO[bloque.tipo as Tipo];
 
@@ -372,18 +366,13 @@ export class AtajosService {
 
   /** Un nombre repetido no es un fallo del servidor: es un aviso */
   private fallarAlGuardar(que: string, nombre: string, error: { message: string; code?: string }): never {
-    if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
+    if (esDuplicado(error)) {
       throw new ConflictException(
         `Ya hay un atajo llamado "${nombre}". El nombre es por donde se lo ` +
           `pide desde el chat, así que no puede repetirse.`,
       );
     }
 
-    this.reventar(`${que} el atajo`, error.message);
-  }
-
-  private reventar(accion: string, detalle: string): never {
-    this.logger.error(`No se pudo ${accion}: ${detalle}`);
-    throw new BadGatewayException(`No se pudo ${accion}`);
+    falloSupabase(this.logger, error, `${que} el atajo`);
   }
 }

@@ -1,5 +1,4 @@
 import {
-  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -19,6 +18,7 @@ import { evaluarPaso } from './evaluar-paso.js';
 import { LlamadasRutinaService } from './llamadas.js';
 import { relatoCancelada, relatoDePaso, relatoDelFinal, relatoDetenida, type DeQueRutina } from './relato.js';
 import { ESPERA_PASO_MS, WebhookAgenteService } from './webhook-agente.service.js';
+import { esDuplicado, falloSupabase } from '../../nucleo/supabase/errores.js';
 
 /** Lo que se guarda de lo que contestó Silvana en cada paso */
 const RESPUESTA_MAXIMA = 6000;
@@ -684,10 +684,9 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
 
   private fallarAlGuardar(error: { message: string; code?: string }): never {
     // El índice que no deja dos en curso de la misma rutina
-    if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
+    if (esDuplicado(error)) {
       throw new ConflictException('Ya se está ejecutando: espera a que termine.');
     }
-    this.logger.error(`No se pudo guardar la ejecución: ${error.message}`);
-    throw new BadGatewayException('No se pudo guardar la ejecución de la rutina');
+    falloSupabase(this.logger, error, 'guardar la ejecución de la rutina');
   }
 }

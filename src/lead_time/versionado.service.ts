@@ -1,7 +1,8 @@
-import { BadGatewayException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import type { ContextoPeticion } from '../nucleo/contexto/contexto-peticion.service.js';
 import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js';
 import type { SupabaseService } from '../nucleo/supabase/supabase.service.js';
+import { falloSupabase } from '../nucleo/supabase/errores.js';
 
 /**
  * El nombre con el que se guarda la versión base (la regular). Hay una sola
@@ -574,20 +575,13 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
    * pasa la primera vez, antes de ejecutar el SQL de este apartado.
    */
   protected fallo(error: { code?: string; message?: string }, accion: string): never {
-    falloSupabase(this.logger, error, accion);
+    falloSupabase(this.logger, error, accion, FALTA_SQL_LEAD_TIME);
   }
 }
 
-/** Un fallo de Supabase de las tablas de lead time, contado para quien lo lee */
-export function falloSupabase(logger: Logger, error: { code?: string; message?: string }, accion: string): never {
-  if (error.code === '42P01' || error.code === 'PGRST205' || error.code === '42703' || error.code === 'PGRST204') {
-    throw new BadGatewayException(
-      `Faltan tablas o columnas en Supabase: ejecuta la sección "${SECCION_SQL}" del SQL de configuración.`,
-    );
-  }
-  logger.error(`No se pudo ${accion}: ${error.message ?? 'error desconocido'}`);
-  throw new BadGatewayException(`No se pudo ${accion}.`);
-}
+/** Lo que se responde si faltan las tablas o columnas de lead time */
+export const FALTA_SQL_LEAD_TIME =
+  'Faltan tablas o columnas de lead time en Supabase: ejecuta docs/sql/supabase/05-lead-time.sql.';
 
 /** La base se guarda siempre con el mismo nombre; la de un evento, con el suyo */
 export function nombreDe(m: MallaElegida): string {

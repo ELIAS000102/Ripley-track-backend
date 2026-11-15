@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { ContextoTurno, Hecho } from '../interfaces/agente-v3.interface.js';
 import { serviciosNombrados } from '../plan.js';
+import { faltaColumna, faltaTabla } from '../../nucleo/supabase/errores.js';
 
 /**
  * Lo aprendido va al directorio COMÚN (decisión del usuario, 2026-11-08):
@@ -55,8 +56,6 @@ const soloAlias = (h: Hecho, e: FilaEntidadGuardada) =>
   (!h.nombre || plano(h.nombre) === plano(e.nombre)) &&
   (!h.clase || h.clase === e.tipo) &&
   (h.es_cd === null || h.es_cd === undefined || h.es_cd === e.es_cd || !h.es_cd);
-const sinColumna = (e: { code?: string; message?: string } | null) =>
-  Boolean(e) && /column|does not exist|42703/i.test(`${e!.code ?? ''} ${e!.message ?? ''}`);
 
 @Injectable()
 export class AprendizajeService {
@@ -80,7 +79,7 @@ export class AprendizajeService {
     const leer = (campos: string) =>
       this.supabase.admin.from('agente_servicios').select(campos).eq('pais', pais).in('codigo', codigos);
     let { data, error } = await leer('pais, codigo, nombre, metodo_entrega, fase, fuente, origen, descripcion');
-    if (sinColumna(error)) ({ data, error } = await leer('pais, codigo, nombre, metodo_entrega, fase, fuente'));
+    if (faltaColumna(error)) ({ data, error } = await leer('pais, codigo, nombre, metodo_entrega, fase, fuente'));
     return (data ?? []) as unknown as FilaServicioGuardada[];
   }
 
@@ -233,9 +232,7 @@ export class AprendizajeService {
         if (error) {
           this.logger.warn(`No se pudo guardar el término ${h.codigo}: ${error.message}`);
           omitidos.push(
-            /relation|does not exist|42P01/i.test(`${error.code ?? ''} ${error.message}`)
-              ? `«${h.codigo}» (falta correr agente-v3/sql/03)`
-              : `«${h.codigo}» (${error.message})`,
+            faltaTabla(error) ? `«${h.codigo}» (falta correr agente-v3/sql/03)` : `«${h.codigo}» (${error.message})`,
           );
           continue;
         }
@@ -267,7 +264,7 @@ export class AprendizajeService {
           .from('agente_servicios')
           .upsert({ ...cambios, ...aprendido }, { onConflict: 'pais,codigo' });
         // Sin las columnas de lo aprendido (falta el SQL 02), al menos lo de siempre
-        if (sinColumna(error)) {
+        if (faltaColumna(error)) {
           ({ error } = await this.supabase.admin
             .from('agente_servicios')
             .upsert(cambios, { onConflict: 'pais,codigo' }));

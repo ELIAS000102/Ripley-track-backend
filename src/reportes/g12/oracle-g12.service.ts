@@ -14,6 +14,7 @@ import { hoyEnPais } from '../../nucleo/fechas.js';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { excelDeCarga, leerPlantillaExcelCarga, nombreExcelDeCarga } from './excel-carga-g12.js';
 import type { UnidadOracleG12 } from './g12.calculo.js';
+import { falloSupabase } from '../../nucleo/supabase/errores.js';
 
 /** La última carga de unidades del Oracle de un país */
 export interface CargaOracleG12 {
@@ -378,11 +379,12 @@ export class OracleG12Service {
   }
 
   private fallo(error: { code?: string; message?: string }, accion: string): never {
-    if (['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code ?? '')) {
-      throw new BadGatewayException('Falta la carga del Oracle en Supabase: ejecuta docs/sql/supabase/07-g12.sql.');
-    }
-    this.logger.error(`No se pudo ${accion}: ${error.message ?? 'sin respuesta'}`);
-    throw new BadGatewayException(`No se pudo ${accion}.`);
+    falloSupabase(
+      this.logger,
+      error,
+      accion,
+      'Falta la carga del Oracle en Supabase: ejecuta docs/sql/supabase/07-g12.sql.',
+    );
   }
 }
 
