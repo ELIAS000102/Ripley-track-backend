@@ -7,7 +7,13 @@ import type { AtajoDelContexto } from './interfaces/agente-v3.interface.js';
  * LIMA)"). Una palabra suelta ("lima") no nombra ningún atajo.
  */
 
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const plano = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 /** Lo que trae cada clase de bloque de un atajo, para que el modelo sepa si sirve para lo que se pide */
 export const QUE_TRAE: Record<string, string> = {
@@ -34,16 +40,27 @@ export const PIDE = Object.keys(QUE_TRAE);
 const AFINES: Record<string, string[]> = { opl: ['masivo'], reporte: ['picking'], picking: ['reporte'] };
 
 /** Lo que trae un paso del plan */
-export function traePaso(paso: { herramienta: string; param: Record<string, unknown> }, atajos: AtajoDelContexto[]): string[] {
+export function traePaso(
+  paso: { herramienta: string; param: Record<string, unknown> },
+  atajos: AtajoDelContexto[],
+): string[] {
   switch (paso.herramienta) {
-    case 'consultar_capacidad': return typeof paso.param.tipo === 'string' ? [paso.param.tipo] : [];
-    case 'consultar_reporte_cds': return ['reporte'];
-    case 'busqueda_masiva': return ['masivo'];
-    case 'consultar_servicios_opl': return ['opl'];
-    case 'consultar_transferencia': return ['transferencia'];
-    case 'simular_entrega': return ['simulacion'];
-    case 'ejecutar_atajo': return atajos.find((a) => a.nombre === paso.param.nombre)?.tipos ?? [];
-    default: return [];
+    case 'consultar_capacidad':
+      return typeof paso.param.tipo === 'string' ? [paso.param.tipo] : [];
+    case 'consultar_reporte_cds':
+      return ['reporte'];
+    case 'busqueda_masiva':
+      return ['masivo'];
+    case 'consultar_servicios_opl':
+      return ['opl'];
+    case 'consultar_transferencia':
+      return ['transferencia'];
+    case 'simular_entrega':
+      return ['simulacion'];
+    case 'ejecutar_atajo':
+      return atajos.find((a) => a.nombre === paso.param.nombre)?.tipos ?? [];
+    default:
+      return [];
   }
 }
 
@@ -55,7 +72,8 @@ export function sinTraer(pide: string[] | undefined, trae: string[]): string[] {
 
 /** Por qué no vale: "se pide capacidad de despacho y …" (el principio es fijo: con él se sabe que ya se avisó) */
 export const NO_TRAE = 'se pide ';
-export const motivoNoTrae = (faltan: string[], quien: string) => `${NO_TRAE}${faltan.map((p) => QUE_TRAE[p] ?? p).join(' y ')} y ${quien} no lo trae`;
+export const motivoNoTrae = (faltan: string[], quien: string) =>
+  `${NO_TRAE}${faltan.map((p) => QUE_TRAE[p] ?? p).join(' y ')} y ${quien} no lo trae`;
 
 /** Un atajo en una línea del prompt: nombre, qué trae y su descripción */
 export function atajoEnLinea(a: AtajoDelContexto, conPais = false): string {
@@ -73,11 +91,18 @@ export function apodosDe(a: Pick<AtajoDelContexto, 'descripcion'>): string[] {
 /** Los atajos que nombra el mensaje (por nombre o apodo), del país dado */
 export function atajosNombrados(mensaje: string, atajos: AtajoDelContexto[], pais?: string): AtajoDelContexto[] {
   const m = ` ${plano(mensaje)} `;
-  return atajos.filter((a) => (!pais || a.pais === pais) && [plano(a.nombre), ...apodosDe(a)].some((n) => n && m.includes(` ${n} `)));
+  return atajos.filter(
+    (a) => (!pais || a.pais === pais) && [plano(a.nombre), ...apodosDe(a)].some((n) => n && m.includes(` ${n} `)),
+  );
 }
 
 /** El atajo que tiene que usar el plan: el que identificó Clasificar o, si no, el único que nombra el mensaje */
-export function atajoEsperado(mensaje: string, atajos: AtajoDelContexto[], deClasificar: string | null | undefined, pais: string): string | null {
+export function atajoEsperado(
+  mensaje: string,
+  atajos: AtajoDelContexto[],
+  deClasificar: string | null | undefined,
+  pais: string,
+): string | null {
   if (deClasificar) return deClasificar;
   const nombrados = atajosNombrados(mensaje, atajos, pais);
   return nombrados.length === 1 ? nombrados[0].nombre : null;

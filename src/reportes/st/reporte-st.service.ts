@@ -1,19 +1,10 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import type { CapacityByDay } from '../../common/ripley/interfaces/ripley.interface.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  sumarDias,
-  ventanaFechas,
-} from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, isoToRipleyDate, sumarDias, ventanaFechas } from '../../common/ripley/utils/date.util.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
 import { ConfiguracionReportesService } from '../comun/configuracion-reportes.service.js';
 import { GruposLeadtimeService } from '../../lead_time/grupos.service.js';
@@ -30,7 +21,16 @@ import type {
   TiendaSt,
   Vista,
 } from './interfaces/reporte-st.interface.js';
-import { cruzarAgendas, dentroDe, mallaDeTienda, porFecha, recepcionSegun, totalizar, type MallaEn, type MallaUsada } from './reporte-st.calculo.js';
+import {
+  cruzarAgendas,
+  dentroDe,
+  mallaDeTienda,
+  porFecha,
+  recepcionSegun,
+  totalizar,
+  type MallaEn,
+  type MallaUsada,
+} from './reporte-st.calculo.js';
 
 /** Tiendas que se consultan a la vez: cada una son dos lecturas */
 const TIENDAS_A_LA_VEZ = 3;
@@ -100,7 +100,11 @@ export class ReporteStService {
       actualizadoEn: fila.actualizadoEn,
       grupos: (fila.configuracion?.grupos ?? []).map((g) => ({
         ...g,
-        tiendas: g.tiendas.map((t) => ({ ...t, malla: mallas.valle.get(t.codigo) ?? null, eventos: eventosDe(t.codigo, mallas.eventos) })),
+        tiendas: g.tiendas.map((t) => ({
+          ...t,
+          malla: mallas.valle.get(t.codigo) ?? null,
+          eventos: eventosDe(t.codigo, mallas.eventos),
+        })),
       })),
     };
   }
@@ -170,7 +174,13 @@ export class ReporteStService {
   async comprobarMalla(pais: string, codigo: string, grupoId?: string) {
     const mallas = await this.mallasDelPais(pais, grupoId);
     const tienda = mallas.valle.get(codigo.trim()) ?? null;
-    return { codigo: codigo.trim(), malla: mallas.info, incluida: !!tienda, tienda, eventos: eventosDe(codigo.trim(), mallas.eventos) };
+    return {
+      codigo: codigo.trim(),
+      malla: mallas.info,
+      incluida: !!tienda,
+      tienda,
+      eventos: eventosDe(codigo.trim(), mallas.eventos),
+    };
   }
 
   // ---------- Reporte ----------
@@ -186,7 +196,13 @@ export class ReporteStService {
    * Las matrices son las de un grupo de lead time de tipo matriz: `grupoId`,
    * o el primero que se creó en el país.
    */
-  async reporte(pais: string, semanas = 4, desdeParam?: string, modoPedido: ModoMalla = 'auto', grupoId?: string): Promise<ReporteSt> {
+  async reporte(
+    pais: string,
+    semanas = 4,
+    desdeParam?: string,
+    modoPedido: ModoMalla = 'auto',
+    grupoId?: string,
+  ): Promise<ReporteSt> {
     const desde = desdeParam ?? hoyEnPais(pais);
     const fechas = ventanaFechas(desde, semanas * 7);
     const [fila, mallas] = await Promise.all([this.leerConfiguracion(pais), this.mallasDelPais(pais, grupoId)]);
@@ -195,7 +211,9 @@ export class ReporteStService {
     const todas = grupos.flatMap((g) => g.tiendas);
 
     if (!todas.length) {
-      throw new BadRequestException('Todavía no hay tiendas en el reporte ST: agrega un grupo con sus tiendas y guárdalo.');
+      throw new BadRequestException(
+        'Todavía no hay tiendas en el reporte ST: agrega un grupo con sus tiendas y guárdalo.',
+      );
     }
 
     this.logger.log(`Reporte ST de ${pais}: ${todas.length} tienda(s), ${fechas[0]} a ${fechas.at(-1)}`);
@@ -206,9 +224,10 @@ export class ReporteStService {
     const leer = async (t: TiendaSt, vista: Vista, desdeLectura: string): Promise<CapacityByDay[] | string> => {
       if (caida) return 'No se consultó: la API corporativa dejó de responder.';
       try {
-        const leerDias = vista === 'recepcion'
-          ? this.catalogos.capacidadesDeRecepcion.bind(this.catalogos)
-          : this.catalogos.capacidadesDeTransferencia.bind(this.catalogos);
+        const leerDias =
+          vista === 'recepcion'
+            ? this.catalogos.capacidadesDeRecepcion.bind(this.catalogos)
+            : this.catalogos.capacidadesDeTransferencia.bind(this.catalogos);
         const r = await leerDias(t[vista].capacityId, pais, isoToRipleyDate(desdeLectura));
         return r?.capacityByDayArray ?? [];
       } catch (e) {
@@ -228,10 +247,17 @@ export class ReporteStService {
         leer(t, 'transferencia', sumarDias(desde, -MARGEN_TRANSFERENCIAS)),
       ]);
       if (typeof recepciones === 'string') fallidas.push({ codigo: t.codigo, agenda: 'recepcion', error: recepciones });
-      if (typeof transferencias === 'string') fallidas.push({ codigo: t.codigo, agenda: 'transferencia', error: transferencias });
+      if (typeof transferencias === 'string')
+        fallidas.push({ codigo: t.codigo, agenda: 'transferencia', error: transferencias });
 
       const mallaTienda = mallas.valle.get(t.codigo) ?? null;
-      const { mallaEn, mallaDeRecepcion, candidatas } = mallasDeTienda(pais, t.codigo, mallaTienda, mallas.eventos, modo);
+      const { mallaEn, mallaDeRecepcion, candidatas } = mallasDeTienda(
+        pais,
+        t.codigo,
+        mallaTienda,
+        mallas.eventos,
+        modo,
+      );
       const cruce = cruzarAgendas(
         fechas,
         mallaEn,
@@ -264,8 +290,14 @@ export class ReporteStService {
     });
 
     const totales = (tiendas: TiendaReporte[]) => ({
-      recepcion: totalizar(fechas, tiendas.map((t) => t.recepcion.dias)),
-      transferencia: totalizar(fechas, tiendas.map((t) => t.transferencia.dias)),
+      recepcion: totalizar(
+        fechas,
+        tiendas.map((t) => t.recepcion.dias),
+      ),
+      transferencia: totalizar(
+        fechas,
+        tiendas.map((t) => t.transferencia.dias),
+      ),
     });
 
     const gruposReporte = grupos.map((g) => {
@@ -297,7 +329,8 @@ export class ReporteStService {
    * eventos tampoco: se sigue con la base.
    */
   private async mallasDelPais(pais: string, grupoId?: string): Promise<MallasDelPais> {
-    const aMalla = (m: Map<string, Parameters<typeof mallaDeTienda>[0]>) => new Map([...m].map(([c, t]) => [c, mallaDeTienda(t)]));
+    const aMalla = (m: Map<string, Parameters<typeof mallaDeTienda>[0]>) =>
+      new Map([...m].map(([c, t]) => [c, mallaDeTienda(t)]));
     const base = nombreBase(pais);
     let grupo: Awaited<ReturnType<GruposLeadtimeService['grupoDeMatrices']>> = null;
     let grupos: Array<{ id: string; nombre: string }> = [];
@@ -306,18 +339,35 @@ export class ReporteStService {
       grupo = await this.gruposLeadtime.grupoDeMatrices(pais, grupoId);
     } catch (e) {
       if (grupoId) throw e;
-      return { valle: new Map(), eventos: [], info: { cargada: false, base, grupo: null, grupos, eventos: [], aviso: (e as Error).message } };
+      return {
+        valle: new Map(),
+        eventos: [],
+        info: { cargada: false, base, grupo: null, grupos, eventos: [], aviso: (e as Error).message },
+      };
     }
     if (!grupo) {
       return {
-        valle: new Map(), eventos: [],
-        info: { cargada: false, base, grupo: null, grupos, eventos: [], aviso: `No hay ningún grupo de matrices en ${pais}: créalo en "Matrices y mallas" y carga su matriz ${base}. El reporte sale sin vincular transferencia y recepción.` },
+        valle: new Map(),
+        eventos: [],
+        info: {
+          cargada: false,
+          base,
+          grupo: null,
+          grupos,
+          eventos: [],
+          aviso: `No hay ningún grupo de matrices en ${pais}: créalo en "Matrices y mallas" y carga su matriz ${base}. El reporte sale sin vincular transferencia y recepción.`,
+        },
       };
     }
     const delGrupo = { id: grupo.id, nombre: grupo.nombre };
     let eventos: EventoVigente[] = [];
     try {
-      eventos = (await this.matrices.eventosConVigencia(grupo)).map((e) => ({ nombre: e.nombre, cargadaEn: e.cargadoEn, porCodigo: aMalla(e.porCodigo), vigencias: e.vigencias }));
+      eventos = (await this.matrices.eventosConVigencia(grupo)).map((e) => ({
+        nombre: e.nombre,
+        cargadaEn: e.cargadoEn,
+        porCodigo: aMalla(e.porCodigo),
+        vigencias: e.vigencias,
+      }));
     } catch (e) {
       this.logger.warn(`Reporte ST sin las mallas de eventos de ${pais}: ${(e as Error).message}`);
     }
@@ -329,16 +379,35 @@ export class ReporteStService {
         return {
           valle: new Map(),
           eventos,
-          info: { cargada: false, base, grupo: delGrupo, grupos, eventos: listaEventos, aviso: `El grupo "${grupo.nombre}" no tiene matriz ${base} cargada: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.` },
+          info: {
+            cargada: false,
+            base,
+            grupo: delGrupo,
+            grupos,
+            eventos: listaEventos,
+            aviso: `El grupo "${grupo.nombre}" no tiene matriz ${base} cargada: el reporte sale sin vincular transferencia y recepción${eventos.length ? ', salvo los días de un evento' : ''}.`,
+          },
         };
       }
       return {
         valle: aMalla(vigente.porCodigo),
         eventos,
-        info: { cargada: true, base, grupo: delGrupo, grupos, archivo: vigente.cabecera.archivo, cargadaEn: vigente.cabecera.cargadoEn, eventos: listaEventos },
+        info: {
+          cargada: true,
+          base,
+          grupo: delGrupo,
+          grupos,
+          archivo: vigente.cabecera.archivo,
+          cargadaEn: vigente.cabecera.cargadoEn,
+          eventos: listaEventos,
+        },
       };
     } catch (e) {
-      return { valle: new Map(), eventos, info: { cargada: false, base, grupo: delGrupo, grupos, eventos: listaEventos, aviso: (e as Error).message } };
+      return {
+        valle: new Map(),
+        eventos,
+        info: { cargada: false, base, grupo: delGrupo, grupos, eventos: listaEventos, aviso: (e as Error).message },
+      };
     }
   }
 }
@@ -370,7 +439,13 @@ function modoDe(pedido: ModoMalla, eventos: EventoVigente[]): ModoMalla {
  * Qué malla toca a una tienda cada día, y entre cuáles se busca qué
  * transferencia alimenta una recepción.
  */
-function mallasDeTienda(pais: string, codigo: string, valle: MallaDeTienda | null, eventos: EventoVigente[], modo: ModoMalla) {
+function mallasDeTienda(
+  pais: string,
+  codigo: string,
+  valle: MallaDeTienda | null,
+  eventos: EventoVigente[],
+  modo: ModoMalla,
+) {
   const deValle: MallaUsada | null = valle ? { nombre: nombreBase(pais), tienda: valle } : null;
   const suyos = eventos.filter((e) => e.porCodigo.has(codigo));
   const usada = (e: EventoVigente): MallaUsada => ({ nombre: e.nombre, tienda: e.porCodigo.get(codigo)! });
@@ -408,5 +483,9 @@ function mallasDeTienda(pais: string, codigo: string, valle: MallaDeTienda | nul
     return delEvento ? usada(delEvento) : deValle;
   };
 
-  return { mallaEn: mallaDeTransferencia, mallaDeRecepcion, candidatas: [...(deValle ? [deValle] : []), ...suyos.map(usada)] };
+  return {
+    mallaEn: mallaDeTransferencia,
+    mallaDeRecepcion,
+    candidatas: [...(deValle ? [deValle] : []), ...suyos.map(usada)],
+  };
 }

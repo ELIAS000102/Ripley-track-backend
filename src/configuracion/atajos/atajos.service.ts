@@ -9,26 +9,14 @@ import {
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
-import {
-  BloqueDto,
-  CrearAtajoDto,
-  EditarAtajoDto,
-  ListarAtajosDto,
-} from './dto/atajos.dto.js';
-import {
-  TABLA_POR_TIPO,
-  type Bloque,
-  type Atajo,
-  type Item,
-  type Tipo,
-} from './interfaces/atajos.interface.js';
+import { BloqueDto, CrearAtajoDto, EditarAtajoDto, ListarAtajosDto } from './dto/atajos.dto.js';
+import { TABLA_POR_TIPO, type Bloque, type Atajo, type Item, type Tipo } from './interfaces/atajos.interface.js';
 
 const TABLA = 'atajos';
 const TABLA_BLOQUES = 'atajo_bloques';
 
 /** Lo que se devuelve. El id del creador no sale: con su nombre basta. */
-const CAMPOS =
-  'id, nombre, descripcion, activa, creado_por, creado_en, actualizado_en';
+const CAMPOS = 'id, nombre, descripcion, activa, creado_por, creado_en, actualizado_en';
 
 /** Columnas que pone la base de datos y no viajan como campos del ítem */
 const PROPIAS = new Set(['id', 'bloque_id', 'orden', 'nota', 'creado_en']);
@@ -84,9 +72,7 @@ export class AtajosService {
     const bloques = await this.bloquesDe(filas.map((p) => p.id));
 
     return filas.map((p) => {
-      const suyos = bloques.filter(
-        (b) => b.atajo_id === p.id,
-      ) as (Bloque & { atajo_id: string })[];
+      const suyos = bloques.filter((b) => b.atajo_id === p.id) as (Bloque & { atajo_id: string })[];
 
       return {
         ...p,
@@ -105,11 +91,7 @@ export class AtajosService {
 
   /** Un atajo entero: sus bloques y los ítems de cada uno */
   async obtener(id: string): Promise<Atajo> {
-    const { data, error } = await this.supabase.admin
-      .from(TABLA)
-      .select(CAMPOS)
-      .eq('id', id)
-      .maybeSingle();
+    const { data, error } = await this.supabase.admin.from(TABLA).select(CAMPOS).eq('id', id).maybeSingle();
 
     if (error) this.reventar('leer el atajo', error.message);
     if (!data) throw new NotFoundException('No existe ese atajo');
@@ -129,9 +111,7 @@ export class AtajosService {
       })),
     );
 
-    atajo.tipos = [
-      ...new Set(atajo.bloques.map((b) => b.tipo)),
-    ];
+    atajo.tipos = [...new Set(atajo.bloques.map((b) => b.tipo))];
 
     return atajo;
   }
@@ -153,14 +133,10 @@ export class AtajosService {
 
     const todas = await this.listar();
 
-    const exacta = todas.find(
-      (p) => p.nombre.toLowerCase() === buscado.toLowerCase(),
-    );
+    const exacta = todas.find((p) => p.nombre.toLowerCase() === buscado.toLowerCase());
     if (exacta) return this.obtener(exacta.id);
 
-    const parecidas = todas.filter((p) =>
-      p.nombre.toLowerCase().includes(buscado.toLowerCase()),
-    );
+    const parecidas = todas.filter((p) => p.nombre.toLowerCase().includes(buscado.toLowerCase()));
 
     if (parecidas.length === 1) return this.obtener(parecidas[0].id);
 
@@ -187,11 +163,7 @@ export class AtajosService {
       creado_por_id: usuario.id,
     };
 
-    const { data, error } = await this.supabase.admin
-      .from(TABLA)
-      .insert(fila)
-      .select(CAMPOS)
-      .single();
+    const { data, error } = await this.supabase.admin.from(TABLA).insert(fila).select(CAMPOS).single();
 
     if (error) this.fallarAlGuardar('crear', fila.nombre, error);
 
@@ -211,9 +183,7 @@ export class AtajosService {
       items: dto.bloques.reduce((n, b) => n + b.items.length, 0),
     });
 
-    this.logger.log(
-      `Atajo "${fila.nombre}" creado por ${fila.creado_por}`,
-    );
+    this.logger.log(`Atajo "${fila.nombre}" creado por ${fila.creado_por}`);
 
     return this.obtener(creada.id);
   }
@@ -228,9 +198,7 @@ export class AtajosService {
       // `?.` y no `.`: un `null` explícito es cómo se borra la descripción, y
       // `@IsOptional()` lo deja pasar. Sin esto reventaba con un 500 por un
       // `.trim()` sobre null, que es el camino que usa el panel al vaciarla.
-      ...(dto.descripcion !== undefined
-        ? { descripcion: dto.descripcion?.trim() || null }
-        : {}),
+      ...(dto.descripcion !== undefined ? { descripcion: dto.descripcion?.trim() || null } : {}),
       ...(dto.activa !== undefined ? { activa: dto.activa } : {}),
       actualizado_en: new Date().toISOString(),
     };
@@ -240,10 +208,7 @@ export class AtajosService {
       throw new BadRequestException('No hay nada que cambiar');
     }
 
-    const { error } = await this.supabase.admin
-      .from(TABLA)
-      .update(cambios)
-      .eq('id', id);
+    const { error } = await this.supabase.admin.from(TABLA).update(cambios).eq('id', id);
 
     if (error) this.fallarAlGuardar('editar', antes.nombre, error);
 
@@ -270,9 +235,7 @@ export class AtajosService {
         nombre: cambios.nombre ?? antes.nombre,
         activa: cambios.activa ?? antes.activa,
         bloques: dto.bloques?.length ?? antes.bloques?.length ?? 0,
-        items:
-          dto.bloques?.reduce((n, b) => n + b.items.length, 0) ??
-          this.contarItems(antes),
+        items: dto.bloques?.reduce((n, b) => n + b.items.length, 0) ?? this.contarItems(antes),
       },
     );
 
@@ -298,10 +261,7 @@ export class AtajosService {
 
     if (error) this.reventar('retirar el atajo', error.message);
 
-    this.contexto.registrarCambio(
-      { nombre: antes.nombre, activa: true },
-      { nombre: antes.nombre, activa: false },
-    );
+    this.contexto.registrarCambio({ nombre: antes.nombre, activa: true }, { nombre: antes.nombre, activa: false });
 
     this.logger.log(`Atajo "${antes.nombre}" retirado`);
 
@@ -339,10 +299,7 @@ export class AtajosService {
 
   private async borrarBloques(atajoId: string) {
     // Los ítems caen con ellos: la clave foránea va con on delete cascade
-    const { error } = await this.supabase.admin
-      .from(TABLA_BLOQUES)
-      .delete()
-      .eq('atajo_id', atajoId);
+    const { error } = await this.supabase.admin.from(TABLA_BLOQUES).delete().eq('atajo_id', atajoId);
 
     if (error) this.reventar('reemplazar los bloques', error.message);
   }
@@ -354,10 +311,7 @@ export class AtajosService {
    * en `snake_case`. La conversión se hace aquí y en un solo sitio: un mapa a
    * mano de cuarenta nombres es garantizar que uno se quede sin traducir.
    */
-  private async guardarBloques(
-    atajoId: string,
-    bloques: BloqueDto[],
-  ) {
+  private async guardarBloques(atajoId: string, bloques: BloqueDto[]) {
     for (const [i, bloque] of bloques.entries()) {
       const { data, error } = await this.supabase.admin
         .from(TABLA_BLOQUES)
@@ -382,16 +336,13 @@ export class AtajosService {
         ...this.aColumnas(t.campos),
       }));
 
-      const { error: fallo } = await this.supabase.admin
-        .from(tabla)
-        .insert(items);
+      const { error: fallo } = await this.supabase.admin.from(tabla).insert(items);
 
       if (fallo) {
         // El mensaje de Postgres dice qué columna falta, y es más útil que
         // "no se pudo guardar": "null value in column codigo"
         throw new BadRequestException(
-          `El bloque ${i + 1} (${bloque.tipo}) tiene ítems que la base de datos ` +
-            `rechaza: ${fallo.message}`,
+          `El bloque ${i + 1} (${bloque.tipo}) tiene ítems que la base de datos ` + `rechaza: ${fallo.message}`,
         );
       }
     }
@@ -420,11 +371,7 @@ export class AtajosService {
   // ---------- Fallos ----------
 
   /** Un nombre repetido no es un fallo del servidor: es un aviso */
-  private fallarAlGuardar(
-    que: string,
-    nombre: string,
-    error: { message: string; code?: string },
-  ): never {
+  private fallarAlGuardar(que: string, nombre: string, error: { message: string; code?: string }): never {
     if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
       throw new ConflictException(
         `Ya hay un atajo llamado "${nombre}". El nombre es por donde se lo ` +

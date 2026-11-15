@@ -73,12 +73,7 @@ import { SinRastroInterceptor } from './seguridad/sin-rastro.interceptor.js';
     SimulacionModule,
     AuthModule,
   ],
-  controllers: [
-    ConsultasAgenteController,
-    EdicionAgenteController,
-    ModoAgenteController,
-    InterrupcionAgenteController,
-  ],
+  controllers: [ConsultasAgenteController, EdicionAgenteController, ModoAgenteController, InterrupcionAgenteController],
   providers: [
     ContextoAgenteService,
     AlmacenesAgenteService,

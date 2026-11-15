@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplService } from '../../../configuracion/tipo-servicio/opl/opl.service.js';
 import type { HoraCorte } from '../../../configuracion/tipo-servicio/opl/interfaces/opl.interface.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
@@ -11,11 +6,7 @@ import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
 import { ConsultarTipoServicioDto } from '../../dto/consultas.dto.js';
-import type {
-  OplConServicios,
-  ServicioAgenda,
-  TipoServicioRespuesta,
-} from '../../interfaces/agente.interface.js';
+import type { OplConServicios, ServicioAgenda, TipoServicioRespuesta } from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
 import { POR_VEZ } from '../../constantes/limites.constants.js';
@@ -50,19 +41,14 @@ export class TipoServicioAgenteService {
     private readonly contexto: ContextoAgenteService,
   ) {}
 
-  async consultar(
-    usuario: UsuarioAutenticado,
-    dto: ConsultarTipoServicioDto,
-  ): Promise<TipoServicioRespuesta> {
+  async consultar(usuario: UsuarioAutenticado, dto: ConsultarTipoServicioDto): Promise<TipoServicioRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
     const sinDatos: string[] = [];
 
     const pedidos = this.oplsPedidos(dto.opl);
 
-    this.logger.log(
-      `Agente consultando servicios de ${pedidos.length} OPL(s): ${pedidos.join(', ')}`,
-    );
+    this.logger.log(`Agente consultando servicios de ${pedidos.length} OPL(s): ${pedidos.join(', ')}`);
 
     const opls: OplConServicios[] = [];
 
@@ -127,9 +113,7 @@ export class TipoServicioAgenteService {
 
       const { opls } = await this.opl.buscarOpl(buscado, pais);
       if (!opls.length) {
-        throw new NotFoundException(
-          `No se encontró ningún operador logístico que coincida con "${termino}"`,
-        );
+        throw new NotFoundException(`No se encontró ningún operador logístico que coincida con "${termino}"`);
       }
       const operador = opls.find((o) => o.code === buscado.trim()) ?? opls[0];
       const etiqueta = `${operador.code} - ${operador.nombre}`;
@@ -164,9 +148,7 @@ export class TipoServicioAgenteService {
         );
       }
       if (!dto.agenda && agendas.length > 1) {
-        sinDatos.push(
-          `${etiqueta}: la zona tiene ${agendas.length} agendas; se consultó "${agenda.nombre}"`,
-        );
+        sinDatos.push(`${etiqueta}: la zona tiene ${agendas.length} agendas; se consultó "${agenda.nombre}"`);
       }
 
       // 4. Servicios

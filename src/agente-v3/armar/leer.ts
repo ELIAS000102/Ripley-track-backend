@@ -26,7 +26,24 @@ export interface PlanLeido {
 }
 
 const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
-const CAMPOS = new Set(['activa', 'enCheckout', 'habilitada', 'asignado', 'ocupado', 'disponible', 'uso', 'desfase', 'transito', 'preparacion', 'dias', 'jornadas', 'agenda', 'servicio', 'zona', 'entrega']);
+const CAMPOS = new Set([
+  'activa',
+  'enCheckout',
+  'habilitada',
+  'asignado',
+  'ocupado',
+  'disponible',
+  'uso',
+  'desfase',
+  'transito',
+  'preparacion',
+  'dias',
+  'jornadas',
+  'agenda',
+  'servicio',
+  'zona',
+  'entrega',
+]);
 const OPS = new Set(['=', '!=', '>', '>=', '<', '<=']);
 const VER = new Set(['totales', 'cuadro', 'uso']);
 /** Cuántos cambios caben en un mensaje (todos en vista previa) */
@@ -58,7 +75,13 @@ export function codigosPermitidos(contexto: ContextoTurno, mensaje: string): Set
   const almacenes = (contexto.almacenes ?? []).map((a) => a.codigo);
   // Y los que se parecen por su nombre o apodo: el modelo elige cuál quiso decir ("el 90 min+" = 1130)
   almacenes.push(...(contexto.parecidos ?? []).map((p) => p.codigo));
-  return new Set([...codigosDichos(contexto.entidades), ...del(mensaje), ...contexto.aclaraciones.flatMap(del), ...origenes, ...almacenes]);
+  return new Set([
+    ...codigosDichos(contexto.entidades),
+    ...del(mensaje),
+    ...contexto.aclaraciones.flatMap(del),
+    ...origenes,
+    ...almacenes,
+  ]);
 }
 
 type Valor = { ok: true; v: unknown } | { ok: false; motivo: string };
@@ -82,23 +105,40 @@ function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: S
     const crudo = (r as { sin?: unknown }).sin;
     let sin: number | string[] | undefined;
     if (crudo !== undefined && crudo !== null) {
-      if (r.ref === 'paso' && Number.isInteger(crudo) && (crudo as number) >= 1 && (crudo as number) < n && crudo !== r.n) sin = crudo as number;
+      if (
+        r.ref === 'paso' &&
+        Number.isInteger(crudo) &&
+        (crudo as number) >= 1 &&
+        (crudo as number) < n &&
+        crudo !== r.n
+      )
+        sin = crudo as number;
       else {
-        const lista = (Array.isArray(crudo) ? crudo : String(crudo).split(/[,\s]+/)).map((x) => String(x).trim()).filter(Boolean);
-        if (!lista.length || lista.some((c) => !codigo(c))) return { ok: false, motivo: `${p.nombre}: "sin" es otro paso anterior (su número) o los códigos que dijo la persona (["1111"]); ${JSON.stringify(crudo)} no vale` };
+        const lista = (Array.isArray(crudo) ? crudo : String(crudo).split(/[,\s]+/))
+          .map((x) => String(x).trim())
+          .filter(Boolean);
+        if (!lista.length || lista.some((c) => !codigo(c)))
+          return {
+            ok: false,
+            motivo: `${p.nombre}: "sin" es otro paso anterior (su número) o los códigos que dijo la persona (["1111"]); ${JSON.stringify(crudo)} no vale`,
+          };
         sin = [...new Set(lista)];
       }
     }
     if (r.ref === 'anterior') {
-      if (!contexto.anterior?.resultados.some((x) => x.datos)) return { ok: false, motivo: `${p.nombre} usa lo que trajo el anterior, y no hay datos guardados de él` };
+      if (!contexto.anterior?.resultados.some((x) => x.datos))
+        return { ok: false, motivo: `${p.nombre} usa lo que trajo el anterior, y no hay datos guardados de él` };
       return { ok: true, v: { ref: 'anterior', ...(Array.isArray(sin) ? { sin } : {}) } };
     }
-    if (r.ref === 'paso' && Number.isInteger(r.n) && r.n! >= 1 && r.n! < n) return { ok: true, v: { ref: 'paso', n: r.n, ...(sin ? { sin } : {}) } };
+    if (r.ref === 'paso' && Number.isInteger(r.n) && r.n! >= 1 && r.n! < n)
+      return { ok: true, v: { ref: 'paso', n: r.n, ...(sin ? { sin } : {}) } };
     return { ok: false, motivo: `${p.nombre}: referencia que no vale (${JSON.stringify(v)})` };
   }
   switch (p.tipo) {
     case 'codigos': {
-      const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/)).map((x) => String(x).trim()).filter(Boolean);
+      const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/))
+        .map((x) => String(x).trim())
+        .filter(Boolean);
       if (!lista.length) return { ok: false, motivo: `${p.nombre} vacío` };
       const malos = lista.filter((c) => !codigo(c));
       if (malos.length) return { ok: false, motivo: `${p.nombre}: ${malos.join(', ')} no los dijo nadie` };
@@ -110,24 +150,37 @@ function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: S
     }
     case 'servicios':
     case 'servicio': {
-      const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/)).map((x) => String(x).trim().toUpperCase()).filter(Boolean);
+      const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/))
+        .map((x) => String(x).trim().toUpperCase())
+        .filter(Boolean);
       // "Todos los servicios" (los que se vieron de cada OPL): lo comprueba leerPlan con su "opl"
-      if (p.tipo === 'servicios' && lista.length === 1 && TODOS_LOS_SERVICIOS.test(lista[0])) return { ok: true, v: ['TODOS'] };
+      if (p.tipo === 'servicios' && lista.length === 1 && TODOS_LOS_SERVICIOS.test(lista[0]))
+        return { ok: true, v: ['TODOS'] };
       const conocidos = new Set(contexto.servicios.map((s) => s.codigo));
       const malos = lista.filter((s) => !/^[A-Z]{1,3}$/.test(s) || (conocidos.size > 0 && !conocidos.has(s)));
-      if (!lista.length || malos.length) return { ok: false, motivo: `${p.nombre}: ${malos.join(', ') || 'vacío'} no es un servicio de ${contexto.pais}` };
+      if (!lista.length || malos.length)
+        return {
+          ok: false,
+          motivo: `${p.nombre}: ${malos.join(', ') || 'vacío'} no es un servicio de ${contexto.pais}`,
+        };
       if (p.tipo === 'servicio' && lista.length > 1) return { ok: false, motivo: `${p.nombre}: solo uno` };
       return { ok: true, v: p.tipo === 'servicio' ? lista[0] : [...new Set(lista)] };
     }
     case 'opcion':
-      return p.opciones!.includes(String(v)) ? { ok: true, v: String(v) } : { ok: false, motivo: `${p.nombre}: ${JSON.stringify(v)} no es ${p.opciones!.join(' ni ')}` };
+      return p.opciones!.includes(String(v))
+        ? { ok: true, v: String(v) }
+        : { ok: false, motivo: `${p.nombre}: ${JSON.stringify(v)} no es ${p.opciones!.join(' ni ')}` };
     case 'fecha': {
       const f = fechaIso(v, contexto.hoy);
-      return f ? { ok: true, v: f } : { ok: false, motivo: `${p.nombre}: fecha que no entiendo (${JSON.stringify(v)})` };
+      return f
+        ? { ok: true, v: f }
+        : { ok: false, motivo: `${p.nombre}: fecha que no entiendo (${JSON.stringify(v)})` };
     }
     case 'numero': {
       const x = Number(v);
-      return Number.isInteger(x) && x >= (p.min ?? -Infinity) && x <= (p.max ?? Infinity) ? { ok: true, v: x } : { ok: false, motivo: `${p.nombre}: ${JSON.stringify(v)} fuera de rango` };
+      return Number.isInteger(x) && x >= (p.min ?? -Infinity) && x <= (p.max ?? Infinity)
+        ? { ok: true, v: x }
+        : { ok: false, motivo: `${p.nombre}: ${JSON.stringify(v)} fuera de rango` };
     }
     case 'booleano':
       return typeof v === 'boolean' ? { ok: true, v } : { ok: false, motivo: `${p.nombre} tiene que ser true o false` };
@@ -138,17 +191,22 @@ function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: S
   }
 }
 
-function condicionDe(c: unknown, conCuantos: boolean): { ok: true; v: Record<string, unknown> | null } | { ok: false; motivo: string } {
+function condicionDe(
+  c: unknown,
+  conCuantos: boolean,
+): { ok: true; v: Record<string, unknown> | null } | { ok: false; motivo: string } {
   if (c === null || c === undefined) return { ok: true, v: null };
   if (typeof c !== 'object' || Array.isArray(c)) return { ok: false, motivo: 'condición que no es un objeto' };
   const x = c as Record<string, unknown>;
-  if (!CAMPOS.has(String(x.campo))) return { ok: false, motivo: `condición sobre un campo que no existe: ${JSON.stringify(x.campo)}` };
+  if (!CAMPOS.has(String(x.campo)))
+    return { ok: false, motivo: `condición sobre un campo que no existe: ${JSON.stringify(x.campo)}` };
   const op = String(x.op ?? '=');
   if (!OPS.has(op)) return { ok: false, motivo: `operador que no existe: ${op}` };
   if (x.valor === undefined || x.valor === null) return { ok: false, motivo: 'condición sin valor' };
   const v: Record<string, unknown> = { campo: x.campo, op, valor: x.valor };
   if (conCuantos) {
-    if (!['todos', 'ninguno', 'alguno'].includes(String(x.cuantos))) return { ok: false, motivo: 'comprobar sin "cuantos" (todos, ninguno o alguno)' };
+    if (!['todos', 'ninguno', 'alguno'].includes(String(x.cuantos)))
+      return { ok: false, motivo: 'comprobar sin "cuantos" (todos, ninguno o alguno)' };
     v.cuantos = x.cuantos;
     if (x.servicio) v.servicio = String(x.servicio).toUpperCase();
   }
@@ -161,20 +219,27 @@ function condicionDe(c: unknown, conCuantos: boolean): { ok: true; v: Record<str
  * podría llevarlos: el reporte de CDs, por ejemplo, no tiene servicio.
  */
 export function serviciosSinUsar(pasos: PasoPlan[], mensaje: string, contexto: ContextoTurno): string[] {
-  const nombrados = serviciosNombrados(mensaje, contexto.servicios.map((s) => s.codigo));
+  const nombrados = serviciosNombrados(
+    mensaje,
+    contexto.servicios.map((s) => s.codigo),
+  );
   if (!nombrados.length) return [];
-  const conServicio = (p: PasoPlan) => herramienta(p.herramienta)?.params.filter((d) => d.tipo === 'servicio' || d.tipo === 'servicios') ?? [];
+  const conServicio = (p: PasoPlan) =>
+    herramienta(p.herramienta)?.params.filter((d) => d.tipo === 'servicio' || d.tipo === 'servicios') ?? [];
   if (!pasos.some((p) => conServicio(p).length || p.herramienta === 'saber_servicios')) return [];
   const usados = new Set<string>();
   for (const p of pasos) {
-    for (const d of conServicio(p)) for (const v of [p.param[d.nombre]].flat()) if (v) usados.add(String(v).toUpperCase());
+    for (const d of conServicio(p))
+      for (const v of [p.param[d.nombre]].flat()) if (v) usados.add(String(v).toUpperCase());
     for (const v of [p.param.servicio].flat()) if (v) usados.add(String(v).toUpperCase());
     if (p.comprobar?.servicio) usados.add(p.comprobar.servicio.toUpperCase());
   }
-  const atajos = pasos.filter((p) => p.herramienta === 'ejecutar_atajo').map((p) => {
-    const a = contexto.atajos.find((x) => x.nombre === p.param.nombre);
-    return `${a?.nombre ?? ''} ${a?.descripcion ?? ''}`;
-  });
+  const atajos = pasos
+    .filter((p) => p.herramienta === 'ejecutar_atajo')
+    .map((p) => {
+      const a = contexto.atajos.find((x) => x.nombre === p.param.nombre);
+      return `${a?.nombre ?? ''} ${a?.descripcion ?? ''}`;
+    });
   return nombrados.filter((s) => !usados.has(s) && !atajos.some((t) => new RegExp(`\\b${s}\\b`, 'i').test(t)));
 }
 
@@ -183,12 +248,27 @@ export function serviciosSinUsar(pasos: PasoPlan[], mensaje: string, contexto: C
  * de edición (se ejecutan en simulacro: la vista previa), y el plan trae al
  * menos una y como mucho MAX_CAMBIOS; sin cambio, una edición no vale.
  */
-export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string, cambio = false, atajo: string | null = null, pide: string[] = []): Lectura<PlanLeido> {
+export function leerPlan(
+  texto: string,
+  contexto: ContextoTurno,
+  mensaje: string,
+  cambio = false,
+  atajo: string | null = null,
+  pide: string[] = [],
+): Lectura<PlanLeido> {
   const j = primerJson(texto);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
-  const faltan = Array.isArray(j.faltan) ? j.faltan.map((f) => String(f).trim()).filter(Boolean).slice(0, 3) : [];
+  const faltan = Array.isArray(j.faltan)
+    ? j.faltan
+        .map((f) => String(f).trim())
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
   const crudos = Array.isArray(j.pasos) ? j.pasos : [];
-  if (!crudos.length) return faltan.length ? { ok: true, valor: { plan: null, faltan } } : { ok: false, motivo: 'un plan sin pasos y sin decir qué falta' };
+  if (!crudos.length)
+    return faltan.length
+      ? { ok: true, valor: { plan: null, faltan } }
+      : { ok: false, motivo: 'un plan sin pasos y sin decir qué falta' };
   if (crudos.length > 6) return { ok: false, motivo: `${crudos.length} pasos: demasiados` };
 
   const permitidos = codigosPermitidos(contexto, mensaje);
@@ -199,15 +279,20 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     const x = (crudo ?? {}) as Record<string, unknown>;
     const h = herramienta(String(x.herramienta ?? ''));
     if (!h) return { ok: false, motivo: `paso ${n}: herramienta que no existe (${JSON.stringify(x.herramienta)})` };
-    if (h.edicion && !cambio) return { ok: false, motivo: `paso ${n}: ${h.id} es un cambio, y no se pidió ningún cambio` };
+    if (h.edicion && !cambio)
+      return { ok: false, motivo: `paso ${n}: ${h.id} es un cambio, y no se pidió ningún cambio` };
     // Varios cambios en un mensaje, sí (todo es vista previa): cada uno en su paso, como mucho 4
-    if (h.edicion && pasos.filter((p) => herramienta(p.herramienta)?.edicion).length >= MAX_CAMBIOS) return { ok: false, motivo: `paso ${n}: más de ${MAX_CAMBIOS} cambios en un mensaje; pídelos en dos` };
+    if (h.edicion && pasos.filter((p) => herramienta(p.herramienta)?.edicion).length >= MAX_CAMBIOS)
+      return { ok: false, motivo: `paso ${n}: más de ${MAX_CAMBIOS} cambios en un mensaje; pídelos en dos` };
     const param = (x.param && typeof x.param === 'object' ? x.param : {}) as Record<string, unknown>;
     const limpio: Record<string, unknown> = {};
 
     if (h.id === 'ejecutar_atajo') {
-      const atajo = contexto.atajos.find((a) => plano(a.nombre) === plano(String(param.nombre ?? '').replace(/^«|»$/g, '')));
-      if (!atajo) return { ok: false, motivo: `paso ${n}: no hay ningún atajo llamado «${String(param.nombre ?? '')}»` };
+      const atajo = contexto.atajos.find(
+        (a) => plano(a.nombre) === plano(String(param.nombre ?? '').replace(/^«|»$/g, '')),
+      );
+      if (!atajo)
+        return { ok: false, motivo: `paso ${n}: no hay ningún atajo llamado «${String(param.nombre ?? '')}»` };
       limpio.nombre = atajo.nombre;
     } else {
       for (const clave of Object.keys(param)) {
@@ -225,21 +310,32 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     // "Todos los servicios": solo en los servicios de OPL y sobre algo que se vio (un paso o el anterior)
     if (Array.isArray(limpio.servicio) && limpio.servicio[0] === 'TODOS') {
       const opl = limpio.opl as { ref?: string } | undefined;
-      if (h.id !== 'editar_servicio_opl' || !opl || typeof opl !== 'object' || !opl.ref) return { ok: false, motivo: `paso ${n}: servicio "todos" solo vale en editar_servicio_opl con "opl" de otro paso o del anterior (ahí se ve qué servicios tiene cada OPL); si no, nombra los servicios` };
+      if (h.id !== 'editar_servicio_opl' || !opl || typeof opl !== 'object' || !opl.ref)
+        return {
+          ok: false,
+          motivo: `paso ${n}: servicio "todos" solo vale en editar_servicio_opl con "opl" de otro paso o del anterior (ahí se ve qué servicios tiene cada OPL); si no, nombra los servicios`,
+        };
     }
 
     // La agenda o la zona: una de las conocidas de esas oficinas; si no se conoce ninguna, se buscan
     const conAgenda = CON_AGENDA[h.id];
     if (conAgenda && (limpio.agenda || limpio.zona)) {
       const v = limpio[conAgenda.lista];
-      const codigos = Array.isArray(v) ? (v as string[]) : v && typeof v === 'object' && (v as { ref?: string }).ref === 'anterior' ? codigosDelAnterior(contexto) : null;
+      const codigos = Array.isArray(v)
+        ? (v as string[])
+        : v && typeof v === 'object' && (v as { ref?: string }).ref === 'anterior'
+          ? codigosDelAnterior(contexto)
+          : null;
       if (codigos?.length) {
         const tipo = conAgenda.tipo(limpio);
         const conocidas = deLasOficinas(agendasConocidas(contexto), codigos, tipo);
         if (!conocidas.length) buscar.push({ herramienta: h.id, tipo, codigos });
         else if (!lasQueEncajan(conocidas, limpio.agenda, limpio.zona).length) {
           const nombres = [...new Set(conocidas.map((a) => a.agenda))];
-          return { ok: false, motivo: `paso ${n}: «${String(limpio.agenda ?? limpio.zona)}» no es ninguna de las agendas de ${[...new Set(conocidas.map((a) => a.codigo))].join(', ')} (son: ${nombres.slice(0, 20).join(', ')}${nombres.length > 20 ? '…' : ''}); elige la que quiso decir y copia su nombre exacto` };
+          return {
+            ok: false,
+            motivo: `paso ${n}: «${String(limpio.agenda ?? limpio.zona)}» no es ninguna de las agendas de ${[...new Set(conocidas.map((a) => a.codigo))].join(', ')} (son: ${nombres.slice(0, 20).join(', ')}${nombres.length > 20 ? '…' : ''}); elige la que quiso decir y copia su nombre exacto`,
+          };
         }
       }
     }
@@ -249,27 +345,58 @@ export function leerPlan(texto: string, contexto: ContextoTurno, mensaje: string
     const comp = condicionDe(x.comprobar, true);
     if (!comp.ok) return { ok: false, motivo: `paso ${n}: ${comp.motivo}` };
     // Listar oficinas es leer el directorio: lo mismo que "¿qué tiendas conoces?" (saber_entidades)
-    const real = h.id === 'listar_oficinas'
-      ? { herramienta: 'saber_entidades', param: limpio.tipo === 'cd' ? { tipo: 'almacen', es_cd: true } : { tipo: limpio.tipo } }
-      : { herramienta: h.id, param: limpio };
-    pasos.push({ ...real, ...(cond.v ? { condicion: cond.v as never } : {}), ...(comp.v ? { comprobar: comp.v as never } : {}) });
+    const real =
+      h.id === 'listar_oficinas'
+        ? {
+            herramienta: 'saber_entidades',
+            param: limpio.tipo === 'cd' ? { tipo: 'almacen', es_cd: true } : { tipo: limpio.tipo },
+          }
+        : { herramienta: h.id, param: limpio };
+    pasos.push({
+      ...real,
+      ...(cond.v ? { condicion: cond.v as never } : {}),
+      ...(comp.v ? { comprobar: comp.v as never } : {}),
+    });
   }
 
   // El atajo que nombra el mensaje (o que identificó Clasificar) es el que se ejecuta: "el bt lima" no es «Paqueteria Lima»
   const ejecutados = pasos.filter((p) => p.herramienta === 'ejecutar_atajo').map((p) => String(p.param.nombre));
-  if (atajo && ejecutados.length && !ejecutados.includes(atajo)) return { ok: false, motivo: `el mensaje nombra el atajo «${atajo}» y el plan ejecuta «${ejecutados.join('», «')}»: usa «${atajo}»` };
+  if (atajo && ejecutados.length && !ejecutados.includes(atajo))
+    return {
+      ok: false,
+      motivo: `el mensaje nombra el atajo «${atajo}» y el plan ejecuta «${ejecutados.join('», «')}»: usa «${atajo}»`,
+    };
 
   // Lo que nombra el mensaje está en el plan: "la RT y la RE" no puede quedarse en la RT sin decirlo
   const faltanServicios = serviciosSinUsar(pasos, mensaje, contexto);
-  if (faltanServicios.length) return { ok: false, motivo: `el mensaje nombra ${faltanServicios.join(' y ')} y el plan no ${faltanServicios.length === 1 ? 'lo' : 'los'} usa: pon todo lo que pide` };
+  if (faltanServicios.length)
+    return {
+      ok: false,
+      motivo: `el mensaje nombra ${faltanServicios.join(' y ')} y el plan no ${faltanServicios.length === 1 ? 'lo' : 'los'} usa: pon todo lo que pide`,
+    };
 
   // El plan trae lo que se pide: "el despacho RT de las tiendas" no se contesta con el estado de sus agendas
-  const noTrae = sinTraer(pide, pasos.flatMap((p) => traePaso(p, contexto.atajos)));
-  if (noTrae.length) return { ok: false, motivo: `${motivoNoTrae(noTrae, `el plan (${pasos.map((p) => p.herramienta).join(' + ')})`)}: añade el paso que lo trae${noTrae.some((p) => ['picking', 'despacho', 'recepcion'].includes(p)) ? ' (consultar_capacidad con ese tipo; busqueda_masiva solo dice si las agendas están activas)' : ''}` };
+  const noTrae = sinTraer(
+    pide,
+    pasos.flatMap((p) => traePaso(p, contexto.atajos)),
+  );
+  if (noTrae.length)
+    return {
+      ok: false,
+      motivo: `${motivoNoTrae(noTrae, `el plan (${pasos.map((p) => p.herramienta).join(' + ')})`)}: añade el paso que lo trae${noTrae.some((p) => ['picking', 'despacho', 'recepcion'].includes(p)) ? ' (consultar_capacidad con ese tipo; busqueda_masiva solo dice si las agendas están activas)' : ''}`,
+    };
 
   // "Fíjate que estén inactivas" no es un cambio: si Armar armó una consulta válida, vale como consulta
   const sinCambio = cambio && !pasos.some((p) => herramienta(p.herramienta)?.edicion);
   if (sinCambio) cambio = false;
   const ver = typeof j.ver === 'string' && VER.has(j.ver) ? j.ver : null;
-  return { ok: true, valor: { plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver }, faltan, ...(buscar.length ? { buscar } : {}), ...(sinCambio ? { sinCambio } : {}) } };
+  return {
+    ok: true,
+    valor: {
+      plan: { origen: cambio ? 'cambio' : 'armar', pasos, ver },
+      faltan,
+      ...(buscar.length ? { buscar } : {}),
+      ...(sinCambio ? { sinCambio } : {}),
+    },
+  };
 }

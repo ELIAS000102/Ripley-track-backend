@@ -36,9 +36,7 @@ export class PerfilService {
       .maybeSingle();
 
     if (error) {
-      this.logger.error(
-        `No se pudo leer el perfil de ${email}: ${error.message}`,
-      );
+      this.logger.error(`No se pudo leer el perfil de ${email}: ${error.message}`);
       throw new BadGatewayException('No se pudo obtener el perfil');
     }
 
@@ -50,11 +48,7 @@ export class PerfilService {
    * El rol queda deliberadamente fuera: si se pudiera editar desde aquí,
    * cualquiera se ascendería a sí mismo.
    */
-  async actualizar(
-    id: string,
-    email: string,
-    dto: ActualizarPerfilDto,
-  ): Promise<Perfil> {
+  async actualizar(id: string, email: string, dto: ActualizarPerfilDto): Promise<Perfil> {
     // Se relee antes de escribir para poder registrar qué cambió exactamente
     const anterior = await this.obtener(id, email);
 
@@ -73,9 +67,7 @@ export class PerfilService {
       .maybeSingle();
 
     if (error) {
-      this.logger.error(
-        `No se pudo guardar el perfil de ${email}: ${error.message}`,
-      );
+      this.logger.error(`No se pudo guardar el perfil de ${email}: ${error.message}`);
       throw new BadGatewayException('No se pudo guardar el perfil');
     }
 
@@ -106,10 +98,7 @@ export class PerfilService {
    * no fija el rol ni la tienda. Se usa upsert para que el registro funcione
    * igual aunque el trigger no esté instalado.
    */
-  async inicializar(
-    id: string,
-    datos: { nombre: string; apellido: string; tienda?: string },
-  ): Promise<void> {
+  async inicializar(id: string, datos: { nombre: string; apellido: string; tienda?: string }): Promise<void> {
     const { error } = await this.supabase.admin.from(TABLA).upsert(
       {
         id,
@@ -123,12 +112,8 @@ export class PerfilService {
     );
 
     if (error) {
-      this.logger.error(
-        `No se pudo crear el perfil de ${id}: ${error.message}`,
-      );
-      throw new BadGatewayException(
-        'La cuenta se creó pero no se pudo guardar el perfil',
-      );
+      this.logger.error(`No se pudo crear el perfil de ${id}: ${error.message}`);
+      throw new BadGatewayException('La cuenta se creó pero no se pudo guardar el perfil');
     }
   }
 

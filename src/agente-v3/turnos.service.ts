@@ -1,4 +1,10 @@
-import { ForbiddenException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import type { Turno } from './interfaces/agente-v3.interface.js';
 
@@ -58,7 +64,9 @@ export class TurnosService {
     // La causa más probable al estrenar la v3: el SQL todavía no se corrió
     const sinTabla = /agente_turnos|relation .* does not exist|schema cache/i.test(detalle ?? '');
     return new InternalServerErrorException(
-      sinTabla ? `No se pudo ${que}: falta la tabla agente_turnos (corre agente-v3/sql/01-agente-v3.sql en Supabase)` : `No se pudo ${que}`,
+      sinTabla
+        ? `No se pudo ${que}: falta la tabla agente_turnos (corre agente-v3/sql/01-agente-v3.sql en Supabase)`
+        : `No se pudo ${que}`,
     );
   }
 }

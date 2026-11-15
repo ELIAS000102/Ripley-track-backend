@@ -42,11 +42,7 @@ describe('Catálogos de Ripley: qué se le pide exactamente', () => {
     const { servicio, get } = armar();
     await servicio.oficinas('PE', { tipo: 'almacen' });
 
-    expect(llamada(get)).toEqual([
-      '/api/offices',
-      'PE',
-      { isStoreOffice: true },
-    ]);
+    expect(llamada(get)).toEqual(['/api/offices', 'PE', { isStoreOffice: true }]);
   });
 
   it('lista operadores con isOPLOffice y nada más', async () => {
@@ -60,11 +56,7 @@ describe('Catálogos de Ripley: qué se le pide exactamente', () => {
     const { servicio, get } = armar();
     await servicio.oficinas('CL', { q: '20026', tipo: 'almacen' });
 
-    expect(llamada(get)).toEqual([
-      '/api/offices',
-      'CL',
-      { q: '20026', isStoreOffice: true },
-    ]);
+    expect(llamada(get)).toEqual(['/api/offices', 'CL', { q: '20026', isStoreOffice: true }]);
   });
 
   it('busca por id SIN bandera de tipo', async () => {
@@ -87,22 +79,14 @@ describe('Catálogos de Ripley: qué se le pide exactamente', () => {
     const { servicio, get } = armar();
     await servicio.agendasDePicking('5dd808', 'PE');
 
-    expect(llamada(get)).toEqual([
-      '/api/schedulesPicking',
-      'PE',
-      { warehouse: '5dd808' },
-    ]);
+    expect(llamada(get)).toEqual(['/api/schedulesPicking', 'PE', { warehouse: '5dd808' }]);
   });
 
   it('pide las capacidades con el id en la ruta', async () => {
     const { servicio, get } = armar({});
     await servicio.capacidadesDePicking('cap-1', 'PE', '17-09-2026');
 
-    expect(llamada(get)).toEqual([
-      '/api/capacitiesPicking/cap-1',
-      'PE',
-      { from: '17-09-2026' },
-    ]);
+    expect(llamada(get)).toEqual(['/api/capacitiesPicking/cap-1', 'PE', { from: '17-09-2026' }]);
   });
 
   it('omite "from" cuando no se pide una fecha', async () => {
@@ -110,11 +94,7 @@ describe('Catálogos de Ripley: qué se le pide exactamente', () => {
     const { servicio, get } = armar({});
     await servicio.capacidadesDePicking('cap-1', 'PE');
 
-    expect(llamada(get)).toEqual([
-      '/api/capacitiesPicking/cap-1',
-      'PE',
-      undefined,
-    ]);
+    expect(llamada(get)).toEqual(['/api/capacitiesPicking/cap-1', 'PE', undefined]);
   });
 });
 
@@ -144,9 +124,7 @@ describe('Catálogos de Ripley: cómo se elige una oficina', () => {
   it('sin resultados avisa nombrando lo que se buscaba', async () => {
     const { servicio } = armar({ count: 0, rows: [] });
 
-    await expect(
-      servicio.oficinaPorCodigo('999', 'PE', 'opl', 'el OPL'),
-    ).rejects.toThrow(
+    await expect(servicio.oficinaPorCodigo('999', 'PE', 'opl', 'el OPL')).rejects.toThrow(
       new NotFoundException('No se encontró el OPL con código 999'),
     );
   });
@@ -161,7 +139,13 @@ describe('Catálogos de Ripley: cómo se elige una oficina', () => {
 });
 
 describe('Las oficinas en una petición en serie (el G12)', () => {
-  const OPL = { count: 2, rows: [{ id: 'a', code: '1017' }, { id: 'b', code: '10170' }] };
+  const OPL = {
+    count: 2,
+    rows: [
+      { id: 'a', code: '1017' },
+      { id: 'b', code: '10170' },
+    ],
+  };
 
   it('salen del catálogo entero de su tipo, no de una búsqueda por código', async () => {
     const { servicio, get } = armar(OPL, true);
@@ -173,7 +157,8 @@ describe('Las oficinas en una petición en serie (el G12)', () => {
 
   it('si el código no está en el catálogo (la API pagina), se busca por código como siempre', async () => {
     const get = vi.fn(async (_p: string, _pais: string, params: { q?: string }) =>
-      params.q ? { count: 1, rows: [{ id: 'z', code: '1999' }] } : OPL);
+      params.q ? { count: 1, rows: [{ id: 'z', code: '1999' }] } : OPL,
+    );
     const servicio = new CatalogosRipleyService(
       { get, endpoint: (n: string) => `/api/${n}`, vaEnSerie: () => true } as unknown as RipleyHttpService,
       { recordar: (_c: string, _p: string, traer: () => unknown) => traer() } as unknown as CacheCatalogosService,

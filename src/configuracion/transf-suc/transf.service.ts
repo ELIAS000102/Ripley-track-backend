@@ -3,12 +3,7 @@ import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import { ActualizarRelacionDto } from './dto/actualizar-relacion.dto.js';
-import {
-  DiasDisponibles,
-  Relacion,
-  RelacionesResponse,
-  RelacionPayload,
-} from './interfaces/transf.interface.js';
+import { DiasDisponibles, Relacion, RelacionesResponse, RelacionPayload } from './interfaces/transf.interface.js';
 
 /**
  * Relaciones de transferencia entre sucursales. El GET trae un único documento con
@@ -55,15 +50,11 @@ export class TransfService {
   // ---------- Paso 2: relaciones del almacén ----------
 
   /** El GET devuelve un solo documento con todas las relaciones */
-  private async traerDocumento(
-    warehouseId: string,
-    pais: string,
-  ): Promise<RelacionesResponse> {
-    return this.ripley.get<RelacionesResponse>(
-      this.ripley.endpoint('officeRelationship'),
-      pais,
-      { id: warehouseId, kind: '' },
-    );
+  private async traerDocumento(warehouseId: string, pais: string): Promise<RelacionesResponse> {
+    return this.ripley.get<RelacionesResponse>(this.ripley.endpoint('officeRelationship'), pais, {
+      id: warehouseId,
+      kind: '',
+    });
   }
 
   async listarRelaciones(warehouseId: string, pais = 'PE') {
@@ -91,10 +82,7 @@ export class TransfService {
   // ---------- Paso 3: guardar una relación ----------
 
   /** Solo se reemplazan los días enviados; el resto mantiene su valor */
-  private fusionarDias(
-    actuales: DiasDisponibles,
-    cambios?: Partial<DiasDisponibles>,
-  ): DiasDisponibles {
+  private fusionarDias(actuales: DiasDisponibles, cambios?: Partial<DiasDisponibles>): DiasDisponibles {
     return { ...actuales, ...cambios };
   }
 
@@ -106,14 +94,10 @@ export class TransfService {
     const pais = dto.pais ?? 'PE';
 
     const doc = await this.traerDocumento(dto.warehouseId, pais);
-    const actual: Relacion | undefined = doc?.relationships?.find(
-      (r) => r._id === dto.relacionId,
-    );
+    const actual: Relacion | undefined = doc?.relationships?.find((r) => r._id === dto.relacionId);
 
     if (!actual) {
-      throw new NotFoundException(
-        `La relación ${dto.relacionId} no pertenece al almacén ${dto.warehouseId}`,
-      );
+      throw new NotFoundException(`La relación ${dto.relacionId} no pertenece al almacén ${dto.warehouseId}`);
     }
 
     const canTransfer = dto.canTransfer ?? actual.canTransfer;
@@ -155,9 +139,7 @@ export class TransfService {
       },
     );
 
-    this.logger.log(
-      `Guardando relación "${actual.label}" del almacén ${dto.warehouseId}`,
-    );
+    this.logger.log(`Guardando relación "${actual.label}" del almacén ${dto.warehouseId}`);
 
     // Ripley devuelve el documento entero ya guardado. En un simulacro, el que
     // habría devuelto: el mismo, con esta relación como iba a quedar
@@ -168,16 +150,12 @@ export class TransfService {
       { id: dto.warehouseId },
       {
         ...doc,
-        relationships: doc.relationships.map((r) =>
-          r._id === actual._id ? { ...r, ...payload } : r,
-        ),
+        relationships: doc.relationships.map((r) => (r._id === actual._id ? { ...r, ...payload } : r)),
       },
     );
 
     // La API devuelve el documento completo ya actualizado
-    const guardada = respuesta?.relationships?.find(
-      (r) => r._id === dto.relacionId,
-    );
+    const guardada = respuesta?.relationships?.find((r) => r._id === dto.relacionId);
 
     return {
       warehouseId: dto.warehouseId,

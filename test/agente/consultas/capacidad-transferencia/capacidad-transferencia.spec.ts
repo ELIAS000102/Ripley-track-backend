@@ -17,13 +17,28 @@ const HOY = hoyEnPais('PE');
 const MANANA = sumarDias(HOY, 1);
 const PASADO = sumarDias(HOY, 2);
 
-const agenda = (id: string, servicio: string, destino: { code: string | null; nombre: string }, origen = { code: '20026', nombre: 'Ripley Fulfillment' }) => ({
+const agenda = (
+  id: string,
+  servicio: string,
+  destino: { code: string | null; nombre: string },
+  origen = { code: '20026', nombre: 'Ripley Fulfillment' },
+) => ({
   fila: { _id: id, name: `Agenda ${servicio} ${id}`, type: { isTransferSchedule: true }, unitMeasure: 'Unidades' },
   agenda: {
-    scheduleId: id, capacityId: `${id}-cap`, nombre: `Agenda ${servicio} ${id}`, origen,
-    destino: { ...destino, clusterId: `c-${destino.code}` }, typeOfService: servicio, unitMeasure: 'Unidades',
-    activa: true, autogenera: false, vigenteDesde: '2022-01-01', vigenteHasta: '2027-12-31',
-    capacidadSemanal: null, cortesSemanales: null, ultimoDiaOcupado: null,
+    scheduleId: id,
+    capacityId: `${id}-cap`,
+    nombre: `Agenda ${servicio} ${id}`,
+    origen,
+    destino: { ...destino, clusterId: `c-${destino.code}` },
+    typeOfService: servicio,
+    unitMeasure: 'Unidades',
+    activa: true,
+    autogenera: false,
+    vigenteDesde: '2022-01-01',
+    vigenteHasta: '2027-12-31',
+    capacidadSemanal: null,
+    cortesSemanales: null,
+    ultimoDiaOcupado: null,
   },
 });
 
@@ -31,14 +46,27 @@ const ST = agenda('a1', 'ST', { code: '20021', nombre: '20021 - Chorrillos' });
 const SG = agenda('a2', 'SG', { code: '20021', nombre: '20021 - Chorrillos' }, { code: '20096', nombre: 'CD Aldeas' });
 const PICKIT = agenda('a3', 'RT', { code: null, nombre: 'PICKIT' });
 
-const dia = (fecha: string, active = true, assigned = 190, occupied = 0) => ({ day: `${fecha}T00:00:00.000Z`, active, assigned, occupied });
+const dia = (fecha: string, active = true, assigned = 190, occupied = 0) => ({
+  day: `${fecha}T00:00:00.000Z`,
+  active,
+  assigned,
+  occupied,
+});
 const DIAS = [dia(HOY, true, 190, 4), dia(MANANA, true, 190, 190), dia(PASADO, false, 190, 0)];
 
 function armar(agendas = [ST, SG, PICKIT], sinDatos: string[] = []) {
   const transferencias = {
     agendasDeVarios: vi.fn().mockResolvedValue({ agendas, sinDatos }),
     diasDeLaAgenda: vi.fn().mockResolvedValue(DIAS),
-    preparada: vi.fn().mockImplementation((fila, a) => ({ fila, agenda: a, capacityId: `${a.scheduleId}-cap`, typeOfService: a.typeOfService, idOffice: a.origen.code })),
+    preparada: vi
+      .fn()
+      .mockImplementation((fila, a) => ({
+        fila,
+        agenda: a,
+        capacityId: `${a.scheduleId}-cap`,
+        typeOfService: a.typeOfService,
+        idOffice: a.origen.code,
+      })),
     guardarDia: vi.fn().mockResolvedValue({}),
   } as unknown as TransferenciaAgendasService;
   return { transferencias, consulta: new CapacidadTransferenciaAgenteService(transferencias) };
@@ -51,7 +79,13 @@ describe('Consultar la capacidad de transferencia', () => {
     const r = await consulta.consultar({ destino: '20021, pickit', dias: 3 });
 
     expect(r.origenes.map((o) => [o.origen, o.agendas.map((a) => [a.destino, a.servicio])])).toEqual([
-      ['20026 - Ripley Fulfillment', [['20021 - Chorrillos', 'ST'], ['PICKIT', 'RT']]],
+      [
+        '20026 - Ripley Fulfillment',
+        [
+          ['20021 - Chorrillos', 'ST'],
+          ['PICKIT', 'RT'],
+        ],
+      ],
       ['20096 - CD Aldeas', [['20021 - Chorrillos', 'SG']]],
     ]);
   });
@@ -104,7 +138,16 @@ describe('Editar la capacidad de transferencia', () => {
     const { transferencias } = armar(agendas);
     const contexto = { armar: vi.fn().mockResolvedValue({ pais: 'PE', hoy: HOY }) } as unknown as ContextoAgenteService;
     const auditoria = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
-    const servicio = new EditarCapacidadAgenteService(undefined as never, undefined as never, undefined as never, contexto, auditoria, transferencias, undefined as never, almacenesDePrueba());
+    const servicio = new EditarCapacidadAgenteService(
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      contexto,
+      auditoria,
+      transferencias,
+      undefined as never,
+      almacenesDePrueba(),
+    );
     return { servicio, transferencias, auditoria };
   }
   const USUARIO = { id: 'u', email: 'u@ripley.com.pe' } as never;
@@ -112,7 +155,12 @@ describe('Editar la capacidad de transferencia', () => {
   it('con origen y destino que dejan una agenda, la cambia y devuelve el antes y el después', async () => {
     const { servicio, transferencias } = editor([ST]);
 
-    const r = await servicio.editarTransferencia(USUARIO, { origen: '20026', destino: '20021', fecha: PASADO, activa: true });
+    const r = await servicio.editarTransferencia(USUARIO, {
+      origen: '20026',
+      destino: '20021',
+      fecha: PASADO,
+      activa: true,
+    });
 
     expect(transferencias.guardarDia).toHaveBeenCalledWith(
       expect.objectContaining({ idOffice: '20026' }),
@@ -126,7 +174,9 @@ describe('Editar la capacidad de transferencia', () => {
   it('si quedan varias, no elige: pregunta cuál', async () => {
     const { servicio, transferencias } = editor();
 
-    await expect(servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: PASADO, activa: true })).rejects.toThrow(/Hay 2 opciones/);
+    await expect(
+      servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: PASADO, activa: true }),
+    ).rejects.toThrow(/Hay 2 opciones/);
     expect(transferencias.guardarDia).not.toHaveBeenCalled();
   });
 
@@ -141,19 +191,25 @@ describe('Editar la capacidad de transferencia', () => {
   it('nunca por debajo de lo ocupado', async () => {
     const { servicio } = editor([ST]);
 
-    await expect(servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: MANANA, asignado: 100 })).rejects.toThrow(/sobrevendido/);
+    await expect(
+      servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: MANANA, asignado: 100 }),
+    ).rejects.toThrow(/sobrevendido/);
   });
 
   it('nada en el pasado', async () => {
     const { servicio } = editor([ST]);
 
-    await expect(servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: sumarDias(HOY, -1), activa: false })).rejects.toThrow(/ya pasó/);
+    await expect(
+      servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: sumarDias(HOY, -1), activa: false }),
+    ).rejects.toThrow(/ya pasó/);
   });
 
   it('sin nada que cambiar no se llama a nada', async () => {
     const { servicio, transferencias } = editor([ST]);
 
-    await expect(servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: PASADO })).rejects.toThrow(/nada que cambiar/);
+    await expect(servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: PASADO })).rejects.toThrow(
+      /nada que cambiar/,
+    );
     expect(transferencias.agendasDeVarios).not.toHaveBeenCalled();
   });
 
@@ -163,7 +219,10 @@ describe('Editar la capacidad de transferencia', () => {
     await servicio.editarTransferencia(USUARIO, { origen: '20026', fecha: PASADO, activa: true });
 
     expect(auditoria.registrarCambio).toHaveBeenCalledWith(
-      { tipo: 'transferencia', dias: [expect.objectContaining({ oficina: '20026 - Ripley Fulfillment', activo: false })] },
+      {
+        tipo: 'transferencia',
+        dias: [expect.objectContaining({ oficina: '20026 - Ripley Fulfillment', activo: false })],
+      },
       { tipo: 'transferencia', dias: [expect.objectContaining({ activo: true })] },
     );
   });

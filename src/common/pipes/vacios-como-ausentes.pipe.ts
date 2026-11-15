@@ -44,10 +44,6 @@ export class VaciosComoAusentesPipe implements PipeTransform {
      * ahí dentro sería decidir por él sobre datos que este pipe no entiende, y
      * quien los manda —el panel— ya descarta los vacíos antes de enviar.
      */
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).filter(
-        ([, v]) => v !== '',
-      ),
-    );
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== ''));
   }
 }

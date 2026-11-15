@@ -15,15 +15,53 @@ import type { AtajoDelContexto, ContextoTurno } from '../../src/agente-v3/interf
  */
 
 const ATAJOS: AtajoDelContexto[] = [
-  { nombre: 'Big Ticket Lima', descripcion: 'es para solicitar capacidad de despacho del Big Ticket Lima (BT LIMA)', tipos: ['despacho'], pais: 'PE' },
-  { nombre: 'Big Ticket Provincia', descripcion: 'es para consultar y editar el despacho del Big Ticket Provincia (BT PROVINCIA)', tipos: ['despacho'], pais: 'PE' },
-  { nombre: 'Paqueteria Lima', descripcion: 'es para solicitar capacidad de despacho de la paquetería lima (PQT LIMA)', tipos: ['despacho'], pais: 'PE' },
-  { nombre: 'Consultar 90 min (EX)', descripcion: 'es para activar o desactivar el 90 min o EX', tipos: ['masivo'], pais: 'PE' },
-  { nombre: 'Picking del Ship From Store de Perú (SFS)', descripcion: 'es para consultar y editar la capacidad del picking para el SFS (ship from store) de perú', tipos: ['picking'], pais: 'PE' },
+  {
+    nombre: 'Big Ticket Lima',
+    descripcion: 'es para solicitar capacidad de despacho del Big Ticket Lima (BT LIMA)',
+    tipos: ['despacho'],
+    pais: 'PE',
+  },
+  {
+    nombre: 'Big Ticket Provincia',
+    descripcion: 'es para consultar y editar el despacho del Big Ticket Provincia (BT PROVINCIA)',
+    tipos: ['despacho'],
+    pais: 'PE',
+  },
+  {
+    nombre: 'Paqueteria Lima',
+    descripcion: 'es para solicitar capacidad de despacho de la paquetería lima (PQT LIMA)',
+    tipos: ['despacho'],
+    pais: 'PE',
+  },
+  {
+    nombre: 'Consultar 90 min (EX)',
+    descripcion: 'es para activar o desactivar el 90 min o EX',
+    tipos: ['masivo'],
+    pais: 'PE',
+  },
+  {
+    nombre: 'Picking del Ship From Store de Perú (SFS)',
+    descripcion: 'es para consultar y editar la capacidad del picking para el SFS (ship from store) de perú',
+    tipos: ['picking'],
+    pais: 'PE',
+  },
 ];
 const MENSAJE = 'dame el consumo del bt lima en porcentaje';
-const CTX: ContextoTurno = { hoy: '2026-11-09', pais: 'PE', motivo_pais: '', anterior: null, aclaraciones: [], pregunta: null, rondas: 0, atajos: ATAJOS, entidades: [], almacenes: [], servicios: [] };
-const ejecutar = (nombre: string) => JSON.stringify({ pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre } }], ver: 'uso' });
+const CTX: ContextoTurno = {
+  hoy: '2026-11-09',
+  pais: 'PE',
+  motivo_pais: '',
+  anterior: null,
+  aclaraciones: [],
+  pregunta: null,
+  rondas: 0,
+  atajos: ATAJOS,
+  entidades: [],
+  almacenes: [],
+  servicios: [],
+};
+const ejecutar = (nombre: string) =>
+  JSON.stringify({ pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre } }], ver: 'uso' });
 
 describe('Un atajo por su nombre o su apodo, no por una palabra suelta', () => {
   it('los apodos salen de la descripción (lo que va entre paréntesis)', () => {
@@ -43,8 +81,14 @@ describe('Un atajo por su nombre o su apodo, no por una palabra suelta', () => {
   it('Armar lo ve, y un plan que ejecuta otro atajo no vale', () => {
     expect(promptArmar(MENSAJE, CTX, null).mensaje).toContain('EL ATAJO QUE NOMBRA EL MENSAJE: «Big Ticket Lima»');
     const esperado = atajoEsperado(MENSAJE, ATAJOS, 'Big Ticket Lima', 'PE');
-    expect(leerPlan(ejecutar('Paqueteria Lima'), CTX, MENSAJE, false, esperado)).toEqual({ ok: false, motivo: 'el mensaje nombra el atajo «Big Ticket Lima» y el plan ejecuta «Paqueteria Lima»: usa «Big Ticket Lima»' });
-    expect(leerPlan(ejecutar('Big Ticket Lima'), CTX, MENSAJE, false, esperado)).toMatchObject({ ok: true, valor: { plan: { ver: 'uso' } } });
+    expect(leerPlan(ejecutar('Paqueteria Lima'), CTX, MENSAJE, false, esperado)).toEqual({
+      ok: false,
+      motivo: 'el mensaje nombra el atajo «Big Ticket Lima» y el plan ejecuta «Paqueteria Lima»: usa «Big Ticket Lima»',
+    });
+    expect(leerPlan(ejecutar('Big Ticket Lima'), CTX, MENSAJE, false, esperado)).toMatchObject({
+      ok: true,
+      valor: { plan: { ver: 'uso' } },
+    });
   });
 
   it('un cálculo sobre otra cosa: "el bt lima" no estaba en lo anterior', () => {
@@ -59,7 +103,12 @@ describe('"Dame el despacho del 90 min+": el código por su apodo, y un atajo so
     { pais: 'PE', codigo: '20030', tipo: 'tienda', es_cd: false, nombre: 'Ripley Miraflores', alias: [] },
   ];
   const m = 'dame el despacho del 90 min+';
-  const EX: AtajoDelContexto = { nombre: 'Consultar 90 min (EX)', descripcion: 'es para activar o desactivar el tipo de servicio del 90 min o EX', tipos: ['opl'], pais: 'PE' };
+  const EX: AtajoDelContexto = {
+    nombre: 'Consultar 90 min (EX)',
+    descripcion: 'es para activar o desactivar el tipo de servicio del 90 min o EX',
+    tipos: ['opl'],
+    pais: 'PE',
+  };
 
   it('el código que se parece: «90 minutos» (por la cifra y "min"); "despacho" no cuenta', () => {
     expect(parecidosDe(m, DIRECTORIO, 'PE').map((p) => p.codigo)).toEqual(['1130']);
@@ -70,62 +119,127 @@ describe('"Dame el despacho del 90 min+": el código por su apodo, y un atajo so
   it('Armar ve los parecidos y lo que trae cada atajo; el 1130 vale aunque no se escriba', () => {
     const c: ContextoTurno = { ...CTX, atajos: [EX], parecidos: parecidosDe(m, DIRECTORIO, 'PE') };
     const p = promptArmar(m, c, { tipo: 'consulta', dep: false, atajo: null, motivo: '' });
-    expect(p.mensaje).toContain('CÓDIGOS QUE SE PARECEN A LO QUE DICE (por su nombre o apodo)\n- 1130 · DD_EX - Miraflores (OPL) · también «90 minutos»');
-    expect(p.mensaje).toContain('- «Consultar 90 min (EX)» — trae: servicios de OPL (activo, checkout, corte, holgura). es para activar');
+    expect(p.mensaje).toContain(
+      'CÓDIGOS QUE SE PARECEN A LO QUE DICE (por su nombre o apodo)\n- 1130 · DD_EX - Miraflores (OPL) · también «90 minutos»',
+    );
+    expect(p.mensaje).toContain(
+      '- «Consultar 90 min (EX)» — trae: servicios de OPL (activo, checkout, corte, holgura). es para activar',
+    );
     expect(p.sistema).toContain('UN ATAJO SOLO SI TRAE LO QUE SE PIDE');
-    expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1130'] } }] }), c, m)).toMatchObject({ ok: true });
+    expect(
+      leerPlan(
+        JSON.stringify({
+          pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1130'] } }],
+        }),
+        c,
+        m,
+      ),
+    ).toMatchObject({ ok: true });
     // Un código que no está en ninguna lista sigue sin valer
-    expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1999'] } }] }), c, m)).toMatchObject({ ok: false });
+    expect(
+      leerPlan(
+        JSON.stringify({
+          pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'despacho', codigo: ['1999'] } }],
+        }),
+        c,
+        m,
+      ),
+    ).toMatchObject({ ok: false });
   });
 });
 
 describe('Clasificar dice qué se pide ("pide"), y el atajo o el plan tienen que traerlo', () => {
-  const EX: AtajoDelContexto = { nombre: 'Consultar 90 min (EX)', descripcion: 'activar o desactivar el 90 min', tipos: ['opl'], pais: 'PE' };
+  const EX: AtajoDelContexto = {
+    nombre: 'Consultar 90 min (EX)',
+    descripcion: 'activar o desactivar el 90 min',
+    tipos: ['opl'],
+    pais: 'PE',
+  };
   const c: ContextoTurno = { ...CTX, atajos: [...ATAJOS.filter((a) => a.nombre !== EX.nombre), EX] };
   const cl = (o: Record<string, unknown>) => JSON.stringify({ depende_del_anterior: false, motivo: '', ...o });
 
   it('se lee solo en atajo y consulta, y solo las clases conocidas', () => {
-    expect(leerClasificacion(cl({ tipo: 'consulta', atajo: '(ninguno)', pide: ['Despacho', 'cualquiera'] }), [])).toMatchObject({ ok: true, valor: { pide: ['despacho'] } });
-    expect(leerClasificacion(cl({ tipo: 'consulta', atajo: '(ninguno)', pide: 'recepción' }), [])).toMatchObject({ ok: true, valor: { pide: ['recepcion'] } });
+    expect(
+      leerClasificacion(cl({ tipo: 'consulta', atajo: '(ninguno)', pide: ['Despacho', 'cualquiera'] }), []),
+    ).toMatchObject({ ok: true, valor: { pide: ['despacho'] } });
+    expect(leerClasificacion(cl({ tipo: 'consulta', atajo: '(ninguno)', pide: 'recepción' }), [])).toMatchObject({
+      ok: true,
+      valor: { pide: ['recepcion'] },
+    });
     const cambio = leerClasificacion(cl({ tipo: 'cambio', atajo: '(ninguno)', pide: ['despacho'] }), []);
     expect(cambio.ok && cambio.valor.pide).toBeUndefined();
   });
 
   it('"el despacho del 90 min" no es el atajo de servicios de OPL; el estado de las agendas sí lo es (afín)', () => {
-    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: EX.nombre, motivo: '', pide: ['despacho'] }, c)).toBe('se pide capacidad de despacho y el atajo «Consultar 90 min (EX)» (trae servicios de OPL (activo, checkout, corte, holgura)) no lo trae: si ningún atajo lo trae, es "consulta"');
+    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: EX.nombre, motivo: '', pide: ['despacho'] }, c)).toBe(
+      'se pide capacidad de despacho y el atajo «Consultar 90 min (EX)» (trae servicios de OPL (activo, checkout, corte, holgura)) no lo trae: si ningún atajo lo trae, es "consulta"',
+    );
     expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: EX.nombre, motivo: '', pide: ['masivo'] }, c)).toBeNull();
-    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: 'Big Ticket Lima', motivo: '', pide: ['despacho'] }, c)).toBeNull();
+    expect(
+      atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: 'Big Ticket Lima', motivo: '', pide: ['despacho'] }, c),
+    ).toBeNull();
     // Encadenado a una consulta ("la transferencia de los OPL de la SE"), el atajo es solo el primer paso
-    expect(atajoQueNoTrae({ tipo: 'consulta', dep: false, atajo: EX.nombre, motivo: '', pide: ['transferencia'] }, c)).toBeNull();
+    expect(
+      atajoQueNoTrae({ tipo: 'consulta', dep: false, atajo: EX.nombre, motivo: '', pide: ['transferencia'] }, c),
+    ).toBeNull();
   });
 
   it('un plan que ejecuta un atajo trae lo que trae el atajo', () => {
     expect(leerPlan(ejecutar('Big Ticket Lima'), c, MENSAJE, false, null, ['despacho'])).toMatchObject({ ok: true });
-    expect(leerPlan(ejecutar(EX.nombre), c, 'dame el despacho del 90 min+', false, null, ['despacho'])).toMatchObject({ ok: false, motivo: expect.stringMatching(/^se pide capacidad de despacho y el plan \(ejecutar_atajo\) no lo trae/) });
+    expect(leerPlan(ejecutar(EX.nombre), c, 'dame el despacho del 90 min+', false, null, ['despacho'])).toMatchObject({
+      ok: false,
+      motivo: expect.stringMatching(/^se pide capacidad de despacho y el plan \(ejecutar_atajo\) no lo trae/),
+    });
   });
 });
 
 describe('"Dame todos los tipos de servicio que tienen las sucursales de la SE" (2026-11-15)', () => {
-  const SE: AtajoDelContexto = { nombre: 'OPLS de la SE', descripcion: 'las sucursales de la SE', tipos: ['masivo'], pais: 'PE' };
+  const SE: AtajoDelContexto = {
+    nombre: 'OPLS de la SE',
+    descripcion: 'las sucursales de la SE',
+    tipos: ['masivo'],
+    pais: 'PE',
+  };
   const c: ContextoTurno = { ...CTX, atajos: [SE] };
   const m = 'dame todos los tipos de servicios que tiene las sucursales de la SE';
 
   it('el atajo solo halla las sucursales: no trae sus tipos de servicio', () => {
-    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }, c)).toMatch(/^se pide servicios de OPL .* y el atajo «OPLS de la SE» \(trae estado de las agendas/);
-    expect(leerPlan(ejecutar(SE.nombre), c, m, false, null, ['opl'])).toMatchObject({ ok: false, motivo: expect.stringMatching(/^se pide servicios de OPL/) });
+    expect(atajoQueNoTrae({ tipo: 'atajo', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }, c)).toMatch(
+      /^se pide servicios de OPL .* y el atajo «OPLS de la SE» \(trae estado de las agendas/,
+    );
+    expect(leerPlan(ejecutar(SE.nombre), c, m, false, null, ['opl'])).toMatchObject({
+      ok: false,
+      motivo: expect.stringMatching(/^se pide servicios de OPL/),
+    });
   });
 
   it('el atajo + los servicios de OPL de lo que trajo, sí', () => {
-    const plan = { pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: SE.nombre } }, { herramienta: 'consultar_servicios_opl', param: { opl: { ref: 'paso', n: 1 } } }] };
+    const plan = {
+      pasos: [
+        { herramienta: 'ejecutar_atajo', param: { nombre: SE.nombre } },
+        { herramienta: 'consultar_servicios_opl', param: { opl: { ref: 'paso', n: 1 } } },
+      ],
+    };
     expect(leerPlan(JSON.stringify(plan), c, m, false, null, ['opl'])).toMatchObject({ ok: true });
   });
 
   it('al revés sigue valiendo: el estado de las agendas lo dicen también los servicios de OPL', () => {
-    expect(leerPlan(JSON.stringify({ pasos: [{ herramienta: 'consultar_servicios_opl', param: { opl: ['1401'] } }] }), { ...c, entidades: [{ texto: '1401', porNombre: false, candidatos: [] }] }, 'la 1401', false, null, ['masivo'])).toMatchObject({ ok: true });
+    expect(
+      leerPlan(
+        JSON.stringify({ pasos: [{ herramienta: 'consultar_servicios_opl', param: { opl: ['1401'] } }] }),
+        { ...c, entidades: [{ texto: '1401', porNombre: false, candidatos: [] }] },
+        'la 1401',
+        false,
+        null,
+        ['masivo'],
+      ),
+    ).toMatchObject({ ok: true });
   });
 
   it('Clasificar y Armar lo ven: "tipos de servicio" son los servicios de cada sucursal', () => {
     expect(promptClasificar(m, c).sistema).toContain('"opl" (los TIPOS DE SERVICIO de cada OPL o sucursal');
-    expect(promptArmar(m, c, { tipo: 'consulta', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }).sistema).toContain('"Todos los tipos de servicio que tienen las sucursales de la SE" = ejecutar_atajo «OPLS de la SE»');
+    expect(
+      promptArmar(m, c, { tipo: 'consulta', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }).sistema,
+    ).toContain('"Todos los tipos de servicio que tienen las sucursales de la SE" = ejecutar_atajo «OPLS de la SE»');
   });
 });

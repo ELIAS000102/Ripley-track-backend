@@ -36,7 +36,13 @@ function armar(opciones: { fallar?: Set<string> } = {}) {
   } as unknown as HttpService;
   const config = {
     // Sin intervalo en el carril: lo que se mide aquí es la fila de la petición
-    get: (clave: string) => ({ 'ripley.urls': { PE: 'https://api' }, 'ripley.ritmo.general': { paralelas: '8', intervaloMs: '0' } } as Record<string, unknown>)[clave],
+    get: (clave: string) =>
+      (
+        ({
+          'ripley.urls': { PE: 'https://api' },
+          'ripley.ritmo.general': { paralelas: '8', intervaloMs: '0' },
+        }) as Record<string, unknown>
+      )[clave],
   } as unknown as ConfigService;
   const tokens = { obtenerParaUso: async () => 'token' } as unknown as TokenRipleyService;
   const cache = { olvidar: () => undefined } as unknown as CacheCatalogosService;
@@ -75,12 +81,13 @@ describe('Las llamadas a Ripley en serie', () => {
   it('con las lecturas de la actualización, la tabla siguiente aprovecha lo que leyó la anterior', async () => {
     const { ripley, contexto, vuelo } = armar();
     const lecturas = new Map<string, unknown>();
-    const tabla = () => contexto.ejecutar(async () => {
-      contexto.identificarUsuario('u', 'u@r.pe');
-      contexto.activarSecuencial({ lecturas });
-      await ripley.get('/ruta/agendas', 'PE', { oficina: '20027' });
-      return contexto.llamadasHechas();
-    });
+    const tabla = () =>
+      contexto.ejecutar(async () => {
+        contexto.identificarUsuario('u', 'u@r.pe');
+        contexto.activarSecuencial({ lecturas });
+        await ripley.get('/ruta/agendas', 'PE', { oficina: '20027' });
+        return contexto.llamadasHechas();
+      });
     expect(await tabla()).toBe(1);
     expect(await tabla()).toBe(0);
     expect(vuelo.orden).toEqual(['agendas']);
@@ -124,7 +131,10 @@ describe('Las llamadas a Ripley en serie', () => {
       contexto.identificarUsuario('u', 'u@r.pe');
       contexto.activarSecuencial({ aLaVez: 4 });
       return Promise.all([
-        contexto.medir(async () => { await ripley.get('/ruta/x1', 'PE'); await ripley.get('/ruta/x2', 'PE'); }),
+        contexto.medir(async () => {
+          await ripley.get('/ruta/x1', 'PE');
+          await ripley.get('/ruta/x2', 'PE');
+        }),
         contexto.medir(() => ripley.get('/ruta/y1', 'PE')),
       ]);
     });
@@ -137,8 +147,12 @@ describe('Las llamadas a Ripley en serie', () => {
     await contexto.ejecutar(async () => {
       contexto.activarSecuencial();
       await Promise.allSettled([
-        contexto.enFila(async () => { throw new Error('429'); }),
-        contexto.enFila(async () => { salida.push('siguiente'); }),
+        contexto.enFila(async () => {
+          throw new Error('429');
+        }),
+        contexto.enFila(async () => {
+          salida.push('siguiente');
+        }),
       ]);
     });
     expect(salida).toEqual(['siguiente']);

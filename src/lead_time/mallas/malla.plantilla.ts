@@ -18,7 +18,14 @@ import type { OplMalla } from './interfaces/malla.interface.js';
 
 const NOMBRES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-const COLOR = { cabecera: 'FFD9D9D9', semana: 'FF000000', venta: 'FFFFFF00', transito: 'FFDA70D6', recojo: 'FFF4B6E2', despacho: 'FF92D050' };
+const COLOR = {
+  cabecera: 'FFD9D9D9',
+  semana: 'FF000000',
+  venta: 'FFFFFF00',
+  transito: 'FFDA70D6',
+  recojo: 'FFF4B6E2',
+  despacho: 'FF92D050',
+};
 
 const relleno = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 const borde: Partial<ExcelJS.Borders> = {
@@ -95,8 +102,12 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
       if (col >= primera) {
         c.alignment = { horizontal: 'center' };
         c.dataValidation = {
-          type: 'list', allowBlank: true, formulae: [lista], showErrorMessage: true,
-          errorTitle: 'Malla', error: 'Escribe Venta, Transito, Recojo o Despacho.',
+          type: 'list',
+          allowBlank: true,
+          formulae: [lista],
+          showErrorMessage: true,
+          errorTitle: 'Malla',
+          error: 'Escribe Venta, Transito, Recojo o Despacho.',
         };
       }
     }
@@ -105,12 +116,20 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
   // Los colores de la malla, solos al escribir
   const calendario = `${letra(primera)}3:${letra(ultimaCol)}${filas + 2}`;
   const regla = (texto: string, argb: string, priority: number): ExcelJS.ConditionalFormattingRule => ({
-    type: 'containsText', operator: 'containsText', text: texto, priority,
+    type: 'containsText',
+    operator: 'containsText',
+    text: texto,
+    priority,
     style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } },
   });
   hoja.addConditionalFormatting({
     ref: calendario,
-    rules: [regla('Venta', COLOR.venta, 1), regla('Transito', COLOR.transito, 2), regla('Recojo', COLOR.recojo, 3), regla('Despacho', COLOR.despacho, 4)],
+    rules: [
+      regla('Venta', COLOR.venta, 1),
+      regla('Transito', COLOR.transito, 2),
+      regla('Recojo', COLOR.recojo, 3),
+      regla('Despacho', COLOR.despacho, 4),
+    ],
   });
 
   const ayuda = libro.addWorksheet('Instrucciones');
@@ -118,17 +137,32 @@ export async function crearPlantillaMalla(opls: OplMalla[] = []): Promise<Buffer
   const lineas = [
     ['Cómo rellenar las mallas de un grupo', true],
     ['', false],
-    ['Una fila por OPL, flujo y día de venta (siete por cada OPL y flujo). Caben todas las OPLs del grupo, con todos sus flujos, en un solo archivo.', false],
+    [
+      'Una fila por OPL, flujo y día de venta (siete por cada OPL y flujo). Caben todas las OPLs del grupo, con todos sus flujos, en un solo archivo.',
+      false,
+    ],
     ['En cada fila, escribe en la columna de su día: "Venta", "Despacho" y, si los hay, "Transito" y "Recojo".', false],
     ['La venta va en la primera semana; lo demás, en los días que tocan, aunque sean de la semana siguiente.', false],
     ['', false],
     ['Columnas (no las muevas; no cambies las filas 1 y 2):', true],
-    ['A OPL (código) · B Flujo (tipo de servicio: S, OP…) · C Día de venta · D en adelante: el calendario, de lunes a domingo, semana tras semana', false],
-    ['También se puede cargar el Excel de la operación tal cual, con sus fechas encima: se lee el encabezado de los días.', false],
+    [
+      'A OPL (código) · B Flujo (tipo de servicio: S, OP…) · C Día de venta · D en adelante: el calendario, de lunes a domingo, semana tras semana',
+      false,
+    ],
+    [
+      'También se puede cargar el Excel de la operación tal cual, con sus fechas encima: se lee el encabezado de los días.',
+      false,
+    ],
     ['', false],
     ['Reglas:', true],
-    ['· Cada fila lleva una Venta al principio y una Despacho al final; Transito y Recojo, como mucho una de cada, entre las dos.', false],
-    ['· Cada OPL y flujo es una malla: la 4014 puede tener la del flujo S y la del flujo OP en el mismo archivo.', false],
+    [
+      '· Cada fila lleva una Venta al principio y una Despacho al final; Transito y Recojo, como mucho una de cada, entre las dos.',
+      false,
+    ],
+    [
+      '· Cada OPL y flujo es una malla: la 4014 puede tener la del flujo S y la del flujo OP en el mismo archivo.',
+      false,
+    ],
     ['· Una OPL no puede tener dos ventas el mismo día de la semana en el mismo flujo.', false],
     ['· Si a una malla le falta un día de venta, lo vendido ese día va con el siguiente día que sí tenga.', false],
     ['', false],

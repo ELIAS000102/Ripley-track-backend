@@ -74,7 +74,9 @@ export class CapacidadTransferenciaAgenteService {
     const elegidas = filtrarPorNombre(porServicio, dto.agenda, (a) => a.agenda.nombre);
 
     if (!elegidas.length) {
-      const filtros = [dto.servicio && `servicio ${dto.servicio}`, dto.agenda && `agenda "${dto.agenda}"`].filter(Boolean);
+      const filtros = [dto.servicio && `servicio ${dto.servicio}`, dto.agenda && `agenda "${dto.agenda}"`].filter(
+        Boolean,
+      );
       throw new NotFoundException(
         `No hay agendas de transferencia${filtros.length ? ` con ${filtros.join(' y ')}` : ''} para ese origen o destino.`,
       );

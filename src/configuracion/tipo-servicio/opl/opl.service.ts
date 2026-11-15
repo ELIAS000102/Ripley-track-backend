@@ -37,11 +37,10 @@ export class OplService {
 
   /** Catálogo de canales: POS, TVI... */
   async listarCanales(pais = 'PE') {
-    const catalogo = await this.ripley.get<CatalogoResponse>(
-      this.ripley.endpoint('catalogs'),
-      pais,
-      { q: this.CATALOGO_CANALES, takeFirst: 1 },
-    );
+    const catalogo = await this.ripley.get<CatalogoResponse>(this.ripley.endpoint('catalogs'), pais, {
+      q: this.CATALOGO_CANALES,
+      takeFirst: 1,
+    });
 
     return (catalogo?.parameters ?? []).map((p) => ({
       id: p.id,
@@ -85,11 +84,9 @@ export class OplService {
   // ---------- Paso 3 y 4: zonas y agendas ----------
 
   async listarZonas(courier: string, pais = 'PE') {
-    const data = await this.ripley.get<RipleyListResponse<MainZoneRow>>(
-      this.ripley.endpoint('mainzones'),
-      pais,
-      { courier },
-    );
+    const data = await this.ripley.get<RipleyListResponse<MainZoneRow>>(this.ripley.endpoint('mainzones'), pais, {
+      courier,
+    });
 
     return (data?.rows ?? []).map((z) => ({
       mainZone: z.id,
@@ -114,10 +111,7 @@ export class OplService {
 
   // ---------- Paso 5: servicios de la agenda ----------
 
-  private async traerServicios(
-    contexto: ContextoAgenda,
-    pais: string,
-  ): Promise<TipoServicioOpl[]> {
+  private async traerServicios(contexto: ContextoAgenda, pais: string): Promise<TipoServicioOpl[]> {
     // Un POST que lee: por `postDeLectura`, o un simulacro lo cortaría
     const data = await this.ripley.postDeLectura<ListaServiciosResponse>(
       this.ripley.endpoint('listTypeServices'),
@@ -139,9 +133,7 @@ export class OplService {
     const pais = dto.pais ?? 'PE';
     const contexto = this.contextoDe(dto);
 
-    this.logger.log(
-      `Consultando servicios de la agenda ${contexto.mainSchedule}`,
-    );
+    this.logger.log(`Consultando servicios de la agenda ${contexto.mainSchedule}`);
 
     const servicios = await this.traerServicios(contexto, pais);
 
@@ -186,9 +178,7 @@ export class OplService {
     const actual = servicios.find((s) => s.id === idServicio);
 
     if (!actual) {
-      throw new NotFoundException(
-        `El servicio ${idServicio} no pertenece a la agenda ${contexto.mainSchedule}`,
-      );
+      throw new NotFoundException(`El servicio ${idServicio} no pertenece a la agenda ${contexto.mainSchedule}`);
     }
 
     // Solo se reemplazan los días enviados; los demás mantienen su hora
@@ -201,9 +191,7 @@ export class OplService {
       // Campos editables: lo que no llega conserva su valor actual
       isActive: dto.isActive ?? actual.isActive,
       enabledForCheckout: dto.enabledForCheckout ?? actual.enabledForCheckout,
-      maxOcurrence: String(
-        dto.maxOcurrence ?? this.aNumero(actual.maxOcurrence),
-      ),
+      maxOcurrence: String(dto.maxOcurrence ?? this.aNumero(actual.maxOcurrence)),
       slackDays: String(dto.slackDays ?? this.aNumero(actual.slackDays)),
       cutTime,
 
@@ -255,12 +243,9 @@ export class OplService {
 
     // En un simulacro se devuelve lo que se habría guardado: es lo que el
     // agente enseña como "después", porque releer daría el estado de antes
-    return this.ripley.put(
-      `${this.ripley.endpoint('saveOplService')}/${idServicio}`,
-      pais,
-      payload,
-      undefined,
-      { ...payload, id: idServicio },
-    );
+    return this.ripley.put(`${this.ripley.endpoint('saveOplService')}/${idServicio}`, pais, payload, undefined, {
+      ...payload,
+      id: idServicio,
+    });
   }
 }

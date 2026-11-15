@@ -34,10 +34,7 @@ function diaDe(iso: string | null | undefined): string | null {
 
 /** Días de calendario entre dos días YYYY-MM-DD */
 function diasEntre(desde: string, hasta: string): number {
-  return Math.round(
-    (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) /
-      86_400_000,
-  );
+  return Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000);
 }
 
 /**

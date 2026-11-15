@@ -33,7 +33,11 @@ export class AgenteV3Controller {
   @PermitidoAgente()
   @Post(':id/clasificacion')
   @HttpCode(200)
-  clasificacion(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+  clasificacion(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SalidaModeloDto,
+  ) {
     return this.agente.clasificacion(usuario, id, body);
   }
 
@@ -41,7 +45,11 @@ export class AgenteV3Controller {
   @PermitidoAgente()
   @Post(':id/armado')
   @HttpCode(200)
-  armado(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+  armado(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SalidaModeloDto,
+  ) {
     return this.agente.armado(usuario, id, body);
   }
 
@@ -49,7 +57,11 @@ export class AgenteV3Controller {
   @PermitidoAgente()
   @Post(':id/calculo')
   @HttpCode(200)
-  calculo(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+  calculo(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SalidaModeloDto,
+  ) {
     return this.agente.calculo(usuario, id, body);
   }
 
@@ -57,7 +69,11 @@ export class AgenteV3Controller {
   @PermitidoAgente()
   @Post(':id/presentacion')
   @HttpCode(200)
-  presentacion(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+  presentacion(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SalidaModeloDto,
+  ) {
     return this.agente.presentado(usuario, id, body);
   }
 
@@ -65,7 +81,11 @@ export class AgenteV3Controller {
   @PermitidoAgente()
   @Post(':id/aprendizaje')
   @HttpCode(200)
-  aprendizaje(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: SalidaModeloDto) {
+  aprendizaje(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SalidaModeloDto,
+  ) {
     return this.agente.aprendido(usuario, id, body);
   }
 
@@ -76,7 +96,11 @@ export class AgenteV3Controller {
   @PermitidoAgente()
   @Post(':id/respuesta')
   @HttpCode(200)
-  respuesta(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: RespuestaPersonaDto) {
+  respuesta(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: RespuestaPersonaDto,
+  ) {
     return this.agente.respuesta(usuario, id, body);
   }
 

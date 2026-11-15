@@ -145,9 +145,7 @@ export class EjecutorAtajoService {
     for (const [columna, valor] of Object.entries(item)) {
       if (PROPIAS.has(columna) || valor === null || valor === undefined) continue;
 
-      const campo = columna.replace(/_([a-z])/g, (_, l: string) =>
-        l.toUpperCase(),
-      );
+      const campo = columna.replace(/_([a-z])/g, (_, l: string) => l.toUpperCase());
       plano[campo] = valor;
     }
 
@@ -161,13 +159,9 @@ export class EjecutorAtajoService {
     const fallos = await validate(dto as object, { whitelist: true });
 
     if (fallos.length) {
-      const detalle = fallos
-        .flatMap((f) => Object.values(f.constraints ?? {}))
-        .join('; ');
+      const detalle = fallos.flatMap((f) => Object.values(f.constraints ?? {})).join('; ');
 
-      throw new BadRequestException(
-        `Los datos del ítem no valen para ${tipo}: ${detalle}`,
-      );
+      throw new BadRequestException(`Los datos del ítem no valen para ${tipo}: ${detalle}`);
     }
 
     return dto;
@@ -185,20 +179,12 @@ export class EjecutorAtajoService {
    * guardó, y con ediciones importa —cortar antes de reasignar no es lo mismo
    * que al revés—.
    */
-  async ejecutar(
-    usuario: UsuarioAutenticado,
-    atajo: Atajo,
-    soloPrimeras?: number,
-  ): Promise<Ejecucion> {
+  async ejecutar(usuario: UsuarioAutenticado, atajo: Atajo, soloPrimeras?: number): Promise<Ejecucion> {
     const bloques = atajo.bloques ?? [];
-    const itemsTotales = bloques.reduce(
-      (n, b) => n + (b.items?.length ?? 0),
-      0,
-    );
+    const itemsTotales = bloques.reduce((n, b) => n + (b.items?.length ?? 0), 0);
 
     this.logger.log(
-      `Ejecutando "${atajo.nombre}" — ${bloques.length} bloque(s), ` +
-        `${itemsTotales} ítem(s) — ${usuario.email}`,
+      `Ejecutando "${atajo.nombre}" — ${bloques.length} bloque(s), ` + `${itemsTotales} ítem(s) — ${usuario.email}`,
     );
 
     const salida: BloqueEjecutado[] = [];

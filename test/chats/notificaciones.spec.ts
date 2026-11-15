@@ -56,7 +56,9 @@ describe('«Notificaciones»', () => {
     ]) {
       await expect(intento()).rejects.toThrow(ForbiddenException);
     }
-    await expect(chats.agregarMensaje('ana', id, 'usuario', 'x')).rejects.toThrow('«Notificaciones» es solo de lectura');
+    await expect(chats.agregarMensaje('ana', id, 'usuario', 'x')).rejects.toThrow(
+      '«Notificaciones» es solo de lectura',
+    );
   });
 
   it('un chat de siempre sigue igual', async () => {
@@ -69,7 +71,15 @@ describe('«Notificaciones»', () => {
 
   it('si no se puede guardar, no revienta: la rutina que lo cuenta sigue', async () => {
     const roto = {
-      admin: { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'sin la columna tipo' } }) }) }) }) }) },
+      admin: {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'sin la columna tipo' } }) }),
+            }),
+          }),
+        }),
+      },
     } as unknown as SupabaseService;
 
     await expect(new ChatsService(roto).publicarNotificacion('ana', 'hola', 'e-1')).resolves.toBeUndefined();

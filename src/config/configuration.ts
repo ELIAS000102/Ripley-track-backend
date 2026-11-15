@@ -80,7 +80,9 @@ export default () => {
         clusters: ruta(process.env.RIPLEY_EP_CLUSTERS),
         schedulesTransfer: ruta(process.env.RIPLEY_EP_SCHEDULES_TRANSFER),
         // `||` y no `??`: una variable puesta pero vacía también cae en la de recepción
-        capacitiesTransfer: ruta(process.env.RIPLEY_EP_CAPACITIES_TRANSFER || process.env.RIPLEY_EP_CAPACITIES_RECEPTION),
+        capacitiesTransfer: ruta(
+          process.env.RIPLEY_EP_CAPACITIES_TRANSFER || process.env.RIPLEY_EP_CAPACITIES_RECEPTION,
+        ),
         // Catálogo de servicios de las agendas de transferencia, si /services
         // no tiene alguno (opcional)
         servicesDispatchDate: ruta(process.env.RIPLEY_EP_SERVICES_DISPATCH_DATE),
@@ -120,7 +122,9 @@ export default () => {
        * ruta `agente-v3`. Sin probadores, el panel no enseña el interruptor a nadie.
        */
       v3: {
-        webhookUrl: process.env.N8N_V3_WEBHOOK_URL || (process.env.N8N_WEBHOOK_URL ?? '').replace(/\/agente-chat\/?$/, '/agente-v3'),
+        webhookUrl:
+          process.env.N8N_V3_WEBHOOK_URL ||
+          (process.env.N8N_WEBHOOK_URL ?? '').replace(/\/agente-chat\/?$/, '/agente-v3'),
         probadores: (process.env.AGENTE_V3_PROBADORES ?? '')
           .split(',')
           .map((c) => c.trim().toLowerCase())

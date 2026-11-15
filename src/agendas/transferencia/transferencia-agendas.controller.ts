@@ -1,15 +1,8 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { BuscarDto } from '../../common/dto/pais.dto.js';
-import {
-  ActualizarTransferenciaBodyDto,
-  ActualizarTransferenciaQueryDto,
-} from './dto/actualizar-transferencia.dto.js';
-import {
-  BuscarClustersDto,
-  BuscarTransferenciaDto,
-  FiltroTransferenciaDto,
-} from './dto/buscar-transferencia.dto.js';
+import { ActualizarTransferenciaBodyDto, ActualizarTransferenciaQueryDto } from './dto/actualizar-transferencia.dto.js';
+import { BuscarClustersDto, BuscarTransferenciaDto, FiltroTransferenciaDto } from './dto/buscar-transferencia.dto.js';
 import { TransferenciaAgendasService } from './transferencia-agendas.service.js';
 
 /** El filtro de la query, como lo entiende el service */
@@ -61,10 +54,7 @@ export class TransferenciaAgendasController {
    */
   @Auditar('transferencia.capacidad.actualizar')
   @Put()
-  async actualizar(
-    @Query() query: ActualizarTransferenciaQueryDto,
-    @Body() body: ActualizarTransferenciaBodyDto,
-  ) {
+  async actualizar(@Query() query: ActualizarTransferenciaQueryDto, @Body() body: ActualizarTransferenciaBodyDto) {
     return this.servicio.actualizar(filtroDe(query), query.scheduleId, body, query.pais);
   }
 }

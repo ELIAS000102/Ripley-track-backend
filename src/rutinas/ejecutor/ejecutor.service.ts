@@ -13,13 +13,7 @@ import { TokenRutinaService } from '../../auth/token-rutina.service.js';
 import { ChatsService } from '../../chats/chats.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { NotificacionesService } from '../../notificaciones/notificaciones.service.js';
-import type {
-  EjecucionDetalle,
-  Paso,
-  PasoEjecutado,
-  Tarea,
-  TareaEjecutada,
-} from '../interfaces/rutinas.interface.js';
+import type { EjecucionDetalle, Paso, PasoEjecutado, Tarea, TareaEjecutada } from '../interfaces/rutinas.interface.js';
 import { CAMPOS_DETALLE, RutinasService, type RutinaParaEjecutar } from '../rutinas.service.js';
 import { evaluarPaso } from './evaluar-paso.js';
 import { LlamadasRutinaService } from './llamadas.js';
@@ -130,7 +124,8 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
   async probar(rutinaId: string, usuario: UsuarioAutenticado): Promise<EjecucionDetalle> {
     const rutina = await this.suya(rutinaId, usuario, 'probarla');
     if (!rutina.tareas.length) throw new BadRequestException('La rutina no tiene tareas que probar.');
-    if (rutina.tareas.some((t) => !t.pasos.length)) throw new BadRequestException('Hay una tarea sin pasos: cada tarea necesita al menos uno.');
+    if (rutina.tareas.some((t) => !t.pasos.length))
+      throw new BadRequestException('Hay una tarea sin pasos: cada tarea necesita al menos uno.');
 
     const ejecucion = await this.crear(rutina, {
       modo: 'prueba',
@@ -156,9 +151,11 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
 
     const probada = rutina.probada_version != null && rutina.probada_version === rutina.version;
     if (!probada) {
-      throw new BadRequestException(rutina.probada_version == null
-        ? 'Pruébala antes de ejecutarla: todavía no tiene ninguna prueba correcta, y una ejecución de verdad cambia agendas en Ripley.'
-        : `Pruébala antes de ejecutarla: cambió después de la última prueba correcta (versión ${rutina.probada_version}, ahora ${rutina.version}).`);
+      throw new BadRequestException(
+        rutina.probada_version == null
+          ? 'Pruébala antes de ejecutarla: todavía no tiene ninguna prueba correcta, y una ejecución de verdad cambia agendas en Ripley.'
+          : `Pruébala antes de ejecutarla: cambió después de la última prueba correcta (versión ${rutina.probada_version}, ahora ${rutina.version}).`,
+      );
     }
 
     const ejecucion = await this.crear(rutina, {
@@ -168,7 +165,9 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       tareas: rutina.tareas.map((t) => t.orden),
     });
 
-    this.logger.warn(`Rutina "${rutina.nombre}" (versión ${rutina.version}) ejecutada a mano por ${usuario.email}: cambia agendas de verdad`);
+    this.logger.warn(
+      `Rutina "${rutina.nombre}" (versión ${rutina.version}) ejecutada a mano por ${usuario.email}: cambia agendas de verdad`,
+    );
     await this.lanzar(ejecucion, rutina, 0);
     return ejecucion;
   }
@@ -179,10 +178,14 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const ejecucion = await this.rutinas.ejecucion(rutinaId, ejecucionId);
 
     if (ejecucion.estado !== 'detenida') {
-      throw new ConflictException(`Esta ejecución está ${ejecucion.estado.replace('_', ' ')}: solo se reanuda una detenida.`);
+      throw new ConflictException(
+        `Esta ejecución está ${ejecucion.estado.replace('_', ' ')}: solo se reanuda una detenida.`,
+      );
     }
     if (ejecucion.version !== rutina.version) {
-      throw new ConflictException('La rutina cambió después de detenerse: lo que iba a reanudarse ya no existe. Pruébala de nuevo.');
+      throw new ConflictException(
+        'La rutina cambió después de detenerse: lo que iba a reanudarse ya no existe. Pruébala de nuevo.',
+      );
     }
 
     const { data, error } = await this.supabase.admin
@@ -192,11 +195,14 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       .eq('estado', 'detenida')
       .select('id');
     if (error) this.fallarAlGuardar(error);
-    if (!(data as unknown[] | null)?.length) throw new ConflictException('Alguien la reanudó o la canceló justo antes.');
+    if (!(data as unknown[] | null)?.length)
+      throw new ConflictException('Alguien la reanudó o la canceló justo antes.');
 
     const reanudada = { ...ejecucion, estado: 'en_curso' as const, motivo: null };
     const desde = Math.max(0, reanudada.tareas.indexOf(Number(ejecucion.tarea_detenida)));
-    this.logger.log(`Rutina "${rutina.nombre}" reanudada por ${usuario.email} desde la tarea ${reanudada.tareas[desde]}`);
+    this.logger.log(
+      `Rutina "${rutina.nombre}" reanudada por ${usuario.email} desde la tarea ${reanudada.tareas[desde]}`,
+    );
     await this.lanzar(reanudada, rutina, desde);
     return reanudada;
   }
@@ -226,7 +232,8 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       .eq('estado', ejecucion.estado)
       .select('id');
     if (error) this.fallarAlGuardar(error);
-    if (!(data as unknown[] | null)?.length) throw new ConflictException('Cambió de estado justo ahora: vuelve a mirarla.');
+    if (!(data as unknown[] | null)?.length)
+      throw new ConflictException('Cambió de estado justo ahora: vuelve a mirarla.');
 
     this.tokens.olvidar(ejecucionId);
     if (marcha) {
@@ -238,7 +245,11 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
 
     const rutina = marcha?.rutina ?? (await this.rutinas.paraEjecutar(rutinaId).catch(() => null));
     if (rutina) {
-      await this.chats.publicarNotificacion(usuario.id, relatoCancelada({ nombre: rutina.nombre, modo: ejecucion.modo }, motivo), ejecucionId);
+      await this.chats.publicarNotificacion(
+        usuario.id,
+        relatoCancelada({ nombre: rutina.nombre, modo: ejecucion.modo }, motivo),
+        ejecucionId,
+      );
     }
     this.logger.log(`Ejecución de la rutina ${rutinaId} cancelada por ${usuario.email}`);
     return { ...ejecucion, estado: 'cancelada', motivo };
@@ -328,34 +339,54 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const dueno = rutina.creado_por_id ? { id: rutina.creado_por_id, email: rutina.creado_por ?? '' } : null;
 
     const tareas = ordenes.slice(desde).map((orden) => rutina.tareas.find((t) => t.orden === orden));
-    const plan = tareas.flatMap((t) => (t
-      ? t.pasos.map((paso) => ({ tarea: t, paso, intento: resultado.filter((r) => r.orden === t.orden).length + 1 }))
-      : []));
+    const plan = tareas.flatMap((t) =>
+      t
+        ? t.pasos.map((paso) => ({ tarea: t, paso, intento: resultado.filter((r) => r.orden === t.orden).length + 1 }))
+        : [],
+    );
 
     // Lo que no deja ni empezar se dice antes de mandar nada
     const faltaTarea = tareas.findIndex((t) => !t);
     const retirado = plan.find((p) => p.paso.atajos.some((a) => a.activa === false));
-    const impide = !dueno ? 'La rutina no tiene creador: no hay con qué cuenta correrla.'
-      : faltaTarea >= 0 ? `La tarea ${ordenes[desde + faltaTarea]} ya no existe.`
-      : retirado ? `El atajo "${retirado.paso.atajos.find((a) => a.activa === false)!.nombre}" del paso ${retirado.paso.orden} de la tarea ${retirado.tarea.orden} está retirado: quítalo del paso o reactívalo.`
-      : null;
+    const impide = !dueno
+      ? 'La rutina no tiene creador: no hay con qué cuenta correrla.'
+      : faltaTarea >= 0
+        ? `La tarea ${ordenes[desde + faltaTarea]} ya no existe.`
+        : retirado
+          ? `El atajo "${retirado.paso.atajos.find((a) => a.activa === false)!.nombre}" del paso ${retirado.paso.orden} de la tarea ${retirado.tarea.orden} está retirado: quítalo del paso o reactívalo.`
+          : null;
 
-    const { token, permiso } = this.tokens.emitir({
-      ejecucion: ejecucion.id,
-      rutina: rutina.id,
-      usuario: dueno ?? { id: '', email: '' },
-      modo: ejecucion.modo,
-      // El token es de la ejecución entera: el paso lo dice el aviso del flujo
-      tarea: 0,
-      paso: 0,
-    }, VIGENCIA_TOKEN_MS);
+    const { token, permiso } = this.tokens.emitir(
+      {
+        ejecucion: ejecucion.id,
+        rutina: rutina.id,
+        usuario: dueno ?? { id: '', email: '' },
+        modo: ejecucion.modo,
+        // El token es de la ejecución entera: el paso lo dice el aviso del flujo
+        tarea: 0,
+        paso: 0,
+      },
+      VIGENCIA_TOKEN_MS,
+    );
 
     let terminar = () => {};
-    const hecha = new Promise<void>((r) => { terminar = r; });
+    const hecha = new Promise<void>((r) => {
+      terminar = r;
+    });
     const marcha: Marcha = {
-      ejecucion, rutina, dueno: dueno ?? { id: '', email: '' }, token: permiso.id,
+      ejecucion,
+      rutina,
+      dueno: dueno ?? { id: '', email: '' },
+      token: permiso.id,
       peticion: `rutina-${ejecucion.id}-${Date.now().toString(36)}`,
-      plan, k: 0, resultado, actual: null, desde: new Date().toISOString(), reloj: null, hecha, terminar,
+      plan,
+      k: 0,
+      resultado,
+      actual: null,
+      desde: new Date().toISOString(),
+      reloj: null,
+      hecha,
+      terminar,
     };
     this.marchas.set(ejecucion.id, marcha);
 
@@ -369,38 +400,45 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     this.vigilar(marcha);
 
     try {
-      const respuesta = await this.webhook.preguntar({
-        // Lo lee quien mire la ejecución en n8n; el flujo usa "rutina"
-        pregunta: `Rutina «${rutina.nombre}»`,
-        token,
-        sessionId: `rutina-${ejecucion.id}`,
-        peticionId: marcha.peticion,
-        usuario_email: marcha.dueno.email,
-        usuario_nombre: `la rutina «${rutina.nombre}»`,
-        // El flujo carga las instrucciones de edición; quien decide si puede
-        // escribir sigue siendo el backend, por el token
-        modo: 'editor',
-        rutina: {
-          ejecucion: ejecucion.id,
-          nombre: rutina.nombre,
-          pais: rutina.pais,
-          prueba: ejecucion.modo === 'prueba',
-          tareas: tareas.map((t) => ({
-            orden: t!.orden,
-            nombre: t!.nombre,
-            intento: plan.find((p) => p.tarea.orden === t!.orden)?.intento ?? 1,
-            pasos: t!.pasos.map((p) => ({
-              orden: p.orden,
-              instruccion: p.instruccion,
-              atajos: p.atajos.map((a) => a.nombre),
-              guias: p.guias.map((g) => ({ nombre: g.nombre, tipo: g.tipo })),
+      const respuesta = await this.webhook.preguntar(
+        {
+          // Lo lee quien mire la ejecución en n8n; el flujo usa "rutina"
+          pregunta: `Rutina «${rutina.nombre}»`,
+          token,
+          sessionId: `rutina-${ejecucion.id}`,
+          peticionId: marcha.peticion,
+          usuario_email: marcha.dueno.email,
+          usuario_nombre: `la rutina «${rutina.nombre}»`,
+          // El flujo carga las instrucciones de edición; quien decide si puede
+          // escribir sigue siendo el backend, por el token
+          modo: 'editor',
+          rutina: {
+            ejecucion: ejecucion.id,
+            nombre: rutina.nombre,
+            pais: rutina.pais,
+            prueba: ejecucion.modo === 'prueba',
+            tareas: tareas.map((t) => ({
+              orden: t!.orden,
+              nombre: t!.nombre,
+              intento: plan.find((p) => p.tarea.orden === t!.orden)?.intento ?? 1,
+              pasos: t!.pasos.map((p) => ({
+                orden: p.orden,
+                instruccion: p.instruccion,
+                atajos: p.atajos.map((a) => a.nombre),
+                guias: p.guias.map((g) => ({ nombre: g.nombre, tipo: g.tipo })),
+              })),
             })),
-          })),
+          },
         },
-      }, ESPERA_ACEPTACION_MS);
+        ESPERA_ACEPTACION_MS,
+      );
 
       if ((respuesta as { aceptada?: unknown })?.aceptada !== true) {
-        await this.detener(marcha, plan[0].tarea.orden, 'El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.');
+        await this.detener(
+          marcha,
+          plan[0].tarea.orden,
+          'El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.',
+        );
       }
     } catch (e) {
       await this.detener(marcha, plan[0].tarea.orden, (e as Error).message);
@@ -411,7 +449,13 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
   private tareaEnCurso(marcha: Marcha, toca: Marcha['plan'][number]): TareaEjecutada {
     const ultima = marcha.resultado.at(-1);
     if (ultima && ultima.orden === toca.tarea.orden && ultima.intento === toca.intento) return (marcha.actual = ultima);
-    const nueva: TareaEjecutada = { orden: toca.tarea.orden, nombre: toca.tarea.nombre, intento: toca.intento, estado: 'en_curso', pasos: [] };
+    const nueva: TareaEjecutada = {
+      orden: toca.tarea.orden,
+      nombre: toca.tarea.nombre,
+      intento: toca.intento,
+      estado: 'en_curso',
+      pasos: [],
+    };
     marcha.resultado.push(nueva);
     return (marcha.actual = nueva);
   }
@@ -442,29 +486,33 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     const cerrada = await this.cerrar(ejecucion.id, { estado: 'completada', resultado: marcha.resultado });
 
     if (cerrada) {
-      const probada = ejecucion.modo === 'prueba' ? await this.rutinas.marcarProbada(rutina.id, ejecucion.version) : null;
+      const probada =
+        ejecucion.modo === 'prueba' ? await this.rutinas.marcarProbada(rutina.id, ejecucion.version) : null;
       const tareas = new Set(marcha.plan.map((p) => p.tarea.orden)).size;
 
       // Cómo terminó, en su propio mensaje; antes que el aviso, que lleva a él
       await this.contar(marcha, relatoDelFinal(this.deQue(marcha), tareas, probada));
 
-      await this.avisos.avisar(dueno.id, ejecucion.modo === 'prueba'
-        ? {
-            tipo: 'rutina_probada',
-            titulo: `La prueba de «${rutina.nombre}» salió bien`,
-            mensaje: probada
-              ? 'Hizo todas sus tareas sin cambiar ninguna agenda. Ya puedes activarla.'
-              : 'Hizo todas sus tareas, pero la rutina cambió mientras se probaba: vuelve a probarla para poder activarla.',
-            rutina_id: rutina.id,
-            ejecucion_id: ejecucion.id,
-          }
-        : {
-            tipo: 'rutina_completada',
-            titulo: `«${rutina.nombre}» terminó bien`,
-            mensaje: `Hizo ${tareas === 1 ? 'su tarea' : `sus ${tareas} tareas`}.`,
-            rutina_id: rutina.id,
-            ejecucion_id: ejecucion.id,
-          });
+      await this.avisos.avisar(
+        dueno.id,
+        ejecucion.modo === 'prueba'
+          ? {
+              tipo: 'rutina_probada',
+              titulo: `La prueba de «${rutina.nombre}» salió bien`,
+              mensaje: probada
+                ? 'Hizo todas sus tareas sin cambiar ninguna agenda. Ya puedes activarla.'
+                : 'Hizo todas sus tareas, pero la rutina cambió mientras se probaba: vuelve a probarla para poder activarla.',
+              rutina_id: rutina.id,
+              ejecucion_id: ejecucion.id,
+            }
+          : {
+              tipo: 'rutina_completada',
+              titulo: `«${rutina.nombre}» terminó bien`,
+              mensaje: `Hizo ${tareas === 1 ? 'su tarea' : `sus ${tareas} tareas`}.`,
+              rutina_id: rutina.id,
+              ejecucion_id: ejecucion.id,
+            },
+      );
       this.logger.log(`Rutina "${rutina.nombre}" completada (${ejecucion.modo})`);
     }
     this.acabar(marcha);
@@ -479,12 +527,16 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
     // mensaje propio: lo que hicieron sus pasos ya se contó
     if (cerrada && !yaContada) {
       const t = marcha.actual;
-      await this.contar(marcha, relatoDetenida(this.deQue(marcha), t ? { orden: t.orden, nombre: t.nombre } : null, motivo));
+      await this.contar(
+        marcha,
+        relatoDetenida(this.deQue(marcha), t ? { orden: t.orden, nombre: t.nombre } : null, motivo),
+      );
     }
     if (cerrada && dueno.id) {
       await this.avisos.avisar(dueno.id, {
         tipo: 'rutina_detenida',
-        titulo: ejecucion.modo === 'prueba' ? `La prueba de «${rutina.nombre}» se detuvo` : `«${rutina.nombre}» se detuvo`,
+        titulo:
+          ejecucion.modo === 'prueba' ? `La prueba de «${rutina.nombre}» se detuvo` : `«${rutina.nombre}» se detuvo`,
         mensaje: `${motivo} Cuando esté resuelto, reanúdala: se reintenta esa tarea y sigue con las demás.`,
         rutina_id: rutina.id,
         ejecucion_id: ejecucion.id,
@@ -510,7 +562,11 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
 
   /** Lo que va haciendo, mientras sigue en curso: una cancelada no se pisa */
   private async guardar(id: string, cambios: { resultado: TareaEjecutada[] }) {
-    const { error } = await this.supabase.admin.from('rutina_ejecuciones').update(cambios).eq('id', id).eq('estado', 'en_curso');
+    const { error } = await this.supabase.admin
+      .from('rutina_ejecuciones')
+      .update(cambios)
+      .eq('id', id)
+      .eq('estado', 'en_curso');
     if (error) this.logger.error(`No se pudo guardar el avance de la ejecución ${id}: ${error.message}`);
   }
 
@@ -554,11 +610,19 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       const cerrada = await this.cerrar(e.id, { estado: 'detenida', tarea_detenida: tarea, motivo, resultado });
       if (!cerrada) continue;
 
-      const { data: r } = await this.supabase.admin.from('rutinas').select('nombre, creado_por_id').eq('id', e.rutina_id).maybeSingle();
+      const { data: r } = await this.supabase.admin
+        .from('rutinas')
+        .select('nombre, creado_por_id')
+        .eq('id', e.rutina_id)
+        .maybeSingle();
       const rutina = r as { nombre: string; creado_por_id: string | null } | null;
       if (rutina?.creado_por_id) {
         const deQue = { nombre: rutina.nombre, modo: e.modo };
-        await this.chats.publicarNotificacion(rutina.creado_por_id, relatoDetenida(deQue, ultima ? { orden: ultima.orden, nombre: ultima.nombre } : null, motivo), e.id);
+        await this.chats.publicarNotificacion(
+          rutina.creado_por_id,
+          relatoDetenida(deQue, ultima ? { orden: ultima.orden, nombre: ultima.nombre } : null, motivo),
+          e.id,
+        );
         await this.avisos.avisar(rutina.creado_por_id, {
           tipo: 'rutina_detenida',
           titulo: `«${rutina.nombre}» se detuvo`,
@@ -569,7 +633,8 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       }
     }
 
-    if (huerfanas.length) this.logger.warn(`${huerfanas.length} ejecución(es) de rutinas quedaron detenidas por el reinicio`);
+    if (huerfanas.length)
+      this.logger.warn(`${huerfanas.length} ejecución(es) de rutinas quedaron detenidas por el reinicio`);
     return huerfanas.length;
   }
 
@@ -596,7 +661,8 @@ export class EjecutorRutinasService implements OnApplicationBootstrap {
       .eq('rutina_id', rutina.id)
       .eq('estado', 'en_curso');
     if (fallo) this.fallarAlGuardar(fallo);
-    if ((enCurso as unknown[] | null)?.length) throw new ConflictException('Ya se está ejecutando: espera a que termine.');
+    if ((enCurso as unknown[] | null)?.length)
+      throw new ConflictException('Ya se está ejecutando: espera a que termine.');
 
     const { data, error } = await this.supabase.admin
       .from('rutina_ejecuciones')

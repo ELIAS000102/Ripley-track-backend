@@ -10,7 +10,11 @@ import { tiempoAgregado } from '../../src/simulacion/utils/tiempo-agregado.util.
  * mueve la fecha: suma 2 días.
  */
 const paso = (type: string, functionName: string, isoDate: string, isActive = true): PasoLog => ({
-  type, functionName, isActive, isoDate, date: Date.parse(isoDate),
+  type,
+  functionName,
+  isActive,
+  isoDate,
+  date: Date.parse(isoDate),
 });
 
 const TRUJILLO: PasoLog[] = [
@@ -58,7 +62,9 @@ describe('El tiempo agregado de cada regla', () => {
   it('el día sale tal cual de la fecha de Ripley, sin pasarla a la hora de Lima', () => {
     // "2026-10-12T00:00Z" en Lima es el 11 a las 19:00: convertirla habría
     // hecho sumar un día de más a la regla siguiente
-    const r = tiempoAgregado('2026-10-12T00:00:00.000Z', [paso('warehouse', 'Agenda de Picking', '2026-10-12T00:00:00.000Z')]);
+    const r = tiempoAgregado('2026-10-12T00:00:00.000Z', [
+      paso('warehouse', 'Agenda de Picking', '2026-10-12T00:00:00.000Z'),
+    ]);
 
     expect(r.pasos[0].fechaParcial).toBe('2026-10-12');
   });
@@ -69,7 +75,10 @@ describe('El tiempo agregado de cada regla', () => {
       paso('warehouse', 'Plazo transferencia', '2026-10-13T00:00:00.000Z'),
     ]);
 
-    expect(r.pasos.map((p) => [p.diasAgregados, p.fechaParcial])).toEqual([[0, '2026-10-12'], [1, '2026-10-13']]);
+    expect(r.pasos.map((p) => [p.diasAgregados, p.fechaParcial])).toEqual([
+      [0, '2026-10-12'],
+      [1, '2026-10-13'],
+    ]);
     expect(r.diasTotales).toBe(1);
   });
 
@@ -79,7 +88,10 @@ describe('El tiempo agregado de cada regla', () => {
       paso('courier', 'Agenda de recepción', '2026-10-13T00:00:00.000Z'),
     ]);
 
-    expect(r.pasos.map((p) => [p.diasAgregados, p.fechaParcial])).toEqual([[2, '2026-10-14'], [0, '2026-10-14']]);
+    expect(r.pasos.map((p) => [p.diasAgregados, p.fechaParcial])).toEqual([
+      [2, '2026-10-14'],
+      [0, '2026-10-14'],
+    ]);
   });
 
   it('sin log no hay pasos ni días', () => {

@@ -26,13 +26,9 @@ function armar() {
   const simulacion = {
     simular,
     buscarAlmacenes: vi.fn().mockResolvedValue([{ id: 'w-1', code: '20026', nombre: 'Ripley Fulfillment' }]),
-    buscarOpl: vi
-      .fn()
-      .mockResolvedValue([{ id: 'o1', code: '1111', nombre: 'San Borja' }]),
+    buscarOpl: vi.fn().mockResolvedValue([{ id: 'o1', code: '1111', nombre: 'San Borja' }]),
     // El servicio compara con String(p.sku), no con un `code`
-    buscarSku: vi
-      .fn()
-      .mockResolvedValue([{ sku: SKU_POR_DEFECTO, nombre: 'Producto' }]),
+    buscarSku: vi.fn().mockResolvedValue([{ sku: SKU_POR_DEFECTO, nombre: 'Producto' }]),
     listarRegiones: vi.fn().mockResolvedValue([{ id: 'r1', nombre: 'Lima' }]),
     listarDistritosDeRegion: vi.fn().mockResolvedValue([
       { id: 'c1', nombre: 'San Borja', provincia: 'Lima' },
@@ -72,18 +68,15 @@ describe('Sin operador ya no se adivina la lista de siempre', () => {
   it('tampoco con SE', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.simular(USUARIO, pedir({ servicio: 'SE' }) as never),
-    ).rejects.toThrow(/operador logístico o la tienda/);
+    await expect(servicio.simular(USUARIO, pedir({ servicio: 'SE' }) as never)).rejects.toThrow(
+      /operador logístico o la tienda/,
+    );
   });
 
   it('con operador funciona, y va una sola vez', async () => {
     const { servicio, simular } = armar();
 
-    await servicio.simular(
-      USUARIO,
-      pedir({ servicio: 'SD', operador: '1111' }) as never,
-    );
+    await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
 
     expect(simular).toHaveBeenCalledTimes(1);
   });
@@ -91,10 +84,7 @@ describe('Sin operador ya no se adivina la lista de siempre', () => {
   it('varios operadores por coma siguen siendo una sola consulta', async () => {
     const { servicio, simular } = armar();
 
-    await servicio.simular(
-      USUARIO,
-      pedir({ servicio: 'SD', operador: '1111, 1110, 1112' }) as never,
-    );
+    await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111, 1110, 1112' }) as never);
 
     expect(simular).toHaveBeenCalledTimes(3);
   });
@@ -104,10 +94,7 @@ describe('Lo que sigue siendo un valor por defecto', () => {
   it('el SKU de referencia, cuando no se aporta uno', async () => {
     const { servicio, simulacion } = armar();
 
-    await servicio.simular(
-      USUARIO,
-      pedir({ servicio: 'SD', operador: '1111' }) as never,
-    );
+    await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
 
     expect(simulacion.buscarSku).toHaveBeenCalledWith(SKU_POR_DEFECTO, 'PE');
   });
@@ -145,10 +132,7 @@ describe('El método de entrega', () => {
   it('lo decide el servicio: SE se retira en tienda', async () => {
     const { servicio, simular } = armar();
 
-    await servicio.simular(
-      USUARIO,
-      pedir({ servicio: 'SE', operador: '20066' }) as never,
-    );
+    await servicio.simular(USUARIO, pedir({ servicio: 'SE', operador: '20066' }) as never);
 
     expect(simular.mock.calls[0][0].deliveryMethod).toBe('RT');
   });
@@ -156,10 +140,7 @@ describe('El método de entrega', () => {
   it('y SD se despacha a domicilio', async () => {
     const { servicio, simular } = armar();
 
-    await servicio.simular(
-      USUARIO,
-      pedir({ servicio: 'SD', operador: '1111' }) as never,
-    );
+    await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
 
     expect(simular.mock.calls[0][0].deliveryMethod).toBe('DP');
   });
@@ -176,10 +157,7 @@ describe('El método de entrega', () => {
   it('el método explícito manda sobre todo', async () => {
     const { servicio, simular } = armar();
 
-    await servicio.simular(
-      USUARIO,
-      pedir({ servicio: 'SD', operador: '1111', metodo: 'RT' }) as never,
-    );
+    await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111', metodo: 'RT' }) as never);
 
     expect(simular.mock.calls[0][0].deliveryMethod).toBe('RT');
   });
@@ -190,13 +168,23 @@ describe('La fuente de stock de la simulación', () => {
     const { servicio, simular, simulacion } = armar();
     const r = await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
     expect((simulacion.buscarAlmacenes as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe('20026');
-    expect([r.parametros.almacen, r.parametros.almacenPorDefecto, simular.mock.calls[0][0].warehouseId]).toEqual(['20026 - Ripley Fulfillment', true, 'w-1']);
+    expect([r.parametros.almacen, r.parametros.almacenPorDefecto, simular.mock.calls[0][0].warehouseId]).toEqual([
+      '20026 - Ripley Fulfillment',
+      true,
+      'w-1',
+    ]);
   });
 
   it('"CD Villa" es el 20026, y no fue por defecto', async () => {
     const { servicio, simulacion } = armar();
-    const r = await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111', almacen: 'CD Villa' }) as never);
-    expect([(simulacion.buscarAlmacenes as ReturnType<typeof vi.fn>).mock.calls[0][0], r.parametros.almacenPorDefecto]).toEqual(['20026', undefined]);
+    const r = await servicio.simular(
+      USUARIO,
+      pedir({ servicio: 'SD', operador: '1111', almacen: 'CD Villa' }) as never,
+    );
+    expect([
+      (simulacion.buscarAlmacenes as ReturnType<typeof vi.fn>).mock.calls[0][0],
+      r.parametros.almacenPorDefecto,
+    ]).toEqual(['20026', undefined]);
   });
 });
 
@@ -228,7 +216,13 @@ describe('El cálculo de cada simulación, en una línea', () => {
 
   it('el de la opción más temprana, que es la entrega que se enseña', async () => {
     const { servicio, simular } = armar();
-    const tarde = { ...TRUJILLO, fechaEntrega: '2026-10-16T00:00:00.000Z', diasTotales: 4, pasos: [{ funcion: 'Frecuencia Ruta', activo: true, diasAgregados: 4 }], recorrido: [] };
+    const tarde = {
+      ...TRUJILLO,
+      fechaEntrega: '2026-10-16T00:00:00.000Z',
+      diasTotales: 4,
+      pasos: [{ funcion: 'Frecuencia Ruta', activo: true, diasAgregados: 4 }],
+      recorrido: [],
+    };
     simular.mockResolvedValue({ resultados: [{ typeOfService: 'ST', opciones: [tarde, TRUJILLO] }] });
 
     const r = await servicio.simular(USUARIO, pedir({ servicio: 'ST', operador: '1111' }) as never);
@@ -238,7 +232,21 @@ describe('El cálculo de cada simulación, en una línea', () => {
 
   it('sin reglas que sumen ni transferencia, lo dice corto', async () => {
     const { servicio, simular } = armar();
-    simular.mockResolvedValue({ resultados: [{ typeOfService: 'SD', opciones: [{ fechaEntrega: '2026-10-12T00:00:00.000Z', diasTotales: 0, pasos: [{ funcion: 'Horario de corte', activo: true, diasAgregados: 0 }], recorrido: [{ warehouse: '20026', destinationNode: '20026' }] }] }] });
+    simular.mockResolvedValue({
+      resultados: [
+        {
+          typeOfService: 'SD',
+          opciones: [
+            {
+              fechaEntrega: '2026-10-12T00:00:00.000Z',
+              diasTotales: 0,
+              pasos: [{ funcion: 'Horario de corte', activo: true, diasAgregados: 0 }],
+              recorrido: [{ warehouse: '20026', destinationNode: '20026' }],
+            },
+          ],
+        },
+      ],
+    });
 
     const r = await servicio.simular(USUARIO, pedir({ servicio: 'SD', operador: '1111' }) as never);
 
@@ -247,7 +255,19 @@ describe('El cálculo de cada simulación, en una línea', () => {
 
   it('una regla inactiva no se cuenta aunque traiga días', async () => {
     const { servicio, simular } = armar();
-    simular.mockResolvedValue({ resultados: [{ typeOfService: 'ST', opciones: [{ ...TRUJILLO, pasos: [...TRUJILLO.pasos, { funcion: 'Fecha excepción recepción', activo: false, diasAgregados: 3 }] }] }] });
+    simular.mockResolvedValue({
+      resultados: [
+        {
+          typeOfService: 'ST',
+          opciones: [
+            {
+              ...TRUJILLO,
+              pasos: [...TRUJILLO.pasos, { funcion: 'Fecha excepción recepción', activo: false, diasAgregados: 3 }],
+            },
+          ],
+        },
+      ],
+    });
 
     const r = await servicio.simular(USUARIO, pedir({ servicio: 'ST', operador: '1111' }) as never);
 

@@ -26,10 +26,7 @@ const MAX_TOKENS = 500;
  */
 @Injectable()
 export class CacheSesiones {
-  private readonly entradas = new Map<
-    string,
-    { usuario: UsuarioAutenticado; expira: number }
-  >();
+  private readonly entradas = new Map<string, { usuario: UsuarioAutenticado; expira: number }>();
 
   obtener(token: string): UsuarioAutenticado | null {
     const entrada = this.entradas.get(token);

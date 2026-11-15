@@ -16,9 +16,7 @@ import { OplService } from '../../../../src/configuracion/tipo-servicio/opl/opl.
  */
 
 function armar(filas: Array<Record<string, unknown>>) {
-  const oficinasConTotal = vi
-    .fn()
-    .mockResolvedValue({ total: filas.length, filas });
+  const oficinasConTotal = vi.fn().mockResolvedValue({ total: filas.length, filas });
 
   const servicio = new OplService(
     {} as unknown as RipleyHttpService,
@@ -40,9 +38,7 @@ describe('Se busca en todas las oficinas, no solo en los OPL', () => {
   });
 
   it('una tienda aparece, que es lo que no pasaba', async () => {
-    const { servicio } = armar([
-      { id: 'o1', code: '20021', name: 'Ripley Chorrillos', isActive: true },
-    ]);
+    const { servicio } = armar([{ id: 'o1', code: '20021', name: 'Ripley Chorrillos', isActive: true }]);
 
     const { opls, total } = await servicio.buscarOpl('20021', 'PE');
 
@@ -51,9 +47,7 @@ describe('Se busca en todas las oficinas, no solo en los OPL', () => {
   });
 
   it('y un operador logístico sigue apareciendo igual', async () => {
-    const { servicio } = armar([
-      { id: 'o2', code: '1130', name: '90 Min', isActive: true },
-    ]);
+    const { servicio } = armar([{ id: 'o2', code: '1130', name: '90 Min', isActive: true }]);
 
     const { opls } = await servicio.buscarOpl('1130', 'PE');
 

@@ -1,19 +1,11 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { CacheSesiones } from '../cache-sesiones.service.js';
 import { TokenRutinaService } from '../token-rutina.service.js';
 import { ES_PUBLICO } from '../decorators/publico.decorator.js';
-import type {
-  RequestConUsuario,
-  UsuarioAutenticado,
-} from '../interfaces/auth.interface.js';
+import type { RequestConUsuario, UsuarioAutenticado } from '../interfaces/auth.interface.js';
 
 /**
  * Guard global: exige un "Authorization: Bearer <accessToken>" válido en todas
@@ -34,10 +26,7 @@ export class SupabaseAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const esPublico = this.reflector.getAllAndOverride<boolean>(ES_PUBLICO, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const esPublico = this.reflector.getAllAndOverride<boolean>(ES_PUBLICO, [context.getHandler(), context.getClass()]);
 
     if (esPublico) return true;
 
@@ -45,9 +34,7 @@ export class SupabaseAuthGuard implements CanActivate {
     const token = this.extraerToken(request.headers.authorization);
 
     if (!token) {
-      throw new UnauthorizedException(
-        'Falta el token de sesión: envía el header "Authorization: Bearer <token>"',
-      );
+      throw new UnauthorizedException('Falta el token de sesión: envía el header "Authorization: Bearer <token>"');
     }
 
     // Un paso de una rutina: corre en nombre de quien la creó, y si es una

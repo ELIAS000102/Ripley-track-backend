@@ -27,20 +27,14 @@ export class TokenRipleyController {
   /** POST .../ — guarda o reemplaza el token de un país */
   @Auditar('tokenRipley.guardar')
   @Post()
-  async guardar(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: GuardarTokenDto,
-  ) {
+  async guardar(@Usuario() usuario: UsuarioAutenticado, @Body() body: GuardarTokenDto) {
     return this.tokens.guardar(usuario.id, body.pais, body.token);
   }
 
   /** DELETE .../?pais=PE */
   @Auditar('tokenRipley.eliminar')
   @Delete()
-  async eliminar(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query() query: EliminarTokenDto,
-  ) {
+  async eliminar(@Usuario() usuario: UsuarioAutenticado, @Query() query: EliminarTokenDto) {
     return this.tokens.eliminar(usuario.id, query.pais);
   }
 }

@@ -45,11 +45,7 @@ export class SimulacionController {
   /** GET /simulacion/distritos?regionId=...&provinciaId=...&pais=PE */
   @Get('distritos')
   async distritos(@Query() query: DistritosDto) {
-    return this.simulacionService.listarDistritos(
-      query.regionId,
-      query.provinciaId,
-      query.pais,
-    );
+    return this.simulacionService.listarDistritos(query.regionId, query.provinciaId, query.pais);
   }
 
   /** GET /simulacion/sku?q=2013435160001&pais=PE */

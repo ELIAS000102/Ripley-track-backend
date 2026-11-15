@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import { RipleyHttpService } from '../../../common/ripley/ripley-http.service.js';
 import { ActualizarOplDto } from './dto/actualizar-opl.dto.js';
@@ -48,10 +43,7 @@ export class OplMasivoService {
 
   /** GET /delivery devuelve un array plano, sin el envoltorio { count, rows } */
   private async traerDelivery(pais: string): Promise<MetodoEntrega[]> {
-    const data = await this.ripley.get<MetodoEntrega[]>(
-      this.ripley.endpoint('delivery'),
-      pais,
-    );
+    const data = await this.ripley.get<MetodoEntrega[]>(this.ripley.endpoint('delivery'), pais);
     return Array.isArray(data) ? data : [];
   }
 
@@ -74,18 +66,11 @@ export class OplMasivoService {
   // ---------- Paso 2: orígenes de stock ----------
 
   /** Catálogo genérico: el identificador va en "q" y takeFirst devuelve el objeto */
-  private async traerCatalogo(
-    identificador: string,
-    pais: string,
-  ): Promise<CatalogoResponse> {
-    return this.ripley.get<CatalogoResponse>(
-      this.ripley.endpoint('catalogs'),
-      pais,
-      {
-        q: identificador,
-        takeFirst: 1,
-      },
-    );
+  private async traerCatalogo(identificador: string, pais: string): Promise<CatalogoResponse> {
+    return this.ripley.get<CatalogoResponse>(this.ripley.endpoint('catalogs'), pais, {
+      q: identificador,
+      takeFirst: 1,
+    });
   }
 
   /**
@@ -110,10 +95,7 @@ export class OplMasivoService {
     return description ? `${code} - ${description}` : code;
   }
 
-  private async armarPayloadConsulta(
-    dto: ConsultarOplDto,
-    pais: string,
-  ): Promise<ConsultaStatePayload> {
+  private async armarPayloadConsulta(dto: ConsultarOplDto, pais: string): Promise<ConsultaStatePayload> {
     const [metodos, catalogo] = await Promise.all([
       this.traerDelivery(pais),
       this.traerCatalogo(this.CATALOGO_ORIGENES, pais),
@@ -122,9 +104,7 @@ export class OplMasivoService {
     const metodo = metodos.find((m) => m.code === dto.deliveryCode);
 
     if (!metodo) {
-      throw new NotFoundException(
-        `No existe el método de entrega ${dto.deliveryCode}`,
-      );
+      throw new NotFoundException(`No existe el método de entrega ${dto.deliveryCode}`);
     }
 
     const servicios: OpcionRef[] = (metodo.typeOfServices ?? []).map((s) => ({
@@ -136,9 +116,7 @@ export class OplMasivoService {
     const servicio = servicios.find((s) => s.code === dto.serviceCode);
 
     if (!servicio) {
-      throw new NotFoundException(
-        `El método ${dto.deliveryCode} no tiene el servicio ${dto.serviceCode}`,
-      );
+      throw new NotFoundException(`El método ${dto.deliveryCode} no tiene el servicio ${dto.serviceCode}`);
     }
 
     const disponibles = catalogo?.parameters ?? [];
@@ -166,10 +144,7 @@ export class OplMasivoService {
   // ---------- Paso 3: consultar agendas ----------
 
   /** Devuelve las agendas que coinciden con la selección */
-  private async traerAgendas(
-    dto: ConsultarOplDto,
-    pais: string,
-  ): Promise<AgendaState[]> {
+  private async traerAgendas(dto: ConsultarOplDto, pais: string): Promise<AgendaState[]> {
     const payload = await this.armarPayloadConsulta(dto, pais);
 
     // Un POST que lee: por `postDeLectura`, o un simulacro lo cortaría
@@ -247,16 +222,12 @@ export class OplMasivoService {
     // Una agenda que ya no está se anota y se deja fuera; las demás se
     // escriben igual. Abortar el lote entero por una deja al que pidió el
     // cambio sin nada y sin saber cuál falló.
-    const ausentes = dto.cambios
-      .filter((c) => !porId.has(c.mainRouteId))
-      .map((c) => c.mainRouteId);
+    const ausentes = dto.cambios.filter((c) => !porId.has(c.mainRouteId)).map((c) => c.mainRouteId);
 
     const aplicables = dto.cambios.filter((c) => porId.has(c.mainRouteId));
 
     if (!aplicables.length) {
-      throw new NotFoundException(
-        `Ninguna de las ${dto.cambios.length} agendas está en el resultado de la consulta`,
-      );
+      throw new NotFoundException(`Ninguna de las ${dto.cambios.length} agendas está en el resultado de la consulta`);
     }
 
     const data: FilaActualizacion[] = aplicables.map((cambio, indice) => {
@@ -274,8 +245,7 @@ export class OplMasivoService {
         typeOfService: actual.typeOfService,
         // Lo que no se envía conserva su valor actual
         isActive: cambio.isActive ?? actual.active,
-        enabledForCheckout:
-          cambio.enabledForCheckout ?? actual.enabledForCheckout,
+        enabledForCheckout: cambio.enabledForCheckout ?? actual.enabledForCheckout,
         changed: false,
         tableData: { id: indice },
       };

@@ -1,18 +1,11 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TransfService } from '../../../configuracion/transf-suc/transf.service.js';
 import type { DiasDisponibles } from '../../../configuracion/transf-suc/interfaces/transf.interface.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ConsultarTransferenciaDto } from '../../dto/consultas.dto.js';
-import type {
-  Transferencia,
-  TransferenciaRespuesta,
-} from '../../interfaces/agente.interface.js';
+import type { Transferencia, TransferenciaRespuesta } from '../../interfaces/agente.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 import { DIAS } from '../../constantes/dias.constants.js';
 
@@ -41,10 +34,7 @@ export class TransferenciaAgenteService {
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
-  async consultar(
-    usuario: UsuarioAutenticado,
-    dto: ConsultarTransferenciaDto,
-  ): Promise<TransferenciaRespuesta> {
+  async consultar(usuario: UsuarioAutenticado, dto: ConsultarTransferenciaDto): Promise<TransferenciaRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
 
     // El origen que se dijo —"CD Villa" es el 20026— o, si no, el de por defecto
@@ -53,15 +43,10 @@ export class TransferenciaAgenteService {
     const pedidos = this.destinosPedidos(dto.destino);
     const porDefecto = fuente.porDefecto ? { origenPorDefecto: pedido } : {};
 
-    this.logger.log(
-      `Agente consultando transferencia ${pedido} → ${pedidos.length || 'todos'}`,
-    );
+    this.logger.log(`Agente consultando transferencia ${pedido} → ${pedidos.length || 'todos'}`);
 
     const origen = await this.resolverOrigen(pedido, contexto.pais);
-    const { relaciones } = await this.transf.listarRelaciones(
-      origen.id,
-      contexto.pais,
-    );
+    const { relaciones } = await this.transf.listarRelaciones(origen.id, contexto.pais);
 
     const etiquetaOrigen = `${origen.code} - ${origen.nombre}`;
     const todas = relaciones.map((r) => this.aTransferencia(etiquetaOrigen, r));
@@ -120,10 +105,7 @@ export class TransferenciaAgenteService {
 
     const lista = partirLista(destino);
 
-    return lista.filter(
-      (d, i) =>
-        lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i,
-    );
+    return lista.filter((d, i) => lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i);
   }
 
   /** El origen es la fuente de stock: de aquí cuelgan todas las relaciones */
@@ -131,9 +113,7 @@ export class TransferenciaAgenteService {
     const { almacenes } = await this.transf.buscarAlmacen(termino, pais);
 
     if (!almacenes.length) {
-      throw new NotFoundException(
-        `No se encontró ningún almacén que coincida con "${termino}"`,
-      );
+      throw new NotFoundException(`No se encontró ningún almacén que coincida con "${termino}"`);
     }
 
     // Si el término era un código, el que coincide exacto manda sobre el resto
@@ -145,10 +125,7 @@ export class TransferenciaAgenteService {
    * intenta por nombre, y entonces puede haber varios: se devuelven todos para
    * que el agente pregunte en vez de elegir por su cuenta.
    */
-  private buscarDestino(
-    todas: Transferencia[],
-    termino: string,
-  ): Transferencia[] {
+  private buscarDestino(todas: Transferencia[], termino: string): Transferencia[] {
     const buscado = termino.trim().toLowerCase();
 
     const porCodigo = todas.filter((t) => this.codigoDe(t.destino) === buscado);
@@ -189,9 +166,7 @@ export class TransferenciaAgenteService {
   private diasEnEspanol(disponibles?: DiasDisponibles): string {
     if (!disponibles) return 'sin días configurados';
 
-    const activos = DIAS.filter(([clave]) => disponibles[clave]).map(
-      ([, nombres]) => nombres[0],
-    );
+    const activos = DIAS.filter(([clave]) => disponibles[clave]).map(([, nombres]) => nombres[0]);
 
     if (!activos.length) return 'ningún día';
     if (activos.length === DIAS.length) return 'todos los días';

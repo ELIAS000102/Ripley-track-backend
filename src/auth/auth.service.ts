@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import type { Session, User } from '@supabase/supabase-js';
 import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
@@ -35,9 +30,7 @@ export class AuthService {
    * El rol nunca sale de lo que envíe el cliente: lo fija el backend. Si se
    * aceptara del body, cualquiera se registraría como administrador.
    */
-  async registrar(
-    dto: RegistroDto,
-  ): Promise<SesionRespuesta | { mensaje: string }> {
+  async registrar(dto: RegistroDto): Promise<SesionRespuesta | { mensaje: string }> {
     const { data, error } = await this.supabase.anon.auth.signUp({
       email: dto.email,
       password: dto.password,
@@ -52,9 +45,7 @@ export class AuthService {
         throw new ConflictException('Ya existe una cuenta con ese correo');
       }
 
-      throw new ConflictException(
-        error?.message ?? 'No se pudo crear la cuenta',
-      );
+      throw new ConflictException(error?.message ?? 'No se pudo crear la cuenta');
     }
 
     // El trigger crea la fila con nombre y apellido, pero no fija rol ni tienda
@@ -70,8 +61,7 @@ export class AuthService {
     // Si el proyecto exige confirmar el correo, Supabase no devuelve sesión
     if (!data.session) {
       return {
-        mensaje:
-          'Cuenta creada. Revisa tu correo para confirmarla antes de iniciar sesión.',
+        mensaje: 'Cuenta creada. Revisa tu correo para confirmarla antes de iniciar sesión.',
       };
     }
 
@@ -108,9 +98,7 @@ export class AuthService {
     });
 
     if (error || !data?.session || !data?.user) {
-      throw new UnauthorizedException(
-        'El refreshToken no es válido o ya expiró',
-      );
+      throw new UnauthorizedException('El refreshToken no es válido o ya expiró');
     }
 
     return await this.armarSesion(data.session, data.user);
@@ -139,14 +127,8 @@ export class AuthService {
    * La sesión viaja con el perfil completo para que el frontend pueda pintar
    * la pantalla de usuario sin una segunda llamada nada más entrar.
    */
-  private async armarSesion(
-    sesion: Session,
-    usuario: User,
-  ): Promise<SesionRespuesta> {
-    const perfil: Perfil = await this.perfiles.obtener(
-      usuario.id,
-      usuario.email ?? '',
-    );
+  private async armarSesion(sesion: Session, usuario: User): Promise<SesionRespuesta> {
+    const perfil: Perfil = await this.perfiles.obtener(usuario.id, usuario.email ?? '');
 
     return {
       usuario: perfil,

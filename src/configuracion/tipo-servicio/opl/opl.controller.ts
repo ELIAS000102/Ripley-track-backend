@@ -1,11 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../../auditoria/decorators/auditar.decorator.js';
 import { OplService } from './opl.service.js';
-import {
-  ListarAgendasDto,
-  ListarServiciosDto,
-  ListarZonasDto,
-} from './dto/buscar-opl.dto.js';
+import { ListarAgendasDto, ListarServiciosDto, ListarZonasDto } from './dto/buscar-opl.dto.js';
 import { ActualizarServicioDto } from './dto/actualizar-servicio.dto.js';
 import { BuscarDto, PaisDto } from '../../../common/dto/pais.dto.js';
 
@@ -49,10 +45,7 @@ export class OplController {
   /** PUT .../servicios/{idServicio} */
   @Auditar('opl.actualizarServicio')
   @Put('servicios/:idServicio')
-  async actualizar(
-    @Param('idServicio') idServicio: string,
-    @Body() body: ActualizarServicioDto,
-  ) {
+  async actualizar(@Param('idServicio') idServicio: string, @Body() body: ActualizarServicioDto) {
     return this.oplService.actualizarServicio(idServicio, body);
   }
 }

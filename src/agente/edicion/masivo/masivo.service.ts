@@ -38,17 +38,12 @@ export class EditarMasivoAgenteService {
     private readonly auditoria: ContextoAuditoria,
   ) {}
 
-  async editar(
-    usuario: UsuarioAutenticado,
-    dto: EditarMasivoDto,
-  ): Promise<MasivoEditado> {
+  async editar(usuario: UsuarioAutenticado, dto: EditarMasivoDto): Promise<MasivoEditado> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
     if (dto.activo === undefined && dto.enCheckout === undefined) {
-      throw new BadRequestException(
-        'No hay nada que cambiar: indica "activo", "enCheckout" o las dos.',
-      );
+      throw new BadRequestException('No hay nada que cambiar: indica "activo", "enCheckout" o las dos.');
     }
 
     // Apagar es apagar del todo, igual que al editar un servicio suelto: una
@@ -199,11 +194,8 @@ export class EditarMasivoAgenteService {
     a: { isActive?: boolean; enabledForCheckout?: boolean },
     cambio: { activo?: boolean; enCheckout?: boolean },
   ): boolean {
-    const cambiaActivo =
-      cambio.activo !== undefined && cambio.activo !== (a.isActive === true);
-    const cambiaCheckout =
-      cambio.enCheckout !== undefined &&
-      cambio.enCheckout !== (a.enabledForCheckout === true);
+    const cambiaActivo = cambio.activo !== undefined && cambio.activo !== (a.isActive === true);
+    const cambiaCheckout = cambio.enCheckout !== undefined && cambio.enCheckout !== (a.enabledForCheckout === true);
 
     return cambiaActivo || cambiaCheckout;
   }
@@ -214,11 +206,7 @@ export class EditarMasivoAgenteService {
    * El tope no es una limitación técnica: es el número de filas que cabe
    * enseñar en un chat y que una persona puede leer antes de decir que sí.
    */
-  private exigirCantidadRevisable(
-    alcanzadas: unknown[],
-    porCambiar: unknown[],
-    dto: EditarMasivoDto,
-  ): void {
+  private exigirCantidadRevisable(alcanzadas: unknown[], porCambiar: unknown[], dto: EditarMasivoDto): void {
     const tope = dto.maximo ?? POR_VEZ;
 
     if (alcanzadas.length > tope) {
@@ -229,15 +217,11 @@ export class EditarMasivoAgenteService {
     }
 
     if (!alcanzadas.length) {
-      throw new BadRequestException(
-        'La búsqueda no alcanzó ninguna agenda con esos filtros. No he cambiado nada.',
-      );
+      throw new BadRequestException('La búsqueda no alcanzó ninguna agenda con esos filtros. No he cambiado nada.');
     }
 
     if (!porCambiar.length) {
-      throw new BadRequestException(
-        `Las ${alcanzadas.length} agendas ya estaban así. No he cambiado nada.`,
-      );
+      throw new BadRequestException(`Las ${alcanzadas.length} agendas ya estaban así. No he cambiado nada.`);
     }
   }
 
@@ -255,20 +239,12 @@ export class EditarMasivoAgenteService {
     const buscado = dto.servicio.trim().toLowerCase();
 
     const metodo = dto.metodo?.trim()
-      ? metodos.find(
-          (m) => m.code.toLowerCase() === dto.metodo!.trim().toLowerCase(),
-        )
-      : (metodos.find((m) =>
-          m.servicios.some((s) => s.code.toLowerCase() === buscado),
-        ) ??
-        metodos.find((m) =>
-          m.servicios.some((s) => s.nombre?.toLowerCase().includes(buscado)),
-        ));
+      ? metodos.find((m) => m.code.toLowerCase() === dto.metodo!.trim().toLowerCase())
+      : (metodos.find((m) => m.servicios.some((s) => s.code.toLowerCase() === buscado)) ??
+        metodos.find((m) => m.servicios.some((s) => s.nombre?.toLowerCase().includes(buscado))));
 
     if (!metodo) {
-      throw new BadRequestException(
-        `Ningún método de entrega tiene el servicio "${dto.servicio}".`,
-      );
+      throw new BadRequestException(`Ningún método de entrega tiene el servicio "${dto.servicio}".`);
     }
 
     const servicio =
@@ -276,18 +252,13 @@ export class EditarMasivoAgenteService {
       metodo.servicios.find((s) => s.nombre?.toLowerCase().includes(buscado));
 
     if (!servicio) {
-      throw new BadRequestException(
-        `El método ${metodo.code} no tiene el servicio "${dto.servicio}".`,
-      );
+      throw new BadRequestException(`El método ${metodo.code} no tiene el servicio "${dto.servicio}".`);
     }
 
     return { metodo: metodo.code, servicio: servicio.code };
   }
 
-  private async resolverOrigenes(
-    pedidos: string | undefined,
-    pais: string,
-  ): Promise<string[]> {
+  private async resolverOrigenes(pedidos: string | undefined, pais: string): Promise<string[]> {
     const disponibles = await this.masivo.listarOrigenes(pais);
 
     if (!pedidos?.trim()) return disponibles.map((o) => o.code);
@@ -296,16 +267,12 @@ export class EditarMasivoAgenteService {
 
     const elegidos = disponibles
       .filter(
-        (o) =>
-          buscados.includes(o.code.toLowerCase()) ||
-          buscados.some((p) => o.nombre?.toLowerCase().includes(p)),
+        (o) => buscados.includes(o.code.toLowerCase()) || buscados.some((p) => o.nombre?.toLowerCase().includes(p)),
       )
       .map((o) => o.code);
 
     if (!elegidos.length) {
-      throw new BadRequestException(
-        `Ningún origen de stock coincide con "${pedidos}".`,
-      );
+      throw new BadRequestException(`Ningún origen de stock coincide con "${pedidos}".`);
     }
 
     return elegidos;

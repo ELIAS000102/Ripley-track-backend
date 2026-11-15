@@ -10,7 +10,11 @@ import { NotificacionesService } from '../../src/notificaciones/notificaciones.s
 import { EjecutorRutinasService } from '../../src/rutinas/ejecutor/ejecutor.service.js';
 import { LlamadasRutinaService } from '../../src/rutinas/ejecutor/llamadas.js';
 import type { WebhookAgenteService } from '../../src/rutinas/ejecutor/webhook-agente.service.js';
-import type { LlamadaHerramienta, RespuestaAgente, TareaEjecutada } from '../../src/rutinas/interfaces/rutinas.interface.js';
+import type {
+  LlamadaHerramienta,
+  RespuestaAgente,
+  TareaEjecutada,
+} from '../../src/rutinas/interfaces/rutinas.interface.js';
 import { RutinasService } from '../../src/rutinas/rutinas.service.js';
 import { supabaseEnMemoria, type Fila } from '../fixtures/supabase-memoria.js';
 
@@ -38,13 +42,31 @@ const bien: Guion = (p) => {
   const llamadas = [...atajos, { herramienta: 'Capacidad de agendas', estado: 200, problemas: [] }];
   return {
     llamadas,
-    respuesta: { respuesta: 'Hecho.', rutina: { tipo: 'pasos', faltan: [], descartados: [], herramientas: llamadas.map((l) => l.herramienta) } },
+    respuesta: {
+      respuesta: 'Hecho.',
+      rutina: { tipo: 'pasos', faltan: [], descartados: [], herramientas: llamadas.map((l) => l.herramienta) },
+    },
   };
 };
 
 function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boolean } = {}) {
   const tablas: Record<string, Fila[]> = {
-    rutinas: [{ id: 'r1', nombre: 'Apertura de Chile', descripcion: null, pais: 'CL', activa: false, version: 1, probada_version: null, probada_en: null, creado_por: JOSE.email, creado_por_id: JOSE.id, creado_en: '2026-10-13', actualizado_en: '2026-10-13' }],
+    rutinas: [
+      {
+        id: 'r1',
+        nombre: 'Apertura de Chile',
+        descripcion: null,
+        pais: 'CL',
+        activa: false,
+        version: 1,
+        probada_version: null,
+        probada_en: null,
+        creado_por: JOSE.email,
+        creado_por_id: JOSE.id,
+        creado_en: '2026-10-13',
+        actualizado_en: '2026-10-13',
+      },
+    ],
     rutina_tareas: [
       { id: 't1', rutina_id: 'r1', orden: 1, nombre: 'Activar la S y el DX' },
       { id: 't2', rutina_id: 'r1', orden: 2, nombre: 'Revisar el picking' },
@@ -65,7 +87,9 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
 
   const supabase = supabaseEnMemoria(tablas);
   const tokens = new TokenRutinaService(
-    new CifradoService({ get: () => 'una-clave-de-prueba-con-mas-de-treinta-y-dos-caracteres' } as unknown as ConfigService),
+    new CifradoService({
+      get: () => 'una-clave-de-prueba-con-mas-de-treinta-y-dos-caracteres',
+    } as unknown as ConfigService),
     supabase,
   );
   const llamadas = new LlamadasRutinaService();
@@ -84,11 +108,23 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
       setTimeout(async () => {
         for (const t of cuerpo.rutina.tareas) {
           for (const p of t.pasos) {
-            const paso = { tarea: t.orden, paso: p.orden, instruccion: p.instruccion, atajos: p.atajos, guias: p.guias };
+            const paso = {
+              tarea: t.orden,
+              paso: p.orden,
+              instruccion: p.instruccion,
+              atajos: p.atajos,
+              guias: p.guias,
+            };
             hechos.push(paso);
             const r = await guion(paso, cuerpo);
-            for (const l of r.llamadas ?? []) llamadas.anotar(permiso.id, { ...l, escriturasEvitadas: permiso.modo === 'prueba' ? 1 : 0 });
-            const v = await ejecutor.pasoHecho(permiso, { tarea: t.orden, paso: p.orden, respuesta: r.respuesta?.respuesta, rutina: (r.respuesta?.rutina ?? null) as never });
+            for (const l of r.llamadas ?? [])
+              llamadas.anotar(permiso.id, { ...l, escriturasEvitadas: permiso.modo === 'prueba' ? 1 : 0 });
+            const v = await ejecutor.pasoHecho(permiso, {
+              tarea: t.orden,
+              paso: p.orden,
+              respuesta: r.respuesta?.respuesta,
+              rutina: (r.respuesta?.rutina ?? null) as never,
+            });
             if (!v.seguir) return;
           }
         }
@@ -97,9 +133,20 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
     }),
   } as unknown as WebhookAgenteService;
 
-  const interrupcion = { interrumpir: vi.fn().mockResolvedValue({ interrumpida: true }) } as unknown as InterrupcionAgenteService;
+  const interrupcion = {
+    interrumpir: vi.fn().mockResolvedValue({ interrumpida: true }),
+  } as unknown as InterrupcionAgenteService;
   const rutinas = new RutinasService(supabase, { registrarCambio: vi.fn() } as unknown as ContextoAuditoria);
-  ejecutor = new EjecutorRutinasService(supabase, rutinas, tokens, webhook, llamadas, new NotificacionesService(supabase), interrupcion, new ChatsService(supabase));
+  ejecutor = new EjecutorRutinasService(
+    supabase,
+    rutinas,
+    tokens,
+    webhook,
+    llamadas,
+    new NotificacionesService(supabase),
+    interrupcion,
+    new ChatsService(supabase),
+  );
 
   /** Espera a que la ejecución termine del todo, y la devuelve como quedó */
   const terminada = async (id: string) => {
@@ -113,10 +160,13 @@ function montar(guion: Guion = bien, opciones: { acepta?: boolean; avisa?: boole
 /** Lo que Silvana contó en «Notificaciones» */
 const contado = (tablas: Record<string, Fila[]>) => {
   const chat = tablas.chats.find((c) => c.tipo === 'notificaciones');
-  return tablas.chat_mensajes.filter((m) => m.chat_id === chat?.id).map((m) => ({ texto: String(m.texto), ejecucion: m.ejecucion_id, rol: m.rol }));
+  return tablas.chat_mensajes
+    .filter((m) => m.chat_id === chat?.id)
+    .map((m) => ({ texto: String(m.texto), ejecucion: m.ejecucion_id, rol: m.rol }));
 };
 
-const pasosDe = (resultado: TareaEjecutada[]) => resultado.map((t) => [t.orden, t.intento, t.estado, t.pasos.map((p) => p.estado)]);
+const pasosDe = (resultado: TareaEjecutada[]) =>
+  resultado.map((t) => [t.orden, t.intento, t.estado, t.pasos.map((p) => p.estado)]);
 
 describe('Probar una rutina', () => {
   it('va entera al flujo en UN solo envío, que la recorre paso a paso', async () => {
@@ -125,7 +175,9 @@ describe('Probar una rutina', () => {
     await terminada((await ejecutor.probar('r1', JOSE)).id);
 
     expect(envios).toHaveLength(1);
-    expect(envios[0].rutina.tareas.map((t: any) => [t.orden, t.nombre, t.intento, t.pasos.map((p: any) => p.instruccion)])).toEqual([
+    expect(
+      envios[0].rutina.tareas.map((t: any) => [t.orden, t.nombre, t.intento, t.pasos.map((p: any) => p.instruccion)]),
+    ).toEqual([
       [1, 'Activar la S y el DX', 1, ['ejecuta el atajo del same day', 'activa la S y el DX de esos operadores']],
       [2, 'Revisar el picking', 1, ['dame el picking del 10095 de hoy']],
     ]);
@@ -137,7 +189,10 @@ describe('Probar una rutina', () => {
     const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
 
     expect(fin.estado).toBe('completada');
-    expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([[1, 1, 'completada', ['completado', 'completado']], [2, 1, 'completada', ['completado']]]);
+    expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([
+      [1, 1, 'completada', ['completado', 'completado']],
+      [2, 1, 'completada', ['completado']],
+    ]);
     expect(tablas.rutinas[0]).toMatchObject({ probada_version: 1 });
     expect(tablas.notificaciones.map((n) => [n.usuario_id, n.tipo])).toEqual([[JOSE.id, 'rutina_probada']]);
   });
@@ -147,10 +202,17 @@ describe('Probar una rutina', () => {
     const id = (await ejecutor.probar('r1', JOSE)).id;
     await terminada(id);
 
-    expect(tablas.chats.map((c) => [c.usuario_id, c.titulo, c.tipo])).toEqual([[JOSE.id, 'Notificaciones', 'notificaciones']]);
+    expect(tablas.chats.map((c) => [c.usuario_id, c.titulo, c.tipo])).toEqual([
+      [JOSE.id, 'Notificaciones', 'notificaciones'],
+    ]);
     const mensajes = contado(tablas);
     // Tres pasos (dos de la tarea 1 y uno de la 2) y el final: cuatro mensajes
-    expect(mensajes.map((m) => [m.rol, m.ejecucion])).toEqual([['agente', id], ['agente', id], ['agente', id], ['agente', id]]);
+    expect(mensajes.map((m) => [m.rol, m.ejecucion])).toEqual([
+      ['agente', id],
+      ['agente', id],
+      ['agente', id],
+      ['agente', id],
+    ]);
     expect(mensajes.map((m) => m.texto.split('\n')[0])).toEqual([
       '**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 1 de 2: hecho**',
       '**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 2 de 2: hecho**',
@@ -165,7 +227,10 @@ describe('Probar una rutina', () => {
     const { ejecutor, envios, terminada } = montar();
     await terminada((await ejecutor.probar('r1', JOSE)).id);
 
-    expect(envios[0]).toMatchObject({ modo: 'editor', rutina: { nombre: 'Apertura de Chile', pais: 'CL', prueba: true } });
+    expect(envios[0]).toMatchObject({
+      modo: 'editor',
+      rutina: { nombre: 'Apertura de Chile', pais: 'CL', prueba: true },
+    });
     expect(envios[0].rutina.tareas[0].pasos[0].atajos).toEqual(['Estado del Next Day y Same Day de chile']);
     expect(envios[0].rutina.tareas[0].pasos[1].guias).toEqual([{ nombre: 'BT Provincia', tipo: 'malla' }]);
     expect(envios[0].token).toMatch(/^rutina\./);
@@ -177,7 +242,10 @@ describe('Probar una rutina', () => {
     const { ejecutor, terminada } = montar();
     const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
     const [t1] = fin.resultado as TareaEjecutada[];
-    expect(t1.pasos.map((p) => p.llamadas.map((l) => l.herramienta))).toEqual([['Ejecutar un atajo', 'Capacidad de agendas'], ['Capacidad de agendas']]);
+    expect(t1.pasos.map((p) => p.llamadas.map((l) => l.herramienta))).toEqual([
+      ['Ejecutar un atajo', 'Capacidad de agendas'],
+      ['Capacidad de agendas'],
+    ]);
   });
 
   it('el token de la ejecución deja de valer al terminar', async () => {
@@ -196,14 +264,19 @@ describe('Probar una rutina', () => {
   it('un flujo viejo, que no acepta la rutina, se dice: hay que reimportarlo', async () => {
     const { ejecutor, terminada } = montar(bien, { acepta: false });
     const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
-    expect([fin.estado, fin.motivo]).toEqual(['detenida', 'El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.']);
+    expect([fin.estado, fin.motivo]).toEqual([
+      'detenida',
+      'El flujo de n8n no reconoce las rutinas: reimporta el flujo actualizado y vuelve a probar.',
+    ]);
   });
 
   it('un atajo retirado se dice antes de mandar nada', async () => {
     const m = montar();
     m.tablas.atajos[0].activa = false;
     const fin = await m.terminada((await m.ejecutor.probar('r1', JOSE)).id);
-    expect(fin.motivo).toContain('El atajo "Estado del Next Day y Same Day de chile" del paso 1 de la tarea 1 está retirado');
+    expect(fin.motivo).toContain(
+      'El atajo "Estado del Next Day y Same Day de chile" del paso 1 de la tarea 1 está retirado',
+    );
     expect(m.envios).toHaveLength(0);
   });
 });
@@ -211,7 +284,9 @@ describe('Probar una rutina', () => {
 describe('Ejecutarla ahora, de verdad', () => {
   it('sin una prueba correcta de la versión actual, no: cambiaría agendas sin haberla probado', async () => {
     const { ejecutor, envios } = montar();
-    await expect(ejecutor.ejecutar('r1', JOSE)).rejects.toThrow('Pruébala antes de ejecutarla: todavía no tiene ninguna prueba correcta');
+    await expect(ejecutor.ejecutar('r1', JOSE)).rejects.toThrow(
+      'Pruébala antes de ejecutarla: todavía no tiene ninguna prueba correcta',
+    );
     expect(envios).toHaveLength(0);
   });
 
@@ -232,7 +307,9 @@ describe('Ejecutarla ahora, de verdad', () => {
     const { ejecutor, tablas, terminada } = montar();
     await terminada((await ejecutor.probar('r1', JOSE)).id);
     tablas.rutinas[0].version = 2;
-    await expect(ejecutor.ejecutar('r1', JOSE)).rejects.toThrow('cambió después de la última prueba correcta (versión 1, ahora 2)');
+    await expect(ejecutor.ejecutar('r1', JOSE)).rejects.toThrow(
+      'cambió después de la última prueba correcta (versión 1, ahora 2)',
+    );
   });
 
   it('solo su creador: corre con su cuenta y su token de Ripley', async () => {
@@ -247,8 +324,17 @@ describe('Un paso que falla', () => {
   const fallaElSegundo: Guion = (p, c) =>
     p.instruccion.startsWith('activa')
       ? {
-          llamadas: [{ herramienta: 'Editar un tipo de servicio', estado: 400, problemas: ['Hay 4 opciones en el operador 1088 y no voy a elegir por ti'] }],
-          respuesta: { respuesta: '¿Qué zona?', rutina: { tipo: 'pasos', herramientas: ['Editar un tipo de servicio'] } },
+          llamadas: [
+            {
+              herramienta: 'Editar un tipo de servicio',
+              estado: 400,
+              problemas: ['Hay 4 opciones en el operador 1088 y no voy a elegir por ti'],
+            },
+          ],
+          respuesta: {
+            respuesta: '¿Qué zona?',
+            rutina: { tipo: 'pasos', herramientas: ['Editar un tipo de servicio'] },
+          },
         }
       : bien(p, c);
 
@@ -257,10 +343,14 @@ describe('Un paso que falla', () => {
     const fin = await terminada((await ejecutor.probar('r1', JOSE)).id);
 
     expect([fin.estado, fin.tarea_detenida]).toEqual(['detenida', 1]);
-    expect(fin.motivo).toBe('Tarea 1 «Activar la S y el DX», paso 2: "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti');
+    expect(fin.motivo).toBe(
+      'Tarea 1 «Activar la S y el DX», paso 2: "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti',
+    );
     expect(hechos.map((p) => `${p.tarea}.${p.paso}`)).toEqual(['1.1', '1.2']);
     expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([[1, 1, 'fallida', ['completado', 'fallido']]]);
-    expect(tablas.notificaciones.map((n) => [n.tipo, n.titulo])).toEqual([['rutina_detenida', 'La prueba de «Apertura de Chile» se detuvo']]);
+    expect(tablas.notificaciones.map((n) => [n.tipo, n.titulo])).toEqual([
+      ['rutina_detenida', 'La prueba de «Apertura de Chile» se detuvo'],
+    ]);
     expect(tablas.rutinas[0].probada_version).toBeNull();
   });
 
@@ -271,8 +361,12 @@ describe('Un paso que falla', () => {
     // El paso 1, bien; el 2, con su error. Ningún mensaje más: la detención ya va en el del paso
     expect(contado(tablas)).toHaveLength(2);
     const m = contado(tablas)[1];
-    expect(m.texto.split('\n')[0]).toBe('**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 2 de 2: falló**');
-    expect(m.texto).toContain('- **Error:** "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti');
+    expect(m.texto.split('\n')[0]).toBe(
+      '**Prueba de «Apertura de Chile» · Tarea 1 «Activar la S y el DX» · Paso 2 de 2: falló**',
+    );
+    expect(m.texto).toContain(
+      '- **Error:** "Editar un tipo de servicio" respondió 400: Hay 4 opciones en el operador 1088 y no voy a elegir por ti',
+    );
     expect(m.texto).toContain('¿Qué zona?');
     expect(m.texto).toContain('reanúdala desde **Rutinas**');
   });
@@ -287,7 +381,10 @@ describe('Un paso que falla', () => {
     await m.ejecutor.reanudar('r1', id, JOSE);
     const fin = await m.terminada(id);
 
-    expect(m.envios[1].rutina.tareas.map((t: any) => [t.orden, t.intento])).toEqual([[1, 2], [2, 1]]);
+    expect(m.envios[1].rutina.tareas.map((t: any) => [t.orden, t.intento])).toEqual([
+      [1, 2],
+      [2, 1],
+    ]);
     expect(fin.estado).toBe('completada');
     expect(pasosDe(fin.resultado as TareaEjecutada[])).toEqual([
       [1, 1, 'fallida', ['completado', 'fallido']],
@@ -330,7 +427,9 @@ describe('Un paso que falla', () => {
     expect(m.interrupcion.interrumpir).toHaveBeenCalled();
     // No lo dijo un paso: va el motivo de la detención
     // No lo dijo un paso: va en un mensaje propio, con su motivo
-    expect(contado(m.tablas).map((x) => x.texto.split('\n')[0])).toEqual(['**Prueba de «Apertura de Chile» se detuvo en la tarea 1 «Activar la S y el DX»**']);
+    expect(contado(m.tablas).map((x) => x.texto.split('\n')[0])).toEqual([
+      '**Prueba de «Apertura de Chile» se detuvo en la tarea 1 «Activar la S y el DX»**',
+    ]);
     expect(contado(m.tablas)[0].texto).toContain('- **Error:** Silvana no avisó');
   });
 });
@@ -358,7 +457,9 @@ describe('Cancelar', () => {
 
     expect((await m.ejecutor.cancelar('r1', id, JOSE)).estado).toBe('cancelada');
     await expect(m.ejecutor.reanudar('r1', id, JOSE)).rejects.toThrow('solo se reanuda una detenida');
-    expect(contado(m.tablas).at(-1)?.texto).toBe(`**Prueba de «Apertura de Chile» se canceló.** La canceló ${JOSE.email}.`);
+    expect(contado(m.tablas).at(-1)?.texto).toBe(
+      `**Prueba de «Apertura de Chile» se canceló.** La canceló ${JOSE.email}.`,
+    );
   });
 });
 
@@ -366,16 +467,31 @@ describe('Si el servidor se reinicia a mitad', () => {
   it('lo que corría queda detenido en la tarea por la que iba, listo para reanudar, y se avisa', async () => {
     const m = montar();
     m.tablas.rutina_ejecuciones.push({
-      id: 'e-huerfana', rutina_id: 'r1', version: 1, modo: 'prueba', origen: 'manual', estado: 'en_curso', tareas: [1, 2],
-      resultado: [{ orden: 1, nombre: 'Activar', intento: 1, estado: 'completada', pasos: [] }, { orden: 2, nombre: 'Revisar', intento: 1, estado: 'en_curso', pasos: [] }],
+      id: 'e-huerfana',
+      rutina_id: 'r1',
+      version: 1,
+      modo: 'prueba',
+      origen: 'manual',
+      estado: 'en_curso',
+      tareas: [1, 2],
+      resultado: [
+        { orden: 1, nombre: 'Activar', intento: 1, estado: 'completada', pasos: [] },
+        { orden: 2, nombre: 'Revisar', intento: 1, estado: 'en_curso', pasos: [] },
+      ],
       creado_en: '2026-10-13T12:00:00Z',
     });
 
     expect(await m.ejecutor.recogerHuerfanas()).toBe(1);
     const e = m.tablas.rutina_ejecuciones[0];
-    expect([e.estado, e.tarea_detenida, (e.resultado as TareaEjecutada[])[1].estado]).toEqual(['detenida', 2, 'fallida']);
+    expect([e.estado, e.tarea_detenida, (e.resultado as TareaEjecutada[])[1].estado]).toEqual([
+      'detenida',
+      2,
+      'fallida',
+    ]);
     expect(e.motivo).toContain('El servidor se reinició mientras corría la tarea 2');
     expect(m.tablas.notificaciones.map((n) => n.usuario_id)).toEqual([JOSE.id]);
-    expect(contado(m.tablas).map((x) => [x.ejecucion, x.texto.split('\n')[0]])).toEqual([['e-huerfana', '**Prueba de «Apertura de Chile» se detuvo en la tarea 2 «Revisar»**']]);
+    expect(contado(m.tablas).map((x) => [x.ejecucion, x.texto.split('\n')[0]])).toEqual([
+      ['e-huerfana', '**Prueba de «Apertura de Chile» se detuvo en la tarea 2 «Revisar»**'],
+    ]);
   });
 });

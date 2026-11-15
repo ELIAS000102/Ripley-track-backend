@@ -6,7 +6,8 @@
  * otro. Sin IA: las cifras salen de los datos y de nada más.
  */
 
-export type Clase = 'capacidad' | 'masiva' | 'servicio_opl' | 'transferencia' | 'simulacion' | 'reporte' | 'entidad' | 'servicio';
+export type Clase =
+  'capacidad' | 'masiva' | 'servicio_opl' | 'transferencia' | 'simulacion' | 'reporte' | 'entidad' | 'servicio';
 
 export interface Fila {
   clase: Clase;
@@ -70,8 +71,26 @@ export function isoDe(fecha: string, hoy: string): string {
   return dmy ? `${dmy[3] ?? hoy.slice(0, 4)}-${dmy[2]}-${dmy[1]}` : fecha;
 }
 
-const CLASE_DEL_BLOQUE: Record<string, Clase> = { picking: 'capacidad', despacho: 'capacidad', recepcion: 'capacidad', masivo: 'masiva', opl: 'servicio_opl', transferencia: 'transferencia', simulacion: 'simulacion' };
-const CLASE_DE: Record<string, Clase> = { consultar_capacidad: 'capacidad', busqueda_masiva: 'masiva', consultar_servicios_opl: 'servicio_opl', consultar_transferencia: 'transferencia', simular_entrega: 'simulacion', consultar_reporte_cds: 'reporte', saber_entidades: 'entidad', saber_servicios: 'servicio', saber_fases: 'servicio' };
+const CLASE_DEL_BLOQUE: Record<string, Clase> = {
+  picking: 'capacidad',
+  despacho: 'capacidad',
+  recepcion: 'capacidad',
+  masivo: 'masiva',
+  opl: 'servicio_opl',
+  transferencia: 'transferencia',
+  simulacion: 'simulacion',
+};
+const CLASE_DE: Record<string, Clase> = {
+  consultar_capacidad: 'capacidad',
+  busqueda_masiva: 'masiva',
+  consultar_servicios_opl: 'servicio_opl',
+  consultar_transferencia: 'transferencia',
+  simular_entrega: 'simulacion',
+  consultar_reporte_cds: 'reporte',
+  saber_entidades: 'entidad',
+  saber_servicios: 'servicio',
+  saber_fases: 'servicio',
+};
 
 /** Las filas de lo que devolvió una herramienta (un atajo: las de cada bloque, según su tipo) */
 export function filasDe(herramienta: string, datos: unknown, hoy = ''): Fila[] {
@@ -82,7 +101,8 @@ export function filasDe(herramienta: string, datos: unknown, hoy = ''): Fila[] {
   }
   // Lo guardado: una lista de filas (la fase, sus servicios)
   if (herramienta === 'saber_fases') return filasDeClase('servicio', (datos as Datos)?.servicios ?? [], hoy);
-  if (herramienta === 'saber_entidades' || herramienta === 'saber_servicios') return filasDeClase(CLASE_DE[herramienta], datos, hoy);
+  if (herramienta === 'saber_entidades' || herramienta === 'saber_servicios')
+    return filasDeClase(CLASE_DE[herramienta], datos, hoy);
   // La v2 guardaba los datos por tandas (una lista de respuestas)
   if (Array.isArray(datos)) return datos.flatMap((d) => filasDe(herramienta, d, hoy));
   return filasDeClase(CLASE_DE[herramienta], datos, hoy);
@@ -94,41 +114,155 @@ function filasDeClase(clase: Clase | undefined, datos: unknown, hoy: string): Fi
     case 'capacidad':
       return arr<{ oficina: string; agendas?: unknown[] }>(d.oficinas).flatMap((o) => {
         const { codigo, nombre } = partirOficina(o.oficina);
-        return arr<{ agenda: string; servicio: string | null; zona?: string; dias: Array<{ fecha: string; activo: boolean; asignado: number; ocupado: number; disponible: number; uso: number }> }>(o.agendas).flatMap((a) =>
-          a.dias.map((x) => ({ clase, codigo, nombre, agenda: a.agenda, servicio: a.servicio ?? undefined, zona: a.zona, fecha: x.fecha, activa: x.activo, asignado: x.asignado, ocupado: x.ocupado, disponible: x.disponible, uso: x.uso })),
+        return arr<{
+          agenda: string;
+          servicio: string | null;
+          zona?: string;
+          dias: Array<{
+            fecha: string;
+            activo: boolean;
+            asignado: number;
+            ocupado: number;
+            disponible: number;
+            uso: number;
+          }>;
+        }>(o.agendas).flatMap((a) =>
+          a.dias.map((x) => ({
+            clase,
+            codigo,
+            nombre,
+            agenda: a.agenda,
+            servicio: a.servicio ?? undefined,
+            zona: a.zona,
+            fecha: x.fecha,
+            activa: x.activo,
+            asignado: x.asignado,
+            ocupado: x.ocupado,
+            disponible: x.disponible,
+            uso: x.uso,
+          })),
         );
       });
     case 'masiva': {
-      const busquedas = Array.isArray(d.busquedas) ? arr<Record<string, unknown>>(d.busquedas).filter((b) => Array.isArray(b.agendas)) : [d];
+      const busquedas = Array.isArray(d.busquedas)
+        ? arr<Record<string, unknown>>(d.busquedas).filter((b) => Array.isArray(b.agendas))
+        : [d];
       return busquedas.flatMap((b) =>
-        arr<{ opl: string; agenda: string; zona?: string; activa: boolean; enCheckout: boolean }>(b.agendas).map((a) => ({ clase, ...partirOficina(a.opl), agenda: a.agenda, zona: a.zona, servicio: String(b.servicio ?? ''), activa: a.activa, enCheckout: a.enCheckout })),
+        arr<{ opl: string; agenda: string; zona?: string; activa: boolean; enCheckout: boolean }>(b.agendas).map(
+          (a) => ({
+            clase,
+            ...partirOficina(a.opl),
+            agenda: a.agenda,
+            zona: a.zona,
+            servicio: String(b.servicio ?? ''),
+            activa: a.activa,
+            enCheckout: a.enCheckout,
+          }),
+        ),
       );
     }
     case 'servicio_opl':
-      return arr<{ opl: string; zona: string; agenda: string; servicios?: Array<{ code: string; activo: boolean; enCheckout: boolean; diasHolgura?: number | null }> }>(d.opls).flatMap((o) =>
-        (o.servicios ?? []).map((s) => ({ clase, ...partirOficina(o.opl), zona: o.zona, agenda: o.agenda, servicio: s.code, activa: s.activo, enCheckout: s.enCheckout, holgura: s.diasHolgura ?? null })),
+      return arr<{
+        opl: string;
+        zona: string;
+        agenda: string;
+        servicios?: Array<{ code: string; activo: boolean; enCheckout: boolean; diasHolgura?: number | null }>;
+      }>(d.opls).flatMap((o) =>
+        (o.servicios ?? []).map((s) => ({
+          clase,
+          ...partirOficina(o.opl),
+          zona: o.zona,
+          agenda: o.agenda,
+          servicio: s.code,
+          activa: s.activo,
+          enCheckout: s.enCheckout,
+          holgura: s.diasHolgura ?? null,
+        })),
       );
     case 'transferencia':
-      return arr<{ origen: string; destino: string; habilitada: boolean; preparacion: number; transito: number; desfase: number }>(d.destinos).map((t) => ({
-        clase, ...partirOficina(t.destino), origen: partirOficina(t.origen).codigo, habilitada: t.habilitada, activa: t.habilitada, preparacion: t.preparacion, transito: t.transito, desfase: t.desfase,
+      return arr<{
+        origen: string;
+        destino: string;
+        habilitada: boolean;
+        preparacion: number;
+        transito: number;
+        desfase: number;
+      }>(d.destinos).map((t) => ({
+        clase,
+        ...partirOficina(t.destino),
+        origen: partirOficina(t.origen).codigo,
+        habilitada: t.habilitada,
+        activa: t.habilitada,
+        preparacion: t.preparacion,
+        transito: t.transito,
+        desfase: t.desfase,
       }));
     case 'simulacion':
-      return arr<{ opl: string; destino: string; servicio: string; entrega: string | null; dias?: number; calculo?: string }>(d.resultados).map((r) => ({
-        clase, ...partirOficina(r.opl), zona: r.destino, servicio: r.servicio, entrega: r.entrega ? isoDe(r.entrega, hoy) : null, fecha: r.entrega ? isoDe(r.entrega, hoy) : undefined, dias: r.dias, calculo: r.calculo,
+      return arr<{
+        opl: string;
+        destino: string;
+        servicio: string;
+        entrega: string | null;
+        dias?: number;
+        calculo?: string;
+      }>(d.resultados).map((r) => ({
+        clase,
+        ...partirOficina(r.opl),
+        zona: r.destino,
+        servicio: r.servicio,
+        entrega: r.entrega ? isoDe(r.entrega, hoy) : null,
+        fecha: r.entrega ? isoDe(r.entrega, hoy) : undefined,
+        dias: r.dias,
+        calculo: r.calculo,
       }));
     case 'reporte': {
       const fechas = arr<string>(d.fechas).map((f) => isoDe(f, hoy));
-      return arr<{ cd: string; nombre: string; jornadas: Array<{ jornada: string; dias: number[][] }> }>(d.cds).flatMap((c) =>
-        c.jornadas.flatMap((j) => j.dias.map((x, i) => ({ clase, codigo: partirOficina(c.cd).codigo, nombre: c.nombre, jornada: j.jornada, servicio: j.jornada, fecha: fechas[i], asignado: x[0], ocupado: x[1], disponible: x[2], uso: x[3], activa: x[4] === 1 }))),
+      return arr<{ cd: string; nombre: string; jornadas: Array<{ jornada: string; dias: number[][] }> }>(d.cds).flatMap(
+        (c) =>
+          c.jornadas.flatMap((j) =>
+            j.dias.map((x, i) => ({
+              clase,
+              codigo: partirOficina(c.cd).codigo,
+              nombre: c.nombre,
+              jornada: j.jornada,
+              servicio: j.jornada,
+              fecha: fechas[i],
+              asignado: x[0],
+              ocupado: x[1],
+              disponible: x[2],
+              uso: x[3],
+              activa: x[4] === 1,
+            })),
+          ),
       );
     }
     case 'entidad':
-      return arr<{ codigo: string; nombre: string | null; tipo: string; es_cd: boolean; pais: string }>(datos).map((e) => ({
-        clase, codigo: e.codigo, nombre: String(e.nombre ?? '').replace(/^ripley\s+/i, ''), tipo: e.es_cd ? 'CD' : e.tipo, pais: e.pais,
-      }));
+      return arr<{ codigo: string; nombre: string | null; tipo: string; es_cd: boolean; pais: string }>(datos).map(
+        (e) => ({
+          clase,
+          codigo: e.codigo,
+          nombre: String(e.nombre ?? '').replace(/^ripley\s+/i, ''),
+          tipo: e.es_cd ? 'CD' : e.tipo,
+          pais: e.pais,
+        }),
+      );
     case 'servicio':
-      return arr<{ codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null; origen?: string | null; pais?: string }>(datos).map((s) => ({
-        clase, codigo: s.codigo, nombre: s.nombre ?? '', servicio: s.codigo, metodo: s.metodo_entrega, fase: s.fase, origen: s.origen ?? undefined, pais: s.pais,
+      return arr<{
+        codigo: string;
+        nombre: string | null;
+        metodo_entrega: string | null;
+        fase: string | null;
+        origen?: string | null;
+        pais?: string;
+      }>(datos).map((s) => ({
+        clase,
+        codigo: s.codigo,
+        nombre: s.nombre ?? '',
+        servicio: s.codigo,
+        metodo: s.metodo_entrega,
+        fase: s.fase,
+        origen: s.origen ?? undefined,
+        pais: s.pais,
       }));
     default:
       return [];
@@ -137,7 +271,12 @@ function filasDeClase(clase: Clase | undefined, datos: unknown, hoy: string): Fi
 
 // ───────────── Condiciones ─────────────
 
-const plano = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+const plano = (s: unknown) =>
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim();
 
 export function cumple(f: Fila, c: Condicion): boolean {
   const v = (f as unknown as Record<string, unknown>)[c.campo];
@@ -149,12 +288,18 @@ export function cumple(f: Fila, c: Condicion): boolean {
   if (typeof v === 'number') {
     const n = Number(w);
     switch (c.op) {
-      case '>': return v > n;
-      case '>=': return v >= n;
-      case '<': return v < n;
-      case '<=': return v <= n;
-      case '!=': return v !== n;
-      default: return v === n;
+      case '>':
+        return v > n;
+      case '>=':
+        return v >= n;
+      case '<':
+        return v < n;
+      case '<=':
+        return v <= n;
+      case '!=':
+        return v !== n;
+      default:
+        return v === n;
     }
   }
   const a = plano(v);
@@ -170,7 +315,14 @@ function porOficina(filas: Fila[], c: Condicion): Set<string> {
     cuenta.get(f.codigo)!.add(f.servicio ?? f.agenda ?? '');
   }
   const ok = new Set<string>();
-  for (const [codigo, s] of cuenta) if (cumple({ clase: 'capacidad', codigo, nombre: '', jornadas: s.size } as unknown as Fila, { ...c, campo: 'jornadas' })) ok.add(codigo);
+  for (const [codigo, s] of cuenta)
+    if (
+      cumple({ clase: 'capacidad', codigo, nombre: '', jornadas: s.size } as unknown as Fila, {
+        ...c,
+        campo: 'jornadas',
+      })
+    )
+      ok.add(codigo);
   return ok;
 }
 
@@ -192,27 +344,86 @@ export function filtrarDatos(herramienta: string, datos: unknown, c: Condicion, 
   const ofCumplen = c.campo === 'jornadas' ? porOficina(filasDe(herramienta, datos, hoy), c) : null;
   switch (herramienta) {
     case 'ejecutar_atajo':
-      return { ...d, bloques: arr<Record<string, unknown>>(d.bloques).map((b) => ({ ...b, items: arr<Record<string, unknown>>(b.items).map((i) => (i.resultado ? { ...i, resultado: filtrarDatos(HERRAMIENTA_DEL_BLOQUE[String(b.tipo)] ?? '', i.resultado, c, hoy) } : i)) })) };
+      return {
+        ...d,
+        bloques: arr<Record<string, unknown>>(d.bloques).map((b) => ({
+          ...b,
+          items: arr<Record<string, unknown>>(b.items).map((i) =>
+            i.resultado
+              ? { ...i, resultado: filtrarDatos(HERRAMIENTA_DEL_BLOQUE[String(b.tipo)] ?? '', i.resultado, c, hoy) }
+              : i,
+          ),
+        })),
+      };
     case 'consultar_capacidad':
-      return { ...d, oficinas: arr<Record<string, unknown>>(d.oficinas).map((o) => ({
-        ...o,
-        agendas: arr<Record<string, unknown>>(o.agendas).filter((a) => (ofCumplen ? ofCumplen.has(partirOficina(o.oficina).codigo) : fila('capacidad', { oficinas: [{ oficina: o.oficina, agendas: [a] }] }).some((f) => cumple(f, c)))),
-      })).filter((o) => (o.agendas as unknown[]).length) };
+      return {
+        ...d,
+        oficinas: arr<Record<string, unknown>>(d.oficinas)
+          .map((o) => ({
+            ...o,
+            agendas: arr<Record<string, unknown>>(o.agendas).filter((a) =>
+              ofCumplen
+                ? ofCumplen.has(partirOficina(o.oficina).codigo)
+                : fila('capacidad', { oficinas: [{ oficina: o.oficina, agendas: [a] }] }).some((f) => cumple(f, c)),
+            ),
+          }))
+          .filter((o) => (o.agendas as unknown[]).length),
+      };
     case 'busqueda_masiva': {
-      const filtrar = (b: Record<string, unknown>) => ({ ...b, agendas: arr<Record<string, unknown>>(b.agendas).filter((a) => fila('masiva', { servicio: b.servicio, agendas: [a] }).some((f) => cumple(f, c))) });
-      return Array.isArray(d.busquedas) ? { ...d, busquedas: arr<Record<string, unknown>>(d.busquedas).map((b) => (Array.isArray(b.agendas) ? filtrar(b) : b)) } : filtrar(d);
+      const filtrar = (b: Record<string, unknown>) => ({
+        ...b,
+        agendas: arr<Record<string, unknown>>(b.agendas).filter((a) =>
+          fila('masiva', { servicio: b.servicio, agendas: [a] }).some((f) => cumple(f, c)),
+        ),
+      });
+      return Array.isArray(d.busquedas)
+        ? {
+            ...d,
+            busquedas: arr<Record<string, unknown>>(d.busquedas).map((b) =>
+              Array.isArray(b.agendas) ? filtrar(b) : b,
+            ),
+          }
+        : filtrar(d);
     }
     case 'consultar_servicios_opl':
-      return { ...d, opls: arr<Record<string, unknown>>(d.opls).map((o) => ({ ...o, servicios: arr<Record<string, unknown>>(o.servicios).filter((s) => fila('servicio_opl', { opls: [{ ...o, servicios: [s] }] }).some((f) => cumple(f, c))) })).filter((o) => (o.servicios as unknown[]).length) };
+      return {
+        ...d,
+        opls: arr<Record<string, unknown>>(d.opls)
+          .map((o) => ({
+            ...o,
+            servicios: arr<Record<string, unknown>>(o.servicios).filter((s) =>
+              fila('servicio_opl', { opls: [{ ...o, servicios: [s] }] }).some((f) => cumple(f, c)),
+            ),
+          }))
+          .filter((o) => (o.servicios as unknown[]).length),
+      };
     case 'consultar_transferencia':
-      return { ...d, destinos: arr<Record<string, unknown>>(d.destinos).filter((t) => fila('transferencia', { destinos: [t] }).some((f) => cumple(f, c))) };
+      return {
+        ...d,
+        destinos: arr<Record<string, unknown>>(d.destinos).filter((t) =>
+          fila('transferencia', { destinos: [t] }).some((f) => cumple(f, c)),
+        ),
+      };
     case 'simular_entrega':
-      return { ...d, resultados: arr<Record<string, unknown>>(d.resultados).filter((r) => fila('simulacion', { resultados: [r] }).some((f) => cumple(f, c))) };
+      return {
+        ...d,
+        resultados: arr<Record<string, unknown>>(d.resultados).filter((r) =>
+          fila('simulacion', { resultados: [r] }).some((f) => cumple(f, c)),
+        ),
+      };
     default:
       return datos;
   }
 }
-const HERRAMIENTA_DEL_BLOQUE: Record<string, string> = { picking: 'consultar_capacidad', despacho: 'consultar_capacidad', recepcion: 'consultar_capacidad', masivo: 'busqueda_masiva', opl: 'consultar_servicios_opl', transferencia: 'consultar_transferencia', simulacion: 'simular_entrega' };
+const HERRAMIENTA_DEL_BLOQUE: Record<string, string> = {
+  picking: 'consultar_capacidad',
+  despacho: 'consultar_capacidad',
+  recepcion: 'consultar_capacidad',
+  masivo: 'busqueda_masiva',
+  opl: 'consultar_servicios_opl',
+  transferencia: 'consultar_transferencia',
+  simulacion: 'simular_entrega',
+};
 
 // ───────────── Comprobar ─────────────
 
@@ -245,6 +456,11 @@ export function comprobar(filas: Fila[], c: Comprobacion): ResultadoComprobacion
     const ok = esSiNo ? fs.every((f) => cumple(f, c)) : fs.some((f) => cumple(f, c));
     (ok ? cumplen : noCumplen).push(codigo);
   }
-  const si = c.cuantos === 'todos' ? noCumplen.length === 0 && cumplen.length > 0 : c.cuantos === 'ninguno' ? cumplen.length === 0 : cumplen.length > 0;
+  const si =
+    c.cuantos === 'todos'
+      ? noCumplen.length === 0 && cumplen.length > 0
+      : c.cuantos === 'ninguno'
+        ? cumplen.length === 0
+        : cumplen.length > 0;
   return { si, total: porCodigo.size, cumplen, noCumplen };
 }

@@ -17,7 +17,10 @@ export interface FilaCambio {
 }
 
 /** "1100 - Lima metropolitana" → "1100 · Lima metropolitana" */
-const oficina = (s: unknown) => { const o = partirOficina(s); return o.nombre && o.nombre !== o.codigo ? `${o.codigo} · ${o.nombre}` : o.codigo; };
+const oficina = (s: unknown) => {
+  const o = partirOficina(s);
+  return o.nombre && o.nombre !== o.codigo ? `${o.codigo} · ${o.nombre}` : o.codigo;
+};
 /** "Agenda (Zona)", y la zona solo si se llama distinto (en despacho suelen ser el mismo nombre) */
 const conZona = (agenda: unknown, zona: unknown) => {
   const a = String(agenda ?? '').trim();
@@ -25,7 +28,10 @@ const conZona = (agenda: unknown, zona: unknown) => {
   return z && z.toLowerCase() !== a.toLowerCase() ? `${a} (${z})` : a;
 };
 /** "2026-11-12" → "12/11" */
-const ddmm = (f: unknown) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f ?? '')); return m ? `${m[3]}/${m[2]}` : String(f ?? ''); };
+const ddmm = (f: unknown) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f ?? ''));
+  return m ? `${m[3]}/${m[2]}` : String(f ?? '');
+};
 /** "Ya estaba así": no es un fallo, es que no cambiaría nada */
 const YA_ESTABA = /^ya estaba(n)? as[ií]/i;
 const si = (b: boolean | null | undefined, s: string, n: string) => (b === null || b === undefined ? '—' : b ? s : n);
@@ -39,7 +45,10 @@ function estadoDia(e: R | null): string {
 
 function estadoServicio(e: R | null): string {
   if (!e) return '—';
-  const partes = [si(e.activo as boolean, 'activo', 'inactivo'), si(e.enCheckout as boolean, 'en checkout', 'fuera del checkout')];
+  const partes = [
+    si(e.activo as boolean, 'activo', 'inactivo'),
+    si(e.enCheckout as boolean, 'en checkout', 'fuera del checkout'),
+  ];
   if (Array.isArray(e.cortes) && e.cortes.length) partes.push(`corte ${(e.cortes as string[]).join(', ')}`);
   if (e.diasHolgura !== null && e.diasHolgura !== undefined) partes.push(`holgura ${String(e.diasHolgura)}`);
   if (e.maxOcurrencia !== null && e.maxOcurrencia !== undefined) partes.push(`ocurrencias ${String(e.maxOcurrencia)}`);
@@ -57,19 +66,39 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
   switch (herramienta) {
     case 'editar_capacidad':
     case 'editar_capacidad_transferencia':
-      return arr(d.oficinas).flatMap((o) => (o.error && !arr(o.agendas).length
-        ? [{ donde: oficina(o.oficina), dia: '', antes: '—', despues: '—', error: String(o.error) }]
-        : arr(o.agendas).flatMap((a) => (a.error && !arr(a.dias).length
-          ? [YA_ESTABA.test(String(a.error))
-            ? { donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`, dia: '', antes: 'ya está así', despues: 'ya está así' }
-            : { donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`, dia: '', antes: '—', despues: '—', error: String(a.error) }]
-          : arr(a.dias).map((x) => ({
-            donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`,
-            dia: String(x.fecha),
-            antes: estadoDia(x.antes as R | null),
-            despues: x.error && YA_ESTABA.test(String(x.error)) ? estadoDia(x.antes as R | null) : estadoDia(x.despues as R | null),
-            ...(x.error && !YA_ESTABA.test(String(x.error)) ? { error: String(x.error) } : {}),
-          }))))));
+      return arr(d.oficinas).flatMap((o) =>
+        o.error && !arr(o.agendas).length
+          ? [{ donde: oficina(o.oficina), dia: '', antes: '—', despues: '—', error: String(o.error) }]
+          : arr(o.agendas).flatMap((a) =>
+              a.error && !arr(a.dias).length
+                ? [
+                    YA_ESTABA.test(String(a.error))
+                      ? {
+                          donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`,
+                          dia: '',
+                          antes: 'ya está así',
+                          despues: 'ya está así',
+                        }
+                      : {
+                          donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`,
+                          dia: '',
+                          antes: '—',
+                          despues: '—',
+                          error: String(a.error),
+                        },
+                  ]
+                : arr(a.dias).map((x) => ({
+                    donde: `${oficina(o.oficina)} · ${conZona(a.agenda, a.zona)}`,
+                    dia: String(x.fecha),
+                    antes: estadoDia(x.antes as R | null),
+                    despues:
+                      x.error && YA_ESTABA.test(String(x.error))
+                        ? estadoDia(x.antes as R | null)
+                        : estadoDia(x.despues as R | null),
+                    ...(x.error && !YA_ESTABA.test(String(x.error)) ? { error: String(x.error) } : {}),
+                  })),
+            ),
+      );
     case 'cortar_reabrir_cd':
       return arr(d.jornadas).map((j) => ({
         donde: `${String(j.cd)} · ${String(j.jornada)}${j.agenda ? ` (${String(j.agenda)})` : ''}`,
@@ -79,12 +108,15 @@ export function filasDelCambio(herramienta: string, datos: unknown): FilaCambio[
         ...(j.error ? { error: String(j.error) } : {}),
       }));
     case 'reasignar_capacidad':
-      return ['origen', 'destino'].map((k) => d[k] as R).filter(Boolean).map((j) => ({
-        donde: `${String(d.cd)} · ${String(j.jornada)}${j.agenda ? ` (${String(j.agenda)})` : ''}`,
-        dia: String(j.fecha),
-        antes: `asignado ${String(j.asignadoAntes)}`,
-        despues: `asignado ${String(j.asignadoDespues)} (ocupado ${String(j.ocupado)})`,
-      }));
+      return ['origen', 'destino']
+        .map((k) => d[k] as R)
+        .filter(Boolean)
+        .map((j) => ({
+          donde: `${String(d.cd)} · ${String(j.jornada)}${j.agenda ? ` (${String(j.agenda)})` : ''}`,
+          dia: String(j.fecha),
+          antes: `asignado ${String(j.asignadoAntes)}`,
+          despues: `asignado ${String(j.asignadoDespues)} (ocupado ${String(j.ocupado)})`,
+        }));
     case 'editar_servicio_opl':
       return arr(d.servicios).map((s) => ({
         donde: `${oficina(s.opl)} · ${conZona(s.agenda, s.zona)} · ${String(s.servicio)}`,
@@ -128,7 +160,10 @@ const UNIDAD: Record<string, [string, string]> = {
   editar_masivo: ['agenda', 'agendas'],
   editar_transferencia: ['relación', 'relaciones'],
 };
-const unidad = (herramienta: string, n: number) => { const u = UNIDAD[herramienta]; return u ? ` ${n === 1 ? u[0] : u[1]}` : ''; };
+const unidad = (herramienta: string, n: number) => {
+  const u = UNIDAD[herramienta];
+  return u ? ` ${n === 1 ? u[0] : u[1]}` : '';
+};
 
 /** Sin modo editor no se pregunta «¿Procedo?»: se dice cómo aplicarlo */
 export const SIN_EDITOR = 'Para aplicarlo, activa el modo editor y pídemelo otra vez.';
@@ -145,7 +180,11 @@ export function resumenAplicado(herramienta: string, a: PasoAplicado): { estado:
   const noPudo = Math.max(errores.length, fallos.length);
   const motivos = [...new Set([...errores.map((e) => e.error), ...fallos.map((f) => f.error)].filter(Boolean))];
   const partes = [
-    cambiaron ? `Apliqué el cambio: ${cambiaron === 1 ? 'cambió 1' : `cambiaron ${cambiaron}`} de ${filas.length}${unidad(herramienta, filas.length)}` : noPudo ? 'No apliqué nada' : 'No cambió nada: ya estaba así',
+    cambiaron
+      ? `Apliqué el cambio: ${cambiaron === 1 ? 'cambió 1' : `cambiaron ${cambiaron}`} de ${filas.length}${unidad(herramienta, filas.length)}`
+      : noPudo
+        ? 'No apliqué nada'
+        : 'No cambió nada: ya estaba así',
     noPudo ? `${noPudo} no se ${noPudo === 1 ? 'pudo' : 'pudieron'} aplicar (${motivos.slice(0, 2).join('; ')})` : null,
   ].filter(Boolean);
   return { estado: cambiaron ? 'ok' : 'vacio', resumen: `${partes.join('; ')}.` };
@@ -158,15 +197,23 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
   const iguales = filas.length - cambian.length - errores.length;
   // La edición masiva dice cuántas ya estaban así (no cambiaría ninguna)
   const yaEstaban = (datos as { yaEstaban?: number } | null)?.yaEstaban;
-  if (!filas.length && yaEstaban) return { estado: 'vacio', resumen: `No cambiaría nada: ${yaEstaban === 1 ? 'la agenda ya está así' : `las ${yaEstaban} agendas ya están así`}.` };
+  if (!filas.length && yaEstaban)
+    return {
+      estado: 'vacio',
+      resumen: `No cambiaría nada: ${yaEstaban === 1 ? 'la agenda ya está así' : `las ${yaEstaban} agendas ya están así`}.`,
+    };
   if (!filas.length) return { estado: 'vacio', resumen: 'No encontré nada a lo que aplicar el cambio.' };
   // Las notas del paso ("agenda: …; sin ella: 1007, 1021") dicen a qué se aplicaría: van en la frase
   const notas = ((datos as { notas?: unknown[] } | null)?.notas ?? []).map(String).filter((x) => x.trim());
   const aQue = notas.length ? ` (${notas.join('; ')})` : '';
   const partes = [
-    cambian.length ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}${unidad(herramienta, filas.length)}${aQue}` : `No cambiaría nada${aQue}: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
+    cambian.length
+      ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}${unidad(herramienta, filas.length)}${aQue}`
+      : `No cambiaría nada${aQue}: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
     iguales && cambian.length ? `${iguales} ya ${iguales === 1 ? 'estaba' : 'estaban'} así` : null,
-    errores.length ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${[...new Set(errores.map((e) => e.error))].slice(0, 2).join('; ')})` : null,
+    errores.length
+      ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${[...new Set(errores.map((e) => e.error))].slice(0, 2).join('; ')})`
+      : null,
   ].filter(Boolean);
   // "No apliqué nada" lo dice la respuesta, una vez y solo si no pregunta «¿Procedo?» (armarRespuesta)
   return { estado: cambian.length ? 'ok' : 'vacio', resumen: `${partes.join('; ')}.` };
@@ -182,12 +229,22 @@ export function fraseDeCambios(cambios: PasoEjecutado[]): string {
   const parte = (p: PasoEjecutado) => {
     const titulo = `paso ${p.n} · ${p.que.replace(/^Vista previa: /, '')}`;
     if (p.estado === 'error') return `${titulo}: no se ${aplicados ? 'pudo' : 'podría'} (${p.error ?? p.resumen})`;
-    return `${titulo}: ${p.resumen.replace(` ${NO_APLICADO}`, '').replace(/^Así quedaría: /, '').replace(/^Apliqué el cambio: /, '').replace(/\.$/, '')}`;
+    return `${titulo}: ${p.resumen
+      .replace(` ${NO_APLICADO}`, '')
+      .replace(/^Así quedaría: /, '')
+      .replace(/^Apliqué el cambio: /, '')
+      .replace(/\.$/, '')}`;
   };
-  return aplicados ? `Apliqué los cambios — ${cambios.map(parte).join('. ')}.` : `Así quedaría — ${cambios.map(parte).join('. ')}.`;
+  return aplicados
+    ? `Apliqué los cambios — ${cambios.map(parte).join('. ')}.`
+    : `Así quedaría — ${cambios.map(parte).join('. ')}.`;
 }
 
-const celda = (s: unknown) => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+const celda = (s: unknown) =>
+  String(s ?? '')
+    .replace(/\|/g, '/')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export function markdownCambio(herramienta: string, datos: unknown): string {
   const filas = filasDelCambio(herramienta, datos);
@@ -196,6 +253,16 @@ export function markdownCambio(herramienta: string, datos: unknown): string {
   // Aplicado de verdad: "antes" y "quedó"; si no, la vista previa: "ahora" y "quedaría"
   const aplicado = (datos as { aplicado?: boolean } | null)?.aplicado === true;
   const cab = ['Dónde', ...(conDia ? ['Día'] : []), aplicado ? 'Antes' : 'Ahora', aplicado ? 'Quedó' : 'Quedaría'];
-  const fila = (f: FilaCambio) => [f.donde, ...(conDia ? [ddmm(f.dia)] : []), f.antes, f.error ? `no se ${aplicado ? 'pudo' : 'puede'}: ${f.error}` : f.despues === f.antes ? 'igual' : f.despues];
-  return [`| ${cab.join(' | ')} |`, `| ${cab.map(() => '---').join(' | ')} |`, ...filas.slice(0, 60).map((f) => `| ${fila(f).map(celda).join(' | ')} |`), ...(filas.length > 60 ? [`\n…y ${filas.length - 60} más`] : [])].join('\n');
+  const fila = (f: FilaCambio) => [
+    f.donde,
+    ...(conDia ? [ddmm(f.dia)] : []),
+    f.antes,
+    f.error ? `no se ${aplicado ? 'pudo' : 'puede'}: ${f.error}` : f.despues === f.antes ? 'igual' : f.despues,
+  ];
+  return [
+    `| ${cab.join(' | ')} |`,
+    `| ${cab.map(() => '---').join(' | ')} |`,
+    ...filas.slice(0, 60).map((f) => `| ${fila(f).map(celda).join(' | ')} |`),
+    ...(filas.length > 60 ? [`\n…y ${filas.length - 60} más`] : []),
+  ].join('\n');
 }

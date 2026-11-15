@@ -29,14 +29,23 @@ export class MensajesV3Controller {
   /** POST /agente/v3/mensajes — un mensaje del chat; contesta con el flujo de eventos */
   @Post('mensajes')
   @SinMarcaSimulacro()
-  async mensaje(@Usuario() usuario: UsuarioAutenticado, @Body() body: CrearTurnoDto, @Res() res: Response): Promise<void> {
+  async mensaje(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: CrearTurnoDto,
+    @Res() res: Response,
+  ): Promise<void> {
     await this.enviar(res, this.motor.mensaje(usuario, body));
   }
 
   /** POST /agente/v3/turnos/:id/contestar — la respuesta a la pregunta de un turno; sigue con su flujo */
   @Post('turnos/:id/contestar')
   @SinMarcaSimulacro()
-  async contestar(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: ContestarDto, @Res() res: Response): Promise<void> {
+  async contestar(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: ContestarDto,
+    @Res() res: Response,
+  ): Promise<void> {
     const { peticion_id: peticion, ...respuesta } = body;
     await this.enviar(res, this.motor.contestar(usuario, id, respuesta, peticion));
   }
@@ -44,7 +53,12 @@ export class MensajesV3Controller {
   /** POST /agente/v3/turnos/:id/deshacer — vuelve atrás lo que aplicó ese mensaje (con vista previa y «¿Lo dejo como estaba?») */
   @Post('turnos/:id/deshacer')
   @SinMarcaSimulacro()
-  async deshacer(@Usuario() usuario: UsuarioAutenticado, @Param('id', ParseUUIDPipe) id: string, @Body() body: DeshacerDto, @Res() res: Response): Promise<void> {
+  async deshacer(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: DeshacerDto,
+    @Res() res: Response,
+  ): Promise<void> {
     await this.enviar(res, this.motor.deshacer(usuario, id, body.peticion_id));
   }
 
@@ -57,7 +71,9 @@ export class MensajesV3Controller {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
     let ido = false;
-    res.on('close', () => { if (!res.writableEnded) ido = true; });
+    res.on('close', () => {
+      if (!res.writableEnded) ido = true;
+    });
     try {
       for await (const evento of eventos) {
         if (!ido) res.write(`${JSON.stringify(evento)}\n`);

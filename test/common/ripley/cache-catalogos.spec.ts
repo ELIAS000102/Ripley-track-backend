@@ -38,10 +38,7 @@ describe('Caché de catálogos: lo que ahorra', () => {
 
   it('el mismo catálogo en otro país es otra entrada', async () => {
     const cache = new CacheCatalogosService(contextoDe('u1'));
-    const traer = vi
-      .fn()
-      .mockResolvedValueOnce('PE')
-      .mockResolvedValueOnce('CL');
+    const traer = vi.fn().mockResolvedValueOnce('PE').mockResolvedValueOnce('CL');
 
     expect(await cache.recordar('services', 'PE', traer)).toBe('PE');
     expect(await cache.recordar('services', 'CL', traer)).toBe('CL');
@@ -60,10 +57,7 @@ describe('Caché de catálogos: lo que NO comparte', () => {
     const cache = new CacheCatalogosService(contexto);
 
     const usuarioActual = contexto.usuarioActual as ReturnType<typeof vi.fn>;
-    const traer = vi
-      .fn()
-      .mockResolvedValueOnce('de u1')
-      .mockResolvedValueOnce('de u2');
+    const traer = vi.fn().mockResolvedValueOnce('de u1').mockResolvedValueOnce('de u2');
 
     usuarioActual.mockReturnValue({ id: 'u1', email: 'a@b.c' });
     expect(await cache.recordar('offices', 'PE', traer)).toBe('de u1');
@@ -89,10 +83,7 @@ describe('Caché de catálogos: lo que NO comparte', () => {
 describe('Caché de catálogos: cuándo se olvida', () => {
   it('una escritura la invalida en ese país', async () => {
     const cache = new CacheCatalogosService(contextoDe('u1'));
-    const traer = vi
-      .fn()
-      .mockResolvedValueOnce('antes')
-      .mockResolvedValueOnce('después');
+    const traer = vi.fn().mockResolvedValueOnce('antes').mockResolvedValueOnce('después');
 
     expect(await cache.recordar('offices', 'PE', traer)).toBe('antes');
 
@@ -135,10 +126,7 @@ describe('Caché de catálogos: cuándo se olvida', () => {
 
   it('un fallo no se guarda como si fuera un dato', async () => {
     const cache = new CacheCatalogosService(contextoDe('u1'));
-    const traer = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('502'))
-      .mockResolvedValueOnce('dato');
+    const traer = vi.fn().mockRejectedValueOnce(new Error('502')).mockResolvedValueOnce('dato');
 
     await expect(cache.recordar('offices', 'PE', traer)).rejects.toThrow('502');
 

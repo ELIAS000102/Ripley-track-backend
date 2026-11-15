@@ -1,10 +1,4 @@
-import {
-  CAMPOS_G12,
-  COMPONENTES_G12,
-  definicionDe,
-  LIMITES_G12,
-  RESUMEN_POR_DEFECTO,
-} from './g12.componentes.js';
+import { CAMPOS_G12, COMPONENTES_G12, definicionDe, LIMITES_G12, RESUMEN_POR_DEFECTO } from './g12.componentes.js';
 import type {
   BloqueG12,
   ClaveComponente,
@@ -31,7 +25,12 @@ type Entrada = {
   componentes?: Array<{
     clave: string;
     filas?: Array<{ nombre: string; suma?: string[]; oracle?: string[]; resaltada?: boolean }>;
-    bloques?: Array<{ tipo: string; nota?: string; muestra?: boolean; items?: Array<{ fila: string; nota?: string; campos?: Record<string, unknown> }> }>;
+    bloques?: Array<{
+      tipo: string;
+      nota?: string;
+      muestra?: boolean;
+      items?: Array<{ fila: string; nota?: string; campos?: Record<string, unknown> }>;
+    }>;
   }>;
   resumen?: Array<{ nombre: string; partes?: Array<{ componente: string; fila?: string }> }>;
   solicitudes?: Parameters<typeof normalizarSolicitudes>[0];
@@ -50,7 +49,8 @@ function limpiarCampos(tipo: TipoBloqueG12, campos: Record<string, unknown>, don
   const salida: Record<string, string | number> = {};
 
   for (const nombre of Object.keys(campos ?? {})) {
-    if (!definidos.some((c) => c.clave === nombre)) errores.push(`${donde}: el campo "${nombre}" no existe en un bloque de ${tipo}.`);
+    if (!definidos.some((c) => c.clave === nombre))
+      errores.push(`${donde}: el campo "${nombre}" no existe en un bloque de ${tipo}.`);
   }
 
   for (const c of definidos) {
@@ -110,15 +110,25 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
     const nombres = new Map<string, string>();
     for (const f of c.filas ?? []) {
       const nombre = String(f.nombre ?? '').trim();
-      if (!nombre) { errores.push(`${def.titulo}: hay una fila sin nombre.`); continue; }
-      if (nombres.has(clave(nombre))) { errores.push(`${def.titulo}: la fila "${nombre}" está dos veces.`); continue; }
+      if (!nombre) {
+        errores.push(`${def.titulo}: hay una fila sin nombre.`);
+        continue;
+      }
+      if (nombres.has(clave(nombre))) {
+        errores.push(`${def.titulo}: la fila "${nombre}" está dos veces.`);
+        continue;
+      }
       nombres.set(clave(nombre), nombre);
       const oracle = [...new Set((f.oracle ?? []).map((s) => String(s).trim()).filter(Boolean))];
       if (oracle.length && def.clave !== 'dd_lima') {
         errores.push(`${def.titulo}: "${nombre}" tiene sub-flujos del Oracle, que solo van en Despacho domicilio.`);
       }
-      if (oracle.length > 20) errores.push(`${def.titulo}: "${nombre}" suma demasiados sub-flujos del Oracle (máximo 20).`);
-      if (oracle.some((s) => s === '*')) errores.push(`${def.titulo}: "${nombre}": un "*" solo sumaría todo el Oracle; escribe el comienzo del sub-flujo, como "SD_RM*".`);
+      if (oracle.length > 20)
+        errores.push(`${def.titulo}: "${nombre}" suma demasiados sub-flujos del Oracle (máximo 20).`);
+      if (oracle.some((s) => s === '*'))
+        errores.push(
+          `${def.titulo}: "${nombre}": un "*" solo sumaría todo el Oracle; escribe el comienzo del sub-flujo, como "SD_RM*".`,
+        );
       componente.filas.push({
         nombre,
         ...(f.suma?.length ? { suma: f.suma.map((s) => String(s).trim()).filter(Boolean) } : {}),
@@ -133,7 +143,8 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
       for (const s of f.suma ?? []) {
         const destino = componente.filas.find((x) => clave(x.nombre) === clave(s));
         if (!destino) errores.push(`${def.titulo}: "${f.nombre}" suma "${s}", que no es una fila del cuadro.`);
-        else if (destino.suma?.length) errores.push(`${def.titulo}: "${f.nombre}" suma "${s}", que también es un total.`);
+        else if (destino.suma?.length)
+          errores.push(`${def.titulo}: "${f.nombre}" suma "${s}", que también es un total.`);
         else if (destino === f) errores.push(`${def.titulo}: "${f.nombre}" se suma a sí misma.`);
       }
       // Se guardan con el nombre exacto de la fila, no como se escribieron
@@ -147,7 +158,9 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
     (c.bloques ?? []).forEach((b, i) => {
       const donde = `${def.titulo}, bloque ${i + 1}`;
       if (!def.tipos.includes(b.tipo as TipoBloqueG12)) {
-        errores.push(`${donde}: un cuadro "${def.titulo}" no lleva bloques de ${b.tipo}. Admite: ${def.tipos.join(', ')}.`);
+        errores.push(
+          `${donde}: un cuadro "${def.titulo}" no lleva bloques de ${b.tipo}. Admite: ${def.tipos.join(', ')}.`,
+        );
         return;
       }
       const tipo = b.tipo as TipoBloqueG12;
@@ -208,7 +221,8 @@ function normalizarResumen(
   componentes: ComponenteG12[],
   errores: string[],
 ): LineaResumenG12[] {
-  if (lineas.length > LIMITES_G12.lineasResumen) errores.push(`El resumen tiene demasiadas líneas (máximo ${LIMITES_G12.lineasResumen}).`);
+  if (lineas.length > LIMITES_G12.lineasResumen)
+    errores.push(`El resumen tiene demasiadas líneas (máximo ${LIMITES_G12.lineasResumen}).`);
 
   return lineas.map((l, i) => {
     const nombre = String(l.nombre ?? '').trim();

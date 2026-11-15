@@ -15,7 +15,12 @@ import type { Cd } from '../../reportes/cds/interfaces/reporte-cds.interface.js'
 export type CdsPorPais = Record<string, Cd[]>;
 
 const normalizar = (s: string) =>
-  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ]+/g, ' ').trim();
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9ñ]+/g, ' ')
+    .trim();
 
 /**
  * El país de la petición, corregido por el código del CD.
@@ -26,7 +31,11 @@ const normalizar = (s: string) =>
  * 10095 en Perú" no ayuda a nadie: se usa el país del CD. Solo con el código
  * exacto; un nombre o un alias no corrige nada.
  */
-export function paisDelCd(termino: string | undefined, pais: string | undefined, todos: CdsPorPais): string | undefined {
+export function paisDelCd(
+  termino: string | undefined,
+  pais: string | undefined,
+  todos: CdsPorPais,
+): string | undefined {
   const codigo = termino?.trim();
   if (!codigo || !/^\d+$/.test(codigo)) return pais;
   const actual = (pais ?? 'PE').toUpperCase().trim();
@@ -58,7 +67,9 @@ export function resolverCd(termino: string, cds: Cd[]): Cd | undefined {
   const porAlias = alias.find(({ a }) => texto.includes(` ${a} `));
   if (porAlias) return porAlias.cd;
 
-  return cds.find((c) => c.nombre && normalizar(c.nombre).includes(normalizar(buscado)) && normalizar(buscado).length > 0);
+  return cds.find(
+    (c) => c.nombre && normalizar(c.nombre).includes(normalizar(buscado)) && normalizar(buscado).length > 0,
+  );
 }
 
 /**

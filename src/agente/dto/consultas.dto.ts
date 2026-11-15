@@ -151,9 +151,7 @@ export class ConsultarReporteDto extends ConVentanaDto {
    * son nombres de la operación y no están en ningún catálogo de Ripley.
    */
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' && !value.trim() ? undefined : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' && !value.trim() ? undefined : value))
   @IsString()
   cd?: string;
 

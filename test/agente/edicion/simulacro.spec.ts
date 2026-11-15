@@ -32,14 +32,30 @@ import { almacenesDePrueba } from '../../fixtures/almacenes.js';
 
 const USUARIO = { id: 'u1', email: 'ana@ejemplo.com' } as UsuarioAutenticado;
 
-const SEMANA = { monday: true, tuesday: true, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false };
+const SEMANA = {
+  monday: true,
+  tuesday: true,
+  wednesday: false,
+  thursday: false,
+  friday: false,
+  saturday: false,
+  sunday: false,
+};
 
 /** El documento de relaciones del 20026, como lo devuelve Ripley */
 const DOCUMENTO = {
   id: 'doc-1',
   warehouse: 'w-1',
   relationships: [
-    { _id: 'r-1', courier: 'c-1', label: '20021 - Chorrillos', canTransfer: false, transferPeriod: 2, preTransferPeriod: 1, availableDays: SEMANA },
+    {
+      _id: 'r-1',
+      courier: 'c-1',
+      label: '20021 - Chorrillos',
+      canTransfer: false,
+      transferPeriod: 2,
+      preTransferPeriod: 1,
+      availableDays: SEMANA,
+    },
   ],
 };
 
@@ -47,9 +63,18 @@ const DOCUMENTO = {
 const SERVICIOS = {
   typeOfServices: [
     {
-      id: 's-sd', code: 'SD', label: 'SD', description: 'Despacho a domicilio',
-      isActive: true, enabledForCheckout: true, maxOcurrence: '0', slackDays: '1',
-      cutTime: [{ id: 1, label: 'Lunes', value: '23:30' }, { id: 4, label: 'Jueves', value: '23:30' }],
+      id: 's-sd',
+      code: 'SD',
+      label: 'SD',
+      description: 'Despacho a domicilio',
+      isActive: true,
+      enabledForCheckout: true,
+      maxOcurrence: '0',
+      slackDays: '1',
+      cutTime: [
+        { id: 1, label: 'Lunes', value: '23:30' },
+        { id: 4, label: 'Jueves', value: '23:30' },
+      ],
       channelSale: [],
     },
   ],
@@ -62,7 +87,8 @@ function cadena() {
   const responder = (url: string) => {
     if (url.endsWith('/officeRelationship')) return DOCUMENTO;
     if (url.endsWith('/mainzones')) return { rows: [{ id: 'z-1', name: 'Lima Centro' }] };
-    if (url.endsWith('/mainschedules')) return { rows: [{ id: 'a-1', name: 'Agenda DT', mainZone: 'z-1', courier: 'o-1' }] };
+    if (url.endsWith('/mainschedules'))
+      return { rows: [{ id: 'a-1', name: 'Agenda DT', mainZone: 'z-1', courier: 'o-1' }] };
     if (url.endsWith('/listTypeServices')) return SERVICIOS;
     return {};
   };
@@ -88,22 +114,39 @@ function cadena() {
   const catalogos = {
     oficinasConTotal: vi.fn(async (_pais: string, filtro: { tipo?: string }) => ({
       total: 1,
-      filas: [filtro.tipo === 'almacen' ? { id: 'w-1', code: '20026', name: 'CD Villa El Salvador' } : { id: 'o-1', code: '1130', name: 'Olva' }],
+      filas: [
+        filtro.tipo === 'almacen'
+          ? { id: 'w-1', code: '20026', name: 'CD Villa El Salvador' }
+          : { id: 'o-1', code: '1130', name: 'Olva' },
+      ],
     })),
   } as unknown as CatalogosRipleyService;
 
   const agente = { armar: vi.fn().mockResolvedValue({ pais: 'PE' }) } as unknown as ContextoAgenteService;
 
-  const transferencias = new EditarTransferenciaAgenteService(new TransfService(ripley, catalogos, contexto), agente, contexto, almacenesDePrueba());
-  const tiposDeServicio = new EditarTipoServicioAgenteService(new OplService(ripley, catalogos, contexto), agente, contexto, { leer: vi.fn() } as never);
+  const transferencias = new EditarTransferenciaAgenteService(
+    new TransfService(ripley, catalogos, contexto),
+    agente,
+    contexto,
+    almacenesDePrueba(),
+  );
+  const tiposDeServicio = new EditarTipoServicioAgenteService(
+    new OplService(ripley, catalogos, contexto),
+    agente,
+    contexto,
+    { leer: vi.fn() } as never,
+  );
 
   /** Como una petición: con su usuario y, si se pide, en simulacro */
   const peticion = <T>(fn: () => Promise<T>, simulacro: boolean) =>
-    contexto.ejecutar(async () => {
-      contexto.identificarUsuario(USUARIO.id, USUARIO.email);
-      const resultado = await fn();
-      return { resultado, evitadas: contexto.escriturasEvitadas().length };
-    }, { simulacro });
+    contexto.ejecutar(
+      async () => {
+        contexto.identificarUsuario(USUARIO.id, USUARIO.email);
+        const resultado = await fn();
+        return { resultado, evitadas: contexto.escriturasEvitadas().length };
+      },
+      { simulacro },
+    );
 
   return { http, transferencias, tiposDeServicio, peticion };
 }
@@ -149,7 +192,10 @@ describe('Un tipo de servicio, en simulacro', () => {
   it('no escribe, y el "después" es como quedaría, con sus reglas: desactivar lo saca del checkout', async () => {
     const { http, tiposDeServicio, peticion } = cadena();
 
-    const { resultado, evitadas } = await peticion(() => tiposDeServicio.editar(USUARIO, editar({ activo: false })), true);
+    const { resultado, evitadas } = await peticion(
+      () => tiposDeServicio.editar(USUARIO, editar({ activo: false })),
+      true,
+    );
 
     expect(http.put).not.toHaveBeenCalled();
     expect(evitadas).toBe(1);
@@ -160,7 +206,10 @@ describe('Un tipo de servicio, en simulacro', () => {
   it('una hora de corte cambia solo su día', async () => {
     const { tiposDeServicio, peticion } = cadena();
 
-    const { resultado } = await peticion(() => tiposDeServicio.editar(USUARIO, editar({ dia: 'jueves', corte: '17:00' })), true);
+    const { resultado } = await peticion(
+      () => tiposDeServicio.editar(USUARIO, editar({ dia: 'jueves', corte: '17:00' })),
+      true,
+    );
 
     expect(resultado.servicios[0].despues?.cortes).toEqual(['Lunes 23:30', 'Jueves 17:00']);
   });

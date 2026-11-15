@@ -42,7 +42,8 @@ export function leadTime(hoy: string, fecha: string | null): FilaReporteG12['lea
 export const porcentaje = (unidades: number | null, capacidad: number | null): number | null =>
   unidades === null || capacidad === null || capacidad <= 0 ? null : Math.round((unidades / capacidad) * 100);
 
-const igual = (a?: string | null, b?: string | null) => (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase();
+const igual = (a?: string | null, b?: string | null) =>
+  (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase();
 
 /** La fecha más repetida; si empatan, la que salió primero (como MODA en Excel) */
 export function moda(fechas: Array<string | null>): string | null {
@@ -51,7 +52,10 @@ export function moda(fechas: Array<string | null>): string | null {
   let veces = 0;
   for (const f of validas) {
     const n = validas.filter((x) => x === f).length;
-    if (n > veces) { mejor = f; veces = n; }
+    if (n > veces) {
+      mejor = f;
+      veces = n;
+    }
   }
   return mejor;
 }
@@ -63,17 +67,25 @@ export function moda(fechas: Array<string | null>): string | null {
  * ninguno da, la fila se queda con el último —el de siempre— y sin fecha. Sin
  * prioridad, la primera fecha de todas.
  */
-export function elegirFecha(sims: SimulacionG12[], prioridad?: string[]): { flujo: string | null; fecha: string | null } {
+export function elegirFecha(
+  sims: SimulacionG12[],
+  prioridad?: string[],
+): { flujo: string | null; fecha: string | null } {
   if (prioridad?.length) {
     for (const servicio of prioridad) {
-      const con = sims.filter((s) => igual(s.servicio, servicio) && s.fecha).map((s) => s.fecha!).sort();
+      const con = sims
+        .filter((s) => igual(s.servicio, servicio) && s.fecha)
+        .map((s) => s.fecha!)
+        .sort();
       if (con.length) return { flujo: servicio, fecha: con[0] };
     }
     const configurados = prioridad.filter((p) => sims.some((s) => igual(s.servicio, p)));
     return { flujo: configurados.at(-1) ?? sims[0]?.servicio ?? null, fecha: null };
   }
   const con = sims.filter((s) => s.fecha).sort((a, b) => a.fecha!.localeCompare(b.fecha!));
-  return con.length ? { flujo: con[0].servicio, fecha: con[0].fecha } : { flujo: sims[0]?.servicio ?? null, fecha: null };
+  return con.length
+    ? { flujo: con[0].servicio, fecha: con[0].fecha }
+    : { flujo: sims[0]?.servicio ?? null, fecha: null };
 }
 
 export interface AgendaElegida {
@@ -106,9 +118,10 @@ export function agendasDeLaFila(items: AgendaG12[], flujo: string | null): Agend
       continue;
     }
 
-    const delFlujo = flujo && item.agendas.length > 1
-      ? item.agendas.filter((a) => !a.servicio || igual(a.servicio, flujo))
-      : item.agendas;
+    const delFlujo =
+      flujo && item.agendas.length > 1
+        ? item.agendas.filter((a) => !a.servicio || igual(a.servicio, flujo))
+        : item.agendas;
     const candidatas = delFlujo.length ? delFlujo : item.agendas;
 
     if (candidatas.length > 1 && item.tipo !== 'despacho') {
@@ -125,7 +138,12 @@ export function agendasDeLaFila(items: AgendaG12[], flujo: string | null): Agend
   return salida;
 }
 
-function detalleAgenda(item: AgendaG12 | null, agenda: AgendaLeidaG12 | null, dia: string | null, aviso: string | null): DetalleAgendaG12 {
+function detalleAgenda(
+  item: AgendaG12 | null,
+  agenda: AgendaLeidaG12 | null,
+  dia: string | null,
+  aviso: string | null,
+): DetalleAgendaG12 {
   const d = agenda && dia ? agenda.dias.find((x) => x.fecha === dia) : undefined;
   return {
     tipo: item?.tipo ?? '',
@@ -143,14 +161,26 @@ function detalleAgenda(item: AgendaG12 | null, agenda: AgendaLeidaG12 | null, di
 
 function filaVacia(nombre: string): FilaReporteG12 {
   return {
-    nombre, esTotal: false, flujo: null, fecha: null, leadTime: null,
-    unidades: null, capacidad: null, porcentaje: null, estado: 'sin_configurar',
+    nombre,
+    esTotal: false,
+    flujo: null,
+    fecha: null,
+    leadTime: null,
+    unidades: null,
+    capacidad: null,
+    porcentaje: null,
+    estado: 'sin_configurar',
     detalle: { simulaciones: [], agendas: [], capacidadFija: null, avisos: [] },
   };
 }
 
 /** Receta "simulada": la fecha del simulador y la capacidad de ese día */
-export function filaSimulada(def: DefinicionComponente, nombre: string, e: EntradasFilaG12, hoy: string): FilaReporteG12 {
+export function filaSimulada(
+  def: DefinicionComponente,
+  nombre: string,
+  e: EntradasFilaG12,
+  hoy: string,
+): FilaReporteG12 {
   if (!e.simulaciones.length && !e.agendas.length && !e.fijas.length) return filaVacia(nombre);
 
   const fila = filaVacia(nombre);
@@ -172,8 +202,8 @@ export function filaSimulada(def: DefinicionComponente, nombre: string, e: Entra
       fila.detalle.agendas.push(detalle);
       if (aviso) fila.detalle.avisos.push(aviso);
       if (agenda) {
-        fila.unidades = (fila.unidades ?? 0) + (dia ? detalle.ocupado ?? 0 : 0);
-        fila.capacidad = (fila.capacidad ?? 0) + (dia ? detalle.asignado ?? 0 : 0);
+        fila.unidades = (fila.unidades ?? 0) + (dia ? (detalle.ocupado ?? 0) : 0);
+        fila.capacidad = (fila.capacidad ?? 0) + (dia ? (detalle.asignado ?? 0) : 0);
       }
     }
   } else if (e.fijas.length) {
@@ -199,7 +229,12 @@ export function filaSimulada(def: DefinicionComponente, nombre: string, e: Entra
 }
 
 /** Receta "primer día": el primer día activo y con cupo de la agenda, en los próximos diez */
-export function filaPrimerDia(def: DefinicionComponente, nombre: string, e: EntradasFilaG12, hoy: string): FilaReporteG12 {
+export function filaPrimerDia(
+  def: DefinicionComponente,
+  nombre: string,
+  e: EntradasFilaG12,
+  hoy: string,
+): FilaReporteG12 {
   if (!e.agendas.length) return filaVacia(nombre);
 
   const fila = filaVacia(nombre);
@@ -211,13 +246,15 @@ export function filaPrimerDia(def: DefinicionComponente, nombre: string, e: Entr
 
   const finDeSemana = def.soloLaborables && diaSemana(hoy) >= 5;
   const hasta = sumarDias(hoy, DIAS_PRIMER_DIA - 1);
-  const dia = agenda && !finDeSemana
-    ? agenda.dias.find((d) => d.fecha >= hoy && d.fecha <= hasta && d.activo && d.disponible > 0) ?? null
-    : null;
+  const dia =
+    agenda && !finDeSemana
+      ? (agenda.dias.find((d) => d.fecha >= hoy && d.fecha <= hasta && d.activo && d.disponible > 0) ?? null)
+      : null;
 
   fila.detalle.agendas.push(detalleAgenda(elegida?.item ?? null, agenda, dia?.fecha ?? null, elegida?.aviso ?? null));
   if (finDeSemana) fila.detalle.avisos.push('Solo cuenta de lunes a viernes.');
-  if (agenda && !dia && !finDeSemana) fila.detalle.avisos.push(`Ningún día activo con cupo en los próximos ${DIAS_PRIMER_DIA}.`);
+  if (agenda && !dia && !finDeSemana)
+    fila.detalle.avisos.push(`Ningún día activo con cupo en los próximos ${DIAS_PRIMER_DIA}.`);
 
   fila.fecha = dia?.fecha ?? null;
   fila.leadTime = leadTime(hoy, fila.fecha);
@@ -259,7 +296,11 @@ export function calcularFilas(
 
   return filas.map((f) =>
     f.suma?.length
-      ? filaTotal(f.nombre, f.suma.map((s) => simples.get(s)).filter((x): x is FilaReporteG12 => !!x), hoy)
+      ? filaTotal(
+          f.nombre,
+          f.suma.map((s) => simples.get(s)).filter((x): x is FilaReporteG12 => !!x),
+          hoy,
+        )
       : simples.get(f.nombre)!,
   );
 }
@@ -311,23 +352,41 @@ export function encajaSubFlujo(subFlujo: string, patrones: string[]): boolean {
  * filas que esperan al Oracle (las de cupo a mano, con unidades vacías); las de
  * total se vuelven a sumar con sus partes, y el total del cuadro también.
  */
-export function aplicarUnidadesOracle(comp: ComponenteReporteG12, filasConfig: FilaG12[], unidades: UnidadOracleG12[], origen: string): ComponenteReporteG12 {
+export function aplicarUnidadesOracle(
+  comp: ComponenteReporteG12,
+  filasConfig: FilaG12[],
+  unidades: UnidadOracleG12[],
+  origen: string,
+): ComponenteReporteG12 {
   const nombres = [...new Set(unidades.map((u) => u.subFlujo))];
 
   const simples = comp.filas.map((f) => {
     if (f.esTotal || f.unidades !== null) return f;
-    const patrones = subFlujosDeFila(f.nombre, filasConfig.find((c) => c.nombre === f.nombre));
+    const patrones = subFlujosDeFila(
+      f.nombre,
+      filasConfig.find((c) => c.nombre === f.nombre),
+    );
     const suyos = nombres.filter((n) => encajaSubFlujo(n, patrones));
     const u = f.fecha
-      ? unidades.filter((x) => x.fecha === f.fecha && suyos.includes(x.subFlujo)).reduce((t, x) => t + (Number(x.unidades) || 0), 0)
+      ? unidades
+          .filter((x) => x.fecha === f.fecha && suyos.includes(x.subFlujo))
+          .reduce((t, x) => t + (Number(x.unidades) || 0), 0)
       : 0;
-    const que = suyos.length ? `suma ${suyos.map((n) => `«${n}»`).join(', ')}` : `no hay ningún SUB_FLUJO ${patrones.map((p) => `«${p}»`).join(', ')}`;
+    const que = suyos.length
+      ? `suma ${suyos.map((n) => `«${n}»`).join(', ')}`
+      : `no hay ningún SUB_FLUJO ${patrones.map((p) => `«${p}»`).join(', ')}`;
     return {
       ...f,
       unidades: u,
       subFlujosOracle: suyos,
       porcentaje: porcentaje(u, f.capacidad),
-      detalle: { ...f.detalle, avisos: [...f.detalle.avisos, `Unidades del Oracle (${origen}): ${que}${f.fecha ? '' : '; la fila no tiene fecha, así que 0'}.`] },
+      detalle: {
+        ...f.detalle,
+        avisos: [
+          ...f.detalle.avisos,
+          `Unidades del Oracle (${origen}): ${que}${f.fecha ? '' : '; la fila no tiene fecha, así que 0'}.`,
+        ],
+      },
     };
   });
 
@@ -352,10 +411,19 @@ export function aplicarUnidadesOracle(comp: ComponenteReporteG12, filasConfig: F
  * Los que son solo una jornada ("S", "SD"…) no cuentan: es el ELSE de la
  * consulta, lo que no cae en ningún flujo, y el Excel tampoco lo enseñaba.
  */
-export function subFlujosSinFila(filas: Array<{ nombre: string; esTotal?: boolean }>, filasConfig: FilaG12[], unidades: UnidadOracleG12[]): Array<{ subFlujo: string; unidades: number }> {
+export function subFlujosSinFila(
+  filas: Array<{ nombre: string; esTotal?: boolean }>,
+  filasConfig: FilaG12[],
+  unidades: UnidadOracleG12[],
+): Array<{ subFlujo: string; unidades: number }> {
   const patrones = filas
     .filter((f) => !f.esTotal && !filasConfig.find((c) => c.nombre === f.nombre)?.suma?.length)
-    .flatMap((f) => subFlujosDeFila(f.nombre, filasConfig.find((c) => c.nombre === f.nombre)));
+    .flatMap((f) =>
+      subFlujosDeFila(
+        f.nombre,
+        filasConfig.find((c) => c.nombre === f.nombre),
+      ),
+    );
   const sueltos = new Map<string, number>();
   for (const u of unidades) {
     if (encajaSubFlujo(u.subFlujo, patrones) || /^[A-Z]{1,3}$/.test(u.subFlujo.trim())) continue;
@@ -384,7 +452,10 @@ export function sumarTotales(totales: TotalG12[]): TotalG12 {
  * El resumen de consumo. Una parte sin unidades —las de DD Lima, hasta que
  * llegue el Oracle— suma su capacidad pero no sus unidades, y la línea lo dice.
  */
-export function calcularResumen(lineas: LineaResumenG12[], componentes: ComponenteReporteG12[]): { lineas: LineaResumenReporteG12[]; total: LineaResumenReporteG12; avisos: string[] } {
+export function calcularResumen(
+  lineas: LineaResumenG12[],
+  componentes: ComponenteReporteG12[],
+): { lineas: LineaResumenReporteG12[]; total: LineaResumenReporteG12; avisos: string[] } {
   const avisos: string[] = [];
 
   const salida = lineas.map((l) => {

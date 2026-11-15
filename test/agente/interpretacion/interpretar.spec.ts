@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  interpretar,
-  rangoDeFechas,
-} from '../../../src/agente/interpretacion/interpretar.js';
+import { interpretar, rangoDeFechas } from '../../../src/agente/interpretacion/interpretar.js';
 // Arriba y no dentro del test: importar el controlador arrastra medio Nest, y
 // bajo la carga de toda la batería pasaba del tiempo de un test
 import { ConsultasAgenteController } from '../../../src/agente/consultas/consultas.controller.js';
@@ -24,7 +21,10 @@ const HOY = '2026-10-05';
 const ATAJOS = [
   { nombre: 'Big Ticket Lima', descripcion: 'es para solicitar capacidad de despacho del Big Ticket Lima (BT LIMA)' },
   { nombre: 'Paqueteria Lima', descripcion: 'es para solicitar capacidad de despacho de la paquetería lima' },
-  { nombre: 'Estado del Next Day y Same Day de chile', descripcion: 'es para saber el estado del next day (ND) y el same day (DX) de chile' },
+  {
+    nombre: 'Estado del Next Day y Same Day de chile',
+    descripcion: 'es para saber el estado del next day (ND) y el same day (DX) de chile',
+  },
   { nombre: 'Simulación de la 1111', descripcion: 'es para simular el opl 1111 con todos sus direcciones disponibles' },
   { nombre: 'Simulación SD', descripcion: 'Los cinco operadores de despacho a domicilio.' },
 ];
@@ -39,8 +39,14 @@ describe('El 100 % dicho con palabras', () => {
   });
 
   it('"agotadas", "sin cupo", "al tope" también, y una cifra dicha no se duplica', () => {
-    expect(['las agotadas el 11-10', 'las que están sin cupo', 'las que llegaron al tope', 'las que llegaron al 100 % en su totalidad']
-      .map((t) => leer(t).numeros)).toEqual([[100], [100], [100], [100]]);
+    expect(
+      [
+        'las agotadas el 11-10',
+        'las que están sin cupo',
+        'las que llegaron al tope',
+        'las que llegaron al 100 % en su totalidad',
+      ].map((t) => leer(t).numeros),
+    ).toEqual([[100], [100], [100], [100]]);
   });
 
   it('una frase sin nada de eso no inventa el 100', () => {
@@ -54,9 +60,13 @@ describe('Las frases que fallaban en el chat', () => {
 
     expect(r.cds.map((c) => c.code)).toEqual(['20026']);
     expect(r).toMatchObject({
-      accion: 'cambiar', sentido: 'activar', agenda: 'picking', pais: 'PE',
+      accion: 'cambiar',
+      sentido: 'activar',
+      agenda: 'picking',
+      pais: 'PE',
       fechas: { desde: HOY, hasta: HOY, dias: 1 },
-      caso: 'editar_capacidad', certeza: 'alta',
+      caso: 'editar_capacidad',
+      certeza: 'alta',
     });
   });
 
@@ -64,8 +74,12 @@ describe('Las frases que fallaban en el chat', () => {
     const r = leer('corta la ST del CD 10095 de chile');
 
     expect(r).toMatchObject({
-      pais: 'CL', accion: 'cambiar', sentido: 'desactivar', servicios: ['ST'],
-      caso: 'editar_capacidad', certeza: 'alta',
+      pais: 'CL',
+      accion: 'cambiar',
+      sentido: 'desactivar',
+      servicios: ['ST'],
+      caso: 'editar_capacidad',
+      certeza: 'alta',
     });
     expect(r.cds[0]).toMatchObject({ code: '10095', pais: 'CL' });
     // Que no se confunda con el cambio de un servicio de un operador
@@ -83,15 +97,23 @@ describe('Las frases que fallaban en el chat', () => {
     const r = leer('Todas las agendas de la 1100 desactiva la fecha 03-10');
 
     expect(r).toMatchObject({
-      accion: 'cambiar', sentido: 'desactivar', operadores: ['1100'], todas: true, agenda: 'despacho',
+      accion: 'cambiar',
+      sentido: 'desactivar',
+      operadores: ['1100'],
+      todas: true,
+      agenda: 'despacho',
       fechas: { desde: '2026-10-03', dias: 1 },
-      caso: 'editar_capacidad', certeza: 'alta',
+      caso: 'editar_capacidad',
+      certeza: 'alta',
     });
   });
 
   it('"de las zonas de la 1100 desactiva la fecha 03-10" → igual', () => {
     expect(leer('de las zonas de la 1100 desactiva la fecha 03-10')).toMatchObject({
-      caso: 'editar_capacidad', certeza: 'alta', agenda: 'despacho', operadores: ['1100'],
+      caso: 'editar_capacidad',
+      certeza: 'alta',
+      agenda: 'despacho',
+      operadores: ['1100'],
     });
   });
 
@@ -99,22 +121,33 @@ describe('Las frases que fallaban en el chat', () => {
     const r = leer('desactiva el despacho de la fecha 08-10 de estos opls: "4000", "4001", "4002", "4003", "4004"');
 
     expect(r.operadores).toEqual(['4000', '4001', '4002', '4003', '4004']);
-    expect(r).toMatchObject({ agenda: 'despacho', sentido: 'desactivar', fechas: { desde: '2026-10-08' }, caso: 'editar_capacidad' });
+    expect(r).toMatchObject({
+      agenda: 'despacho',
+      sentido: 'desactivar',
+      fechas: { desde: '2026-10-08' },
+      caso: 'editar_capacidad',
+    });
     // Ningún número suelto: nada que el modelo pueda tomar por un asignado
     expect(r.numeros).toEqual([]);
   });
 
   it('"asegúrate de que los de la RE se mantengan inactivas y cómo están los de la RT" → consultar, no cambiar', () => {
-    const r = leer('asegurate que los opls de la RE se mantengan inactivas y que opls de la RT estan inactivas y activas resumelo en un cuadro');
+    const r = leer(
+      'asegurate que los opls de la RE se mantengan inactivas y que opls de la RT estan inactivas y activas resumelo en un cuadro',
+    );
 
     expect(r).toMatchObject({ accion: 'consultar', servicios: ['RE', 'RT'], caso: 'busqueda_masiva', certeza: 'alta' });
   });
 
   describe('"Asegúrate de que estén…" en una rutina: una orden, no una consulta', () => {
-    const enRutina = (texto: string) => interpretar(texto, { hoy: HOY, atajos: ATAJOS, cds: CDS_DE_PRUEBA, rutina: true });
+    const enRutina = (texto: string) =>
+      interpretar(texto, { hoy: HOY, atajos: ATAJOS, cds: CDS_DE_PRUEBA, rutina: true });
 
     it.each([
-      ['asegúrate que todos los opls de la RE estén inactivos y muestralo en un cuadro resumido solo los totales', 'desactivar'],
+      [
+        'asegúrate que todos los opls de la RE estén inactivos y muestralo en un cuadro resumido solo los totales',
+        'desactivar',
+      ],
       ['asegurate de que los opls de la SE queden activos', 'activar'],
       ['asegúrense de que las agendas de la ST sigan habilitadas', 'activar'],
       ['asegúrate que la jornada SE del 20026 esté cerrada', 'desactivar'],
@@ -123,7 +156,10 @@ describe('Las frases que fallaban en el chat', () => {
     });
 
     it('en el chat sigue siendo una consulta: "revísalo y dímelo"', () => {
-      expect(leer('asegúrate que todos los opls de la RE estén inactivos y muestralo en un cuadro')).toMatchObject({ accion: 'consultar', sentido: null });
+      expect(leer('asegúrate que todos los opls de la RE estén inactivos y muestralo en un cuadro')).toMatchObject({
+        accion: 'consultar',
+        sentido: null,
+      });
     });
 
     it('"verifica" o "comprueba" que estén, también en una rutina, es una consulta', () => {
@@ -132,7 +168,10 @@ describe('Las frases que fallaban en el chat', () => {
     });
 
     it('con un verbo de cambio, manda el verbo', () => {
-      expect(enRutina('activa la SE y asegúrate de que se mantengan activas')).toMatchObject({ accion: 'cambiar', sentido: 'activar' });
+      expect(enRutina('activa la SE y asegúrate de que se mantengan activas')).toMatchObject({
+        accion: 'cambiar',
+        sentido: 'activar',
+      });
     });
   });
 
@@ -143,10 +182,13 @@ describe('Las frases que fallaban en el chat', () => {
   });
 
   it('nombrar un atajo y pedir más de lo que hace no lo ejecuta a ciegas', () => {
-    const conLaSE = [...ATAJOS, {
-      nombre: 'OPLS de la SE',
-      descripcion: 'es para consultar que opls cuentan el tipo de servicio SE de forma masiva',
-    }];
+    const conLaSE = [
+      ...ATAJOS,
+      {
+        nombre: 'OPLS de la SE',
+        descripcion: 'es para consultar que opls cuentan el tipo de servicio SE de forma masiva',
+      },
+    ];
     const r = interpretar(
       'de esos opls de la SE busca en los opls de la ST y fijate que esten inactivos y el resto esten activos',
       { hoy: HOY, atajos: conLaSE, cds: CDS_DE_PRUEBA },
@@ -157,20 +199,42 @@ describe('Las frases que fallaban en el chat', () => {
     expect(r.candidatos).toEqual(expect.arrayContaining(['atajo', 'busqueda_masiva']));
 
     // Y pedir solo lo que ella hace sí la elige con certeza
-    expect(interpretar('dame los opls de la SE', { hoy: HOY, atajos: conLaSE, cds: CDS_DE_PRUEBA }))
-      .toMatchObject({ caso: 'atajo', certeza: 'alta', atajos: ['OPLS de la SE'] });
+    expect(interpretar('dame los opls de la SE', { hoy: HOY, atajos: conLaSE, cds: CDS_DE_PRUEBA })).toMatchObject({
+      caso: 'atajo',
+      certeza: 'alta',
+      atajos: ['OPLS de la SE'],
+    });
   });
 
   it('"has un cruce de los opls de la SE con los de la ST…" sin atajos de esos servicios → búsqueda masiva, con certeza', () => {
-    const r = leer('has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas');
+    const r = leer(
+      'has un cruce de los opls de la SE con los opls de la ST, y fijate que los opls de la ST que coincidan con los opls de la SE esten inactivas y el resto activas',
+    );
 
-    expect(r).toMatchObject({ accion: 'consultar', servicios: ['SE', 'ST'], caso: 'busqueda_masiva', certeza: 'alta', atajosPosibles: [] });
+    expect(r).toMatchObject({
+      accion: 'consultar',
+      servicios: ['SE', 'ST'],
+      caso: 'busqueda_masiva',
+      certeza: 'alta',
+      atajosPosibles: [],
+    });
   });
 
   it('el mismo cruce con los atajos de la SE y la ST guardados → los propone, y decide el modelo (1677)', () => {
-    const conLasDos = [...ATAJOS,
-      { nombre: 'OPLS de la SE', descripcion: 'es para consultar que opls - tiendas - sucursales que cuentan con el tipo de servicio SE de forma masiva', tipos: ['masivo'] },
-      { nombre: 'OPLS de la ST', descripcion: 'es para consultar - activar - desactivar los opls - tiendas - sucursales que cuentan con el tipo de servicio ST de forma masiva', tipos: ['masivo'] },
+    const conLasDos = [
+      ...ATAJOS,
+      {
+        nombre: 'OPLS de la SE',
+        descripcion:
+          'es para consultar que opls - tiendas - sucursales que cuentan con el tipo de servicio SE de forma masiva',
+        tipos: ['masivo'],
+      },
+      {
+        nombre: 'OPLS de la ST',
+        descripcion:
+          'es para consultar - activar - desactivar los opls - tiendas - sucursales que cuentan con el tipo de servicio ST de forma masiva',
+        tipos: ['masivo'],
+      },
     ];
     const r = interpretar(
       'has un crece entre las sucurasles de la SE y de la ST, la misma sucursal no puede tener la SE y ST activos junto solo puede tener activo uno',
@@ -194,8 +258,10 @@ describe('Las frases que fallaban en el chat', () => {
   it('comparar temas distintos va al tema principal, que pide lo demás a su colega', () => {
     // La capacidad del 1130 es lo concreto; sus servicios los pedirá el agente
     // de capacidad al de servicios
-    expect(leer('compara la capacidad de despacho del 1130 con sus servicios'))
-      .toMatchObject({ caso: 'capacidad', certeza: 'alta' });
+    expect(leer('compara la capacidad de despacho del 1130 con sus servicios')).toMatchObject({
+      caso: 'capacidad',
+      certeza: 'alta',
+    });
   });
 
   it('cruzar y CAMBIAR es un cambio, no una consulta', () => {
@@ -292,7 +358,10 @@ describe('Capacidad de transferencia no es la transferencia de siempre', () => {
   });
 
   it('el desfase sigue siendo transferencia', () => {
-    expect(leer('dame el desfase de la 20021 con origen 20026')).toMatchObject({ caso: 'transferencia', certeza: 'alta' });
+    expect(leer('dame el desfase de la 20021 con origen 20026')).toMatchObject({
+      caso: 'transferencia',
+      certeza: 'alta',
+    });
   });
 });
 
@@ -316,7 +385,9 @@ describe('Fechas', () => {
   });
 
   it('dos fechas sueltas con papeles distintos: el rango pierde una, fechasDichas las lleva las dos (1466)', () => {
-    const r = leer('de todas las tiendas RT de chile solo activa la fecha 11-10 de las tiendas que hallan consumido al 100% la fecha 10-10');
+    const r = leer(
+      'de todas las tiendas RT de chile solo activa la fecha 11-10 de las tiendas que hallan consumido al 100% la fecha 10-10',
+    );
 
     expect(r.fechas).toEqual({ desde: '2026-10-11', hasta: '2026-10-11', dias: 1 });
     expect(r.fechasDichas).toEqual(['2026-10-11', '2026-10-10']);
@@ -350,21 +421,26 @@ describe('La ruta', () => {
   });
 
   it('los atajos mal formados se ignoran en vez de romper', async () => {
-
     // Del controlador solo usa la configuración de los CDs: se le da la de prueba
-    const r = await ConsultasAgenteController.prototype.interpretar.call({ configuracionCds: configuracionCdsFalsa() }, {
-      pregunta: 'ejecuta la Simulación SD',
-      atajos: [{ nombre: 'Simulación SD' }, { descripcion: 'sin nombre' }, null, { nombre: 42 }],
-    } as never);
+    const r = await ConsultasAgenteController.prototype.interpretar.call(
+      { configuracionCds: configuracionCdsFalsa() },
+      {
+        pregunta: 'ejecuta la Simulación SD',
+        atajos: [{ nombre: 'Simulación SD' }, { descripcion: 'sin nombre' }, null, { nombre: 42 }],
+      } as never,
+    );
 
     expect(r).toMatchObject({ caso: 'atajo', atajos: ['Simulación SD'] });
   });
 
   it('con el nombre de antes, "preconfiguraciones", también: el flujo viejo lo manda hasta que se reimporte', async () => {
-    const r = await ConsultasAgenteController.prototype.interpretar.call({ configuracionCds: configuracionCdsFalsa() }, {
-      pregunta: 'ejecuta la Simulación SD',
-      preconfiguraciones: [{ nombre: 'Simulación SD' }],
-    } as never);
+    const r = await ConsultasAgenteController.prototype.interpretar.call(
+      { configuracionCds: configuracionCdsFalsa() },
+      {
+        pregunta: 'ejecuta la Simulación SD',
+        preconfiguraciones: [{ nombre: 'Simulación SD' }],
+      } as never,
+    );
     expect(r).toMatchObject({ caso: 'atajo', atajos: ['Simulación SD'] });
   });
 
@@ -373,17 +449,32 @@ describe('La ruta', () => {
   });
 
   it('reconoce los CDs de la configuración, y si no se puede leer sigue sin ellos', async () => {
-    const llamar = (configuracionCds: unknown) => ConsultasAgenteController.prototype.interpretar.call({ configuracionCds }, {
-      pregunta: 'corta la ST del 10095',
-    } as never);
+    const llamar = (configuracionCds: unknown) =>
+      ConsultasAgenteController.prototype.interpretar.call({ configuracionCds }, {
+        pregunta: 'corta la ST del 10095',
+      } as never);
 
     expect(await llamar(configuracionCdsFalsa())).toMatchObject({ pais: 'CL', cds: [{ code: '10095', pais: 'CL' }] });
-    expect(await llamar({ todos: async () => { throw new Error('supabase caído'); } })).toMatchObject({ pais: null, cds: [] });
+    expect(
+      await llamar({
+        todos: async () => {
+          throw new Error('supabase caído');
+        },
+      }),
+    ).toMatchObject({ pais: null, cds: [] });
   });
 
   it('un CD nuevo de la configuración se reconoce sin tocar el código', () => {
-    const conNuevo = { ...CDS_DE_PRUEBA, PE: [...CDS_DE_PRUEBA.PE, { code: '20199', nombre: 'CD Lurín', jornadas: ['ST'], alias: ['lurin'], libres: [], cruzanFecha: [] }] };
-    expect(interpretar('corta el picking del cd lurín', { hoy: HOY, cds: conNuevo }).cds).toEqual([{ code: '20199', nombre: 'CD Lurín', pais: 'PE' }]);
+    const conNuevo = {
+      ...CDS_DE_PRUEBA,
+      PE: [
+        ...CDS_DE_PRUEBA.PE,
+        { code: '20199', nombre: 'CD Lurín', jornadas: ['ST'], alias: ['lurin'], libres: [], cruzanFecha: [] },
+      ],
+    };
+    expect(interpretar('corta el picking del cd lurín', { hoy: HOY, cds: conNuevo }).cds).toEqual([
+      { code: '20199', nombre: 'CD Lurín', pais: 'PE' },
+    ]);
   });
 });
 
@@ -391,8 +482,17 @@ describe('El filtro previo de atajos: reduce las opciones, no decide', () => {
   const GUARDADAS = [
     ...ATAJOS,
     { nombre: 'Simulación SE', descripcion: 'es para simular las sucursales de la SE', tipos: ['simulacion'] },
-    { nombre: 'Tiendas RT chile', descripcion: 'es para consultar, editar o activar capacidades de picking de las tiendas que cuentan con agendas RT (retiro en tienda) de picking chile', tipos: ['picking'] },
-    { nombre: 'OPLS de la ST', descripcion: 'opls - tiendas - sucursales con el tipo de servicio ST de forma masiva', tipos: ['masivo'] },
+    {
+      nombre: 'Tiendas RT chile',
+      descripcion:
+        'es para consultar, editar o activar capacidades de picking de las tiendas que cuentan con agendas RT (retiro en tienda) de picking chile',
+      tipos: ['picking'],
+    },
+    {
+      nombre: 'OPLS de la ST',
+      descripcion: 'opls - tiendas - sucursales con el tipo de servicio ST de forma masiva',
+      tipos: ['masivo'],
+    },
   ];
   const filtrar = (texto: string) => interpretar(texto, { hoy: HOY, atajos: GUARDADAS, cds: CDS_DE_PRUEBA });
   const nombres = (texto: string) => filtrar(texto).atajosPosibles.map((p) => p.nombre);
@@ -420,8 +520,12 @@ describe('El filtro previo de atajos: reduce las opciones, no decide', () => {
 
   it('nombrada, va la primera y con certeza, como siempre', () => {
     const r = filtrar('dame el despacho del bt lima');
-    expect([r.atajosPosibles[0]?.nombre, r.atajosPosibles[0]?.motivo.startsWith('nombrada'), r.caso, r.certeza])
-      .toEqual(['Big Ticket Lima', true, 'atajo', 'alta']);
+    expect([
+      r.atajosPosibles[0]?.nombre,
+      r.atajosPosibles[0]?.motivo.startsWith('nombrada'),
+      r.caso,
+      r.certeza,
+    ]).toEqual(['Big Ticket Lima', true, 'atajo', 'alta']);
   });
 
   it('un cambio no pierde la certeza por haber atajos parecidos', () => {

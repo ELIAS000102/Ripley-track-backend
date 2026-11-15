@@ -18,9 +18,12 @@ import { DIAS, type TiendaMalla } from './interfaces/matriz.interface.js';
  */
 
 const COLOR = {
-  transferencia: 'FFF8CBAD', transferenciaSuave: 'FFFCE4D6',
-  intermedio: 'FFBFBFBF', intermedioSuave: 'FFEDEDED',
-  recepcion: 'FF92D050', recepcionSuave: 'FFE2EFDA',
+  transferencia: 'FFF8CBAD',
+  transferenciaSuave: 'FFFCE4D6',
+  intermedio: 'FFBFBFBF',
+  intermedioSuave: 'FFEDEDED',
+  recepcion: 'FF92D050',
+  recepcionSuave: 'FFE2EFDA',
   cabecera: 'FFD9D9D9',
 };
 
@@ -68,7 +71,9 @@ export async function crearPlantilla(tiendas: TiendaMalla[] = []): Promise<Buffe
     c.font = { bold: true };
     c.alignment = { horizontal: 'center' };
     c.border = borde;
-    c.fill = relleno(col <= 3 ? COLOR.cabecera : col <= 10 ? COLOR.transferencia : col <= 17 ? COLOR.intermedio : COLOR.recepcion);
+    c.fill = relleno(
+      col <= 3 ? COLOR.cabecera : col <= 10 ? COLOR.transferencia : col <= 17 ? COLOR.intermedio : COLOR.recepcion,
+    );
   });
 
   hoja.getColumn(1).width = 10;
@@ -83,8 +88,9 @@ export async function crearPlantilla(tiendas: TiendaMalla[] = []): Promise<Buffe
     const fila = hoja.getRow(n);
     const t = tiendas[i];
     if (t) {
-      fila.values = [t.codigo, t.tienda, t.desfase, ...t.transferencia, ...t.intermedio, ...t.recepcion]
-        .map((v) => (v === null ? undefined : v)) as ExcelJS.CellValue[];
+      fila.values = [t.codigo, t.tienda, t.desfase, ...t.transferencia, ...t.intermedio, ...t.recepcion].map((v) =>
+        v === null ? undefined : v,
+      ) as ExcelJS.CellValue[];
     }
     for (let col = 1; col <= 24; col++) {
       const c = fila.getCell(col);
@@ -97,8 +103,13 @@ export async function crearPlantilla(tiendas: TiendaMalla[] = []): Promise<Buffe
     }
     // El desfase, entero de 0 a 30: Excel avisa al escribirlo mal
     fila.getCell(3).dataValidation = {
-      type: 'whole', operator: 'between', formulae: [0, 30], allowBlank: true, showErrorMessage: true,
-      errorTitle: 'Desfase', error: 'El desfase es un número entero de 0 a 30.',
+      type: 'whole',
+      operator: 'between',
+      formulae: [0, 30],
+      allowBlank: true,
+      showErrorMessage: true,
+      errorTitle: 'Desfase',
+      error: 'El desfase es un número entero de 0 a 30.',
     };
   }
 
@@ -108,8 +119,14 @@ export async function crearPlantilla(tiendas: TiendaMalla[] = []): Promise<Buffe
     ['Cómo rellenar una matriz: la base (Valle en Chile, Regular en Perú) o la de un evento', true],
     ['', false],
     ['1. Abre el Excel de la matriz que os pasan cada periodo.', false],
-    ['2. Copia desde el primer código (columna A) hasta la última celda de la recepción (columna X), todas las tiendas.', false],
-    ['3. En la hoja "Matriz" de esta plantilla, pégalo en la celda A3 (mejor como valores: Pegado especial → Valores).', false],
+    [
+      '2. Copia desde el primer código (columna A) hasta la última celda de la recepción (columna X), todas las tiendas.',
+      false,
+    ],
+    [
+      '3. En la hoja "Matriz" de esta plantilla, pégalo en la celda A3 (mejor como valores: Pegado especial → Valores).',
+      false,
+    ],
     ['4. Guarda y súbela en el apartado "Matrices" del panel.', false],
     ['', false],
     ['Columnas (no las muevas ni borres; no cambies las filas 1 y 2):', true],
@@ -117,7 +134,10 @@ export async function crearPlantilla(tiendas: TiendaMalla[] = []): Promise<Buffe
     ['', false],
     ['Reglas:', true],
     ['· Una celda de transferencia vacía es un día sin transferencia.', false],
-    ['· Cada etiqueta de transferencia ("B", "P-A-11") se busca en la recepción: la columna donde aparece es el día de recepción.', false],
+    [
+      '· Cada etiqueta de transferencia ("B", "P-A-11") se busca en la recepción: la columna donde aparece es el día de recepción.',
+      false,
+    ],
     ['· Una etiqueta de transferencia que no está en la recepción se ignora (el panel lo avisa).', false],
     ['· Una etiqueta no puede estar dos veces en la recepción de una misma tienda.', false],
     ['· "+N" (ej. "A+7") solo en la recepción: suma N días a esa recepción.', false],

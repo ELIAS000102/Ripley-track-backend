@@ -1,11 +1,4 @@
-import {
-  IsBoolean,
-  IsInt,
-  IsNotEmpty,
-  IsString,
-  Matches,
-  Min,
-} from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsString, Matches, Min } from 'class-validator';
 import { PaisDto } from '../../../common/dto/pais.dto.js';
 
 const FECHA = /^\d{2}-\d{2}-\d{4}$/;

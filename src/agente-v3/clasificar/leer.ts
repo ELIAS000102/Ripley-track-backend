@@ -13,7 +13,9 @@ export type Lectura<T> = { ok: true; valor: T } | { ok: false; motivo: string };
 
 /** El primer objeto JSON del texto (el modelo a veces lo envuelve en ``` o en una frase) */
 export function primerJson(texto: string): Record<string, unknown> | null {
-  const s = String(texto ?? '').slice(0, LIMITES.salidaModelo).replace(/```(?:json)?/gi, '');
+  const s = String(texto ?? '')
+    .slice(0, LIMITES.salidaModelo)
+    .replace(/```(?:json)?/gi, '');
   const desde = s.indexOf('{');
   const hasta = s.lastIndexOf('}');
   if (desde < 0 || hasta <= desde) return null;
@@ -32,8 +34,10 @@ export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clas
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
 
   // Sin tildes para comparar; "enseñar" se escribe con eñe en los tipos
-  const tipo = typeof j.tipo === 'string' ? ((plano(j.tipo) === 'ensenar' ? 'enseñar' : plano(j.tipo)) as TipoPeticion) : null;
-  if (!tipo || !TIPOS_PETICION.includes(tipo)) return { ok: false, motivo: `tipo desconocido: ${JSON.stringify(j.tipo)}` };
+  const tipo =
+    typeof j.tipo === 'string' ? ((plano(j.tipo) === 'ensenar' ? 'enseñar' : plano(j.tipo)) as TipoPeticion) : null;
+  if (!tipo || !TIPOS_PETICION.includes(tipo))
+    return { ok: false, motivo: `tipo desconocido: ${JSON.stringify(j.tipo)}` };
 
   const dep = j.depende_del_anterior;
   if (typeof dep !== 'boolean') return { ok: false, motivo: 'depende_del_anterior no es true ni false' };
@@ -50,12 +54,34 @@ export function leerClasificacion(texto: string, atajos: string[]): Lectura<Clas
 
   const motivo = typeof j.motivo === 'string' ? j.motivo.slice(0, 300) : '';
   // La respuesta de una charla se revisa al usarla (respuestaDeCharla): aquí solo se lee
-  const respuesta = tipo === 'charla' && typeof j.respuesta === 'string' && j.respuesta.trim() ? j.respuesta.trim().slice(0, 600) : null;
+  const respuesta =
+    tipo === 'charla' && typeof j.respuesta === 'string' && j.respuesta.trim()
+      ? j.respuesta.trim().slice(0, 600)
+      : null;
   const retoma = j.retoma === true;
   const ensena = j.ensena === true || tipo === 'enseñar';
   // Lo que quiere ver: solo las clases conocidas (lo demás no se comprueba)
-  const pide = tipo === 'atajo' || tipo === 'consulta'
-    ? [...new Set((Array.isArray(j.pide) ? j.pide : [j.pide]).map((p) => plano(String(p ?? ''))).filter((p) => PIDE.includes(p)))]
-    : [];
-  return { ok: true, valor: { tipo, dep, atajo, motivo, ...(tipo === 'charla' ? { respuesta } : {}), ...(retoma ? { retoma } : {}), ...(ensena ? { ensena } : {}), ...(pide.length ? { pide } : {}) } };
+  const pide =
+    tipo === 'atajo' || tipo === 'consulta'
+      ? [
+          ...new Set(
+            (Array.isArray(j.pide) ? j.pide : [j.pide])
+              .map((p) => plano(String(p ?? '')))
+              .filter((p) => PIDE.includes(p)),
+          ),
+        ]
+      : [];
+  return {
+    ok: true,
+    valor: {
+      tipo,
+      dep,
+      atajo,
+      motivo,
+      ...(tipo === 'charla' ? { respuesta } : {}),
+      ...(retoma ? { retoma } : {}),
+      ...(ensena ? { ensena } : {}),
+      ...(pide.length ? { pide } : {}),
+    },
+  };
 }

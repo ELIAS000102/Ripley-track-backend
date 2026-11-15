@@ -39,7 +39,5 @@ export const METODO_POR_SERVICIO: Record<string, string> = {
  * equivocados.
  */
 export function metodoDeServicio(servicio?: string | null): string | undefined {
-  return servicio
-    ? METODO_POR_SERVICIO[servicio.trim().toUpperCase()]
-    : undefined;
+  return servicio ? METODO_POR_SERVICIO[servicio.trim().toUpperCase()] : undefined;
 }

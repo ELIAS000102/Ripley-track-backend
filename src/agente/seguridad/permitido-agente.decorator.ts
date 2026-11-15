@@ -30,5 +30,4 @@ export const PermitidoAgente = () => SetMetadata(PERMITIDO_AGENTE, true);
  * de una escritura equivocada es reversible: hoy solo lo llevan las capacidades
  * de picking y despacho, que se corrigen volviendo a escribir el valor viejo.
  */
-export const PermitidoAgenteEditor = () =>
-  SetMetadata(PERMITIDO_AGENTE_EDITOR, true);
+export const PermitidoAgenteEditor = () => SetMetadata(PERMITIDO_AGENTE_EDITOR, true);

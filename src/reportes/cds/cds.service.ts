@@ -1,19 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  soloFecha,
-  ventanaFechas,
-} from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, isoToRipleyDate, soloFecha, ventanaFechas } from '../../common/ripley/utils/date.util.js';
 import { ConfiguracionCdsService } from './configuracion-cds.service.js';
-import {
-  Cd,
-  FalloReporte,
-  RegistroReporte,
-  ReporteCds,
-  ScheduleRow,
-} from './interfaces/reporte-cds.interface.js';
+import { Cd, FalloReporte, RegistroReporte, ReporteCds, ScheduleRow } from './interfaces/reporte-cds.interface.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
 
@@ -51,11 +40,7 @@ export class CdsService {
 
   // ---------- Reporte ----------
 
-  async reporte(
-    pais = 'PE',
-    dias = 5,
-    desdeParam?: string,
-  ): Promise<ReporteCds> {
+  async reporte(pais = 'PE', dias = 5, desdeParam?: string): Promise<ReporteCds> {
     // La fecha mínima es hoy en la zona del país, no la del servidor
     const hoy = hoyEnPais(pais);
     const desde = desdeParam && desdeParam > hoy ? desdeParam : hoy;
@@ -70,9 +55,7 @@ export class CdsService {
       );
     }
 
-    this.logger.log(
-      `Reporte de ${cds.length} CD(s) — ${fechas[0]} a ${fechas.at(-1)}`,
-    );
+    this.logger.log(`Reporte de ${cds.length} CD(s) — ${fechas[0]} a ${fechas.at(-1)}`);
 
     const fallidas: FalloReporte[] = [];
 
@@ -84,15 +67,8 @@ export class CdsService {
     const porCd = await Promise.all(
       cds.map(async (cd) => {
         try {
-          const oficina = await this.catalogos.oficinaPorCodigo(
-            cd.code,
-            pais,
-            'almacen',
-          );
-          const agendas = await this.catalogos.agendasDePicking(
-            oficina.id,
-            pais,
-          );
+          const oficina = await this.catalogos.oficinaPorCodigo(cd.code, pais, 'almacen');
+          const agendas = await this.catalogos.agendasDePicking(oficina.id, pais);
           return { cd, warehouseId: oficina.id, agendas };
         } catch (e) {
           fallidas.push({
@@ -116,9 +92,7 @@ export class CdsService {
       for (const a of agendas) {
         // Una agenda puede tener capacidades en varios almacenes:
         // hay que tomar la de ESTE CD, no la primera de la lista.
-        const capacidad =
-          a.capacities?.find((c) => c.warehouseId === warehouseId) ??
-          a.capacities?.[0];
+        const capacidad = a.capacities?.find((c) => c.warehouseId === warehouseId) ?? a.capacities?.[0];
 
         const jornada = servicios.get(a.services?.[0]);
 
@@ -133,8 +107,7 @@ export class CdsService {
             cd: cd.code,
             jornada: jornada ?? null,
             agenda: a.name,
-            error:
-              'Agenda sin capacidad para este almacén o sin servicio asociado',
+            error: 'Agenda sin capacidad para este almacén o sin servicio asociado',
           });
           continue;
         }
@@ -154,42 +127,32 @@ export class CdsService {
     // 4. Capacidades: una llamada por agenda cubre todos los días del rango
     const desdeRipley = isoToRipleyDate(desde);
 
-    const resultados = await enLotes(
-      tareas,
-      this.CONCURRENCIA,
-      async (t) => {
-        try {
-          const data = await this.catalogos.capacidadesDePicking(
-            t.scheduleId,
-            pais,
-            desdeRipley,
-          );
-          return {
-            tarea: t,
-            dias: data?.capacityByDayArray ?? [],
-            vacia: false,
-            error: null,
-          };
-        } catch (e) {
-          // Un 404 significa que la agenda existe pero no tiene capacidades:
-          // se omite del reporte sin contarla como fallo.
-          if (e instanceof RipleyApiError && e.esNoEncontrado) {
-            this.logger.log(`Sin capacidades: "${t.agendaNombre}"`);
-            return { tarea: t, dias: [], vacia: true, error: null };
-          }
-
-          this.logger.warn(
-            `Falló "${t.agendaNombre}" — ${(e as Error).message}`,
-          );
-          return {
-            tarea: t,
-            dias: [],
-            vacia: false,
-            error: (e as Error).message,
-          };
+    const resultados = await enLotes(tareas, this.CONCURRENCIA, async (t) => {
+      try {
+        const data = await this.catalogos.capacidadesDePicking(t.scheduleId, pais, desdeRipley);
+        return {
+          tarea: t,
+          dias: data?.capacityByDayArray ?? [],
+          vacia: false,
+          error: null,
+        };
+      } catch (e) {
+        // Un 404 significa que la agenda existe pero no tiene capacidades:
+        // se omite del reporte sin contarla como fallo.
+        if (e instanceof RipleyApiError && e.esNoEncontrado) {
+          this.logger.log(`Sin capacidades: "${t.agendaNombre}"`);
+          return { tarea: t, dias: [], vacia: true, error: null };
         }
-      },
-    );
+
+        this.logger.warn(`Falló "${t.agendaNombre}" — ${(e as Error).message}`);
+        return {
+          tarea: t,
+          dias: [],
+          vacia: false,
+          error: (e as Error).message,
+        };
+      }
+    });
 
     // 5. Aplanar al grano fino: CD × jornada × día
     const registros: RegistroReporte[] = [];
@@ -230,8 +193,7 @@ export class CdsService {
           asignado,
           utilizado,
           // Siempre utilizado sobre asignado, nunca promedio de porcentajes
-          porcentaje:
-            asignado > 0 ? Math.round((utilizado / asignado) * 100) : 0,
+          porcentaje: asignado > 0 ? Math.round((utilizado / asignado) * 100) : 0,
           activo: d?.active ?? false,
           agendaActiva: r.tarea.agendaActiva,
           sinDato: !d,

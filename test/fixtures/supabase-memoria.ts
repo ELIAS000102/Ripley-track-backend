@@ -50,20 +50,48 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
       return { data: tocadas ?? filtradas(), error: null };
     };
     const metodos = {
-      select: (_c?: string, o?: { count?: string; head?: boolean }) => { if (o?.count) contar = true; return cadena(); },
-      eq: (c: string, v: unknown) => { filtros.push([c, v]); return cadena(); },
-      lt: (c: string, v: unknown) => { filtros.push([c, (x: unknown) => String(x) < String(v)]); return cadena(); },
-      gte: (c: string, v: unknown) => { filtros.push([c, (x: unknown) => String(x) >= String(v)]); return cadena(); },
-      in: (c: string, vs: unknown[]) => { filtros.push([c, (x: unknown) => vs.includes(x)]); return cadena(); },
-      order: (c: string, o?: { ascending?: boolean }) => { orden = [c, o?.ascending !== false]; return cadena(); },
-      limit: (n: number) => { tope = n; return cadena(); },
+      select: (_c?: string, o?: { count?: string; head?: boolean }) => {
+        if (o?.count) contar = true;
+        return cadena();
+      },
+      eq: (c: string, v: unknown) => {
+        filtros.push([c, v]);
+        return cadena();
+      },
+      lt: (c: string, v: unknown) => {
+        filtros.push([c, (x: unknown) => String(x) < String(v)]);
+        return cadena();
+      },
+      gte: (c: string, v: unknown) => {
+        filtros.push([c, (x: unknown) => String(x) >= String(v)]);
+        return cadena();
+      },
+      in: (c: string, vs: unknown[]) => {
+        filtros.push([c, (x: unknown) => vs.includes(x)]);
+        return cadena();
+      },
+      order: (c: string, o?: { ascending?: boolean }) => {
+        orden = [c, o?.ascending !== false];
+        return cadena();
+      },
+      limit: (n: number) => {
+        tope = n;
+        return cadena();
+      },
       maybeSingle: async () => ({ data: filtradas()[0] ?? null, error: null }),
       single: async () => {
         if (accion === 'actualizar') return { data: (resultado().data as Fila[])[0] ?? null, error: null };
         return { data: (tocadas ?? filtradas())[0] ?? null, error: null };
       },
-      delete: () => { accion = 'borrar'; return cadena(); },
-      update: (datos: Fila) => { accion = 'actualizar'; cambios = datos; return cadena(); },
+      delete: () => {
+        accion = 'borrar';
+        return cadena();
+      },
+      update: (datos: Fila) => {
+        accion = 'actualizar';
+        cambios = datos;
+        return cadena();
+      },
       // Reemplaza la fila que coincide en las columnas de onConflict, o la añade
       upsert: (datos: Fila | Fila[], o?: { onConflict?: string }) => {
         const columnas = (o?.onConflict ?? 'id').split(',').map((c) => c.trim());
@@ -77,7 +105,11 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
         return cadena();
       },
       insert: (datos: Fila | Fila[]) => {
-        tocadas = (Array.isArray(datos) ? datos : [datos]).map((d, i) => ({ id: `id-${tablas[nombre].length + i}`, cargado_en: new Date(Date.now() + tablas[nombre].length).toISOString(), ...d }));
+        tocadas = (Array.isArray(datos) ? datos : [datos]).map((d, i) => ({
+          id: `id-${tablas[nombre].length + i}`,
+          cargado_en: new Date(Date.now() + tablas[nombre].length).toISOString(),
+          ...d,
+        }));
         tablas[nombre].push(...tocadas);
         return cadena();
       },

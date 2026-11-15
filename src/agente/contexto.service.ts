@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PerfilService } from '../auth/perfil.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { hoyEnPais } from '../common/ripley/utils/date.util.js';
-import type {
-  ContextoAgente,
-  ContextoUsuarioAgente,
-} from './interfaces/agente.interface.js';
+import type { ContextoAgente, ContextoUsuarioAgente } from './interfaces/agente.interface.js';
 
 /**
  * La cabecera común de toda respuesta al agente.
@@ -42,10 +39,7 @@ export class ContextoAgenteService {
    *
    * Es la única que lee el perfil, y por eso es la única que paga esa lectura.
    */
-  async armarConUsuario(
-    usuario: UsuarioAutenticado,
-    pais?: string,
-  ): Promise<ContextoUsuarioAgente> {
+  async armarConUsuario(usuario: UsuarioAutenticado, pais?: string): Promise<ContextoUsuarioAgente> {
     const normalizado = this.normalizar(pais);
 
     return {
@@ -64,15 +58,10 @@ export class ContextoAgenteService {
    * Un fallo leyendo el perfil no puede tumbar la consulta: el nombre es un
    * detalle de cortesía y la capacidad es el dato que se vino a buscar.
    */
-  private async datosDeUsuario(
-    usuario: UsuarioAutenticado,
-  ): Promise<ContextoUsuarioAgente['usuario']> {
+  private async datosDeUsuario(usuario: UsuarioAutenticado): Promise<ContextoUsuarioAgente['usuario']> {
     try {
       const perfil = await this.perfiles.obtener(usuario.id, usuario.email);
-      const nombre = [perfil.nombre, perfil.apellido]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
+      const nombre = [perfil.nombre, perfil.apellido].filter(Boolean).join(' ').trim();
 
       return {
         nombre: nombre || 'usuario',
@@ -80,9 +69,7 @@ export class ContextoAgenteService {
         tienda: perfil.tienda ?? null,
       };
     } catch (e) {
-      this.logger.warn(
-        `No se pudo leer el perfil para el contexto del agente: ${(e as Error).message}`,
-      );
+      this.logger.warn(`No se pudo leer el perfil para el contexto del agente: ${(e as Error).message}`);
       return { nombre: 'usuario', rol: 'user', tienda: null };
     }
   }

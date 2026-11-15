@@ -71,14 +71,16 @@ export class ConfiguracionCdsService {
    * no puede nombrar a dos CDs a la vez.
    */
   async guardar(pais: string, dto: GuardarConfiguracionCdsDto, usuario: UsuarioAutenticado) {
-    const cds: Cd[] = dto.cds.map((c) => completo({
-      code: c.code.trim(),
-      nombre: c.nombre.trim(),
-      jornadas: c.jornadas,
-      alias: c.alias ?? [],
-      libres: c.libres ?? [],
-      cruzanFecha: c.cruzanFecha ?? [],
-    }));
+    const cds: Cd[] = dto.cds.map((c) =>
+      completo({
+        code: c.code.trim(),
+        nombre: c.nombre.trim(),
+        jornadas: c.jornadas,
+        alias: c.alias ?? [],
+        libres: c.libres ?? [],
+        cruzanFecha: c.cruzanFecha ?? [],
+      }),
+    );
 
     const errores: string[] = [];
     const otros = Object.entries(await this.todos()).filter(([p]) => p !== pais);
@@ -88,15 +90,23 @@ export class ConfiguracionCdsService {
       if (codigos.has(cd.code)) errores.push(`El CD ${cd.code} está dos veces.`);
       codigos.add(cd.code);
       const enOtro = otros.find(([, lista]) => lista.some((x) => x.code === cd.code));
-      if (enOtro) errores.push(`El CD ${cd.code} ya está configurado en ${enOtro[0]}: un código solo puede ser de un país.`);
+      if (enOtro)
+        errores.push(`El CD ${cd.code} ya está configurado en ${enOtro[0]}: un código solo puede ser de un país.`);
       const fuera = (lista: string[]) => lista.filter((j) => !cd.jornadas.includes(j));
-      if (fuera(cd.libres).length) errores.push(`${cd.code}: ${fuera(cd.libres).join(', ')} no ${fuera(cd.libres).length > 1 ? 'son jornadas' : 'es una jornada'} del CD y no puede reasignarse sin permiso.`);
-      if (fuera(cd.cruzanFecha).length) errores.push(`${cd.code}: ${fuera(cd.cruzanFecha).join(', ')} no ${fuera(cd.cruzanFecha).length > 1 ? 'son jornadas' : 'es una jornada'} del CD y no puede cruzar fechas.`);
+      if (fuera(cd.libres).length)
+        errores.push(
+          `${cd.code}: ${fuera(cd.libres).join(', ')} no ${fuera(cd.libres).length > 1 ? 'son jornadas' : 'es una jornada'} del CD y no puede reasignarse sin permiso.`,
+        );
+      if (fuera(cd.cruzanFecha).length)
+        errores.push(
+          `${cd.code}: ${fuera(cd.cruzanFecha).join(', ')} no ${fuera(cd.cruzanFecha).length > 1 ? 'son jornadas' : 'es una jornada'} del CD y no puede cruzar fechas.`,
+        );
       for (const a of cd.alias) {
         // "Villa" y "villa" son el mismo alias para el chat
         const clave = a.toLowerCase();
         const de = aliasDe.get(clave);
-        if (de && de !== cd.code) errores.push(`El alias "${a}" está en ${de} y en ${cd.code}: no se sabría a cuál se refiere.`);
+        if (de && de !== cd.code)
+          errores.push(`El alias "${a}" está en ${de} y en ${cd.code}: no se sabría a cuál se refiere.`);
         aliasDe.set(clave, cd.code);
       }
     }
@@ -107,10 +117,10 @@ export class ConfiguracionCdsService {
     this.cache = null;
 
     const resumen = (lista: Cd[] | undefined) => (lista ?? []).map((c) => `${c.code}: ${c.jornadas.join(', ')}`);
-    this.auditoria.registrarCambio(
-      anterior.configuracion ? { pais, cds: resumen(anterior.configuracion.cds) } : null,
-      { pais, cds: resumen(cds) },
-    );
+    this.auditoria.registrarCambio(anterior.configuracion ? { pais, cds: resumen(anterior.configuracion.cds) } : null, {
+      pais,
+      cds: resumen(cds),
+    });
 
     return { pais, cds: cds.length, actualizadoEn };
   }
@@ -122,12 +132,14 @@ function completo(c: Partial<Cd> & { code: string }): Cd {
   const limpias = (l: unknown, como: (x: string) => string) => {
     if (!Array.isArray(l)) return [];
     const vistos = new Set<string>();
-    return l.map((x) => como(String(x).trim())).filter((x) => {
-      const clave = x.toLowerCase();
-      if (!x || vistos.has(clave)) return false;
-      vistos.add(clave);
-      return true;
-    });
+    return l
+      .map((x) => como(String(x).trim()))
+      .filter((x) => {
+        const clave = x.toLowerCase();
+        if (!x || vistos.has(clave)) return false;
+        vistos.add(clave);
+        return true;
+      });
   };
   const mayus = (l: unknown) => limpias(l, (x) => x.toUpperCase());
   return {

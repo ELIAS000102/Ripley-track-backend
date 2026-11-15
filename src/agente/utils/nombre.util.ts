@@ -24,7 +24,12 @@
  * "Zona1") y solo después el parecido.
  */
 const comparable = (s: string) =>
-  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ]+/g, ' ').trim();
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9ñ]+/g, ' ')
+    .trim();
 
 export function filtrarPorNombre<T>(
   lista: T[],

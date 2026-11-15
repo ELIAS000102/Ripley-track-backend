@@ -118,7 +118,8 @@ export type ClusterG12 = 'LIMA' | 'PROVINCIA';
  * (picking desde hoy, recepción de Lima desde mañana, provincia desde pasado…).
  * Sin fecha mínima teórica (decisión del usuario): se revisan todos.
  */
-export type VentanaSolicitudG12 = 'picking' | 'recepcion_lima' | 'recepcion_lima_se' | 'recepcion_provincia' | 'recepcion_cronograma' | 'despacho';
+export type VentanaSolicitudG12 =
+  'picking' | 'recepcion_lima' | 'recepcion_lima_se' | 'recepcion_provincia' | 'recepcion_cronograma' | 'despacho';
 
 export interface AgendaSolicitudG12 {
   tipo: TipoSolicitudG12;
@@ -445,7 +446,15 @@ export interface ReporteG12 {
   /** Los cuadros guardados, el mismo para todos; los que faltan no están */
   cuadros: CuadroReporteG12[];
   /** La última carga de unidades del Oracle (DD Lima), o null si nunca se cargó */
-  oracle: { cargadoEn: string; filas: number; desde: string | null; hasta: string | null; origen: string; usuarioEmail?: string | null; consultadoEn?: string | null } | null;
+  oracle: {
+    cargadoEn: string;
+    filas: number;
+    desde: string | null;
+    hasta: string | null;
+    origen: string;
+    usuarioEmail?: string | null;
+    consultadoEn?: string | null;
+  } | null;
   /** Los consumos de esa carga, tal como los devolvió la consulta: los enseña "Datos" en Despacho domicilio */
   consumos: Array<{ fecha: string; zona?: string; subFlujo: string; unidades: number }>;
   /** Las filas de cada cuadro según la configuración: las de los que faltan se pintan en espera */

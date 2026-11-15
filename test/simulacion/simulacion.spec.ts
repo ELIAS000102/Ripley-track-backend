@@ -161,9 +161,7 @@ describe('El distrito que se manda a Ripley', () => {
     // No debería pasar —Ripley lo manda siempre— pero mandar undefined sería
     // cambiar un distrito equivocado por ninguno
     const sinIdentifier = structuredClone(CALLAO);
-    const bellavista = sinIdentifier.provinces[0].communes[1] as Partial<
-      typeof CALLAO.provinces[0]['communes'][0]
-    >;
+    const bellavista = sinIdentifier.provinces[0].communes[1] as Partial<(typeof CALLAO.provinces)[0]['communes'][0]>;
     bellavista.identifier = undefined;
 
     const { servicio, enviado } = armar(sinIdentifier);

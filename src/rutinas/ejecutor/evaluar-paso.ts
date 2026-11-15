@@ -10,10 +10,17 @@ export interface Evaluacion {
 const DEL_FLUJO = new Set(['Atajos disponibles']);
 
 const normalizar = (s?: string) =>
-  String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  String(s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const recorte = (s?: string, n = 300) => {
-  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+  const t = String(s ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return t.length > n ? `${t.slice(0, n)}…` : t;
 };
 
@@ -70,18 +77,26 @@ export function evaluarPaso(e: {
   }
   if (rutina.error) {
     const ia = IA_CAIDA[rutina.motivo ?? ''];
-    return fallo(ia
-      ? `La IA (Gemini) ${ia} a mitad del paso, también el modelo de respaldo: quedó a medias. Suele ser pasajero: reanúdala en unos minutos.`
-      : `Silvana no pudo terminar el paso${r.respuesta ? `: ${recorte(r.respuesta)}` : '.'}`);
+    return fallo(
+      ia
+        ? `La IA (Gemini) ${ia} a mitad del paso, también el modelo de respaldo: quedó a medias. Suele ser pasajero: reanúdala en unos minutos.`
+        : `Silvana no pudo terminar el paso${r.respuesta ? `: ${recorte(r.respuesta)}` : '.'}`,
+    );
   }
   if (rutina.tipo === 'sinPlan') {
     return (rutina.fallaIA ?? 'no respondió').startsWith('no respondió')
-      ? fallo('La IA que arma el plan (Gemini) no respondió, tampoco la de respaldo: no se hizo nada de este paso. Suele ser pasajero: reanúdala en unos minutos.')
-      : fallo('La IA que arma el plan respondió algo que no es un plan: no se hizo nada de este paso. Reanúdala; si se repite, reescribe la instrucción con los datos concretos.');
+      ? fallo(
+          'La IA que arma el plan (Gemini) no respondió, tampoco la de respaldo: no se hizo nada de este paso. Suele ser pasajero: reanúdala en unos minutos.',
+        )
+      : fallo(
+          'La IA que arma el plan respondió algo que no es un plan: no se hizo nada de este paso. Reanúdala; si se repite, reescribe la instrucción con los datos concretos.',
+        );
   }
   if (rutina.tipo === 'faltan') {
     const faltan = (rutina.faltan ?? []).filter(Boolean);
-    return fallo(`Le faltó un dato para hacerlo${faltan.length ? `: ${faltan.join('; ')}` : ''}. Escríbelo en la instrucción.`);
+    return fallo(
+      `Le faltó un dato para hacerlo${faltan.length ? `: ${faltan.join('; ')}` : ''}. Escríbelo en la instrucción.`,
+    );
   }
   if (rutina.tipo === 'aclarar' || rutina.tipo === 'corregir') {
     return fallo('No entendió la instrucción. Reescríbela con los datos concretos: códigos, servicios y fechas.');
@@ -89,7 +104,9 @@ export function evaluarPaso(e: {
   if (rutina.tipo === 'incompleto') {
     // El flujo no hizo nada: un plan a medias dejaría aplicada la mitad
     const descartados = (rutina.descartados ?? []).filter(Boolean);
-    return fallo(`No se hizo nada de este paso: el plan traía algo que no se puede hacer${descartados.length ? ` (${descartados.join('; ')})` : ''}. Reescribe la instrucción con los datos concretos, o pártela en pasos.`);
+    return fallo(
+      `No se hizo nada de este paso: el plan traía algo que no se puede hacer${descartados.length ? ` (${descartados.join('; ')})` : ''}. Reescribe la instrucción con los datos concretos, o pártela en pasos.`,
+    );
   }
   if (rutina.descartados?.length) {
     return fallo(`Dejó sin hacer parte del paso: ${rutina.descartados.join('; ')}. Pártelo en pasos más cortos.`);
@@ -97,9 +114,11 @@ export function evaluarPaso(e: {
 
   if (rutina.sinTerminar) {
     const faltaron = (rutina.faltaron ?? []).filter(Boolean);
-    return fallo(faltaron.length
-      ? `No llegó a hacer todas las llamadas: faltaron ${faltaron.join(', ')}.`
-      : `Se paró antes de terminar: en vez de llamar a las herramientas, contestó "${recorte(r.respuesta, 200)}".`);
+    return fallo(
+      faltaron.length
+        ? `No llegó a hacer todas las llamadas: faltaron ${faltaron.join(', ')}.`
+        : `Se paró antes de terminar: en vez de llamar a las herramientas, contestó "${recorte(r.respuesta, 200)}".`,
+    );
   }
 
   // Un 400 porque todo ya estaba como se pedía no es un fallo: el estado se cumple
@@ -107,13 +126,15 @@ export function evaluarPaso(e: {
   if (mala) return fallo(`"${mala.herramienta}" respondió ${mala.estado}: ${mala.problemas[0] ?? 'sin detalle'}`);
 
   const queCuentan = (l: LlamadaHerramienta) =>
-    (e.prueba && l.simulacion ? [] : [...l.problemas, ...(e.prueba ? [] : l.deSimulacion ?? [])]);
+    e.prueba && l.simulacion ? [] : [...l.problemas, ...(e.prueba ? [] : (l.deSimulacion ?? []))];
   const conProblemas = e.llamadas.find((l) => queCuentan(l).length);
   if (conProblemas) return fallo(`"${conProblemas.herramienta}": ${queCuentan(conProblemas).join(' · ')}`);
 
   const dichas = (rutina.herramientas ?? []).filter((h) => !DEL_FLUJO.has(h));
   if (dichas.length > e.llamadas.length) {
-    return fallo('Una de las herramientas que llamó no llegó a responder: el backend la rechazó antes. Vuelve a probarla.');
+    return fallo(
+      'Una de las herramientas que llamó no llegó a responder: el backend la rechazó antes. Vuelve a probarla.',
+    );
   }
 
   const usados = e.llamadas.map((l) => normalizar(l.atajo)).filter(Boolean);
@@ -122,7 +143,9 @@ export function evaluarPaso(e: {
     return !usados.some((u) => u === pedido || u.includes(pedido) || pedido.includes(u));
   });
   if (sinUsar.length) {
-    return fallo(`No usó ${sinUsar.length === 1 ? 'el atajo' : 'los atajos'} que pide el paso: ${sinUsar.map((a) => `"${a}"`).join(', ')}.`);
+    return fallo(
+      `No usó ${sinUsar.length === 1 ? 'el atajo' : 'los atajos'} que pide el paso: ${sinUsar.map((a) => `"${a}"`).join(', ')}.`,
+    );
   }
 
   return { estado: 'completado' };

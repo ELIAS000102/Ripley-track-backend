@@ -58,7 +58,12 @@ function armar(
 ) {
   const actualizarServicio = vi.fn().mockResolvedValue({ ok: true });
   const guardadas = {
-    leer: vi.fn().mockResolvedValue({ nombre: 'Estado del Next Day y Same Day de chile', agendas: (opciones.guardadas ?? []).map((g) => ({ servicio: null, ...g })) }),
+    leer: vi
+      .fn()
+      .mockResolvedValue({
+        nombre: 'Estado del Next Day y Same Day de chile',
+        agendas: (opciones.guardadas ?? []).map((g) => ({ servicio: null, ...g })),
+      }),
   } as never;
 
   const opl = {
@@ -84,19 +89,9 @@ function armar(
           : [],
       });
     }),
-    listarZonas: vi
-      .fn()
-      .mockResolvedValue(
-        opciones.zonas ?? [{ mainZone: 'z-1', nombre: 'Lima Centro' }],
-      ),
-    listarAgendas: vi
-      .fn()
-      .mockResolvedValue(
-        opciones.agendas ?? [{ mainSchedule: 'a-1', nombre: 'Agenda DT' }],
-      ),
-    listarServicios: vi
-      .fn()
-      .mockResolvedValue({ servicios: opciones.servicios ?? SERVICIOS }),
+    listarZonas: vi.fn().mockResolvedValue(opciones.zonas ?? [{ mainZone: 'z-1', nombre: 'Lima Centro' }]),
+    listarAgendas: vi.fn().mockResolvedValue(opciones.agendas ?? [{ mainSchedule: 'a-1', nombre: 'Agenda DT' }]),
+    listarServicios: vi.fn().mockResolvedValue({ servicios: opciones.servicios ?? SERVICIOS }),
     actualizarServicio,
   } as unknown as OplService;
 
@@ -107,10 +102,15 @@ function armar(
   const registrarCambio = vi.fn();
 
   return {
-    servicio: new EditarTipoServicioAgenteService(opl, contexto, {
-      registrarCambio,
-      enSimulacro: () => false,
-    } as unknown as ContextoAuditoria, guardadas),
+    servicio: new EditarTipoServicioAgenteService(
+      opl,
+      contexto,
+      {
+        registrarCambio,
+        enSimulacro: () => false,
+      } as unknown as ContextoAuditoria,
+      guardadas,
+    ),
     actualizarServicio,
     registrarCambio,
     opl,
@@ -118,8 +118,7 @@ function armar(
   };
 }
 
-const editar = (extra: Record<string, unknown>) =>
-  ({ opl: '1130', servicio: 'SD', ...extra }) as never;
+const editar = (extra: Record<string, unknown>) => ({ opl: '1130', servicio: 'SD', ...extra }) as never;
 
 describe('Editar un tipo de servicio: lo que sí cambia', () => {
   it('desactivar apaga también el checkout, aunque solo se pida el estado', async () => {
@@ -187,22 +186,15 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
 
     await servicio.editar(USUARIO, editar({ dia: 'jueves', corte: '17:00' }));
 
-    expect(actualizarServicio.mock.calls[0][1].cortes).toEqual([
-      { id: 4, value: '17:00' },
-    ]);
+    expect(actualizarServicio.mock.calls[0][1].cortes).toEqual([{ id: 4, value: '17:00' }]);
   });
 
   it('admite el día con tilde y sin ella', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    await servicio.editar(
-      USUARIO,
-      editar({ dia: 'miércoles', corte: '18:00' }),
-    );
+    await servicio.editar(USUARIO, editar({ dia: 'miércoles', corte: '18:00' }));
 
-    expect(actualizarServicio.mock.calls[0][1].cortes).toEqual([
-      { id: 3, value: '18:00' },
-    ]);
+    expect(actualizarServicio.mock.calls[0][1].cortes).toEqual([{ id: 3, value: '18:00' }]);
   });
 
   it('devuelve los cortes como se leen', async () => {
@@ -210,10 +202,7 @@ describe('Editar un tipo de servicio: lo que sí cambia', () => {
 
     const r = await servicio.editar(USUARIO, editar({ activo: false }));
 
-    expect(r.servicios[0].antes?.cortes).toEqual([
-      'Lunes 23:30',
-      'Jueves 23:30',
-    ]);
+    expect(r.servicios[0].antes?.cortes).toEqual(['Lunes 23:30', 'Jueves 23:30']);
     expect(r.opls).toEqual(['1130 - Olva']);
     expect(r.servicios[0].agenda).toBe('Agenda DT');
   });
@@ -223,30 +212,24 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
   it('si no se pide ningún cambio', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    await expect(servicio.editar(USUARIO, editar({}))).rejects.toThrow(
-      /nada que cambiar/,
-    );
+    await expect(servicio.editar(USUARIO, editar({}))).rejects.toThrow(/nada que cambiar/);
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
 
   it('si llega el día sin la hora, o al revés', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ dia: 'jueves' })),
-    ).rejects.toThrow(/hacen falta las dos cosas/);
+    await expect(servicio.editar(USUARIO, editar({ dia: 'jueves' }))).rejects.toThrow(/hacen falta las dos cosas/);
 
-    await expect(
-      servicio.editar(USUARIO, editar({ corte: '17:00' })),
-    ).rejects.toThrow(/hacen falta las dos cosas/);
+    await expect(servicio.editar(USUARIO, editar({ corte: '17:00' }))).rejects.toThrow(/hacen falta las dos cosas/);
   });
 
   it('si el día no se reconoce', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ dia: 'juebes', corte: '17:00' })),
-    ).rejects.toThrow(/No reconozco el día "juebes"/);
+    await expect(servicio.editar(USUARIO, editar({ dia: 'juebes', corte: '17:00' }))).rejects.toThrow(
+      /No reconozco el día "juebes"/,
+    );
   });
 
   it('si el operador tiene varias zonas y no dicen cuál', async () => {
@@ -258,9 +241,9 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
       ],
     });
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false })),
-    ).rejects.toThrow(/no voy a elegir por ti: indica la zona/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false }))).rejects.toThrow(
+      /no voy a elegir por ti: indica la zona/,
+    );
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -273,9 +256,7 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
       ],
     });
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false })),
-    ).rejects.toThrow(/Lima Centro, Lima Norte/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false }))).rejects.toThrow(/Lima Centro, Lima Norte/);
   });
 
   it('pero nombrar la zona desempata', async () => {
@@ -294,17 +275,15 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
   it('si la agenda no tiene ese servicio, y dice los que tiene', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ servicio: 'ZZ', activo: false })),
-    ).rejects.toThrow(/no tiene el servicio ZZ.*SD, ST/s);
+    await expect(servicio.editar(USUARIO, editar({ servicio: 'ZZ', activo: false }))).rejects.toThrow(
+      /no tiene el servicio ZZ.*SD, ST/s,
+    );
   });
 
   it('si el servicio ya estaba exactamente así', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: true, enCheckout: true })),
-    ).rejects.toThrow(/Ya estaba así/);
+    await expect(servicio.editar(USUARIO, editar({ activo: true, enCheckout: true }))).rejects.toThrow(/Ya estaba así/);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -312,9 +291,7 @@ describe('Editar un tipo de servicio: cuándo se niega', () => {
   it('y una hora de corte igual a la que ya tenía tampoco cuenta', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ dia: 'jueves', corte: '23:30' })),
-    ).rejects.toThrow(/Ya estaba así/);
+    await expect(servicio.editar(USUARIO, editar({ dia: 'jueves', corte: '23:30' }))).rejects.toThrow(/Ya estaba así/);
   });
 });
 
@@ -328,10 +305,7 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
   it('cambia los dos y devuelve uno por cada uno', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ servicio: 'SD, ST', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ servicio: 'SD, ST', activo: false }));
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
 
@@ -352,10 +326,7 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
   it('uno que no existe no arrastra a los demás', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ servicio: 'SD, ZZ', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ servicio: 'SD, ZZ', activo: false }));
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
     expect(r.servicios[1].error).toMatch(/no tiene el servicio ZZ/);
@@ -366,9 +337,9 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
   it('si ninguno existe, es un 404 y no se escribe nada', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ servicio: 'ZZ, YY', activo: false })),
-    ).rejects.toThrow(/Ninguno de los 2 cambios se pudo aplicar.*ZZ.*YY/s);
+    await expect(servicio.editar(USUARIO, editar({ servicio: 'ZZ, YY', activo: false }))).rejects.toThrow(
+      /Ninguno de los 2 cambios se pudo aplicar.*ZZ.*YY/s,
+    );
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -378,10 +349,7 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
     const { servicio, actualizarServicio } = armar();
 
     await expect(
-      servicio.editar(
-        USUARIO,
-        editar({ servicio: 'SD, ST', dia: 'jueves', corte: '17:00' }),
-      ),
+      servicio.editar(USUARIO, editar({ servicio: 'SD, ST', dia: 'jueves', corte: '17:00' })),
     ).rejects.toThrow(/un servicio por vez/);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
@@ -390,10 +358,7 @@ describe('Editar un tipo de servicio: varios de una vez', () => {
   it('un servicio repetido se escribe una sola vez', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ servicio: 'SD, sd', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ servicio: 'SD, sd', activo: false }));
 
     expect(r.servicios).toHaveLength(1);
     expect(actualizarServicio).toHaveBeenCalledOnce();
@@ -411,29 +376,20 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
   it('cambia el servicio en los dos y lo devuelve en una lista plana', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ opl: '1130, 1140', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ opl: '1130, 1140', activo: false }));
 
     expect(r.opls).toEqual(['1130 - Olva', '1140 - Urbano']);
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 2, sinCambiar: 0 });
 
     // Cada fila dice de qué operador es: con varios, la tabla necesita esa columna
-    expect(r.servicios.map((s) => s.opl)).toEqual([
-      '1130 - Olva',
-      '1140 - Urbano',
-    ]);
+    expect(r.servicios.map((s) => s.opl)).toEqual(['1130 - Olva', '1140 - Urbano']);
     expect(actualizarServicio).toHaveBeenCalledTimes(2);
   });
 
   it('cruza operadores con servicios', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ opl: '1130, 1140', servicio: 'SD, ST', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ opl: '1130, 1140', servicio: 'SD, ST', activo: false }));
 
     // Dos operadores por dos servicios
     expect(r.servicios).toHaveLength(4);
@@ -442,10 +398,7 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
   it('un operador que no existe no arrastra a los demás', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ opl: '1130, 9999', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ opl: '1130, 9999', activo: false }));
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
     expect(r.servicios[1].error).toMatch(/No se encontró ningún operador/);
@@ -467,10 +420,7 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
   it('un operador repetido se escribe una sola vez', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ opl: '1130, 1130', activo: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ opl: '1130, 1130', activo: false }));
 
     expect(r.opls).toHaveLength(1);
     expect(actualizarServicio).toHaveBeenCalledOnce();
@@ -481,10 +431,7 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
     const { servicio, actualizarServicio } = armar();
 
     await expect(
-      servicio.editar(
-        USUARIO,
-        editar({ opl: '1130, 1140', dia: 'jueves', corte: '17:00' }),
-      ),
+      servicio.editar(USUARIO, editar({ opl: '1130, 1140', dia: 'jueves', corte: '17:00' })),
     ).rejects.toThrow(/un operador por vez/);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
@@ -495,9 +442,9 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
 
     const muchos = Array.from({ length: 31 }, (_, i) => `op${i}`).join(', ');
 
-    await expect(
-      servicio.editar(USUARIO, editar({ opl: muchos, activo: false })),
-    ).rejects.toThrow(/máximo por vez es 30.*cambio en bloque/s);
+    await expect(servicio.editar(USUARIO, editar({ opl: muchos, activo: false }))).rejects.toThrow(
+      /máximo por vez es 30.*cambio en bloque/s,
+    );
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -505,9 +452,9 @@ describe('Editar un tipo de servicio: varios operadores de una vez', () => {
   it('si ninguno se pudo resolver, es un 404 con los motivos', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ opl: '9998, 9999', activo: false })),
-    ).rejects.toThrow(/Ninguno de los 2 cambios se pudo aplicar/);
+    await expect(servicio.editar(USUARIO, editar({ opl: '9998, 9999', activo: false }))).rejects.toThrow(
+      /Ninguno de los 2 cambios se pudo aplicar/,
+    );
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -541,8 +488,7 @@ describe('Editar un tipo de servicio: lo que llega tras validar', () => {
     data: '',
   };
 
-  const validar = (cuerpo: Record<string, unknown>) =>
-    pipe.transform(cuerpo, meta) as Promise<EditarTipoServicioDto>;
+  const validar = (cuerpo: Record<string, unknown>) => pipe.transform(cuerpo, meta) as Promise<EditarTipoServicioDto>;
 
   /** Un cuerpo como el que arma n8n: todos los campos, vacíos los que no usó */
   const comoN8n = (relleno: Record<string, unknown>) => ({
@@ -564,9 +510,7 @@ describe('Editar un tipo de servicio: lo que llega tras validar', () => {
    * rechazaba. El cambio no se llegaba a intentar.
    */
   it('un corte vacío no dispara el formato HH:MM', async () => {
-    const dto = await validar(
-      comoN8n({ activo: 'false', enCheckout: 'false' }),
-    );
+    const dto = await validar(comoN8n({ activo: 'false', enCheckout: 'false' }));
 
     expect(dto.corte).toBeUndefined();
     expect(dto.dia).toBeUndefined();
@@ -575,9 +519,7 @@ describe('Editar un tipo de servicio: lo que llega tras validar', () => {
   });
 
   it('y una hora mal escrita sí se sigue rechazando', async () => {
-    const motivos = await validar(
-      comoN8n({ dia: 'jueves', corte: '25:99' }),
-    ).then(
+    const motivos = await validar(comoN8n({ dia: 'jueves', corte: '25:99' })).then(
       () => [] as string[],
       (e: { response?: { message?: string[] } }) => e.response?.message ?? [],
     );
@@ -609,12 +551,22 @@ describe('Editar un tipo de servicio sobre lo que enseñó un atajo', () => {
     { mainZone: 'z-1', nombre: 'Zona1' },
     { mainZone: 'z-3', nombre: 'Zona 3' },
   ];
-  const SAME_DAY = { opls: { '1088': { id: 'o-88', nombre: 'Courier Paquetería' } }, zonas: CUATRO_ZONAS, agendas: [{ mainSchedule: 'a-4', nombre: 'Zona 4' }] };
+  const SAME_DAY = {
+    opls: { '1088': { id: 'o-88', nombre: 'Courier Paquetería' } },
+    zonas: CUATRO_ZONAS,
+    agendas: [{ mainSchedule: 'a-4', nombre: 'Zona 4' }],
+  };
 
   it('va a la zona que ella guarda, sin preguntar cuál de las cuatro', async () => {
-    const { servicio, actualizarServicio, guardadas } = armar({ ...SAME_DAY, guardadas: [{ codigo: '1088', zona: 'Zona 4', agenda: null }] });
+    const { servicio, actualizarServicio, guardadas } = armar({
+      ...SAME_DAY,
+      guardadas: [{ codigo: '1088', zona: 'Zona 4', agenda: null }],
+    });
 
-    await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, atajo: 'Estado del Next Day y Same Day de chile' }));
+    await servicio.editar(
+      USUARIO,
+      editar({ opl: '1088', activo: false, atajo: 'Estado del Next Day y Same Day de chile' }),
+    );
 
     expect(guardadas.leer).toHaveBeenCalledWith('Estado del Next Day y Same Day de chile', 'opl');
     expect(actualizarServicio.mock.calls[0][1].mainZone).toBe('z-4');
@@ -623,14 +575,22 @@ describe('Editar un tipo de servicio sobre lo que enseñó un atajo', () => {
   it('sin el atajo, con las cuatro zonas, se sigue negando a elegir', async () => {
     const { servicio, actualizarServicio } = armar(SAME_DAY);
 
-    await expect(servicio.editar(USUARIO, editar({ opl: '1088', activo: false }))).rejects.toThrow(/Hay 4 opciones .* indica la zona/);
+    await expect(servicio.editar(USUARIO, editar({ opl: '1088', activo: false }))).rejects.toThrow(
+      /Hay 4 opciones .* indica la zona/,
+    );
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
 
   it('la zona que se dice manda sobre la guardada', async () => {
-    const { servicio, actualizarServicio } = armar({ ...SAME_DAY, guardadas: [{ codigo: '1088', zona: 'Zona 4', agenda: null }] });
+    const { servicio, actualizarServicio } = armar({
+      ...SAME_DAY,
+      guardadas: [{ codigo: '1088', zona: 'Zona 4', agenda: null }],
+    });
 
-    await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, zona: 'Zona 2', atajo: 'Estado del Next Day y Same Day de chile' }));
+    await servicio.editar(
+      USUARIO,
+      editar({ opl: '1088', activo: false, zona: 'Zona 2', atajo: 'Estado del Next Day y Same Day de chile' }),
+    );
 
     expect(actualizarServicio.mock.calls[0][1].mainZone).toBe('z-2');
   });
@@ -639,19 +599,31 @@ describe('Editar un tipo de servicio sobre lo que enseñó un atajo', () => {
     const { servicio, opl } = armar({
       ...SAME_DAY,
       opls: { '1088': { id: 'o-88', nombre: 'Courier Paquetería' }, '1130': { id: 'o-1', nombre: 'Olva' } },
-      guardadas: [{ codigo: '1088 - Courier Paquetería', zona: 'Zona 4', agenda: null }, { codigo: '1130', zona: 'Zona 4', agenda: null }],
+      guardadas: [
+        { codigo: '1088 - Courier Paquetería', zona: 'Zona 4', agenda: null },
+        { codigo: '1130', zona: 'Zona 4', agenda: null },
+      ],
     });
 
-    await servicio.editar(USUARIO, editar({ opl: 'todos', activo: false, atajo: 'Estado del Next Day y Same Day de chile' }));
+    await servicio.editar(
+      USUARIO,
+      editar({ opl: 'todos', activo: false, atajo: 'Estado del Next Day y Same Day de chile' }),
+    );
 
     expect((opl.buscarOpl as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])).toEqual(['1088', '1130']);
   });
 
   it('un nombre con espacios de más o comillas es el mismo nombre ("Zona  4", "Zona 1" es "Zona1")', async () => {
-    const { servicio, actualizarServicio } = armar({ ...SAME_DAY, agendas: [{ mainSchedule: 'a-4', nombre: 'Zona  4 ' }] });
+    const { servicio, actualizarServicio } = armar({
+      ...SAME_DAY,
+      agendas: [{ mainSchedule: 'a-4', nombre: 'Zona  4 ' }],
+    });
 
     await servicio.editar(USUARIO, editar({ opl: '1088', activo: false, zona: '"zona 1"', agenda: 'Zona 4.' }));
 
-    expect([actualizarServicio.mock.calls[0][1].mainZone, actualizarServicio.mock.calls[0][1].mainSchedule]).toEqual(['z-1', 'a-4']);
+    expect([actualizarServicio.mock.calls[0][1].mainZone, actualizarServicio.mock.calls[0][1].mainSchedule]).toEqual([
+      'z-1',
+      'a-4',
+    ]);
   });
 });

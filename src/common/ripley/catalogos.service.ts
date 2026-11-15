@@ -52,10 +52,7 @@ export class CatalogosRipleyService {
    * bandera, y sin bandera devuelve de todo. Buscar por `id` va sin bandera a
    * propósito: cuando ya se tiene el identificador no hay nada que filtrar.
    */
-  async oficinas(
-    pais: string,
-    filtro: FiltroOficinas = {},
-  ): Promise<OfficeRow[]> {
+  async oficinas(pais: string, filtro: FiltroOficinas = {}): Promise<OfficeRow[]> {
     const { filas } = await this.oficinasConTotal(pais, filtro);
     return filas;
   }
@@ -66,10 +63,7 @@ export class CatalogosRipleyService {
    * Los buscadores incrementales lo muestran ("128 resultados") y no coincide
    * con la longitud de `filas`: la API pagina.
    */
-  async oficinasConTotal(
-    pais: string,
-    filtro: FiltroOficinas = {},
-  ): Promise<{ total: number; filas: OfficeRow[] }> {
+  async oficinasConTotal(pais: string, filtro: FiltroOficinas = {}): Promise<{ total: number; filas: OfficeRow[] }> {
     const params = {
       ...(filtro.q ? { q: filtro.q } : {}),
       ...(filtro.id ? { id: filtro.id } : {}),
@@ -77,15 +71,8 @@ export class CatalogosRipleyService {
       ...(filtro.tipo === 'almacen' ? { isStoreOffice: true } : {}),
     };
 
-    const data = await this.cache.recordar(
-      `offices|${JSON.stringify(params)}`,
-      pais,
-      () =>
-        this.ripley.get<RipleyListResponse<OfficeRow>>(
-          this.ripley.endpoint('offices'),
-          pais,
-          params,
-        ),
+    const data = await this.cache.recordar(`offices|${JSON.stringify(params)}`, pais, () =>
+      this.ripley.get<RipleyListResponse<OfficeRow>>(this.ripley.endpoint('offices'), pais, params),
     );
 
     return { total: data?.count ?? 0, filas: data?.rows ?? [] };
@@ -97,12 +84,7 @@ export class CatalogosRipleyService {
    * El código exacto gana; si no aparece, se acepta la primera coincidencia,
    * porque la búsqueda de Ripley es incremental y `q=2002` trae varias.
    */
-  async oficinaPorCodigo(
-    code: string,
-    pais: string,
-    tipo: TipoOficina,
-    queEs = 'la oficina',
-  ): Promise<OfficeRow> {
+  async oficinaPorCodigo(code: string, pais: string, tipo: TipoOficina, queEs = 'la oficina'): Promise<OfficeRow> {
     const delCatalogo = await this.delCatalogoEntero(code, pais, tipo);
     if (delCatalogo) return delCatalogo;
 
@@ -147,10 +129,7 @@ export class CatalogosRipleyService {
   /** El catálogo /services entero */
   async servicios(pais: string): Promise<ServiceRow[]> {
     const data = await this.cache.recordar('services', pais, () =>
-      this.ripley.get<RipleyListResponse<ServiceRow>>(
-        this.ripley.endpoint('services'),
-        pais,
-      ),
+      this.ripley.get<RipleyListResponse<ServiceRow>>(this.ripley.endpoint('services'), pais),
     );
 
     return data?.rows ?? [];
@@ -163,19 +142,11 @@ export class CatalogosRipleyService {
   }
 
   /** Agendas de picking de un almacén */
-  async agendasDePicking(
-    warehouseId: string,
-    pais: string,
-  ): Promise<ScheduleRow[]> {
-    const data = await this.cache.recordar(
-      `schedulesPicking|${warehouseId}`,
-      pais,
-      () =>
-        this.ripley.get<RipleyListResponse<ScheduleRow>>(
-          this.ripley.endpoint('schedulesPicking'),
-          pais,
-          { warehouse: warehouseId },
-        ),
+  async agendasDePicking(warehouseId: string, pais: string): Promise<ScheduleRow[]> {
+    const data = await this.cache.recordar(`schedulesPicking|${warehouseId}`, pais, () =>
+      this.ripley.get<RipleyListResponse<ScheduleRow>>(this.ripley.endpoint('schedulesPicking'), pais, {
+        warehouse: warehouseId,
+      }),
     );
 
     return data?.rows ?? [];
@@ -189,15 +160,14 @@ export class CatalogosRipleyService {
    * sus unidades asignadas y ocupadas dentro, y servir capacidades de hace un
    * minuto es enseñar un cupo que quizá ya se llenó.
    */
-  async agendasDeRecepcion(
-    oplOfficeId: string,
-    pais: string,
-  ): Promise<ReceptionScheduleRow[]> {
-    const data = await this.ripley.get<
-      RipleyListResponse<ReceptionScheduleRow>
-    >(this.ripley.endpoint('schedulesReception'), pais, {
-      oplOffice: oplOfficeId,
-    });
+  async agendasDeRecepcion(oplOfficeId: string, pais: string): Promise<ReceptionScheduleRow[]> {
+    const data = await this.ripley.get<RipleyListResponse<ReceptionScheduleRow>>(
+      this.ripley.endpoint('schedulesReception'),
+      pais,
+      {
+        oplOffice: oplOfficeId,
+      },
+    );
 
     return data?.rows ?? [];
   }
@@ -213,24 +183,15 @@ export class CatalogosRipleyService {
    * La fecha viaja con barras. Es el único sitio del proyecto donde Ripley las
    * pide, y por eso la conversión se hace aquí, en el borde.
    */
-  async capacidadesDeRecepcion(
-    capacityId: string,
-    pais: string,
-    desde: string,
-  ): Promise<ReceptionCapacitiesResponse> {
-    return this.ripley.get<ReceptionCapacitiesResponse>(
-      this.ripley.endpoint('capacitiesReception'),
-      pais,
-      { id: capacityId, date: ripleyDateToBarras(desde) },
-    );
+  async capacidadesDeRecepcion(capacityId: string, pais: string, desde: string): Promise<ReceptionCapacitiesResponse> {
+    return this.ripley.get<ReceptionCapacitiesResponse>(this.ripley.endpoint('capacitiesReception'), pais, {
+      id: capacityId,
+      date: ripleyDateToBarras(desde),
+    });
   }
 
   /** Capacidades de una agenda de picking, desde una fecha DD-MM-YYYY */
-  async capacidadesDePicking(
-    scheduleId: string,
-    pais: string,
-    from?: string,
-  ): Promise<CapacitiesResponse> {
+  async capacidadesDePicking(scheduleId: string, pais: string, from?: string): Promise<CapacitiesResponse> {
     return this.ripley.get<CapacitiesResponse>(
       `${this.ripley.endpoint('capacitiesPicking')}/${scheduleId}`,
       pais,
@@ -243,11 +204,9 @@ export class CatalogosRipleyService {
   /** Los clústeres de destino del país. Es un catálogo: va con caché */
   async clusters(pais: string): Promise<ClusterRow[]> {
     const data = await this.cache.recordar('clusters', pais, () =>
-      this.ripley.get<ClusterRow[] | RipleyListResponse<ClusterRow>>(
-        this.ripley.endpoint('clusters'),
-        pais,
-        { country: idDePais(pais) },
-      ),
+      this.ripley.get<ClusterRow[] | RipleyListResponse<ClusterRow>>(this.ripley.endpoint('clusters'), pais, {
+        country: idDePais(pais),
+      }),
     );
 
     // Responde un array a secas; se acepta también la forma paginada de los
@@ -265,12 +224,14 @@ export class CatalogosRipleyService {
     filtro: { warehouseId: string } | { clusters: string[] },
     pais: string,
   ): Promise<TransferScheduleRow[]> {
-    const data = await this.ripley.postDeLectura<
-      TransferScheduleRow[] | RipleyListResponse<TransferScheduleRow>
-    >(this.ripley.endpoint('schedulesTransfer'), pais, {
-      ...filtro,
-      populateCapacity: true,
-    });
+    const data = await this.ripley.postDeLectura<TransferScheduleRow[] | RipleyListResponse<TransferScheduleRow>>(
+      this.ripley.endpoint('schedulesTransfer'),
+      pais,
+      {
+        ...filtro,
+        populateCapacity: true,
+      },
+    );
 
     return Array.isArray(data) ? data : (data?.rows ?? []);
   }
@@ -287,11 +248,10 @@ export class CatalogosRipleyService {
     pais: string,
     desde: string,
   ): Promise<ReceptionCapacitiesResponse> {
-    return this.ripley.get<ReceptionCapacitiesResponse>(
-      this.ripley.endpoint('capacitiesTransfer'),
-      pais,
-      { id: capacityId, date: ripleyDateToBarras(desde) },
-    );
+    return this.ripley.get<ReceptionCapacitiesResponse>(this.ripley.endpoint('capacitiesTransfer'), pais, {
+      id: capacityId,
+      date: ripleyDateToBarras(desde),
+    });
   }
 
   /**

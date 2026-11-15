@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Injectable,
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  Put,
-} from '@nestjs/common';
+import { Controller, Get, Injectable, MiddlewareConsumer, Module, NestModule, Put } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -82,9 +74,7 @@ describe('Auditoría de cambios', () => {
     // El service real, pero sin tocar Supabase: solo interesa qué fila se arma
     const auditoriaFalsa = {
       registrar,
-      censurar: new AuditoriaService(null as never).censurar.bind(
-        new AuditoriaService(null as never),
-      ),
+      censurar: new AuditoriaService(null as never).censurar.bind(new AuditoriaService(null as never)),
     };
 
     @Module({
@@ -138,9 +128,7 @@ describe('Auditoría de cambios', () => {
   it('ignora la marca sobre una consulta, aunque el handler cambie algo', async () => {
     // Un GET no genera un cambio por definición: al historial de cambios no
     // va, y da igual que esté marcado o que por dentro haga lo que sea.
-    await request(app.getHttpServer())
-      .get('/prueba/consulta-marcada')
-      .expect(200);
+    await request(app.getHttpServer()).get('/prueba/consulta-marcada').expect(200);
 
     expect(guardadas).toHaveLength(0);
   });

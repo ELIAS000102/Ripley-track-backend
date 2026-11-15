@@ -23,7 +23,11 @@ const SUCURSAL_20026 = { id: '5dd8082dfbf76111b3f26b12', code: '20026', name: 'R
 const OTRO_ORIGEN = { id: '60a29939e0d2770bf4949595', code: '20096', name: 'CD Aldeas' };
 
 const CLUSTERS = [
-  { _id: '63235b45d51a418d28ea9fe2', name: '20021 - Chorrillos', warehouses: [{ code: 20021, name: 'Chorrillos', _id: 'w1' }] },
+  {
+    _id: '63235b45d51a418d28ea9fe2',
+    name: '20021 - Chorrillos',
+    warehouses: [{ code: 20021, name: 'Chorrillos', _id: 'w1' }],
+  },
   { _id: '63235c17d51a418d28ea9fea', name: '20048 - Breña', warehouses: [{ code: 20048, name: 'Breña', _id: 'w2' }] },
   { _id: '63235c01d51a418d28ea9fe9', name: 'Asia', warehouses: [] },
   { _id: '65142dbfd7597b0012a7f167', name: 'PICKIT', warehouses: [] },
@@ -42,7 +46,14 @@ const agendaST = {
   services: ['655fc89913e5bdabaae5cecf'],
   autogenerate: false,
   name: 'Clúster Chorrillos ST - 20026 / 20021',
-  type: { isTransferSchedule: true, isPickingSchedule: false, isDispatchSchedule: false, isReceptionSchedule: false, isStockSchedule: false, isPickingSupplierSchedule: false },
+  type: {
+    isTransferSchedule: true,
+    isPickingSchedule: false,
+    isDispatchSchedule: false,
+    isReceptionSchedule: false,
+    isStockSchedule: false,
+    isPickingSupplierSchedule: false,
+  },
   unitMeasure: 'Unidades',
   validityStart: '2022-10-13T05:00:00.000Z',
   validityEnd: '2027-12-31T05:00:00.000Z',
@@ -50,7 +61,13 @@ const agendaST = {
   weekCutTime: { monday: '23:59', sunday: '23:59' },
   cluster: '63235b45d51a418d28ea9fe2',
   // Se parece al id de la agenda (…302) y no lo es (…305)
-  capacities: [{ capacityId: '634878417e6a170011a32305', warehouseId: SUCURSAL_20026.id, lastDayOccupied: '2026-10-09T00:00:00.000Z' }],
+  capacities: [
+    {
+      capacityId: '634878417e6a170011a32305',
+      warehouseId: SUCURSAL_20026.id,
+      lastDayOccupied: '2026-10-09T00:00:00.000Z',
+    },
+  ],
 };
 
 const agendaSG = {
@@ -72,16 +89,28 @@ const agendaPickit = {
 };
 
 const dia = (fecha: string, active = true, assigned = 190, occupied = 0) => ({
-  day: `${fecha}T00:00:00.000Z`, active, assigned, occupied,
+  day: `${fecha}T00:00:00.000Z`,
+  active,
+  assigned,
+  occupied,
 });
-const DIAS = [dia('2026-10-08', true, 190, 4), dia('2026-10-09', true, 190, 12), dia('2026-10-10', false), dia('2026-10-11'), dia('2026-10-12')];
+const DIAS = [
+  dia('2026-10-08', true, 190, 4),
+  dia('2026-10-09', true, 190, 12),
+  dia('2026-10-10', false),
+  dia('2026-10-11'),
+  dia('2026-10-12'),
+];
 
 function armar(agendas: Array<Record<string, unknown>> = [agendaST, agendaPickit], dias = DIAS) {
   const catalogos = {
     clusters: vi.fn().mockResolvedValue(CLUSTERS),
     oficinaPorCodigo: vi.fn().mockResolvedValue(SUCURSAL_20026),
-    oficinas: vi.fn().mockImplementation(async (_pais: string, { id }: { id: string }) =>
-      [SUCURSAL_20026, OTRO_ORIGEN].filter((o) => o.id === id)),
+    oficinas: vi
+      .fn()
+      .mockImplementation(async (_pais: string, { id }: { id: string }) =>
+        [SUCURSAL_20026, OTRO_ORIGEN].filter((o) => o.id === id),
+      ),
     oficinasConTotal: vi.fn().mockResolvedValue({ total: 1, filas: [SUCURSAL_20026] }),
     agendasDeTransferencia: vi.fn().mockResolvedValue(agendas),
     mapaServicios: vi.fn().mockImplementation(async () => new Map(SERVICIOS)),
@@ -91,7 +120,9 @@ function armar(agendas: Array<Record<string, unknown>> = [agendaST, agendaPickit
 
   const ripley = {
     endpoint: vi.fn().mockReturnValue('/capacities'),
-    put: vi.fn().mockResolvedValue({ acknowledged: true, modifiedCount: 1, upsertedId: null, upsertedCount: 0, matchedCount: 1 }),
+    put: vi
+      .fn()
+      .mockResolvedValue({ acknowledged: true, modifiedCount: 1, upsertedId: null, upsertedCount: 0, matchedCount: 1 }),
   } as unknown as RipleyHttpService;
 
   const contexto = { registrarCambio: vi.fn() } as unknown as ContextoAuditoria;
@@ -143,7 +174,10 @@ describe('Primera forma: por sucursal de stock', () => {
 describe('Poner nombre a los orígenes sin bombardear la API', () => {
   /** Veinticinco agendas hacia un destino, cada una de un origen distinto */
   const deVariosOrigenes = Array.from({ length: 25 }, (_, i) => ({
-    ...agendaSG, _id: `a${i}`, warehouses: [`w${i}`], capacities: [{ capacityId: `c${i}`, warehouseId: `w${i}` }],
+    ...agendaSG,
+    _id: `a${i}`,
+    warehouses: [`w${i}`],
+    capacities: [{ capacityId: `c${i}`, warehouseId: `w${i}` }],
   }));
 
   it('primero el catálogo de sucursales, de una vez: si están ahí, ni una consulta más', async () => {
@@ -180,14 +214,20 @@ describe('Sin catálogo de clústeres', () => {
 
     const [st] = await servicio.listarAgendas({ origen: '20026' });
 
-    expect(st).toMatchObject({ scheduleId: agendaST._id, origen: { code: '20026' }, destino: { code: null, nombre: '' } });
+    expect(st).toMatchObject({
+      scheduleId: agendaST._id,
+      origen: { code: '20026' },
+      destino: { code: null, nombre: '' },
+    });
   });
 
   it('por destino no: sin el catálogo no se sabe qué clúster es, y se dice', async () => {
     const { servicio, catalogos } = armar([agendaST]);
     vi.mocked(catalogos.clusters).mockRejectedValue(new Error('Falta configurar el endpoint "clusters"'));
 
-    await expect(servicio.listarAgendas({ destinos: ['20021'] })).rejects.toThrow(/Falta configurar el endpoint "clusters"/);
+    await expect(servicio.listarAgendas({ destinos: ['20021'] })).rejects.toThrow(
+      /Falta configurar el endpoint "clusters"/,
+    );
   });
 });
 
@@ -225,7 +265,10 @@ describe('Segunda forma: por clúster de destino', () => {
     await servicio.listarAgendas({ destinos: ['20021', '20048'] });
 
     expect(catalogos.agendasDeTransferencia).toHaveBeenCalledTimes(1);
-    expect(catalogos.agendasDeTransferencia).toHaveBeenCalledWith({ clusters: ['63235b45d51a418d28ea9fe2', '63235c17d51a418d28ea9fea'] }, 'PE');
+    expect(catalogos.agendasDeTransferencia).toHaveBeenCalledWith(
+      { clusters: ['63235b45d51a418d28ea9fe2', '63235c17d51a418d28ea9fea'] },
+      'PE',
+    );
   });
 
   it('con origen y destino, solo las de ese par', async () => {
@@ -270,7 +313,10 @@ describe('Las dos formas llevan a los mismos días', () => {
   });
 
   it('se toma la capacidad del almacén de origen, no la primera de la lista', async () => {
-    const conDos = { ...agendaST, capacities: [{ capacityId: 'de-otro', warehouseId: 'otro' }, ...agendaST.capacities] };
+    const conDos = {
+      ...agendaST,
+      capacities: [{ capacityId: 'de-otro', warehouseId: 'otro' }, ...agendaST.capacities],
+    };
     const { servicio, catalogos } = armar([conDos]);
 
     await servicio.buscarCapacidades({ origen: '20026' }, agendaST._id, '08-10-2026');
@@ -279,7 +325,10 @@ describe('Las dos formas llevan a los mismos días', () => {
   });
 
   it('el capacityId expandido como documento se lee igual', async () => {
-    const expandida = { ...agendaST, capacities: [{ capacityId: { _id: '634878417e6a170011a32305' }, warehouseId: SUCURSAL_20026.id }] };
+    const expandida = {
+      ...agendaST,
+      capacities: [{ capacityId: { _id: '634878417e6a170011a32305' }, warehouseId: SUCURSAL_20026.id }],
+    };
     const { servicio, catalogos } = armar([expandida]);
 
     await servicio.buscarCapacidades({ origen: '20026' }, agendaST._id, '08-10-2026');
@@ -297,7 +346,9 @@ describe('Las dos formas llevan a los mismos días', () => {
 
   it('una agenda sin capacidad creada es una agenda vacía, no un error', async () => {
     const { servicio, catalogos } = armar();
-    vi.mocked(catalogos.capacidadesDeTransferencia).mockRejectedValue(new RipleyApiError('No hay datos para ese recurso'));
+    vi.mocked(catalogos.capacidadesDeTransferencia).mockRejectedValue(
+      new RipleyApiError('No hay datos para ese recurso'),
+    );
 
     const r = await servicio.buscarCapacidades({ origen: '20026' }, agendaST._id);
 
@@ -307,7 +358,9 @@ describe('Las dos formas llevan a los mismos días', () => {
   it('un id que no es de ese origen o destino es un 404', async () => {
     const { servicio } = armar();
 
-    await expect(servicio.buscarCapacidades({ origen: '20026' }, 'otra')).rejects.toThrow(/ninguna agenda de transferencia/);
+    await expect(servicio.buscarCapacidades({ origen: '20026' }, 'otra')).rejects.toThrow(
+      /ninguna agenda de transferencia/,
+    );
   });
 });
 
@@ -319,10 +372,18 @@ describe('Editar un día', () => {
 
     await servicio.actualizar({ origen: '20026' }, agendaST._id, BODY);
 
-    expect(ripley.put).toHaveBeenCalledWith('/capacities/634878417e6a170011a32305', 'PE', {
-      capacities: [{ active: false, assigned: 190, day: '2026-10-12T00:00:00.000Z', occupied: 0 }],
-      schedules: [{ country: 'PE', idOffice: '20026', type: 'transfer', typeOfService: 'ST', unitMeasure: 'Unidades' }],
-    }, undefined, expect.objectContaining({ matchedCount: 1 }));
+    expect(ripley.put).toHaveBeenCalledWith(
+      '/capacities/634878417e6a170011a32305',
+      'PE',
+      {
+        capacities: [{ active: false, assigned: 190, day: '2026-10-12T00:00:00.000Z', occupied: 0 }],
+        schedules: [
+          { country: 'PE', idOffice: '20026', type: 'transfer', typeOfService: 'ST', unitMeasure: 'Unidades' },
+        ],
+      },
+      undefined,
+      expect.objectContaining({ matchedCount: 1 }),
+    );
   });
 
   it('buscando por destino se escribe igual, con el código del ORIGEN', async () => {
@@ -336,7 +397,11 @@ describe('Editar un día', () => {
   it('lo ocupado sale del estado actual, no de la petición', async () => {
     const { servicio, ripley } = armar();
 
-    await servicio.actualizar({ origen: '20026' }, agendaST._id, { day: '2026-10-08T00:00:00.000Z', assigned: 200, active: true });
+    await servicio.actualizar({ origen: '20026' }, agendaST._id, {
+      day: '2026-10-08T00:00:00.000Z',
+      assigned: 200,
+      active: true,
+    });
 
     expect(vi.mocked(ripley.put).mock.calls[0][2]).toMatchObject({ capacities: [{ occupied: 4, assigned: 200 }] });
   });
@@ -344,7 +409,9 @@ describe('Editar un día', () => {
   it('un día que no está en la agenda no se escribe', async () => {
     const { servicio, ripley } = armar();
 
-    await expect(servicio.actualizar({ origen: '20026' }, agendaST._id, { ...BODY, day: '2026-11-30T00:00:00.000Z' })).rejects.toThrow(/No se encontró el día/);
+    await expect(
+      servicio.actualizar({ origen: '20026' }, agendaST._id, { ...BODY, day: '2026-11-30T00:00:00.000Z' }),
+    ).rejects.toThrow(/No se encontró el día/);
     expect(ripley.put).not.toHaveBeenCalled();
   });
 

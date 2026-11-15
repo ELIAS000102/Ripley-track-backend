@@ -3,7 +3,13 @@ export const DIAS = ['L', 'M', 'W', 'J', 'V', 'S', 'D'] as const;
 export type Dia = (typeof DIAS)[number];
 
 export const NOMBRE_DIA: Record<Dia, string> = {
-  L: 'lunes', M: 'martes', W: 'miércoles', J: 'jueves', V: 'viernes', S: 'sábado', D: 'domingo',
+  L: 'lunes',
+  M: 'martes',
+  W: 'miércoles',
+  J: 'jueves',
+  V: 'viernes',
+  S: 'sábado',
+  D: 'domingo',
 };
 
 /**

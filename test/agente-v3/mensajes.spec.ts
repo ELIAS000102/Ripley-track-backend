@@ -12,18 +12,54 @@ import { esRespuesta } from '../../src/agente-v3/preguntas.js';
  */
 
 const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
-const ZONA: Pregunta = { id: 'zona:1', etapa: 'zona', paso: 1, texto: '¿Cuál?', opciones: [], libre: null, dudas: [{ id: 'zona:1:1401', texto: '1401: ¿qué zona?', opciones: [{ id: 'Zona A', texto: '1401 · Zona A' }, { id: 'todas', texto: '1401 · todas' }] }] };
-const FALTA: Pregunta = { id: 'armar:abierta', etapa: 'armar', texto: '¿De qué servicio?', opciones: [], libre: 'Escríbelo aquí' };
+const ZONA: Pregunta = {
+  id: 'zona:1',
+  etapa: 'zona',
+  paso: 1,
+  texto: '¿Cuál?',
+  opciones: [],
+  libre: null,
+  dudas: [
+    {
+      id: 'zona:1:1401',
+      texto: '1401: ¿qué zona?',
+      opciones: [
+        { id: 'Zona A', texto: '1401 · Zona A' },
+        { id: 'todas', texto: '1401 · todas' },
+      ],
+    },
+  ],
+};
+const FALTA: Pregunta = {
+  id: 'armar:abierta',
+  etapa: 'armar',
+  texto: '¿De qué servicio?',
+  opciones: [],
+  libre: 'Escríbelo aquí',
+};
 
 /** Un "Response" de Express de mentira: lo que se escribe, y si se cerró */
 function respuestaDeMentira() {
   const res = Object.assign(new EventEmitter(), {
-    lineas: [] as string[], estado: 0, cabeceras: {} as Record<string, string>, writableEnded: false,
-    status(n: number) { res.estado = n; return res; },
-    setHeader(k: string, v: string) { res.cabeceras[k] = v; },
+    lineas: [] as string[],
+    estado: 0,
+    cabeceras: {} as Record<string, string>,
+    writableEnded: false,
+    status(n: number) {
+      res.estado = n;
+      return res;
+    },
+    setHeader(k: string, v: string) {
+      res.cabeceras[k] = v;
+    },
     flushHeaders() {},
-    write(s: string) { res.lineas.push(s); return true; },
-    end() { res.writableEnded = true; },
+    write(s: string) {
+      res.lineas.push(s);
+      return true;
+    },
+    end() {
+      res.writableEnded = true;
+    },
   });
   return res;
 }
@@ -37,10 +73,19 @@ describe('La ruta: un flujo de eventos, una línea JSON por evento', () => {
   const controller = new MensajesV3Controller({} as never);
   it('cada evento según llega, y al final se cierra', async () => {
     const res = respuestaDeMentira();
-    await controller.enviar(res as never, eventos([{ tipo: 'turno', turno_id: 't1' }, { tipo: 'etapa', etapa: 'clasificar', modelo: 'm' }]));
+    await controller.enviar(
+      res as never,
+      eventos([
+        { tipo: 'turno', turno_id: 't1' },
+        { tipo: 'etapa', etapa: 'clasificar', modelo: 'm' },
+      ]),
+    );
     expect(res.estado).toBe(200);
     expect(res.cabeceras['Content-Type']).toBe('application/x-ndjson; charset=utf-8');
-    expect(res.lineas.map((l) => JSON.parse(l))).toEqual([{ tipo: 'turno', turno_id: 't1' }, { tipo: 'etapa', etapa: 'clasificar', modelo: 'm' }]);
+    expect(res.lineas.map((l) => JSON.parse(l))).toEqual([
+      { tipo: 'turno', turno_id: 't1' },
+      { tipo: 'etapa', etapa: 'clasificar', modelo: 'm' },
+    ]);
     expect(res.writableEnded).toBe(true);
   });
 
@@ -69,7 +114,15 @@ describe('Una pregunta pendiente y un mensaje nuevo', () => {
   });
 
   function motorCon(pendiente: Turno | null) {
-    const salida = (id: string): SalidaRuta => ({ turno_id: id, camino: 'responder', modelo: null, prompt: null, progreso: null, pregunta: null, respuesta: { frase: 'ok' } as never });
+    const salida = (id: string): SalidaRuta => ({
+      turno_id: id,
+      camino: 'responder',
+      modelo: null,
+      prompt: null,
+      progreso: null,
+      pregunta: null,
+      respuesta: { frase: 'ok' } as never,
+    });
     const agente = {
       pendienteDelChat: vi.fn(async () => pendiente),
       obtener: vi.fn(async () => pendiente),
@@ -80,7 +133,8 @@ describe('Una pregunta pendiente y un mensaje nuevo', () => {
     const motor = new MotorV3Service(agente as never, {} as never, { estaInterrumpida: () => false } as never);
     return { motor, agente };
   }
-  const turno = (p: Pregunta) => ({ id: 'viejo', chat_id: 'c', estado: 'pregunta', contexto: { pregunta: p } }) as unknown as Turno;
+  const turno = (p: Pregunta) =>
+    ({ id: 'viejo', chat_id: 'c', estado: 'pregunta', contexto: { pregunta: p } }) as unknown as Turno;
 
   it('con una pregunta que admite texto, lo escrito la contesta (sigue aquel turno)', async () => {
     const { motor, agente } = motorCon(turno(FALTA));
@@ -102,7 +156,11 @@ describe('Una pregunta pendiente y un mensaje nuevo', () => {
     const { motor, agente } = motorCon(turno(ZONA));
     await motor.todo(motor.contestar(USUARIO, 'viejo', { texto: 'dame las sucursales de la RT' }, 'p1'));
     expect(agente.cerrarPendiente).toHaveBeenCalledWith(USUARIO, 'viejo');
-    expect(agente.crear).toHaveBeenCalledWith(USUARIO, { mensaje: 'dame las sucursales de la RT', chat_id: 'c', peticion_id: 'p1' });
+    expect(agente.crear).toHaveBeenCalledWith(USUARIO, {
+      mensaje: 'dame las sucursales de la RT',
+      chat_id: 'c',
+      peticion_id: 'p1',
+    });
   });
 
   it('sin pregunta pendiente, un turno nuevo como siempre', async () => {

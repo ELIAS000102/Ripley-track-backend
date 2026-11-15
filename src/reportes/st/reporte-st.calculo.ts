@@ -65,10 +65,12 @@ export function leerDia(d: CapacityByDay): DiaSt {
 
 /** Los días de una agenda por fecha */
 export function porFecha(dias: CapacityByDay[]): Map<string, DiaSt> {
-  return new Map(dias.map((d) => {
-    const dia = leerDia(d);
-    return [dia.fecha, dia];
-  }));
+  return new Map(
+    dias.map((d) => {
+      const dia = leerDia(d);
+      return [dia.fecha, dia];
+    }),
+  );
 }
 
 /**
@@ -139,7 +141,13 @@ export function cruzarAgendas(
   return {
     recepcion: fechas.map((f) => {
       const d = recepciones.get(f);
-      return d ? { ...d, malla: mallaDeRecepcion(f)?.nombre ?? null, transferencias: transferenciasDe(f, candidatas, mallaEn, transferencias) } : null;
+      return d
+        ? {
+            ...d,
+            malla: mallaDeRecepcion(f)?.nombre ?? null,
+            transferencias: transferenciasDe(f, candidatas, mallaEn, transferencias),
+          }
+        : null;
     }),
     transferencia: fechas.map((f) => {
       const d = transferencias.get(f);

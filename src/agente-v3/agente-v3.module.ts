@@ -27,6 +27,15 @@ import { TurnosService } from './turnos.service.js';
 @Module({
   imports: [AgenteModule, AtajosModule],
   controllers: [AgenteV3Controller, MensajesV3Controller],
-  providers: [AgenteV3Service, TurnosService, ContextoV3Service, EjecucionV3Service, AprendizajeService, GeminiService, MotorV3Service, SinRastroInterceptor],
+  providers: [
+    AgenteV3Service,
+    TurnosService,
+    ContextoV3Service,
+    EjecucionV3Service,
+    AprendizajeService,
+    GeminiService,
+    MotorV3Service,
+    SinRastroInterceptor,
+  ],
 })
 export class AgenteV3Module {}

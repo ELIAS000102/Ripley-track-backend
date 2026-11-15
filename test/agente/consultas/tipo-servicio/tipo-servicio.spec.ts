@@ -49,12 +49,8 @@ function armar(servicios: Array<Record<string, unknown>> = [SERVICIO]) {
 
   const opl = {
     buscarOpl,
-    listarZonas: vi
-      .fn()
-      .mockResolvedValue([{ mainZone: 'z-1', nombre: 'Zona 4' }]),
-    listarAgendas: vi
-      .fn()
-      .mockResolvedValue([{ mainSchedule: 'a-1', nombre: 'Zona 4' }]),
+    listarZonas: vi.fn().mockResolvedValue([{ mainZone: 'z-1', nombre: 'Zona 4' }]),
+    listarAgendas: vi.fn().mockResolvedValue([{ mainSchedule: 'a-1', nombre: 'Zona 4' }]),
     listarServicios: vi.fn().mockResolvedValue({ servicios }),
   } as unknown as OplService;
 
@@ -68,8 +64,7 @@ function armar(servicios: Array<Record<string, unknown>> = [SERVICIO]) {
   };
 }
 
-const consultar = (extra: Record<string, unknown> = {}) =>
-  ({ opl: '1088', ...extra }) as never;
+const consultar = (extra: Record<string, unknown> = {}) => ({ opl: '1088', ...extra }) as never;
 
 describe('Consultar tipos de servicio: lo que devuelve', () => {
   it('incluye el máximo de ocurrencias y los días de holgura', async () => {
@@ -82,9 +77,7 @@ describe('Consultar tipos de servicio: lo que devuelve', () => {
   });
 
   it('los admite como cadena, que es como los manda a veces la API', async () => {
-    const { servicio } = armar([
-      { ...SERVICIO, maxOcurrence: '15', slackDays: '1' },
-    ]);
+    const { servicio } = armar([{ ...SERVICIO, maxOcurrence: '15', slackDays: '1' }]);
 
     const r = await servicio.consultar(USUARIO, consultar());
 
@@ -97,9 +90,7 @@ describe('Consultar tipos de servicio: lo que devuelve', () => {
    * Devolver `0` para lo segundo haría que se leyeran igual.
    */
   it('un cero se conserva, y lo ausente es null', async () => {
-    const { servicio } = armar([
-      { ...SERVICIO, maxOcurrence: 0, slackDays: null },
-    ]);
+    const { servicio } = armar([{ ...SERVICIO, maxOcurrence: 0, slackDays: null }]);
 
     const r = await servicio.consultar(USUARIO, consultar());
 
@@ -159,16 +150,10 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('devuelve un grupo por operador', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ opl: '1110, 1111' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ opl: '1110, 1111' }));
 
     expect(r.opls).toHaveLength(2);
-    expect(r.opls.map((o) => o.opl)).toEqual([
-      '1110 - Operador 1110',
-      '1111 - Operador 1111',
-    ]);
+    expect(r.opls.map((o) => o.opl)).toEqual(['1110 - Operador 1110', '1111 - Operador 1111']);
 
     // Anidado, no plano: cada grupo con su lista
     expect(r.opls[0].servicios).toHaveLength(1);
@@ -186,10 +171,7 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('uno que no existe no arrastra a los demás', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ opl: '1110, 9999' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ opl: '1110, 9999' }));
 
     expect(r.opls).toHaveLength(2);
     expect(r.opls[0].servicios).toHaveLength(1);
@@ -200,26 +182,23 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('si ninguno existe, es un 404 con los motivos', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.consultar(USUARIO, consultar({ opl: '9998, 9999' })),
-    ).rejects.toThrow(/Ninguno de los 2 operadores se pudo consultar/);
+    await expect(servicio.consultar(USUARIO, consultar({ opl: '9998, 9999' }))).rejects.toThrow(
+      /Ninguno de los 2 operadores se pudo consultar/,
+    );
   });
 
   it('con uno solo que falla, el error va tal cual', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.consultar(USUARIO, consultar({ opl: '9999' })),
-    ).rejects.toThrow(/No se encontró ningún operador logístico/);
+    await expect(servicio.consultar(USUARIO, consultar({ opl: '9999' }))).rejects.toThrow(
+      /No se encontró ningún operador logístico/,
+    );
   });
 
   it('un operador repetido se consulta una sola vez', async () => {
     const { servicio, buscarOpl } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ opl: '1110, 1110' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ opl: '1110, 1110' }));
 
     expect(r.opls).toHaveLength(1);
     expect(buscarOpl).toHaveBeenCalledOnce();
@@ -231,9 +210,9 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
 
     const muchos = Array.from({ length: 31 }, (_, i) => `op${i}`).join(', ');
 
-    await expect(
-      servicio.consultar(USUARIO, consultar({ opl: muchos })),
-    ).rejects.toThrow(/máximo por vez es 30[\s\S]*búsqueda masiva/);
+    await expect(servicio.consultar(USUARIO, consultar({ opl: muchos }))).rejects.toThrow(
+      /máximo por vez es 30[\s\S]*búsqueda masiva/,
+    );
 
     expect(buscarOpl).not.toHaveBeenCalled();
   });
@@ -246,10 +225,7 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('también los separa por espacios si todo son cifras', async () => {
     const { servicio, buscarOpl } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ opl: '1110 1111' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ opl: '1110 1111' }));
 
     expect(r.opls).toHaveLength(2);
     expect(buscarOpl).toHaveBeenCalledWith('1110', 'CL');
@@ -259,9 +235,7 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('pero un nombre con espacios NO se parte', async () => {
     const { servicio, buscarOpl } = armar();
 
-    await servicio
-      .consultar(USUARIO, consultar({ opl: 'Plaza Lima Norte' }))
-      .catch(() => null);
+    await servicio.consultar(USUARIO, consultar({ opl: 'Plaza Lima Norte' })).catch(() => null);
 
     expect(buscarOpl).toHaveBeenCalledOnce();
     expect(buscarOpl).toHaveBeenCalledWith('Plaza Lima Norte', 'CL');
@@ -270,9 +244,7 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('ni uno que mezcla cifras y letras', async () => {
     const { servicio, buscarOpl } = armar();
 
-    await servicio
-      .consultar(USUARIO, consultar({ opl: 'Agencia 1110 Norte' }))
-      .catch(() => null);
+    await servicio.consultar(USUARIO, consultar({ opl: 'Agencia 1110 Norte' })).catch(() => null);
 
     expect(buscarOpl).toHaveBeenCalledOnce();
   });
@@ -280,9 +252,7 @@ describe('Consultar tipos de servicio: varios operadores de una vez', () => {
   it('y las comas siguen mandando aunque haya espacios', async () => {
     const { servicio, buscarOpl } = armar();
 
-    await servicio
-      .consultar(USUARIO, consultar({ opl: 'Plaza Lima Norte, 1110' }))
-      .catch(() => null);
+    await servicio.consultar(USUARIO, consultar({ opl: 'Plaza Lima Norte, 1110' })).catch(() => null);
 
     expect(buscarOpl).toHaveBeenCalledWith('Plaza Lima Norte', 'CL');
     expect(buscarOpl).toHaveBeenCalledWith('1110', 'CL');

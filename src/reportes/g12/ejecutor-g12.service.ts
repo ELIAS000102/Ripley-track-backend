@@ -9,9 +9,27 @@ import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js
 import { CatalogosRipleyService, type TipoOficina } from '../../common/ripley/catalogos.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { dormir } from '../../common/ripley/ritmo.js';
-import { hoyEnPais, isoToRipleyDate, ripleyDateToIso, soloFecha, sumarDias } from '../../common/ripley/utils/date.util.js';
-import { type AgendaIdsG12, type FilaIdsG12, firmaIdsG12, firmaRegionG12, IdsG12Service, type IdsG12 } from './ids-g12.service.js';
-import type { Comuna, OfficeRow, RegionDetalle, SimulacionPayload } from '../../simulacion/interfaces/simulacion.interface.js';
+import {
+  hoyEnPais,
+  isoToRipleyDate,
+  ripleyDateToIso,
+  soloFecha,
+  sumarDias,
+} from '../../common/ripley/utils/date.util.js';
+import {
+  type AgendaIdsG12,
+  type FilaIdsG12,
+  firmaIdsG12,
+  firmaRegionG12,
+  IdsG12Service,
+  type IdsG12,
+} from './ids-g12.service.js';
+import type {
+  Comuna,
+  OfficeRow,
+  RegionDetalle,
+  SimulacionPayload,
+} from '../../simulacion/interfaces/simulacion.interface.js';
 import { SimulacionService } from '../../simulacion/simulacion.service.js';
 import { DIAS_LECTURA_AGENDAS, DIAS_SEMANA } from './g12.componentes.js';
 import type {
@@ -75,10 +93,16 @@ const REINTENTOS = 3;
 const ESPERA_BASE_MS = 2000;
 
 /** Lo que pasa solo: la API pidió ir más despacio, está caída o no contestó */
-const PASAJERO = /\b429\b|ir más despacio|no está respondiendo|No se pudo contactar|respondió 5\d\d|tard[oó] demasiado|timeout|ECONNRESET|socket hang up/i;
+const PASAJERO =
+  /\b429\b|ir más despacio|no está respondiendo|No se pudo contactar|respondió 5\d\d|tard[oó] demasiado|timeout|ECONNRESET|socket hang up/i;
 
 const comparable = (s: unknown) =>
-  String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ]+/g, ' ').trim();
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9ñ]+/g, ' ')
+    .trim();
 
 /** Exacto primero, después por parecido */
 function porNombre<T>(lista: T[], buscado: string, de: (x: T) => string): T[] {
@@ -105,7 +129,10 @@ class SesionG12 {
   readonly nuevos = new Map<string, FilaIdsG12>();
   /** "Probar" no guarda ids: el bloque que se prueba puede no estar guardado */
   guardar = true;
-  constructor(readonly pais: string, readonly hoy: string) {}
+  constructor(
+    readonly pais: string,
+    readonly hoy: string,
+  ) {}
 
   idsDe(firma: string): FilaIdsG12 | undefined {
     return this.nuevos.get(firma) ?? this.guardados.get(firma);
@@ -207,7 +234,11 @@ export class EjecutorG12Service {
    * La plantilla, o solo los cuadros pedidos: cada fila con lo que le toca y
    * el registro de cada petición.
    */
-  async ejecutar(config: ConfiguracionG12, pais: string, claves?: ClaveComponente[]): Promise<{ entradas: EntradasG12; registro: RegistroG12[]; hoy: string }> {
+  async ejecutar(
+    config: ConfiguracionG12,
+    pais: string,
+    claves?: ClaveComponente[],
+  ): Promise<{ entradas: EntradasG12; registro: RegistroG12[]; hoy: string }> {
     const sesion = this.nuevaSesion(pais);
     await this.cargarIds(sesion);
     const limitar = limitador(this.aLaVez);
@@ -215,11 +246,15 @@ export class EjecutorG12Service {
 
     // Todo sale a la vez por el limitador: de `aLaVez` en `aLaVez`, y por orden
     // de la configuración, porque el limitador atiende por orden de llegada
-    const resultados = componentes.map((comp) => comp.bloques.map((bloque) => {
-      if (bloque.tipo === 'simulacion') return this.simularBloque(bloque, sesion, limitar);
-      if (bloque.tipo === 'capacidad') return Promise.resolve([]);
-      return Promise.all(bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))));
-    }));
+    const resultados = componentes.map((comp) =>
+      comp.bloques.map((bloque) => {
+        if (bloque.tipo === 'simulacion') return this.simularBloque(bloque, sesion, limitar);
+        if (bloque.tipo === 'capacidad') return Promise.resolve([]);
+        return Promise.all(
+          bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))),
+        );
+      }),
+    );
     const listos = await Promise.all(resultados.map((porBloque) => Promise.all(porBloque)));
 
     // Y se arma en el orden de la configuración, llegue lo que llegue antes
@@ -256,11 +291,16 @@ export class EjecutorG12Service {
    * Solicitudes. Igual que los cuadros: de `aLaVez` en `aLaVez`, con los ids
    * guardados (y guardando los que consulta), y en el orden de la lista.
    */
-  async leerAgendas(lista: Array<{ tipo: AgendaG12['tipo']; item: ItemG12 }>, pais: string): Promise<{ hoy: string; resultados: AgendaG12[] }> {
+  async leerAgendas(
+    lista: Array<{ tipo: AgendaG12['tipo']; item: ItemG12 }>,
+    pais: string,
+  ): Promise<{ hoy: string; resultados: AgendaG12[] }> {
     const sesion = this.nuevaSesion(pais);
     await this.cargarIds(sesion);
     const limitar = limitador(this.aLaVez);
-    const resultados = await Promise.all(lista.map(({ tipo, item }) => limitar(() => this.leerAgenda(tipo, item, sesion))));
+    const resultados = await Promise.all(
+      lista.map(({ tipo, item }) => limitar(() => this.leerAgenda(tipo, item, sesion))),
+    );
     await this.guardarIds(sesion);
     return { hoy: sesion.hoy, resultados };
   }
@@ -271,9 +311,12 @@ export class EjecutorG12Service {
     await this.cargarIds(sesion);
     sesion.guardar = false;
     const limitar = limitador(this.aLaVez);
-    if (bloque.tipo === 'simulacion') return { hoy: sesion.hoy, simulaciones: await this.simularBloque(bloque, sesion, limitar) };
+    if (bloque.tipo === 'simulacion')
+      return { hoy: sesion.hoy, simulaciones: await this.simularBloque(bloque, sesion, limitar) };
     if (bloque.tipo === 'capacidad') return { hoy: sesion.hoy, cupos: bloque.items.map(cupoSemanal) };
-    const agendas = await Promise.all(bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))));
+    const agendas = await Promise.all(
+      bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))),
+    );
     return { hoy: sesion.hoy, agendas };
   }
 
@@ -282,7 +325,10 @@ export class EjecutorG12Service {
    * pasajero que vale la pena repetir; si no, se devuelve tal cual. Cada
    * reintento espera el doble que el anterior.
    */
-  private async conReintentos<T>(hacer: () => Promise<T>, fallo: (r: T) => string | null): Promise<{ resultado: T; meta: MetaPeticionG12 }> {
+  private async conReintentos<T>(
+    hacer: () => Promise<T>,
+    fallo: (r: T) => string | null,
+  ): Promise<{ resultado: T; meta: MetaPeticionG12 }> {
     const inicio = new Date();
     const reintentos: string[] = [];
 
@@ -301,7 +347,14 @@ export class EjecutorG12Service {
 
     return {
       resultado,
-      meta: { inicio: inicio.toISOString(), ms: Date.now() - inicio.getTime(), intentos: reintentos.length + 1, reintentos, llamadas, esperaMs: Math.round(esperaMs) },
+      meta: {
+        inicio: inicio.toISOString(),
+        ms: Date.now() - inicio.getTime(),
+        intentos: reintentos.length + 1,
+        reintentos,
+        llamadas,
+        esperaMs: Math.round(esperaMs),
+      },
     };
   }
 
@@ -344,7 +397,10 @@ export class EjecutorG12Service {
   private simular(item: ItemG12, sesion: SesionG12): Promise<SimulacionG12> {
     const clave = JSON.stringify(Object.entries(item.campos).sort());
     return memo(sesion.simulaciones, clave, async () => {
-      const { resultado, meta } = await this.conReintentos(() => this.simularUna(item, sesion), (r) => r.error ?? null);
+      const { resultado, meta } = await this.conReintentos(
+        () => this.simularUna(item, sesion),
+        (r) => r.error ?? null,
+      );
       const { origenIds, ...resto } = resultado;
       return { ...resto, meta: { ...meta, ...(origenIds ? { ids: origenIds } : {}) } };
     });
@@ -367,17 +423,29 @@ export class EjecutorG12Service {
       const guardado = sesion.idsDe(firma)?.ids;
       if (guardado?.tipo === 'simulacion') {
         try {
-          return { servicio, pedido, ...(await this.simularConIds(guardado, item, servicio, metodo, sesion)), origenIds: 'guardados' };
+          return {
+            servicio,
+            pedido,
+            ...(await this.simularConIds(guardado, item, servicio, metodo, sesion)),
+            origenIds: 'guardados',
+          };
         } catch (e) {
           if (!idInvalido(e)) throw e;
-          this.logger.warn(`G12: Ripley no reconoce los ids guardados de "${item.fila}" (${motivoDelFallo(e, 'sin motivo')}); se vuelven a consultar`);
+          this.logger.warn(
+            `G12: Ripley no reconoce los ids guardados de "${item.fila}" (${motivoDelFallo(e, 'sin motivo')}); se vuelven a consultar`,
+          );
           sesion.olvidar(firma);
           origen = 'reconsultados';
         }
       }
       const ids = await this.idsDeSimulacion(item, sesion);
       sesion.anotar(firma, ids);
-      return { servicio, pedido, ...(await this.simularConIds(ids, item, servicio, metodo, sesion)), origenIds: origen };
+      return {
+        servicio,
+        pedido,
+        ...(await this.simularConIds(ids, item, servicio, metodo, sesion)),
+        origenIds: origen,
+      };
     } catch (e) {
       return { servicio, fecha: null, pedido, error: motivoDelFallo(e, 'No se pudo simular'), respuesta: null };
     }
@@ -386,7 +454,12 @@ export class EjecutorG12Service {
   /** De nombres a ids: la región y su distrito, las oficinas y el SKU. Una consulta tras otra */
   private async idsDeSimulacion(item: ItemG12, sesion: SesionG12): Promise<Extract<IdsG12, { tipo: 'simulacion' }>> {
     const c = item.campos;
-    const { region, comuna } = await this.lugar(String(c.region ?? ''), String(c.provincia ?? ''), String(c.distrito ?? ''), sesion);
+    const { region, comuna } = await this.lugar(
+      String(c.region ?? ''),
+      String(c.provincia ?? ''),
+      String(c.distrito ?? ''),
+      sesion,
+    );
     const courier = await this.oficina(String(c.operador ?? ''), 'opl', sesion);
     const almacen = c.almacen ? await this.oficina(String(c.almacen), 'almacen', sesion) : null;
     const productos = await this.productos(String(c.sku || SKU_POR_DEFECTO), Number(c.cantidad || 1), sesion);
@@ -407,7 +480,9 @@ export class EjecutorG12Service {
   private async regionDe(regionId: string, sesion: SesionG12): Promise<RegionDetalle> {
     const guardada = sesion.idsDe(firmaRegionG12(regionId))?.ids;
     if (guardada?.tipo === 'region') return guardada.region;
-    const region = await memoSinFallos(sesion.detalles, regionId, () => this.simulacion.regionDetalle(regionId, sesion.pais));
+    const region = await memoSinFallos(sesion.detalles, regionId, () =>
+      this.simulacion.regionDetalle(regionId, sesion.pais),
+    );
     sesion.anotar(firmaRegionG12(regionId), { tipo: 'region', region });
     return region;
   }
@@ -439,18 +514,31 @@ export class EjecutorG12Service {
   }
 
   /** De nombres a la región y el distrito de Ripley, con la provincia para desempatar */
-  private async lugar(regionNombre: string, provinciaNombre: string, distritoNombre: string, sesion: SesionG12): Promise<{ region: RegionDetalle; comuna: Comuna }> {
+  private async lugar(
+    regionNombre: string,
+    provinciaNombre: string,
+    distritoNombre: string,
+    sesion: SesionG12,
+  ): Promise<{ region: RegionDetalle; comuna: Comuna }> {
     if (!sesion.regiones) {
       // Si falla (un 429 al empezar), no se queda guardado el fallo: el reintento vuelve a pedirlas
       sesion.regiones = this.simulacion.listarRegiones(sesion.pais);
-      sesion.regiones.catch(() => { sesion.regiones = null; });
+      sesion.regiones.catch(() => {
+        sesion.regiones = null;
+      });
     }
     const regiones = porNombre(await sesion.regiones, regionNombre, (r) => r.nombre);
     if (regiones.length !== 1) {
-      throw new Error(regiones.length ? `"${regionNombre}" encaja con varias regiones: ${regiones.map((r) => r.nombre).join(', ')}` : `No existe la región "${regionNombre}"`);
+      throw new Error(
+        regiones.length
+          ? `"${regionNombre}" encaja con varias regiones: ${regiones.map((r) => r.nombre).join(', ')}`
+          : `No existe la región "${regionNombre}"`,
+      );
     }
 
-    const region = await memoSinFallos(sesion.detalles, regiones[0].id, () => this.simulacion.regionDetalle(regiones[0].id, sesion.pais));
+    const region = await memoSinFallos(sesion.detalles, regiones[0].id, () =>
+      this.simulacion.regionDetalle(regiones[0].id, sesion.pais),
+    );
 
     let provincias = region.provinces ?? [];
     if (provinciaNombre.trim()) {
@@ -458,10 +546,20 @@ export class EjecutorG12Service {
       if (!provincias.length) throw new Error(`"${provinciaNombre}" no es una provincia de ${region.name}`);
     }
 
-    const comunas = porNombre(provincias.flatMap((p) => p.communes ?? []), distritoNombre, (d) => d.name);
-    if (!comunas.length) throw new Error(`"${distritoNombre}" no es un distrito de ${provinciaNombre.trim() || region.name}`);
+    const comunas = porNombre(
+      provincias.flatMap((p) => p.communes ?? []),
+      distritoNombre,
+      (d) => d.name,
+    );
+    if (!comunas.length)
+      throw new Error(`"${distritoNombre}" no es un distrito de ${provinciaNombre.trim() || region.name}`);
     if (comunas.length > 1 && !comunas.every((d) => comparable(d.name) === comparable(comunas[0].name))) {
-      throw new Error(`"${distritoNombre}" encaja con varios distritos: ${comunas.slice(0, 5).map((d) => d.name).join(', ')}`);
+      throw new Error(
+        `"${distritoNombre}" encaja con varios distritos: ${comunas
+          .slice(0, 5)
+          .map((d) => d.name)
+          .join(', ')}`,
+      );
     }
     if (comunas.length > 1 && !provinciaNombre.trim()) {
       throw new Error(`Hay ${comunas.length} distritos "${comunas[0].name}" en ${region.name}: indica la provincia`);
@@ -495,7 +593,10 @@ export class EjecutorG12Service {
   private leerAgenda(tipo: AgendaG12['tipo'], item: ItemG12, sesion: SesionG12): Promise<AgendaG12> {
     const clave = `${tipo}|${JSON.stringify(Object.entries(item.campos).sort())}`;
     return memo(sesion.agendas, clave, async () => {
-      const { resultado, meta } = await this.conReintentos(() => this.leerAgendaUna(tipo, item, sesion), (r) => r.error ?? null);
+      const { resultado, meta } = await this.conReintentos(
+        () => this.leerAgendaUna(tipo, item, sesion),
+        (r) => r.error ?? null,
+      );
       const { origenIds, ...resto } = resultado;
       return { ...resto, meta: { ...meta, ...(origenIds ? { ids: origenIds } : {}) } };
     });
@@ -517,10 +618,26 @@ export class EjecutorG12Service {
     if (guardado && guardado.tipo === tipo) {
       try {
         const agendas = await this.leerPorIds(tipo, guardado.agendas, sesion);
-        return { tipo, pedido, agendas, error: null, ...(guardado.aviso ? { aviso: guardado.aviso } : {}), origenIds: 'guardados' };
+        return {
+          tipo,
+          pedido,
+          agendas,
+          error: null,
+          ...(guardado.aviso ? { aviso: guardado.aviso } : {}),
+          origenIds: 'guardados',
+        };
       } catch (e) {
-        if (!idInvalido(e)) return { tipo, pedido, agendas: [], error: motivoDelFallo(e, 'No se pudo leer la agenda'), origenIds: 'guardados' };
-        this.logger.warn(`G12: Ripley no reconoce las agendas guardadas de "${item.fila}" (${motivoDelFallo(e, 'sin motivo')}); se vuelven a consultar`);
+        if (!idInvalido(e))
+          return {
+            tipo,
+            pedido,
+            agendas: [],
+            error: motivoDelFallo(e, 'No se pudo leer la agenda'),
+            origenIds: 'guardados',
+          };
+        this.logger.warn(
+          `G12: Ripley no reconoce las agendas guardadas de "${item.fila}" (${motivoDelFallo(e, 'sin motivo')}); se vuelven a consultar`,
+        );
         sesion.olvidar(firma);
         origen = 'reconsultados';
       }
@@ -531,11 +648,22 @@ export class EjecutorG12Service {
     if (!r.error && r.ids.length && r.ids.every((a) => a.id)) {
       sesion.anotar(firma, { tipo, agendas: r.ids, ...(r.aviso ? { aviso: r.aviso } : {}) });
     }
-    return { tipo, pedido, agendas: r.agendas, error: r.error, ...(r.aviso ? { aviso: r.aviso } : {}), origenIds: origen };
+    return {
+      tipo,
+      pedido,
+      agendas: r.agendas,
+      error: r.error,
+      ...(r.aviso ? { aviso: r.aviso } : {}),
+      origenIds: origen,
+    };
   }
 
   /** Buscar por nombres, con el respaldo de zona del despacho */
-  private async buscarAgenda(tipo: AgendaG12['tipo'], c: ItemG12['campos'], sesion: SesionG12): Promise<{ agendas: AgendaLeidaG12[]; ids: AgendaIdsG12[]; error: string | null; aviso?: string }> {
+  private async buscarAgenda(
+    tipo: AgendaG12['tipo'],
+    c: ItemG12['campos'],
+    sesion: SesionG12,
+  ): Promise<{ agendas: AgendaLeidaG12[]; ids: AgendaIdsG12[]; error: string | null; aviso?: string }> {
     const r = await this.consultarAgenda(tipo, c, sesion);
 
     // Despacho con una zona que el operador no tiene: el Excel guardaba sus propias
@@ -545,9 +673,16 @@ export class EjecutorG12Service {
         const zonas = await this.despacho.listarZonas(String(c.codigo), sesion.pais);
         if (zonas.length === 1) {
           const otra = await this.consultarAgenda(tipo, { ...c, zona: zonas[0].nombre }, sesion);
-          return { ...otra, aviso: `La zona «${c.zona}» no existe en el operador ${c.codigo}; tiene una sola, «${zonas[0].nombre}», y se usó esa. Corrige la zona en la configuración.` };
+          return {
+            ...otra,
+            aviso: `La zona «${c.zona}» no existe en el operador ${c.codigo}; tiene una sola, «${zonas[0].nombre}», y se usó esa. Corrige la zona en la configuración.`,
+          };
         }
-        return { agendas: [], ids: [], error: `La zona «${c.zona}» no existe en el operador ${c.codigo}. Sus zonas: ${zonas.map((z) => `«${z.nombre}»`).join(', ') || 'ninguna'}.` };
+        return {
+          agendas: [],
+          ids: [],
+          error: `La zona «${c.zona}» no existe en el operador ${c.codigo}. Sus zonas: ${zonas.map((z) => `«${z.nombre}»`).join(', ') || 'ninguna'}.`,
+        };
       } catch {
         // Sin poder listar las zonas, se queda el error de antes
       }
@@ -555,18 +690,25 @@ export class EjecutorG12Service {
     return r;
   }
 
-  private async consultarAgenda(tipo: AgendaG12['tipo'], c: ItemG12['campos'], sesion: SesionG12): Promise<{ agendas: AgendaLeidaG12[]; ids: AgendaIdsG12[]; error: string | null }> {
+  private async consultarAgenda(
+    tipo: AgendaG12['tipo'],
+    c: ItemG12['campos'],
+    sesion: SesionG12,
+  ): Promise<{ agendas: AgendaLeidaG12[]; ids: AgendaIdsG12[]; error: string | null }> {
     try {
-      const respuesta = await this.capacidad.consultar({
-        tipo,
-        pais: sesion.pais,
-        codigo: String(c.codigo ?? ''),
-        ...(c.servicio ? { servicio: String(c.servicio) } : {}),
-        ...(c.zona ? { zona: String(c.zona) } : {}),
-        ...(c.agenda ? { agenda: String(c.agenda) } : {}),
-        desde: sumarDias(sesion.hoy, -1),
-        dias: DIAS_LECTURA_AGENDAS,
-      } as ConsultarCapacidadDto, { conIds: true });
+      const respuesta = await this.capacidad.consultar(
+        {
+          tipo,
+          pais: sesion.pais,
+          codigo: String(c.codigo ?? ''),
+          ...(c.servicio ? { servicio: String(c.servicio) } : {}),
+          ...(c.zona ? { zona: String(c.zona) } : {}),
+          ...(c.agenda ? { agenda: String(c.agenda) } : {}),
+          desde: sumarDias(sesion.hoy, -1),
+          dias: DIAS_LECTURA_AGENDAS,
+        } as ConsultarCapacidadDto,
+        { conIds: true },
+      );
 
       const oficina = respuesta.oficinas[0];
       const leidas = oficina?.agendas ?? [];
@@ -574,7 +716,13 @@ export class EjecutorG12Service {
         agenda: a.agenda,
         servicio: a.servicio,
         ...(a.zona ? { zona: a.zona } : {}),
-        dias: a.dias.map((d) => ({ fecha: d.fecha, activo: d.activo, asignado: d.asignado, ocupado: d.ocupado, disponible: d.disponible })),
+        dias: a.dias.map((d) => ({
+          fecha: d.fecha,
+          activo: d.activo,
+          asignado: d.asignado,
+          ocupado: d.ocupado,
+          disponible: d.disponible,
+        })),
       }));
       const ids = leidas.map((a) => ({
         id: a.ids?.agendaId ?? '',
@@ -589,7 +737,9 @@ export class EjecutorG12Service {
       return {
         agendas,
         ids,
-        error: oficina?.error ?? (agendas.length ? null : respuesta.sinDatos.join(' · ') || 'No se encontró ninguna agenda.'),
+        error:
+          oficina?.error ??
+          (agendas.length ? null : respuesta.sinDatos.join(' · ') || 'No se encontró ninguna agenda.'),
       };
     } catch (e) {
       return { agendas: [], ids: [], error: motivoDelFallo(e, 'No se pudo leer la agenda') };
@@ -601,28 +751,35 @@ export class EjecutorG12Service {
    * Seis semanas desde ayer, como la consulta de capacidad (el RT mira el día
    * anterior). Un id que Ripley no reconoce lanza, y quien llama reconsulta.
    */
-  private async leerPorIds(tipo: AgendaG12['tipo'], agendas: AgendaIdsG12[], sesion: SesionG12): Promise<AgendaLeidaG12[]> {
+  private async leerPorIds(
+    tipo: AgendaG12['tipo'],
+    agendas: AgendaIdsG12[],
+    sesion: SesionG12,
+  ): Promise<AgendaLeidaG12[]> {
     const desde = sumarDias(sesion.hoy, -1);
     const hasta = sumarDias(desde, DIAS_LECTURA_AGENDAS);
     const ripleyDesde = isoToRipleyDate(desde);
-    const enVentana = (dias: DiaG12[]) => dias.filter((d) => d.fecha >= desde && d.fecha < hasta).sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const enVentana = (dias: DiaG12[]) =>
+      dias.filter((d) => d.fecha >= desde && d.fecha < hasta).sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-    return Promise.all(agendas.map(async (a): Promise<AgendaLeidaG12> => {
-      let dias: DiaG12[] = [];
-      if (tipo === 'picking') {
-        const r = await this.catalogos.capacidadesDePicking(a.id, sesion.pais, ripleyDesde);
-        dias = (r?.capacityByDayArray ?? []).map((d) => diaG12(soloFecha(d.day), d.active, d.assigned, d.occupied));
-      } else if (tipo === 'recepcion') {
-        if (a.capacidadId) {
-          const r = await this.catalogos.capacidadesDeRecepcion(a.capacidadId, sesion.pais, ripleyDesde);
+    return Promise.all(
+      agendas.map(async (a): Promise<AgendaLeidaG12> => {
+        let dias: DiaG12[] = [];
+        if (tipo === 'picking') {
+          const r = await this.catalogos.capacidadesDePicking(a.id, sesion.pais, ripleyDesde);
           dias = (r?.capacityByDayArray ?? []).map((d) => diaG12(soloFecha(d.day), d.active, d.assigned, d.occupied));
+        } else if (tipo === 'recepcion') {
+          if (a.capacidadId) {
+            const r = await this.catalogos.capacidadesDeRecepcion(a.capacidadId, sesion.pais, ripleyDesde);
+            dias = (r?.capacityByDayArray ?? []).map((d) => diaG12(soloFecha(d.day), d.active, d.assigned, d.occupied));
+          }
+        } else {
+          const r = await this.despacho.obtener(a.id, ripleyDesde, sesion.pais);
+          dias = (r?.capacity ?? []).map((d) => diaG12(ripleyDateToIso(d.date), d.active, d.assigned, d.occupied));
         }
-      } else {
-        const r = await this.despacho.obtener(a.id, ripleyDesde, sesion.pais);
-        dias = (r?.capacity ?? []).map((d) => diaG12(ripleyDateToIso(d.date), d.active, d.assigned, d.occupied));
-      }
-      return { agenda: a.nombre, servicio: a.servicio, ...(a.zona ? { zona: a.zona } : {}), dias: enVentana(dias) };
-    }));
+        return { agenda: a.nombre, servicio: a.servicio, ...(a.zona ? { zona: a.zona } : {}), dias: enVentana(dias) };
+      }),
+    );
   }
 }
 
@@ -656,7 +813,14 @@ type OpcionNormalizada = {
   tamano?: unknown;
   bultos?: unknown;
   diasTotales?: number;
-  pasos?: Array<{ tipo?: string; funcion?: string; activo?: boolean; fecha?: string; diasAgregados?: number; fechaParcial?: string }>;
+  pasos?: Array<{
+    tipo?: string;
+    funcion?: string;
+    activo?: boolean;
+    fecha?: string;
+    diasAgregados?: number;
+    fechaParcial?: string;
+  }>;
   recorrido?: Array<Partial<PasoFulfillment>>;
 };
 
@@ -682,19 +846,33 @@ const errores = (r: RespuestaNormalizada) =>
  * La fecha se lee tal cual la devuelve Ripley (su parte de día), igual que la
  * enseña el apartado de Simulación: las dos vistas tienen que coincidir.
  */
-export function fechaDelServicio(respuesta: RespuestaNormalizada, servicio: string): Pick<SimulacionG12, 'fecha' | 'agenda' | 'zona' | 'mensaje' | 'traza'> {
+export function fechaDelServicio(
+  respuesta: RespuestaNormalizada,
+  servicio: string,
+): Pick<SimulacionG12, 'fecha' | 'agenda' | 'zona' | 'mensaje' | 'traza'> {
   const resultado = (respuesta.resultados ?? []).find((r) => (r.typeOfService ?? '').toUpperCase() === servicio);
   // La opción con la primera fecha: la que da la fecha de la fila, y su traza
-  const conFecha = (resultado?.opciones ?? []).filter((o) => !!o.fechaEntrega)
+  const conFecha = (resultado?.opciones ?? [])
+    .filter((o) => !!o.fechaEntrega)
     .sort((a, b) => a.fechaEntrega!.slice(0, 10).localeCompare(b.fechaEntrega!.slice(0, 10)));
 
   if (conFecha.length) {
-    return { fecha: conFecha[0].fechaEntrega!.slice(0, 10), agenda: resultado?.agenda ?? null, zona: resultado?.zona ?? null, mensaje: null, traza: trazaDe(conFecha[0]) };
+    return {
+      fecha: conFecha[0].fechaEntrega!.slice(0, 10),
+      agenda: resultado?.agenda ?? null,
+      zona: resultado?.zona ?? null,
+      mensaje: null,
+      traza: trazaDe(conFecha[0]),
+    };
   }
 
   const devueltos = (respuesta.resultados ?? []).map((r) => r.typeOfService).filter(Boolean);
-  const mensaje = errores(respuesta).join(' · ') || respuesta.mensaje?.trim()
-    || (resultado ? 'Ripley no devolvió ninguna fecha' : `Ripley no devolvió el servicio ${servicio}${devueltos.length ? ` (devolvió ${devueltos.join(', ')})` : ''}`);
+  const mensaje =
+    errores(respuesta).join(' · ') ||
+    respuesta.mensaje?.trim() ||
+    (resultado
+      ? 'Ripley no devolvió ninguna fecha'
+      : `Ripley no devolvió el servicio ${servicio}${devueltos.length ? ` (devolvió ${devueltos.join(', ')})` : ''}`);
   return { fecha: null, agenda: resultado?.agenda ?? null, zona: resultado?.zona ?? null, mensaje };
 }
 
@@ -704,7 +882,8 @@ export function fechaDelServicio(respuesta: RespuestaNormalizada, servicio: stri
  */
 export function trazaDe(o: OpcionNormalizada): TrazaSimulacionG12 {
   const texto = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v));
-  const numero = (v: unknown) => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  const numero = (v: unknown) =>
+    v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
   return {
     fechaVenta: texto(o.fechaVenta),
     fechaEntrega: texto(o.fechaEntrega),

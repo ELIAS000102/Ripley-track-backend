@@ -1,10 +1,4 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../../../common/supabase/supabase.service.js';
 
 /** Lo que un atajo dice de un código: con qué servicio, zona y agenda se consulta */
@@ -29,7 +23,9 @@ const TABLA_ITEMS: Record<TipoAgenda, string> = {
 const COLUMNA_CODIGO: Partial<Record<TipoAgenda, string>> = { opl: 'opl' };
 
 const QUE_GUARDA: Record<TipoAgenda, string> = {
-  picking: 'agendas de picking', despacho: 'agendas de despacho', recepcion: 'agendas de recepción',
+  picking: 'agendas de picking',
+  despacho: 'agendas de despacho',
+  recepcion: 'agendas de recepción',
   opl: 'operadores con su agenda de servicios',
 };
 
@@ -57,10 +53,7 @@ export class AgendasDeAtajoService {
 
   /** Las agendas guardadas de un tipo en el atajo que se llama así (sin distinguir mayúsculas) */
   async leer(nombrePedido: string, tipo: TipoAgenda): Promise<{ nombre: string; agendas: AgendaGuardada[] }> {
-    const { data: atajos, error } = await this.supabase.admin
-      .from('atajos')
-      .select('id, nombre')
-      .eq('activa', true);
+    const { data: atajos, error } = await this.supabase.admin.from('atajos').select('id, nombre').eq('activa', true);
     if (error) this.fallo(error);
 
     const lista = (atajos ?? []) as Array<{ id: string; nombre: string }>;

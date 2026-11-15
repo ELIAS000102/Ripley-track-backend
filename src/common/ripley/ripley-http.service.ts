@@ -1,9 +1,4 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
@@ -59,7 +54,8 @@ export function resumirCuerpo(data: unknown): string {
     // El título dice qué es —un "Bad Gateway", un "Access Denied" de un
     // cortafuegos—, que es justo lo que hace falta para saber si el servicio
     // está caído o si es a este servidor al que no se le deja pasar
-    const titulo = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(data)?.[1]
+    const titulo = /<title[^>]*>([\s\S]*?)<\/title>/i
+      .exec(data)?.[1]
       ?.replace(/<[^>]*>/g, ' ')
       .replace(/https?:\/\/\S+/g, '(dirección)')
       .replace(/\b[\w.-]+\.(?:com|net|io|app|cloud|cl|pe)\b/gi, '(dirección)')
@@ -143,9 +139,7 @@ export class RipleyHttpService {
     const baseUrl = urls?.[country];
 
     if (!baseUrl) {
-      throw new BadGatewayException(
-        `No hay URL configurada para el país: ${country}`,
-      );
+      throw new BadGatewayException(`No hay URL configurada para el país: ${country}`);
     }
     return baseUrl;
   }
@@ -157,9 +151,7 @@ export class RipleyHttpService {
 
     if (!usuario) {
       // Solo pasaría si se llamara a Ripley fuera del ciclo de una petición
-      throw new UnauthorizedException(
-        'No se pudo determinar el usuario de la petición',
-      );
+      throw new UnauthorizedException('No se pudo determinar el usuario de la petición');
     }
 
     return {
@@ -182,8 +174,7 @@ export class RipleyHttpService {
 
     return entradas
       .map(([nombre, valor]) => {
-        if (Array.isArray(valor))
-          return `${nombre}=[${valor.length} elementos]`;
+        if (Array.isArray(valor)) return `${nombre}=[${valor.length} elementos]`;
         if (valor && typeof valor === 'object') {
           return `${nombre}={${Object.keys(valor).length} campos}`;
         }
@@ -201,16 +192,10 @@ export class RipleyHttpService {
    * problema de la API cuando el problema está aquí. Se corta antes de enviar y
    * se dice qué parámetro es.
    */
-  private comprobarParams(
-    params: Record<string, any> | undefined,
-    accion: string,
-  ): void {
+  private comprobarParams(params: Record<string, any> | undefined, accion: string): void {
     const malos = Object.entries(params ?? {})
       .filter(([, v]) => v !== null && v !== undefined && typeof v === 'object')
-      .map(
-        ([nombre, v]) =>
-          `${nombre} (${Array.isArray(v) ? `arreglo de ${v.length}` : 'objeto'})`,
-      );
+      .map(([nombre, v]) => `${nombre} (${Array.isArray(v) ? `arreglo de ${v.length}` : 'objeto'})`);
 
     if (malos.length) {
       throw new BadGatewayException(
@@ -284,11 +269,7 @@ export class RipleyHttpService {
     );
   }
 
-  async get<T>(
-    path: string,
-    pais: string,
-    params?: Record<string, any>,
-  ): Promise<T> {
+  async get<T>(path: string, pais: string, params?: Record<string, any>): Promise<T> {
     return this.peticion<T>('get', 'consultar', path, pais, params);
   }
 
@@ -300,23 +281,11 @@ export class RipleyHttpService {
    * falta donde quien llama lee la respuesta —cuántas filas coincidieron, el
    * documento ya guardado—; donde no, basta con lo de por defecto.
    */
-  async put<T>(
-    path: string,
-    pais: string,
-    body: any,
-    params?: Record<string, any>,
-    simulada?: T,
-  ): Promise<T> {
+  async put<T>(path: string, pais: string, body: any, params?: Record<string, any>, simulada?: T): Promise<T> {
     return this.peticion<T>('put', 'actualizar', path, pais, params, body, false, simulada);
   }
 
-  async post<T>(
-    path: string,
-    pais: string,
-    body: any,
-    params?: Record<string, any>,
-    simulada?: T,
-  ): Promise<T> {
+  async post<T>(path: string, pais: string, body: any, params?: Record<string, any>, simulada?: T): Promise<T> {
     return this.peticion<T>('post', 'enviar', path, pais, params, body, false, simulada);
   }
 
@@ -327,12 +296,7 @@ export class RipleyHttpService {
    * escribir. Uno que solo lee no tiene por qué hacerlo: borrarla en cada
    * búsqueda obligaba a repedir clústeres, oficinas y servicios cada vez.
    */
-  async postDeLectura<T>(
-    path: string,
-    pais: string,
-    body: any,
-    params?: Record<string, any>,
-  ): Promise<T> {
+  async postDeLectura<T>(path: string, pais: string, body: any, params?: Record<string, any>): Promise<T> {
     return this.peticion<T>('post', 'consultar', path, pais, params, body, true);
   }
 
@@ -370,7 +334,10 @@ export class RipleyHttpService {
     }
 
     const country = this.normalizarPais(pais);
-    const huella = createHash('sha256').update(String(headers['x-access-token'] ?? '')).digest('hex').slice(0, 16);
+    const huella = createHash('sha256')
+      .update(String(headers['x-access-token'] ?? ''))
+      .digest('hex')
+      .slice(0, 16);
     this.exigirTokenNoRechazado(country, huella, accion);
 
     const clase = this.esSimulador(path) ? 'simulacion' : 'general';
@@ -398,9 +365,11 @@ export class RipleyHttpService {
     // cupo del token se espera antes de entrar al carril: el carril es de
     // todos, y quien espera su ventana no le quita el sitio a otro usuario
     const d = { accion, params, path, pais: country, huella, clase, lee };
-    const trabajo = this.enSuFila(() => this.conCupo<T>(d, (intento) =>
-      this.carril(country, clase).turno(() => this.enviar<T>(metodo, url, body, { params, headers }, d, intento)),
-    ));
+    const trabajo = this.enSuFila(() =>
+      this.conCupo<T>(d, (intento) =>
+        this.carril(country, clase).turno(() => this.enviar<T>(metodo, url, body, { params, headers }, d, intento)),
+      ),
+    );
 
     if (!clave) return trabajo;
 
@@ -452,15 +421,21 @@ export class RipleyHttpService {
     url: string,
     body: any,
     config: { params?: Record<string, any>; headers: Record<string, string> },
-    d: { accion: string; params?: Record<string, any>; path: string; pais: string; huella: string; clase: string; lee: boolean },
+    d: {
+      accion: string;
+      params?: Record<string, any>;
+      path: string;
+      pais: string;
+      huella: string;
+      clase: string;
+      lee: boolean;
+    },
     intento = 0,
   ): Promise<T> {
     this.contarLlamada();
     try {
       const respuesta =
-        metodo === 'get'
-          ? this.httpService.get<T>(url, config)
-          : this.httpService[metodo]<T>(url, body, config);
+        metodo === 'get' ? this.httpService.get<T>(url, config) : this.httpService[metodo]<T>(url, body, config);
 
       const { data } = await firstValueFrom(respuesta);
 
@@ -480,7 +455,9 @@ export class RipleyHttpService {
       // llamada se repite cuando se abra la ventana del cupo (ver conCupo)
       if (status === 429 && intento < REINTENTOS_429) {
         const espera = this.esperaPedida(error as AxiosError);
-        this.logger.warn(`La API corporativa de ${d.pais} pidió ir más despacio (429): se repite al abrirse la ventana del cupo`);
+        this.logger.warn(
+          `La API corporativa de ${d.pais} pidió ir más despacio (429): se repite al abrirse la ventana del cupo`,
+        );
         this.carril(d.pais, d.clase).frenar(espera);
         throw new Reintentar429(espera);
       }
@@ -518,9 +495,10 @@ export class RipleyHttpService {
     const clave = `${pais}:${clase}`;
     let carril = this.carriles.get(clave);
     if (!carril) {
-      const ritmo = clase === 'simulacion'
-        ? ritmoDe(this.configService.get('ripley.ritmo.simulacion'), RITMO_POR_DEFECTO.simulacion)
-        : ritmoDe(this.configService.get('ripley.ritmo.general'), RITMO_POR_DEFECTO.general);
+      const ritmo =
+        clase === 'simulacion'
+          ? ritmoDe(this.configService.get('ripley.ritmo.simulacion'), RITMO_POR_DEFECTO.simulacion)
+          : ritmoDe(this.configService.get('ripley.ritmo.general'), RITMO_POR_DEFECTO.general);
       carril = new Carril(ritmo);
       this.carriles.set(clave, carril);
     }
@@ -576,12 +554,7 @@ export class RipleyHttpService {
    * Lo de por defecto lleva `simulado: true` para que, si alguien lo enseña
    * tal cual, no pase por una respuesta de Ripley.
    */
-  private simular<T>(
-    metodo: 'put' | 'post',
-    accion: string,
-    path: string,
-    simulada?: T,
-  ): T {
+  private simular<T>(metodo: 'put' | 'post', accion: string, path: string, simulada?: T): T {
     this.contexto.anotarEscrituraEvitada({ metodo, accion });
 
     // Como el resto del log: la ruta por su longitud, nunca por su texto

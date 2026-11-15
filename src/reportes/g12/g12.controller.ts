@@ -98,10 +98,22 @@ export class G12Controller {
    */
   @Auditar('reporte-g12.excel-oracle')
   @Post('oracle/excel')
-  async excelOracle(@Usuario() usuario: UsuarioAutenticado, @Query() query: PaisDto, @Query('reemplazar') reemplazar: string | undefined, @Res() res: Response) {
-    const { nombre, contenido } = await this.oracle.descargarExcel(usuario, query.pais ?? 'PE', reemplazar === 'true' || reemplazar === '1');
+  async excelOracle(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: PaisDto,
+    @Query('reemplazar') reemplazar: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { nombre, contenido } = await this.oracle.descargarExcel(
+      usuario,
+      query.pais ?? 'PE',
+      reemplazar === 'true' || reemplazar === '1',
+    );
     res.setHeader('Content-Type', TIPO_XLSX);
-    res.setHeader('Content-Disposition', `attachment; filename="${nombre}"; filename*=UTF-8''${encodeURIComponent(nombre)}`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${nombre}"; filename*=UTF-8''${encodeURIComponent(nombre)}`,
+    );
     res.setHeader('Cache-Control', 'no-store');
     res.send(contenido);
   }
@@ -115,8 +127,14 @@ export class G12Controller {
    */
   @Post('actualizaciones')
   @HttpCode(200)
-  async lanzar(@Usuario() usuario: UsuarioAutenticado, @Query() query: PaisDto, @Body() body: CrearActualizacionG12Dto) {
-    return this.actualizador.lanzar(usuario, query.pais ?? 'PE', body.tipo, body.claves, { solicitudes: body.solicitudes });
+  async lanzar(
+    @Usuario() usuario: UsuarioAutenticado,
+    @Query() query: PaisDto,
+    @Body() body: CrearActualizacionG12Dto,
+  ) {
+    return this.actualizador.lanzar(usuario, query.pais ?? 'PE', body.tipo, body.claves, {
+      solicitudes: body.solicitudes,
+    });
   }
 
   /** POST /reportes/g12/actualizaciones/:id/cancelar — solo quien la lanzó o un administrador */
@@ -148,10 +166,15 @@ export class G12Controller {
 
   /** GET /reportes/g12/solicitudes/xlsx?pais=PE&llenos=true — en un Excel con el formato de la PLT: los días a solicitar (o solo los llenos) */
   @Get('solicitudes/xlsx')
-  async exportarSolicitudes(@Query() query: PaisDto, @Query('llenos') llenos: string | undefined, @Res() res: Response) {
+  async exportarSolicitudes(
+    @Query() query: PaisDto,
+    @Query('llenos') llenos: string | undefined,
+    @Res() res: Response,
+  ) {
     const pais = query.pais ?? 'PE';
     const s = await this.solicitudes.leer(pais);
-    if (!s) throw new BadRequestException('Todavía no hay Solicitudes de este país: genéralas con «Actualizar solicitudes».');
+    if (!s)
+      throw new BadRequestException('Todavía no hay Solicitudes de este país: genéralas con «Actualizar solicitudes».');
     const contenido = await solicitudesAXlsx(s, { soloLlenos: llenos === 'true' || llenos === '1' });
     res.setHeader('Content-Type', TIPO_XLSX);
     res.setHeader('Content-Disposition', `attachment; filename="${nombreXlsxSolicitudes(pais)}"`);
@@ -211,7 +234,10 @@ export class G12Controller {
   @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: TAMANO_MAXIMO } }))
   async importarConfiguracion(@UploadedFile() archivo: ArchivoSubido | undefined) {
     if (!archivo?.buffer?.length) throw new BadRequestException('Falta el archivo: súbelo en el campo "archivo".');
-    if (!/\.xlsx$/i.test(archivo.originalname)) throw new BadRequestException('El archivo tiene que ser un Excel .xlsx exportado desde la configuración del G12.');
+    if (!/\.xlsx$/i.test(archivo.originalname))
+      throw new BadRequestException(
+        'El archivo tiene que ser un Excel .xlsx exportado desde la configuración del G12.',
+      );
     return this.configuracion.importar(archivo.buffer);
   }
 

@@ -37,9 +37,7 @@ function armar(fallo: unknown) {
   } as unknown as HttpService;
 
   const config = {
-    get: vi.fn((clave: string) =>
-      clave === 'ripley.urls' ? { PE: HOST } : `${RUTA}`,
-    ),
+    get: vi.fn((clave: string) => (clave === 'ripley.urls' ? { PE: HOST } : `${RUTA}`)),
   } as unknown as ConfigService;
 
   const contexto = {
@@ -55,8 +53,7 @@ function armar(fallo: unknown) {
   const servicio = new RipleyHttpService(http, config, contexto, tokens, cache);
 
   // El logger de la instancia, para vigilar qué se escribe
-  const logger = (servicio as unknown as { logger: Record<string, unknown> })
-    .logger;
+  const logger = (servicio as unknown as { logger: Record<string, unknown> }).logger;
   const escrito: string[] = [];
 
   for (const nivel of ['log', 'warn', 'error', 'debug', 'verbose']) {
@@ -138,14 +135,19 @@ describe('Cuando la API corporativa falla de verdad', () => {
     expect(error.message).toMatch(/respondió 500/);
   });
 
-  it.each([502, 503, 504])('un %i es la pasarela de Ripley caída: lo dice, con el país, y que se reintente', async (codigo) => {
-    const { servicio } = armar(falloAxios(codigo));
+  it.each([502, 503, 504])(
+    'un %i es la pasarela de Ripley caída: lo dice, con el país, y que se reintente',
+    async (codigo) => {
+      const { servicio } = armar(falloAxios(codigo));
 
-    const error = await capturar(servicio);
+      const error = await capturar(servicio);
 
-    expect(error.message).toMatch(new RegExp(`respondió ${codigo} al consultar: la de PE no está respondiendo ahora mismo`));
-    expect(error.message).toMatch(/Vuelve a intentarlo en unos minutos/);
-  });
+      expect(error.message).toMatch(
+        new RegExp(`respondió ${codigo} al consultar: la de PE no está respondiendo ahora mismo`),
+      );
+      expect(error.message).toMatch(/Vuelve a intentarlo en unos minutos/);
+    },
+  );
 
   it('un 500 sigue siendo un error a secas', async () => {
     const { servicio } = armar(falloAxios(500));
@@ -193,8 +195,7 @@ describe('Escribir invalida la caché de catálogos', () => {
     } as unknown as HttpService;
 
     const config = {
-      get: (clave: string) =>
-        clave === 'ripley.urls' ? { PE: 'https://interno' } : '/api/x',
+      get: (clave: string) => (clave === 'ripley.urls' ? { PE: 'https://interno' } : '/api/x'),
     } as unknown as ConfigService;
 
     const contexto = {
@@ -254,9 +255,9 @@ describe('Una URL que se dispara', () => {
   it('y un objeto tampoco', async () => {
     const { servicio } = armar(falloAxios(414));
 
-    await expect(
-      servicio.get('/lo-que-sea', 'PE', { id: { a: 1, b: 2 } }),
-    ).rejects.toThrow(/id \(objeto\) debería ser un solo valor/);
+    await expect(servicio.get('/lo-que-sea', 'PE', { id: { a: 1, b: 2 } })).rejects.toThrow(
+      /id \(objeto\) debería ser un solo valor/,
+    );
   });
 
   it('ni siquiera llega a pedirlo', async () => {
@@ -272,9 +273,7 @@ describe('Una URL que se dispara', () => {
 
     // No se bloquea por longitud, pero si la API lo rechaza se dice de quién
     // es el fallo
-    await expect(
-      servicio.get('/lo-que-sea', 'PE', { q: 'x'.repeat(9000) }),
-    ).rejects.toThrow(/salió demasiado larga/);
+    await expect(servicio.get('/lo-que-sea', 'PE', { q: 'x'.repeat(9000) })).rejects.toThrow(/salió demasiado larga/);
   });
 
   it('el 414 se señala como fallo propio, no de la API corporativa', async () => {
@@ -317,9 +316,7 @@ describe('Una URL que se dispara', () => {
   it('sin delatar la API corporativa, como todo lo demás', async () => {
     const { servicio, escrito } = armar(falloAxios(414));
 
-    await servicio
-      .get('/lo-que-sea', 'PE', { q: 'x'.repeat(9000) })
-      .catch(() => {});
+    await servicio.get('/lo-que-sea', 'PE', { q: 'x'.repeat(9000) }).catch(() => {});
 
     sinRastro(escrito);
   });

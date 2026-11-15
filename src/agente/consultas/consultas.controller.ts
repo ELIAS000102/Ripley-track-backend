@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Post,
-  Query,
-  Req,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, UseInterceptors } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { RequestConUsuario, UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
@@ -102,10 +93,7 @@ export class ConsultasAgenteController {
    */
   @PermitidoAgente()
   @Get('contexto')
-  async contextoDelUsuario(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query('pais') pais?: string,
-  ) {
+  async contextoDelUsuario(@Usuario() usuario: UsuarioAutenticado, @Query('pais') pais?: string) {
     return this.contexto.armarConUsuario(usuario, pais);
   }
 
@@ -141,10 +129,7 @@ export class ConsultasAgenteController {
    */
   @PermitidoAgente()
   @Get('reporte')
-  async consultarReporte(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query() query: ConsultarReporteDto,
-  ) {
+  async consultarReporte(@Usuario() usuario: UsuarioAutenticado, @Query() query: ConsultarReporteDto) {
     return this.reporte.consultar(usuario, query);
   }
 
@@ -156,10 +141,7 @@ export class ConsultasAgenteController {
    */
   @PermitidoAgente()
   @Get('transferencia')
-  async consultarTransferencia(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query() query: ConsultarTransferenciaDto,
-  ) {
+  async consultarTransferencia(@Usuario() usuario: UsuarioAutenticado, @Query() query: ConsultarTransferenciaDto) {
     return this.transferencia.consultar(usuario, query);
   }
 
@@ -171,10 +153,7 @@ export class ConsultasAgenteController {
    */
   @PermitidoAgente()
   @Get('tipo-servicio')
-  async consultarTipoServicio(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query() query: ConsultarTipoServicioDto,
-  ) {
+  async consultarTipoServicio(@Usuario() usuario: UsuarioAutenticado, @Query() query: ConsultarTipoServicioDto) {
     return this.tipoServicio.consultar(usuario, query);
   }
 
@@ -187,10 +166,7 @@ export class ConsultasAgenteController {
    */
   @PermitidoAgente()
   @Get('busqueda-masiva')
-  async busquedaMasiva(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query() query: BuscarMasivoDto,
-  ) {
+  async busquedaMasiva(@Usuario() usuario: UsuarioAutenticado, @Query() query: BuscarMasivoDto) {
     return this.masivo.buscar(usuario, query);
   }
 
@@ -202,10 +178,7 @@ export class ConsultasAgenteController {
    */
   @PermitidoAgente()
   @Get('simulacion')
-  async simular(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Query() query: SimularAgenteDto,
-  ) {
+  async simular(@Usuario() usuario: UsuarioAutenticado, @Query() query: SimularAgenteDto) {
     return this.simulacion.simular(usuario, query);
   }
 

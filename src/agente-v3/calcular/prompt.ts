@@ -12,7 +12,18 @@ import type { Calculo, ContextoTurno } from '../interfaces/agente-v3.interface.j
 
 const OPERACIONES = ['suma', 'maximo', 'minimo', 'contar', 'porcentaje', 'filtrar', 'ordenar', 'explicar'] as const;
 const AGRUPAR = ['total', 'fecha', 'entidad', 'agenda', 'servicio', 'activa', 'tipo', 'fase'];
-const CAMPOS = ['ocupado', 'asignado', 'disponible', 'uso', 'desfase', 'transito', 'preparacion', 'dias', 'codigo', 'activa'];
+const CAMPOS = [
+  'ocupado',
+  'asignado',
+  'disponible',
+  'uso',
+  'desfase',
+  'transito',
+  'preparacion',
+  'dias',
+  'codigo',
+  'activa',
+];
 
 export const SISTEMA_CALCULAR = `Dices QUÉ CALCULAR con lo que ya trajo el mensaje anterior del chat de la operación logística de Ripley. No calculas nada tú: el número lo saca el sistema de los datos.
 
@@ -30,8 +41,14 @@ Un código que ya está en los datos se usa como filtro, sin consultar de nuevo.
 Responde SOLO con un JSON, sin texto alrededor:
 {"operacion": "...", "campo": null, "filtro": {}, "agrupar": ["total"], "orden": null, "distintos": false, "ver": null, "falta": null}`;
 
-export function promptCalcular(mensaje: string, contexto: ContextoTurno, filas: Fila[], deDonde: string): { sistema: string; mensaje: string } {
-  const valores = (k: keyof Fila, n = 12) => [...new Set(filas.map((f) => f[k]).filter((v) => v !== undefined && v !== null && v !== ''))].slice(0, n);
+export function promptCalcular(
+  mensaje: string,
+  contexto: ContextoTurno,
+  filas: Fila[],
+  deDonde: string,
+): { sistema: string; mensaje: string } {
+  const valores = (k: keyof Fila, n = 12) =>
+    [...new Set(filas.map((f) => f[k]).filter((v) => v !== undefined && v !== null && v !== ''))].slice(0, n);
   const campos = CAMPOS.filter((c) => filas.some((f) => (f as unknown as Record<string, unknown>)[c] !== undefined));
   return {
     sistema: SISTEMA_CALCULAR,
@@ -51,17 +68,25 @@ EL MENSAJE
   };
 }
 
-export function leerCalculo(texto: string, contexto: ContextoTurno, filas: Fila[]): Lectura<{ calculo: Calculo; ver: string | null } | { falta: string }> {
+export function leerCalculo(
+  texto: string,
+  contexto: ContextoTurno,
+  filas: Fila[],
+): Lectura<{ calculo: Calculo; ver: string | null } | { falta: string }> {
   const j = primerJson(texto);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
   // Un dato que no se guarda ni trae la consulta: se dice, no se calcula otra cosa
-  if (typeof j.falta === 'string' && j.falta.trim() && !j.operacion) return { ok: true, valor: { falta: j.falta.trim().replace(/\s+/g, ' ').slice(0, 120) } };
+  if (typeof j.falta === 'string' && j.falta.trim() && !j.operacion)
+    return { ok: true, valor: { falta: j.falta.trim().replace(/\s+/g, ' ').slice(0, 120) } };
   const operacion = String(j.operacion ?? '') as Calculo['operacion'];
-  if (!(OPERACIONES as readonly string[]).includes(operacion)) return { ok: false, motivo: `operación que no existe: ${JSON.stringify(j.operacion)}` };
+  if (!(OPERACIONES as readonly string[]).includes(operacion))
+    return { ok: false, motivo: `operación que no existe: ${JSON.stringify(j.operacion)}` };
   const campo = j.campo === null || j.campo === undefined || j.campo === '' ? null : String(j.campo);
   if (campo && !CAMPOS.includes(campo)) return { ok: false, motivo: `campo que no existe: ${campo}` };
-  if (['suma', 'maximo', 'minimo', 'ordenar'].includes(operacion) && !campo) return { ok: false, motivo: `"${operacion}" sin campo` };
-  if (campo && !filas.some((f) => (f as unknown as Record<string, unknown>)[campo] !== undefined)) return { ok: false, motivo: `lo que trajo el anterior no tiene "${campo}"` };
+  if (['suma', 'maximo', 'minimo', 'ordenar'].includes(operacion) && !campo)
+    return { ok: false, motivo: `"${operacion}" sin campo` };
+  if (campo && !filas.some((f) => (f as unknown as Record<string, unknown>)[campo] !== undefined))
+    return { ok: false, motivo: `lo que trajo el anterior no tiene "${campo}"` };
 
   const f = (j.filtro && typeof j.filtro === 'object' ? j.filtro : {}) as Record<string, unknown>;
   const filtro: Calculo['filtro'] = {};
@@ -78,18 +103,28 @@ export function leerCalculo(texto: string, contexto: ContextoTurno, filas: Fila[
     if (!iso) return { ok: false, motivo: `fecha que no entiendo: ${JSON.stringify(f.fecha)}` };
     filtro.fecha = iso;
   }
-  if (f.servicio) filtro.servicio = (Array.isArray(f.servicio) ? f.servicio : [f.servicio]).map((s) => String(s).toUpperCase());
+  if (f.servicio)
+    filtro.servicio = (Array.isArray(f.servicio) ? f.servicio : [f.servicio]).map((s) => String(s).toUpperCase());
   if (typeof f.activa === 'boolean') filtro.activa = f.activa;
   if (f.nombre) filtro.nombre = String(f.nombre).slice(0, 60);
   if (f.fase) filtro.fase = String(f.fase).toUpperCase().slice(0, 3);
   if (f.tipo) filtro.tipo = String(f.tipo).slice(0, 20);
 
-  const agrupar = (Array.isArray(j.agrupar) ? j.agrupar : [j.agrupar ?? 'total']).map(String).filter((a) => AGRUPAR.includes(a));
+  const agrupar = (Array.isArray(j.agrupar) ? j.agrupar : [j.agrupar ?? 'total'])
+    .map(String)
+    .filter((a) => AGRUPAR.includes(a));
   const ver = typeof j.ver === 'string' && ['totales', 'cuadro'].includes(j.ver) ? j.ver : null;
   return {
     ok: true,
     valor: {
-      calculo: { operacion, campo, filtro, agrupar: agrupar.length ? agrupar : ['total'], ...(j.orden === 'asc' || j.orden === 'desc' ? { orden: j.orden } : {}), ...(j.distintos === true ? { distintos: true } : {}) },
+      calculo: {
+        operacion,
+        campo,
+        filtro,
+        agrupar: agrupar.length ? agrupar : ['total'],
+        ...(j.orden === 'asc' || j.orden === 'desc' ? { orden: j.orden } : {}),
+        ...(j.distintos === true ? { distintos: true } : {}),
+      },
       ver,
     },
   };

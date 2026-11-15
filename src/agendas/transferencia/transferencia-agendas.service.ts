@@ -1,22 +1,11 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
 import { RipleyApiError } from '../../common/ripley/ripley.errors.js';
 import { resolverTipoDeAgenda } from '../../common/ripley/utils/agenda.util.js';
 import { enLotes } from '../../common/utils/lotes.util.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  recortarDesde,
-  soloFecha,
-} from '../../common/ripley/utils/date.util.js';
+import { hoyEnPais, isoToRipleyDate, recortarDesde, soloFecha } from '../../common/ripley/utils/date.util.js';
 import type {
   CapacityByDay,
   ClusterRow,
@@ -87,9 +76,7 @@ const normalizar = (s: string) =>
  */
 function idDeCapacidad(fila: TransferScheduleRow): string | undefined {
   const origen = fila.warehouses?.[0];
-  const capacidad =
-    fila.capacities?.find((c) => c.warehouseId === origen) ??
-    fila.capacities?.[0];
+  const capacidad = fila.capacities?.find((c) => c.warehouseId === origen) ?? fila.capacities?.[0];
   const valor: unknown = capacidad?.capacityId;
 
   if (typeof valor === 'string') return valor.trim() || undefined;
@@ -183,9 +170,7 @@ export class TransferenciaAgendasService {
     const termino = normalizar(pedido);
     if (!termino) return [];
 
-    const porCodigo = clusters.filter((c) =>
-      (c.warehouses ?? []).some((w) => String(w.code) === termino),
-    );
+    const porCodigo = clusters.filter((c) => (c.warehouses ?? []).some((w) => String(w.code) === termino));
     if (porCodigo.length) return porCodigo;
 
     const exactos = clusters.filter((c) => normalizar(c.name) === termino);
@@ -208,9 +193,7 @@ export class TransferenciaAgendasService {
     const destinosPedidos = (filtro.destinos ?? []).map((d) => d.trim()).filter(Boolean);
 
     if (!origenPedido && !destinosPedidos.length) {
-      throw new BadRequestException(
-        'Indica la sucursal de stock (origen) o el clúster de destino.',
-      );
+      throw new BadRequestException('Indica la sucursal de stock (origen) o el clúster de destino.');
     }
 
     /*
@@ -240,9 +223,7 @@ export class TransferenciaAgendasService {
         for (const c of suyos) if (!elegidos.some((e) => e._id === c._id)) elegidos.push(c);
       }
       if (!elegidos.length) {
-        throw new NotFoundException(
-          `No encontré ningún clúster de destino para ${destinosPedidos.join(', ')}`,
-        );
+        throw new NotFoundException(`No encontré ningún clúster de destino para ${destinosPedidos.join(', ')}`);
       }
     }
 
@@ -258,9 +239,7 @@ export class TransferenciaAgendasService {
     );
 
     if (filas.length !== suyas.length) {
-      this.logger.warn(
-        `Transferencia: ${filas.length - suyas.length} agendas de otro origen o destino descartadas`,
-      );
+      this.logger.warn(`Transferencia: ${filas.length - suyas.length} agendas de otro origen o destino descartadas`);
     }
 
     return { filas: suyas, clusters, origen, sinDestino };
@@ -432,11 +411,7 @@ export class TransferenciaAgendasService {
    * Sin capacidad creada no hay días: Ripley responde `404`, y eso no es un
    * fallo sino una agenda vacía.
    */
-  async diasDeLaAgenda(
-    fila: TransferScheduleRow,
-    desde: string,
-    pais: string,
-  ): Promise<CapacityByDay[]> {
+  async diasDeLaAgenda(fila: TransferScheduleRow, desde: string, pais: string): Promise<CapacityByDay[]> {
     const capacityId = idDeCapacidad(fila);
     if (!capacityId) return [];
 
@@ -468,13 +443,7 @@ export class TransferenciaAgendasService {
    * Sin fecha se arranca en hoy, como en recepción: el endpoint la pide siempre
    * y desde el principio serían años de historia.
    */
-  async buscarCapacidades(
-    filtro: FiltroTransferencia,
-    scheduleId: string,
-    from?: string,
-    pais = 'PE',
-    dias?: number,
-  ) {
+  async buscarCapacidades(filtro: FiltroTransferencia, scheduleId: string, from?: string, pais = 'PE', dias?: number) {
     const { fila, agenda } = await this.elegir(filtro, scheduleId, pais);
     const desde = from ?? isoToRipleyDate(hoyEnPais(pais));
     const todos = await this.diasDeLaAgenda(fila, desde, pais);
@@ -527,11 +496,7 @@ export class TransferenciaAgendasService {
    * tipo, el servicio y la unidad—: nada de eso viaja en la petición, porque
    * escribirlo mal es escribir en otra agenda.
    */
-  async guardarDia(
-    preparada: AgendaTransferenciaPreparada,
-    body: ActualizarTransferenciaBodyDto,
-    pais = 'PE',
-  ) {
+  async guardarDia(preparada: AgendaTransferenciaPreparada, body: ActualizarTransferenciaBodyDto, pais = 'PE') {
     const { day, assigned, active } = body;
     const { fila, capacityId, typeOfService, idOffice } = preparada;
 
@@ -557,7 +522,13 @@ export class TransferenciaAgendasService {
     };
 
     this.contexto.registrarCambio(
-      { scheduleId: fila._id, day: actual.day, assigned: actual.assigned, active: actual.active, occupied: actual.occupied },
+      {
+        scheduleId: fila._id,
+        day: actual.day,
+        assigned: actual.assigned,
+        active: actual.active,
+        occupied: actual.occupied,
+      },
       { scheduleId: fila._id, day: actual.day, assigned, active },
     );
 
@@ -589,12 +560,7 @@ export class TransferenciaAgendasService {
   }
 
   /** PUT del panel: un día de una agenda */
-  async actualizar(
-    filtro: FiltroTransferencia,
-    scheduleId: string,
-    body: ActualizarTransferenciaBodyDto,
-    pais = 'PE',
-  ) {
+  async actualizar(filtro: FiltroTransferencia, scheduleId: string, body: ActualizarTransferenciaBodyDto, pais = 'PE') {
     const preparada = await this.prepararAgenda(filtro, scheduleId, pais);
     return this.guardarDia(preparada, body, pais);
   }

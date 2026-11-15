@@ -42,7 +42,11 @@ Responde SOLO con un JSON de una línea, sin texto alrededor:
 VOCABULARIO DE LA OPERACIÓN
 ${VOCABULARIO.map((v) => `- ${v}`).join('\n')}`;
 
-export function promptClasificar(mensaje: string, contexto: ContextoTurno, noValio?: string): { sistema: string; mensaje: string } {
+export function promptClasificar(
+  mensaje: string,
+  contexto: ContextoTurno,
+  noValio?: string,
+): { sistema: string; mensaje: string } {
   const atajos = contexto.atajos.map((a) => atajoEnLinea(a, true)).join('\n');
   const ant = contexto.anterior;
   const anterior = ant

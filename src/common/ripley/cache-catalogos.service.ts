@@ -39,10 +39,7 @@ export class CacheCatalogosService {
    */
   private readonly MAXIMO = 500;
 
-  private readonly entradas = new Map<
-    string,
-    { valor: unknown; expira: number }
-  >();
+  private readonly entradas = new Map<string, { valor: unknown; expira: number }>();
 
   constructor(private readonly contexto: ContextoAuditoria) {}
 
@@ -52,11 +49,7 @@ export class CacheCatalogosService {
    * Sin usuario en el contexto no se cachea nada: significa que la petición no
    * pasó por el guard, y no hay a quién atribuir la entrada.
    */
-  async recordar<T>(
-    clave: string,
-    pais: string,
-    traer: () => Promise<T>,
-  ): Promise<T> {
+  async recordar<T>(clave: string, pais: string, traer: () => Promise<T>): Promise<T> {
     const usuario = this.contexto.usuarioActual();
 
     if (!usuario) return traer();

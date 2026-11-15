@@ -18,7 +18,14 @@ const cifrado = (clave = 'una-clave-de-prueba-con-mas-de-treinta-y-dos-caractere
 function montar(estado = 'en_curso') {
   const tablas: Record<string, Fila[]> = { rutina_ejecuciones: [{ id: 'e-1', rutina_id: 'r-1', estado }] };
   const servicio = new TokenRutinaService(cifrado(), supabaseEnMemoria(tablas));
-  const datos = { ejecucion: 'e-1', rutina: 'r-1', usuario: { id: 'u-jose', email: 'jose@ejemplo.com' }, modo: 'prueba' as const, tarea: 1, paso: 2 };
+  const datos = {
+    ejecucion: 'e-1',
+    rutina: 'r-1',
+    usuario: { id: 'u-jose', email: 'jose@ejemplo.com' },
+    modo: 'prueba' as const,
+    tarea: 1,
+    paso: 2,
+  };
   return { servicio, tablas, datos };
 }
 
@@ -42,14 +49,19 @@ describe('El token de un paso de una rutina', () => {
     const { servicio, datos } = montar();
     const { token } = servicio.emitir(datos);
     const [, carga, firma] = token.split('.');
-    const otra = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(carga, 'base64url').toString()), modo: 'real' })).toString('base64url');
+    const otra = Buffer.from(
+      JSON.stringify({ ...JSON.parse(Buffer.from(carga, 'base64url').toString()), modo: 'real' }),
+    ).toString('base64url');
 
     await expect(servicio.validar(`rutina.${otra}.${firma}`)).rejects.toThrow('no es válido');
   });
 
   it('firmado con otra clave no vale', async () => {
     const { datos, tablas } = montar();
-    const ajeno = new TokenRutinaService(cifrado('otra-clave-distinta-tambien-de-mas-de-treinta-y-dos'), supabaseEnMemoria(tablas));
+    const ajeno = new TokenRutinaService(
+      cifrado('otra-clave-distinta-tambien-de-mas-de-treinta-y-dos'),
+      supabaseEnMemoria(tablas),
+    );
     const { servicio } = montar();
 
     await expect(servicio.validar(ajeno.emitir(datos).token)).rejects.toThrow('no es válido');
@@ -69,7 +81,9 @@ describe('El token de un paso de una rutina', () => {
 
   it('y la ejecución tiene que ser de esa rutina', async () => {
     const { servicio, datos } = montar();
-    await expect(servicio.validar(servicio.emitir({ ...datos, rutina: 'r-otra' }).token)).rejects.toThrow('ya no está en curso');
+    await expect(servicio.validar(servicio.emitir({ ...datos, rutina: 'r-otra' }).token)).rejects.toThrow(
+      'ya no está en curso',
+    );
   });
 
   it('basura con el prefijo no vale', async () => {

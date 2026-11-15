@@ -35,9 +35,7 @@ const AGENDAS_POR_ZONA: Record<string, Array<Record<string, unknown>>> = {
 };
 
 function armar() {
-  const listarAgendas = vi.fn((zoneId: string) =>
-    Promise.resolve(AGENDAS_POR_ZONA[zoneId] ?? []),
-  );
+  const listarAgendas = vi.fn((zoneId: string) => Promise.resolve(AGENDAS_POR_ZONA[zoneId] ?? []));
 
   const despacho = {
     listarZonas: vi.fn().mockResolvedValue(ZONAS_1401),
@@ -54,9 +52,7 @@ function armar() {
       { scheduleId: 'p-2', nombre: 'Agenda Picking RC Norte', typeOfService: 'RC' },
     ]),
     obtener: vi.fn().mockResolvedValue({
-      capacityByDayArray: [
-        { day: `${HOY}T00:00:00.000Z`, active: true, assigned: 90, occupied: 0 },
-      ],
+      capacityByDayArray: [{ day: `${HOY}T00:00:00.000Z`, active: true, assigned: 90, occupied: 0 }],
     }),
   } as unknown as PickingService;
 
@@ -67,18 +63,14 @@ function armar() {
         nombre: 'Agenda de Recepción 20021',
         typeOfService: 'RC',
         unitMeasure: 'Unidades',
-        dias: [
-          { day: `${HOY}T00:00:00.000Z`, assigned: 50, occupied: 0, active: true },
-        ],
+        dias: [{ day: `${HOY}T00:00:00.000Z`, assigned: 50, occupied: 0, active: true }],
       },
       {
         scheduleId: 'r-2',
         nombre: 'Agenda de Recepción 20021 BT',
         typeOfService: 'RC',
         unitMeasure: 'Unidades',
-        dias: [
-          { day: `${HOY}T00:00:00.000Z`, assigned: 10, occupied: 0, active: true },
-        ],
+        dias: [{ day: `${HOY}T00:00:00.000Z`, assigned: 10, occupied: 0, active: true }],
       },
     ]),
   } as unknown as RecepcionService;
@@ -186,9 +178,7 @@ describe('La agenda, que antes no se podía pedir', () => {
 
     // "Agenda SD Aldea 6 BT" solo existe en la segunda zona: pedirla sin zona
     // debe encontrarla, no dejar a la primera sin agendas y avisar de nada
-    const r = await servicio.consultar(
-      pedir({ tipo: 'despacho', agenda: 'Agenda SD Aldea 6 BT' }),
-    );
+    const r = await servicio.consultar(pedir({ tipo: 'despacho', agenda: 'Agenda SD Aldea 6 BT' }));
 
     expect(nombres(r)).toEqual(['Agenda SD Aldea 6 BT']);
     expect(r.sinDatos ?? []).toEqual([]);
@@ -199,9 +189,7 @@ describe('Cuando ningún filtro encaja, el aviso dice cuál', () => {
   it('nombra la agenda pedida y no dice que no haya agendas', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      pedir({ tipo: 'despacho', agenda: 'Agenda que no existe' }),
-    );
+    const r = await servicio.consultar(pedir({ tipo: 'despacho', agenda: 'Agenda que no existe' }));
 
     expect(r.sinDatos?.join(' ')).toContain('Agenda que no existe');
     expect(r.sinDatos?.join(' ')).not.toMatch(/no tiene agendas de despacho$/);
@@ -210,9 +198,7 @@ describe('Cuando ningún filtro encaja, el aviso dice cuál', () => {
   it('y nombra los dos cuando se filtró por servicio y por agenda', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      pedir({ tipo: 'picking', codigo: '20026', servicio: 'RC', agenda: 'ninguna' }),
-    );
+    const r = await servicio.consultar(pedir({ tipo: 'picking', codigo: '20026', servicio: 'RC', agenda: 'ninguna' }));
 
     const aviso = r.sinDatos?.join(' ') ?? '';
     expect(aviso).toContain('servicio RC');

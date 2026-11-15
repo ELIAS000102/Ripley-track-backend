@@ -1,14 +1,8 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { RecepcionService } from './recepcion.service.js';
-import {
-  BuscarRecepcionDto,
-  ListarAgendasRecepcionDto,
-} from './dto/buscar-recepcion.dto.js';
-import {
-  ActualizarRecepcionBodyDto,
-  ActualizarRecepcionQueryDto,
-} from './dto/actualizar-recepcion.dto.js';
+import { BuscarRecepcionDto, ListarAgendasRecepcionDto } from './dto/buscar-recepcion.dto.js';
+import { ActualizarRecepcionBodyDto, ActualizarRecepcionQueryDto } from './dto/actualizar-recepcion.dto.js';
 import { BuscarDto, PaisDto } from '../../common/dto/pais.dto.js';
 
 /**
@@ -37,10 +31,7 @@ export class RecepcionController {
   /** GET /agendas/recepcion/agendas?officeCode=20021&pais=PE */
   @Get('agendas')
   async agendas(@Query() query: ListarAgendasRecepcionDto) {
-    return this.recepcionService.listarAgendasPorOficina(
-      query.officeCode,
-      query.pais,
-    );
+    return this.recepcionService.listarAgendasPorOficina(query.officeCode, query.pais);
   }
 
   /**
@@ -52,14 +43,7 @@ export class RecepcionController {
   @Get('buscar')
   async buscar(@Query() query: BuscarRecepcionDto) {
     const { officeCode, typeOfService, from, pais, dias, scheduleId } = query;
-    return this.recepcionService.buscarCapacidades(
-      officeCode,
-      typeOfService,
-      from,
-      pais,
-      dias,
-      scheduleId,
-    );
+    return this.recepcionService.buscarCapacidades(officeCode, typeOfService, from, pais, dias, scheduleId);
   }
 
   /**
@@ -71,10 +55,7 @@ export class RecepcionController {
    */
   @Auditar('recepcion.actualizar')
   @Put()
-  async actualizar(
-    @Query() query: ActualizarRecepcionQueryDto,
-    @Body() body: ActualizarRecepcionBodyDto,
-  ) {
+  async actualizar(@Query() query: ActualizarRecepcionQueryDto, @Body() body: ActualizarRecepcionBodyDto) {
     const { officeCode, scheduleId, pais } = query;
     return this.recepcionService.actualizar(officeCode, scheduleId, body, pais);
   }

@@ -3,20 +3,10 @@ import { CdsService } from '../../../reportes/cds/cds.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
-import {
-  esTodoElPais,
-  listaDeCds,
-  paisDelCd,
-  resolverCd,
-} from '../../constantes/cds.constants.js';
+import { esTodoElPais, listaDeCds, paisDelCd, resolverCd } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { ConsultarReporteDto } from '../../dto/consultas.dto.js';
-import type {
-  CdReporte,
-  CeldaReporte,
-  JornadaReporte,
-  ReporteRespuesta,
-} from '../../interfaces/agente.interface.js';
+import type { CdReporte, CeldaReporte, JornadaReporte, ReporteRespuesta } from '../../interfaces/agente.interface.js';
 
 /**
  * Reporte de los CDs, pivotado y comprimido para el agente.
@@ -40,18 +30,13 @@ export class ReporteAgenteService {
     private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 
-  async consultar(
-    usuario: UsuarioAutenticado,
-    dto: ConsultarReporteDto,
-  ): Promise<ReporteRespuesta> {
+  async consultar(usuario: UsuarioAutenticado, dto: ConsultarReporteDto): Promise<ReporteRespuesta> {
     // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
     const todos = await this.configuracionCds.todos();
     const contexto = await this.contexto.armar(usuario, paisDelCd(dto.cd, dto.pais, todos));
     const dias = dto.dias ?? 7;
 
-    this.logger.log(
-      `Agente pidiendo reporte de ${contexto.pais}, ${dias} día(s) desde ${dto.desde ?? 'hoy'}`,
-    );
+    this.logger.log(`Agente pidiendo reporte de ${contexto.pais}, ${dias} día(s) desde ${dto.desde ?? 'hoy'}`);
 
     const crudo = await this.cds.reporte(contexto.pais, dias, dto.desde);
     const fechas = crudo.parametros.fechas;
@@ -73,9 +58,7 @@ export class ReporteAgenteService {
         .set(r.fecha, [r.asignado, r.utilizado, r.asignado - r.utilizado, r.porcentaje, r.activo ? 1 : 0]);
     }
 
-    const pedidos = soloEste
-      ? crudo.cds.filter((c) => c.code === soloEste.code)
-      : crudo.cds;
+    const pedidos = soloEste ? crudo.cds.filter((c) => c.code === soloEste.code) : crudo.cds;
 
     const cds: CdReporte[] = pedidos.map((cd) => {
       const jornadasDelCd = porCd.get(cd.code) ?? new Map();
@@ -96,7 +79,8 @@ export class ReporteAgenteService {
       let masCargada: CdReporte['masCargada'] = null as CdReporte['masCargada'];
       for (const j of conCapacidad) {
         for (const [i, [asignado, , , uso]] of j.dias.entries()) {
-          if (asignado > 0 && (!masCargada || uso > masCargada.uso)) masCargada = { jornada: j.jornada, fecha: fechas[i], uso };
+          if (asignado > 0 && (!masCargada || uso > masCargada.uso))
+            masCargada = { jornada: j.jornada, fecha: fechas[i], uso };
         }
       }
 
@@ -109,7 +93,10 @@ export class ReporteAgenteService {
         // Se informan en vez de desaparecer: quien lea el reporte tiene que
         // poder notar si Ripley empezó a devolver una jornada nueva.
         excluidas: crudo.excluidas?.[cd.code] ?? [],
-        masCargada: masCargada && { ...masCargada, fecha: `${masCargada.fecha.slice(8, 10)}/${masCargada.fecha.slice(5, 7)}` },
+        masCargada: masCargada && {
+          ...masCargada,
+          fecha: `${masCargada.fecha.slice(8, 10)}/${masCargada.fecha.slice(5, 7)}`,
+        },
       };
     });
 
@@ -120,9 +107,7 @@ export class ReporteAgenteService {
       cds,
       formato:
         'Cada celda es [asignado, ocupado, disponible, uso%, abierta] para la fecha de esa posición; abierta es 1 si el día está abierto y 0 si está cerrado',
-      sinDatos: crudo.cobertura.fallidas.map(
-        (f) => `${f.cd}${f.jornada ? ` (${f.jornada})` : ''}: ${f.error}`,
-      ),
+      sinDatos: crudo.cobertura.fallidas.map((f) => `${f.cd}${f.jornada ? ` (${f.jornada})` : ''}: ${f.error}`),
     };
   }
 
@@ -154,10 +139,7 @@ export class ReporteAgenteService {
    * de asignado, nunca del promedio de los porcentajes: promediarlos da un
    * número distinto y es el error clásico de este reporte.
    */
-  private totales(
-    jornadas: JornadaReporte[],
-    columnas: number,
-  ): CeldaReporte[] {
+  private totales(jornadas: JornadaReporte[], columnas: number): CeldaReporte[] {
     return Array.from({ length: columnas }, (_, i) => {
       let asignado = 0;
       let ocupado = 0;

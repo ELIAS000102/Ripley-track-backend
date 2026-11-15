@@ -1,23 +1,10 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DespachoService } from '../../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { RecepcionService } from '../../../agendas/recepcion/recepcion.service.js';
 import { RipleyApiError } from '../../../common/ripley/ripley.errors.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  ripleyDateToIso,
-  soloFecha,
-} from '../../../common/ripley/utils/date.util.js';
-import {
-  aliasUsado,
-  resolverAliasOpl,
-} from '../../constantes/alias-opl.constants.js';
+import { hoyEnPais, isoToRipleyDate, ripleyDateToIso, soloFecha } from '../../../common/ripley/utils/date.util.js';
+import { aliasUsado, resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ConsultarCapacidadDto } from '../../dto/consultas.dto.js';
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
@@ -48,12 +35,7 @@ export function primerDiaDisponible(dias: DiaCapacidad[]): string | null {
  * Un día con disponible y uso ya resueltos: el modelo no tiene que calcular
  * nada. Lo comparten la capacidad de las agendas y la de transferencia.
  */
-export function diaNormalizado(
-  fecha: string,
-  activo: boolean,
-  asignado: number,
-  ocupado: number,
-): DiaCapacidad {
+export function diaNormalizado(fecha: string, activo: boolean, asignado: number, ocupado: number): DiaCapacidad {
   return {
     fecha,
     activo,
@@ -111,9 +93,10 @@ export class CapacidadAgenteService {
     const dias = dto.dias ?? 7;
 
     // En picking el código es un almacén: "CD Villa" es el 20026, por los alias de los CDs
-    const pedidos = dto.tipo === 'picking'
-      ? await this.almacenes.codigos(this.oficinasPedidas(dto.codigo), pais)
-      : this.oficinasPedidas(dto.codigo);
+    const pedidos =
+      dto.tipo === 'picking'
+        ? await this.almacenes.codigos(this.oficinasPedidas(dto.codigo), pais)
+        : this.oficinasPedidas(dto.codigo);
 
     this.logger.log(
       `Agente consultando ${dto.tipo} de ${pedidos.length} oficina(s): ` +
@@ -124,9 +107,7 @@ export class CapacidadAgenteService {
     const oficinas: OficinaCapacidad[] = [];
 
     for (const codigo of pedidos) {
-      oficinas.push(
-        await this.capacidadDeUna(codigo, dto, pais, desde, dias, sinDatos),
-      );
+      oficinas.push(await this.capacidadDeUna(codigo, dto, pais, desde, dias, sinDatos));
     }
 
     // Que fallen todas sí es un error; que falle una, no
@@ -201,8 +182,7 @@ export class CapacidadAgenteService {
       const porTipo = {
         picking: () => this.capacidadPicking(uno, pais, desde, dias, propios),
         despacho: () => this.capacidadDespacho(uno, pais, desde, dias, propios),
-        recepcion: () =>
-          this.capacidadRecepcion(uno, pais, desde, dias, propios),
+        recepcion: () => this.capacidadRecepcion(uno, pais, desde, dias, propios),
       };
 
       const agendas = await porTipo[dto.tipo]();
@@ -241,27 +221,19 @@ export class CapacidadAgenteService {
     // El servicio sigue siendo exacto —"S" no es "ST"— y la agenda admite
     // parcial, que es como se nombra en el chat
     const porServicio = dto.servicio
-      ? todas.filter(
-          (a) => a.typeOfService?.toUpperCase() === dto.servicio!.toUpperCase(),
-        )
+      ? todas.filter((a) => a.typeOfService?.toUpperCase() === dto.servicio!.toUpperCase())
       : todas;
 
     const elegidas = filtrarPorNombre(porServicio, dto.agenda, (a) => a.nombre);
 
     if (!elegidas.length) {
-      sinDatos.push(
-        this.porQueNingunaAgenda(`El almacén ${dto.codigo}`, 'picking', dto),
-      );
+      sinDatos.push(this.porQueNingunaAgenda(`El almacén ${dto.codigo}`, 'picking', dto));
       return [];
     }
 
     return this.agendasEnLotes(elegidas, async (a) => {
       try {
-        const capacidades = await this.picking.obtener(
-          a.scheduleId,
-          isoToRipleyDate(desde),
-          pais,
-        );
+        const capacidades = await this.picking.obtener(a.scheduleId, isoToRipleyDate(desde), pais);
 
         return {
           agenda: a.nombre,
@@ -270,12 +242,7 @@ export class CapacidadAgenteService {
           ids: { agendaId: a.scheduleId },
           dias: this.recortar(
             (capacidades?.capacityByDayArray ?? []).map((d) =>
-              this.normalizar(
-                soloFecha(d.day),
-                d.active,
-                Number(d.assigned),
-                Number(d.occupied),
-              ),
+              this.normalizar(soloFecha(d.day), d.active, Number(d.assigned), Number(d.occupied)),
             ),
             desde,
             dias,
@@ -327,9 +294,7 @@ export class CapacidadAgenteService {
     const agendas = filtrarPorNombre(porZona.flat(), dto.agenda, (a) => a.nombre);
 
     if (!agendas.length) {
-      sinDatos.push(
-        this.porQueNingunaAgenda(`El operador ${dto.codigo}`, 'despacho', dto),
-      );
+      sinDatos.push(this.porQueNingunaAgenda(`El operador ${dto.codigo}`, 'despacho', dto));
       return [];
     }
 
@@ -349,12 +314,7 @@ export class CapacidadAgenteService {
           ids: { agendaId: a.mainScheduleId, zonaId: a.zonaId ?? null },
           dias: this.recortar(
             detalle.map((d) =>
-              this.normalizar(
-                ripleyDateToIso(d.date),
-                d.active,
-                Number(d.assigned),
-                Number(d.occupied),
-              ),
+              this.normalizar(ripleyDateToIso(d.date), d.active, Number(d.assigned), Number(d.occupied)),
             ),
             desde,
             dias,
@@ -380,19 +340,12 @@ export class CapacidadAgenteService {
     dias: number,
     sinDatos: string[],
   ): Promise<AgendaCapacidad[]> {
-    const agendas = await this.recepcion.capacidadesDeLaOficina(
-      dto.codigo,
-      pais,
-      isoToRipleyDate(desde),
-      dto.servicio,
-    );
+    const agendas = await this.recepcion.capacidadesDeLaOficina(dto.codigo, pais, isoToRipleyDate(desde), dto.servicio);
 
     const elegidas = filtrarPorNombre(agendas, dto.agenda, (a) => a.nombre);
 
     if (!elegidas.length) {
-      sinDatos.push(
-        this.porQueNingunaAgenda(`La oficina ${dto.codigo}`, 'recepción', dto),
-      );
+      sinDatos.push(this.porQueNingunaAgenda(`La oficina ${dto.codigo}`, 'recepción', dto));
       return [];
     }
 
@@ -407,14 +360,7 @@ export class CapacidadAgenteService {
         unidad: a.unitMeasure ?? null,
         ids: { agendaId: a.scheduleId, capacidadId: a.capacityId ?? null },
         dias: this.recortar(
-          a.dias.map((d) =>
-            this.normalizar(
-              soloFecha(d.day),
-              d.active,
-              Number(d.assigned),
-              Number(d.occupied),
-            ),
-          ),
+          a.dias.map((d) => this.normalizar(soloFecha(d.day), d.active, Number(d.assigned), Number(d.occupied))),
           desde,
           dias,
         ),
@@ -432,11 +378,7 @@ export class CapacidadAgenteService {
    * chat algo que no ocurrió. Con tres filtros posibles —servicio, zona y
    * agenda— el motivo tiene que nombrarlos.
    */
-  private porQueNingunaAgenda(
-    quien: string,
-    tipo: string,
-    dto: ConsultarCapacidadDto,
-  ): string {
+  private porQueNingunaAgenda(quien: string, tipo: string, dto: ConsultarCapacidadDto): string {
     const filtros = [
       dto.servicio && `servicio ${dto.servicio}`,
       dto.zona && `zona "${dto.zona}"`,
@@ -447,7 +389,6 @@ export class CapacidadAgenteService {
       ? `${quien} no tiene agendas de ${tipo} con ${filtros.join(' y ')}`
       : `${quien} no tiene agendas de ${tipo}`;
   }
-
 
   /**
    * Una agenda sin capacidades se calla; lo demás se cuenta.
@@ -461,38 +402,25 @@ export class CapacidadAgenteService {
    * Un fallo de verdad sí se cuenta: callarlo sería decir que una agenda no
    * tiene días cuando lo que pasó es que no se pudo preguntar.
    */
-  private anotarSalvoVacia(
-    sinDatos: string[],
-    nombre: string,
-    e: unknown,
-  ): void {
+  private anotarSalvoVacia(sinDatos: string[], nombre: string, e: unknown): void {
     if (e instanceof RipleyApiError && e.esNoEncontrado) return;
 
     sinDatos.push(`${nombre}: ${(e as Error).message}`);
   }
 
-  private normalizar(
-    fecha: string,
-    activo: boolean,
-    asignado: number,
-    ocupado: number,
-  ): DiaCapacidad {
+  private normalizar(fecha: string, activo: boolean, asignado: number, ocupado: number): DiaCapacidad {
     return diaNormalizado(fecha, activo, asignado, ocupado);
   }
 
   /** Acota la ventana de días para no inundar el contexto del modelo */
-  private recortar(
-    dias: DiaCapacidad[],
-    desde: string,
-    cuantos: number,
-  ): DiaCapacidad[] {
+  private recortar(dias: DiaCapacidad[], desde: string, cuantos: number): DiaCapacidad[] {
     return dias
       .filter((d) => d.fecha >= desde)
       .sort((a, b) => a.fecha.localeCompare(b.fecha))
       .slice(0, cuantos);
   }
 
-    /**
+  /**
    * Las agendas que sí tienen algo que enseñar, por lotes.
    *
    * El `null` significa "esta agenda no vino, y ya se anotó por qué": filtrarlo

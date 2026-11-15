@@ -101,7 +101,11 @@ export class RutinasController {
   /** PUT /rutinas/{id} — cambiar lo que hace la desactiva hasta volver a probarla */
   @Auditar('rutina.editar')
   @Put(':id')
-  async editar(@Param('id', ParseUUIDPipe) id: string, @Usuario() usuario: UsuarioAutenticado, @Body() body: EditarRutinaDto) {
+  async editar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Usuario() usuario: UsuarioAutenticado,
+    @Body() body: EditarRutinaDto,
+  ) {
     return this.rutinas.editar(id, usuario, body);
   }
 

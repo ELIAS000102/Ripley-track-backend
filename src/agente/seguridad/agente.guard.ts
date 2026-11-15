@@ -1,16 +1,7 @@
-import {
-  CanActivate,
-  ConflictException,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { CanActivate, ConflictException, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { RequestConUsuario } from '../../auth/interfaces/auth.interface.js';
-import {
-  PERMITIDO_AGENTE,
-  PERMITIDO_AGENTE_EDITOR,
-} from './permitido-agente.decorator.js';
+import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from './permitido-agente.decorator.js';
 import { ModoAgenteService } from './modo.service.js';
 import { InterrupcionAgenteService } from './interrupcion.service.js';
 
@@ -104,12 +95,8 @@ export class AgenteGuard implements CanActivate {
       );
     }
 
-    const [escribe, consulta] = [PERMITIDO_AGENTE_EDITOR, PERMITIDO_AGENTE].map(
-      (marca) =>
-        this.reflector.getAllAndOverride<boolean>(marca, [
-          context.getHandler(),
-          context.getClass(),
-        ]),
+    const [escribe, consulta] = [PERMITIDO_AGENTE_EDITOR, PERMITIDO_AGENTE].map((marca) =>
+      this.reflector.getAllAndOverride<boolean>(marca, [context.getHandler(), context.getClass()]),
     );
 
     // 2. Escrituras: hace falta el interruptor puesto
@@ -126,9 +113,7 @@ export class AgenteGuard implements CanActivate {
 
     // 3. Consultas
     if (!consulta) {
-      throw new ForbiddenException(
-        'El agente no puede usar esta ruta. Modifica datos o maneja credenciales.',
-      );
+      throw new ForbiddenException('El agente no puede usar esta ruta. Modifica datos o maneja credenciales.');
     }
 
     return true;

@@ -62,10 +62,7 @@ export class EdicionAgenteController {
   @PermitidoAgenteEditor()
   @Auditar('agente.editarCapacidad')
   @Put('capacidad')
-  async editarCapacidad(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EditarCapacidadDto,
-  ) {
+  async editarCapacidad(@Usuario() usuario: UsuarioAutenticado, @Body() body: EditarCapacidadDto) {
     return this.capacidad.editarCapacidad(usuario, body);
   }
 
@@ -94,10 +91,7 @@ export class EdicionAgenteController {
   @PermitidoAgenteEditor()
   @Auditar('agente.editarCd')
   @Put('cd')
-  async editarCd(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EditarCdDto,
-  ) {
+  async editarCd(@Usuario() usuario: UsuarioAutenticado, @Body() body: EditarCdDto) {
     return this.cd.editar(usuario, body);
   }
 
@@ -110,10 +104,7 @@ export class EdicionAgenteController {
   @PermitidoAgenteEditor()
   @Auditar('agente.reasignarCapacidad')
   @Put('reasignar')
-  async reasignarCapacidad(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: ReasignarCapacidadDto,
-  ) {
+  async reasignarCapacidad(@Usuario() usuario: UsuarioAutenticado, @Body() body: ReasignarCapacidadDto) {
     return this.reasignar.reasignar(usuario, body);
   }
 
@@ -126,10 +117,7 @@ export class EdicionAgenteController {
   @PermitidoAgenteEditor()
   @Auditar('agente.editarTipoServicio')
   @Put('tipo-servicio')
-  async editarTipoServicio(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EditarTipoServicioDto,
-  ) {
+  async editarTipoServicio(@Usuario() usuario: UsuarioAutenticado, @Body() body: EditarTipoServicioDto) {
     return this.tipoServicio.editar(usuario, body);
   }
 
@@ -143,10 +131,7 @@ export class EdicionAgenteController {
   @PermitidoAgenteEditor()
   @Auditar('agente.editarMasivo')
   @Put('masivo')
-  async editarMasivo(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EditarMasivoDto,
-  ) {
+  async editarMasivo(@Usuario() usuario: UsuarioAutenticado, @Body() body: EditarMasivoDto) {
     return this.masivo.editar(usuario, body);
   }
 
@@ -159,10 +144,7 @@ export class EdicionAgenteController {
   @PermitidoAgenteEditor()
   @Auditar('agente.editarTransferencia')
   @Put('transferencia')
-  async editarTransferencia(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EditarTransferenciaDto,
-  ) {
+  async editarTransferencia(@Usuario() usuario: UsuarioAutenticado, @Body() body: EditarTransferenciaDto) {
     return this.transferencia.editar(usuario, body);
   }
 }

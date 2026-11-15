@@ -1,9 +1,4 @@
-import type {
-  ClaveComponente,
-  LineaResumenG12,
-  RecetaG12,
-  TipoBloqueG12,
-} from './interfaces/g12.interface.js';
+import type { ClaveComponente, LineaResumenG12, RecetaG12, TipoBloqueG12 } from './interfaces/g12.interface.js';
 
 /**
  * La forma de la plantilla del G12: qué cuadros tiene, cómo se calcula cada
@@ -33,40 +28,88 @@ export interface DefinicionComponente {
 }
 
 export const COMPONENTES_G12: DefinicionComponente[] = [
-  { clave: 'dd_lima', titulo: 'Despacho domicilio', receta: 'simulada', tipos: ['simulacion', 'capacidad', 'despacho', 'picking'] },
+  {
+    clave: 'dd_lima',
+    titulo: 'Despacho domicilio',
+    receta: 'simulada',
+    tipos: ['simulacion', 'capacidad', 'despacho', 'picking'],
+  },
   { clave: 'sfs', titulo: 'Ship from store', receta: 'simulada', tipos: ['simulacion', 'despacho', 'capacidad'] },
   { clave: 'store_to_store', titulo: 'Store to store', receta: 'primer_dia', tipos: ['picking'] },
   {
-    clave: 'pickup_lima', titulo: 'Pickup in store - Lima', receta: 'simulada',
-    tipos: ['simulacion', 'picking'], prioridad: ['RE', 'RT'], diaAnterior: ['RT'],
+    clave: 'pickup_lima',
+    titulo: 'Pickup in store - Lima',
+    receta: 'simulada',
+    tipos: ['simulacion', 'picking'],
+    prioridad: ['RE', 'RT'],
+    diaAnterior: ['RT'],
   },
   {
-    clave: 'pickup_provincia', titulo: 'Pickup in store - Provincia', receta: 'simulada',
-    tipos: ['simulacion', 'picking'], prioridad: ['RE', 'RT'], diaAnterior: ['RT'],
+    clave: 'pickup_provincia',
+    titulo: 'Pickup in store - Provincia',
+    receta: 'simulada',
+    tipos: ['simulacion', 'picking'],
+    prioridad: ['RE', 'RT'],
+    diaAnterior: ['RT'],
   },
   {
-    clave: 'sts_lima', titulo: 'Site to store - Lima', receta: 'simulada',
-    tipos: ['simulacion', 'recepcion'], prioridad: ['SE', 'ST'],
+    clave: 'sts_lima',
+    titulo: 'Site to store - Lima',
+    receta: 'simulada',
+    tipos: ['simulacion', 'recepcion'],
+    prioridad: ['SE', 'ST'],
   },
   {
-    clave: 'sts_provincia', titulo: 'Site to store - Provincia', receta: 'simulada',
-    tipos: ['simulacion', 'recepcion'], prioridad: ['SE', 'ST'],
+    clave: 'sts_provincia',
+    titulo: 'Site to store - Provincia',
+    receta: 'simulada',
+    tipos: ['simulacion', 'recepcion'],
+    prioridad: ['SE', 'ST'],
   },
-  { clave: 'dd_troncal', titulo: 'DD Flota exclusiva', receta: 'simulada', tipos: ['simulacion', 'despacho', 'capacidad'] },
+  {
+    clave: 'dd_troncal',
+    titulo: 'DD Flota exclusiva',
+    receta: 'simulada',
+    tipos: ['simulacion', 'despacho', 'capacidad'],
+  },
   { clave: 'retiro_cercano', titulo: 'Retiro cercano CD', receta: 'primer_dia', tipos: ['picking'] },
-  { clave: 'se_express', titulo: 'Site to store express', receta: 'primer_dia', tipos: ['picking'], soloLaborables: true },
+  {
+    clave: 'se_express',
+    titulo: 'Site to store express',
+    receta: 'primer_dia',
+    tipos: ['picking'],
+    soloLaborables: true,
+  },
 ];
 
 export const CLAVES_COMPONENTES = COMPONENTES_G12.map((c) => c.clave);
 
-export const definicionDe = (clave: ClaveComponente) =>
-  COMPONENTES_G12.find((c) => c.clave === clave)!;
+export const definicionDe = (clave: ClaveComponente) => COMPONENTES_G12.find((c) => c.clave === clave)!;
 
 /** Cómo se agrupan los cuadros en la plantilla, y cuáles llevan un total conjunto */
-export const GRUPOS_G12: Array<{ clave: string; titulo: string; componentes: ClaveComponente[]; totalConjunto?: boolean }> = [
-  { clave: 'domicilio_lima', titulo: 'Despacho a domicilio Lima - DD', componentes: ['dd_lima', 'sfs', 'store_to_store'] },
-  { clave: 'pickup', titulo: 'Pickup in store - Despacho', componentes: ['pickup_lima', 'pickup_provincia'], totalConjunto: true },
-  { clave: 'sts', titulo: 'Site to store - Recepción', componentes: ['sts_lima', 'sts_provincia'], totalConjunto: true },
+export const GRUPOS_G12: Array<{
+  clave: string;
+  titulo: string;
+  componentes: ClaveComponente[];
+  totalConjunto?: boolean;
+}> = [
+  {
+    clave: 'domicilio_lima',
+    titulo: 'Despacho a domicilio Lima - DD',
+    componentes: ['dd_lima', 'sfs', 'store_to_store'],
+  },
+  {
+    clave: 'pickup',
+    titulo: 'Pickup in store - Despacho',
+    componentes: ['pickup_lima', 'pickup_provincia'],
+    totalConjunto: true,
+  },
+  {
+    clave: 'sts',
+    titulo: 'Site to store - Recepción',
+    componentes: ['sts_lima', 'sts_provincia'],
+    totalConjunto: true,
+  },
   { clave: 'troncal', titulo: 'Domicilio provincia troncal - DD', componentes: ['dd_troncal'] },
   { clave: 'rc_se', titulo: 'Agenda de picking RC / SE', componentes: ['retiro_cercano', 'se_express'] },
 ];

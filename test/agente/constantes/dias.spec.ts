@@ -15,8 +15,7 @@ import { DIAS } from '../../../src/agente/constantes/dias.constants.js';
  */
 
 /** Como lo hace el servicio al leer lo que escribió una persona */
-const diaDe = (escrito: string) =>
-  DIAS.find(([, nombres]) => nombres.includes(escrito.trim().toLowerCase()))?.[0];
+const diaDe = (escrito: string) => DIAS.find(([, nombres]) => nombres.includes(escrito.trim().toLowerCase()))?.[0];
 
 describe('Qué se acepta al escribir un día', () => {
   it('el nombre entero', () => {

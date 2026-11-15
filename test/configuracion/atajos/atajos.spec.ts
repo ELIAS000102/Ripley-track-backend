@@ -29,16 +29,16 @@ const item = (orden: number, columnas: Record<string, unknown>) => ({
   ...columnas,
 });
 
-const atajo = (bloques: unknown[]): Atajo =>
-  ({ id: 'p1', nombre: 'Simulación SD', bloques }) as Atajo;
+const atajo = (bloques: unknown[]): Atajo => ({ id: 'p1', nombre: 'Simulación SD', bloques }) as Atajo;
 
-const bloque = (
-  tipo: string,
-  accion: string,
-  items: unknown[],
-  orden = 1,
-  nota: string | null = null,
-) => ({ id: 'b' + orden, orden, tipo, accion, nota, items });
+const bloque = (tipo: string, accion: string, items: unknown[], orden = 1, nota: string | null = null) => ({
+  id: 'b' + orden,
+  orden,
+  tipo,
+  accion,
+  nota,
+  items,
+});
 
 function armar() {
   const consultarCapacidad = vi.fn().mockResolvedValue({ oficinas: [] });
@@ -65,19 +65,36 @@ describe('Los ítems de un bloque van a la operación de su tipo', () => {
       USUARIO,
       atajo([
         bloque('simulacion', 'consultar', [
-          item(1, { pais: 'PE', servicio: 'SD', operador: '1111', region: 'Lima', provincia: 'Lima', distrito: 'San Borja' }),
-          item(2, { pais: 'PE', servicio: 'SD', operador: '1110', region: 'Lima', provincia: 'Lima', distrito: 'Chorrillos' }),
-          item(3, { pais: 'PE', servicio: 'SD', operador: '1112', region: 'Lima', provincia: 'Lima', distrito: 'La Molina' }),
+          item(1, {
+            pais: 'PE',
+            servicio: 'SD',
+            operador: '1111',
+            region: 'Lima',
+            provincia: 'Lima',
+            distrito: 'San Borja',
+          }),
+          item(2, {
+            pais: 'PE',
+            servicio: 'SD',
+            operador: '1110',
+            region: 'Lima',
+            provincia: 'Lima',
+            distrito: 'Chorrillos',
+          }),
+          item(3, {
+            pais: 'PE',
+            servicio: 'SD',
+            operador: '1112',
+            region: 'Lima',
+            provincia: 'Lima',
+            distrito: 'La Molina',
+          }),
         ]),
       ]),
     );
 
     expect(simular).toHaveBeenCalledTimes(3);
-    expect(simular.mock.calls.map((c) => c[1].operador)).toEqual([
-      '1111',
-      '1110',
-      '1112',
-    ]);
+    expect(simular.mock.calls.map((c) => c[1].operador)).toEqual(['1111', '1110', '1112']);
     expect(r.resumen).toEqual({ items: 3, correctas: 3, fallidas: 0 });
   });
 
@@ -92,10 +109,7 @@ describe('Los ítems de un bloque van a la operación de su tipo', () => {
       ]),
     );
 
-    expect(consultarCapacidad.mock.calls.map((c) => c[0].tipo)).toEqual([
-      'picking',
-      'recepcion',
-    ]);
+    expect(consultarCapacidad.mock.calls.map((c) => c[0].tipo)).toEqual(['picking', 'recepcion']);
   });
 
   it('una columna guardada con el tipo no pisa el del bloque', async () => {
@@ -103,11 +117,7 @@ describe('Los ítems de un bloque van a la operación de su tipo', () => {
 
     await servicio.ejecutar(
       USUARIO,
-      atajo([
-        bloque('despacho', 'consultar', [
-          item(1, { codigo: '1130', tipo: 'picking' }),
-        ]),
-      ]),
+      atajo([bloque('despacho', 'consultar', [item(1, { codigo: '1130', tipo: 'picking' })])]),
     );
 
     expect(consultarCapacidad.mock.calls[0][0].tipo).toBe('despacho');
@@ -116,17 +126,9 @@ describe('Los ítems de un bloque van a la operación de su tipo', () => {
   it('una consulta lleva el usuario, que es quien tiene el token', async () => {
     const { servicio, simular } = armar();
 
-    await servicio.ejecutar(
-      USUARIO,
-      atajo([
-        bloque('simulacion', 'consultar', [item(1, { operador: '1111' })]),
-      ]),
-    );
+    await servicio.ejecutar(USUARIO, atajo([bloque('simulacion', 'consultar', [item(1, { operador: '1111' })])]));
 
-    expect(simular).toHaveBeenCalledWith(
-      USUARIO,
-      expect.objectContaining({ operador: '1111' }),
-    );
+    expect(simular).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ operador: '1111' }));
   });
 });
 
@@ -157,12 +159,7 @@ describe('Las columnas se traducen a los campos del endpoint', () => {
   it('las columnas de la propia tabla no viajan como campos', async () => {
     const { servicio, consultarCapacidad } = armar();
 
-    await servicio.ejecutar(
-      USUARIO,
-      atajo([
-        bloque('picking', 'consultar', [item(7, { codigo: '20026' })]),
-      ]),
-    );
+    await servicio.ejecutar(USUARIO, atajo([bloque('picking', 'consultar', [item(7, { codigo: '20026' })])]));
 
     const enviado = consultarCapacidad.mock.calls[0][0];
 
@@ -178,11 +175,7 @@ describe('Las columnas se traducen a los campos del endpoint', () => {
 
     await servicio.ejecutar(
       USUARIO,
-      atajo([
-        bloque('picking', 'consultar', [
-          item(1, { codigo: '20026', servicio: null, zona: null }),
-        ]),
-      ]),
+      atajo([bloque('picking', 'consultar', [item(1, { codigo: '20026', servicio: null, zona: null })])]),
     );
 
     const enviado = consultarCapacidad.mock.calls[0][0];
@@ -196,10 +189,7 @@ describe('Cada ítem se valida contra el DTO de su operación', () => {
   it('sin lo obligatorio no llega a llamar a nada', async () => {
     const { servicio, consultarCapacidad } = armar();
 
-    const r = await servicio.ejecutar(
-      USUARIO,
-      atajo([bloque('picking', 'consultar', [item(1, {})])]),
-    );
+    const r = await servicio.ejecutar(USUARIO, atajo([bloque('picking', 'consultar', [item(1, {})])]));
 
     expect(consultarCapacidad).not.toHaveBeenCalled();
     expect(r.bloques[0].items[0].error).toMatch(/no valen para picking/);
@@ -210,11 +200,7 @@ describe('Cada ítem se valida contra el DTO de su operación', () => {
 
     const r = await servicio.ejecutar(
       USUARIO,
-      atajo([
-        bloque('picking', 'consultar', [
-          item(1, { codigo: '20026', dias: 900 }),
-        ]),
-      ]),
+      atajo([bloque('picking', 'consultar', [item(1, { codigo: '20026', dias: 900 })])]),
     );
 
     expect(r.bloques[0].items[0].error).toMatch(/dias/i);
@@ -227,9 +213,7 @@ describe('Cada ítem se valida contra el DTO de su operación', () => {
     // la deja entrar, pero la que quedara en la tabla no puede ejecutarse
     const r = await servicio.ejecutar(
       USUARIO,
-      atajo([
-        bloque('picking', 'editar', [item(1, { codigo: '20026' }), item(2, {})]),
-      ]),
+      atajo([bloque('picking', 'editar', [item(1, { codigo: '20026' }), item(2, {})])]),
     );
 
     expect(simular).not.toHaveBeenCalled();
@@ -286,12 +270,7 @@ describe('Nada se detiene por un fallo', () => {
     const r = await servicio.ejecutar(
       USUARIO,
       atajo([
-        bloque(
-          'picking',
-          'consultar',
-          [item(1, { codigo: '20026' }), item(2, {})],
-          1,
-        ),
+        bloque('picking', 'consultar', [item(1, { codigo: '20026' }), item(2, {})], 1),
         bloque('picking', 'consultar', [item(1, { codigo: '20096' })], 2),
       ]),
     );

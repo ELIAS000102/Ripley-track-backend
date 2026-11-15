@@ -14,10 +14,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestConUsuario } from '../../../src/auth/interfaces/auth.interface.js';
-import {
-  PermitidoAgente,
-  PermitidoAgenteEditor,
-} from '../../../src/agente/seguridad/permitido-agente.decorator.js';
+import { PermitidoAgente, PermitidoAgenteEditor } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
 import { AgenteGuard } from '../../../src/agente/seguridad/agente.guard.js';
 import { ModoAgenteService } from '../../../src/agente/seguridad/modo.service.js';
 import { InterrupcionAgenteService } from '../../../src/agente/seguridad/interrupcion.service.js';
@@ -127,8 +124,14 @@ class SesionFalsa implements CanActivate {
     // Un paso de una rutina: lo que dejaría el guard de sesión con su token
     if (id && peticion.get('x-rutina')) {
       peticion.rutina = {
-        id: 'token-1', ejecucion: 'e-1', rutina: 'r-1', usuario: peticion.usuario!,
-        modo: 'prueba', tarea: 1, paso: 1, exp: Date.now() + 60000,
+        id: 'token-1',
+        ejecucion: 'e-1',
+        rutina: 'r-1',
+        usuario: peticion.usuario!,
+        modo: 'prueba',
+        tarea: 1,
+        paso: 1,
+        exp: Date.now() + 60000,
       };
     }
 
@@ -170,47 +173,33 @@ describe('AgenteGuard', () => {
   });
 
   const servidor = () => app.getHttpServer();
-  const comoAgente = (r: request.Test, usuario = 'ana') =>
-    r.set('X-Origen', 'agente').set('X-Usuario', usuario);
+  const comoAgente = (r: request.Test, usuario = 'ana') => r.set('X-Origen', 'agente').set('X-Usuario', usuario);
 
   describe('consultas', () => {
     it('deja pasar lo marcado con @PermitidoAgente()', async () => {
-      await comoAgente(request(servidor()).get('/consultas/permitida')).expect(
-        200,
-      );
+      await comoAgente(request(servidor()).get('/consultas/permitida')).expect(200);
     });
 
     it('bloquea lo que nadie marcó', async () => {
-      await comoAgente(request(servidor()).get('/consultas/sin-marcar')).expect(
-        403,
-      );
-      await comoAgente(request(servidor()).post('/consultas/escribir')).expect(
-        403,
-      );
+      await comoAgente(request(servidor()).get('/consultas/sin-marcar')).expect(403);
+      await comoAgente(request(servidor()).post('/consultas/escribir')).expect(403);
     });
 
     it('no estorba a las peticiones que no vienen del agente', async () => {
       // Sin la cabecera es una persona en el panel: le toca su sesión, no esto.
       await request(servidor()).get('/consultas/sin-marcar').expect(200);
       await request(servidor()).post('/consultas/escribir').expect(201);
-      await request(servidor())
-        .get('/configuracion/token-ripley/estado')
-        .expect(200);
+      await request(servidor()).get('/configuracion/token-ripley/estado').expect(200);
     });
 
     it('reconoce la cabecera sin importar mayúsculas', async () => {
-      await request(servidor())
-        .get('/consultas/sin-marcar')
-        .set('X-Origen', 'AGENTE')
-        .expect(403);
+      await request(servidor()).get('/consultas/sin-marcar').set('X-Origen', 'AGENTE').expect(403);
     });
   });
 
   describe('lista negra', () => {
     it('bloquea el token de Ripley aunque esté marcado por error', async () => {
-      const estado = await comoAgente(
-        request(servidor()).get('/configuracion/token-ripley/estado'),
-      ).expect(403);
+      const estado = await comoAgente(request(servidor()).get('/configuracion/token-ripley/estado')).expect(403);
 
       expect(estado.body.message).toContain('token de Ripley');
 
@@ -228,9 +217,7 @@ describe('AgenteGuard', () => {
       expect(leer.status).toBe(403);
       expect(leer.body.message).toContain('una persona');
 
-      await comoAgente(request(servidor()).put('/agente/modo'))
-        .send({ modo: 'editor' })
-        .expect(403);
+      await comoAgente(request(servidor()).put('/agente/modo')).send({ modo: 'editor' }).expect(403);
     });
 
     it('el agente no puede ver, crear ni activar rutinas, ni en modo editor', async () => {
@@ -255,9 +242,7 @@ describe('AgenteGuard', () => {
 
   describe('escrituras y modo editor', () => {
     it('en modo consultor rechaza y dice cómo activarlo', async () => {
-      const respuesta = await comoAgente(
-        request(servidor()).put('/edicion/capacidad'),
-      ).expect(403);
+      const respuesta = await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(403);
 
       expect(respuesta.body.message).toContain('modo consultor');
       expect(respuesta.body.message).toContain('interruptor');
@@ -266,31 +251,22 @@ describe('AgenteGuard', () => {
     it('en modo editor deja escribir', async () => {
       modo.activar('ana');
 
-      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(
-        200,
-      );
+      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(200);
     });
 
     it('al volver a consultor deja de dejar', async () => {
       modo.activar('ana');
-      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(
-        200,
-      );
+      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(200);
 
       modo.desactivar('ana');
-      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(
-        403,
-      );
+      await comoAgente(request(servidor()).put('/edicion/capacidad')).expect(403);
     });
 
     it('el modo es de cada usuario, no del backend', async () => {
       // Que Ana esté editando no puede habilitar la conversación de Beto
       modo.activar('ana');
 
-      await comoAgente(
-        request(servidor()).put('/edicion/capacidad'),
-        'beto',
-      ).expect(403);
+      await comoAgente(request(servidor()).put('/edicion/capacidad'), 'beto').expect(403);
     });
 
     it('sin usuario resuelto no se escribe', async () => {
@@ -299,10 +275,7 @@ describe('AgenteGuard', () => {
       // Con la cabecera del agente pero sin sesión: el guard de arriba dejaría
       // esto en 401 en la aplicación real; aquí se comprueba que este tampoco
       // lo deja pasar por su cuenta.
-      await request(servidor())
-        .put('/edicion/capacidad')
-        .set('X-Origen', 'agente')
-        .expect(403);
+      await request(servidor()).put('/edicion/capacidad').set('X-Origen', 'agente').expect(403);
     });
 
     it('la ruta de edición sigue abierta para el panel', async () => {
@@ -314,12 +287,8 @@ describe('AgenteGuard', () => {
     it('el modo editor no cambia nada en las consultas', async () => {
       modo.activar('ana');
 
-      await comoAgente(request(servidor()).get('/consultas/permitida')).expect(
-        200,
-      );
-      await comoAgente(request(servidor()).get('/consultas/sin-marcar')).expect(
-        403,
-      );
+      await comoAgente(request(servidor()).get('/consultas/permitida')).expect(200);
+      await comoAgente(request(servidor()).get('/consultas/sin-marcar')).expect(403);
     });
   });
 
@@ -345,7 +314,11 @@ describe('AgenteGuard', () => {
     });
 
     it('sin la cabecera del agente no pasa: el token de una rutina no abre las rutas del panel', async () => {
-      const r = await request(servidor()).post('/consultas/escribir').set('X-Usuario', 'ana').set('X-Rutina', '1').expect(403);
+      const r = await request(servidor())
+        .post('/consultas/escribir')
+        .set('X-Usuario', 'ana')
+        .set('X-Rutina', '1')
+        .expect(403);
       expect(r.body.message).toMatch(/solo sirve para las herramientas de Silvana/);
     });
 

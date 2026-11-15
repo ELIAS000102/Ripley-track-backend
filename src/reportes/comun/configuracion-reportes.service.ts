@@ -56,12 +56,11 @@ export class ConfiguracionReportesService {
 
   /** Las de un tipo en todos los países, para quien necesita reconocer códigos de los dos */
   async leerTodas<T>(tipo: TipoReporte): Promise<Record<string, T>> {
-    const { data, error } = await this.supabase.admin
-      .from(TABLA)
-      .select('pais, configuracion')
-      .eq('tipo', tipo);
+    const { data, error } = await this.supabase.admin.from(TABLA).select('pais, configuracion').eq('tipo', tipo);
     if (error) this.fallo(error, `leer la configuración del reporte ${tipo.toUpperCase()}`);
-    return Object.fromEntries(((data ?? []) as Array<{ pais: string; configuracion: T }>).map((f) => [f.pais, f.configuracion]));
+    return Object.fromEntries(
+      ((data ?? []) as Array<{ pais: string; configuracion: T }>).map((f) => [f.pais, f.configuracion]),
+    );
   }
 
   async guardar<T>(tipo: TipoReporte, pais: string, configuracion: T, usuario: UsuarioAutenticado): Promise<string> {

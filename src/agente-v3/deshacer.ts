@@ -51,11 +51,14 @@ export function inversoDe(aplicado: PasoAplicado, pais: string): Inverso {
             const despues = obj(x.despues);
             if (!antes || !despues || x.error) continue;
             const activa = antes.activo !== despues.activo ? antes.activo : undefined;
-            const asignado = antes.asignado !== despues.asignado && Number(antes.asignado) >= 0 ? antes.asignado : undefined;
+            const asignado =
+              antes.asignado !== despues.asignado && Number(antes.asignado) >= 0 ? antes.asignado : undefined;
             if (activa === undefined && asignado === undefined) continue;
             cuerpos.push({
               ...p,
-              ...(transferencia ? { origen: base.origen, destino: codigo(o.oficina) } : { tipo: base.tipo ?? d.tipo, codigo: codigo(o.oficina) }),
+              ...(transferencia
+                ? { origen: base.origen, destino: codigo(o.oficina) }
+                : { tipo: base.tipo ?? d.tipo, codigo: codigo(o.oficina) }),
               ...(base.servicio ? { servicio: base.servicio } : {}),
               agenda: a.agenda,
               ...(a.zona && (base.tipo ?? d.tipo) === 'despacho' ? { zona: a.zona } : {}),
@@ -74,7 +77,13 @@ export function inversoDe(aplicado: PasoAplicado, pais: string): Inverso {
       for (const j of arr(d.jornadas)) {
         if (j.error || j.antes === null || j.antes === undefined || j.antes === j.despues) continue;
         const k = `${codigo(j.cd)}|${isoDe(j.fecha)}|${String(j.antes)}`;
-        const g = grupos.get(k) ?? { ...p, cd: codigo(j.cd), fecha: isoDe(j.fecha), jornadas: [] as string[], activa: j.antes };
+        const g = grupos.get(k) ?? {
+          ...p,
+          cd: codigo(j.cd),
+          fecha: isoDe(j.fecha),
+          jornadas: [] as string[],
+          activa: j.antes,
+        };
         (g.jornadas as string[]).push(String(j.jornada));
         grupos.set(k, g);
       }
@@ -104,12 +113,29 @@ export function inversoDe(aplicado: PasoAplicado, pais: string): Inverso {
         const antes = obj(s.antes);
         const despues = obj(s.despues);
         if (!antes || !despues || s.error) continue;
-        const c: R = { ...p, opl: codigo(s.opl), servicio: s.servicio, ...(s.agenda ? { agenda: s.agenda } : {}), ...(s.zona ? { zona: s.zona } : {}) };
+        const c: R = {
+          ...p,
+          opl: codigo(s.opl),
+          servicio: s.servicio,
+          ...(s.agenda ? { agenda: s.agenda } : {}),
+          ...(s.zona ? { zona: s.zona } : {}),
+        };
         let algo = false;
-        for (const [campo, deDto] of [['activo', 'activo'], ['enCheckout', 'enCheckout'], ['diasHolgura', 'diasHolgura'], ['maxOcurrencia', 'maxOcurrencia']] as const) {
-          if (distinto(antes[campo], despues[campo])) { c[deDto] = antes[campo]; algo = true; }
+        for (const [campo, deDto] of [
+          ['activo', 'activo'],
+          ['enCheckout', 'enCheckout'],
+          ['diasHolgura', 'diasHolgura'],
+          ['maxOcurrencia', 'maxOcurrencia'],
+        ] as const) {
+          if (distinto(antes[campo], despues[campo])) {
+            c[deDto] = antes[campo];
+            algo = true;
+          }
         }
-        if (JSON.stringify(antes.cortes ?? []) !== JSON.stringify(despues.cortes ?? [])) sin.push(`el corte de ${String(s.servicio)} en ${codigo(s.opl)} (vuelve a ponerlo a mano: ${(antes.cortes as string[] | undefined)?.join(', ') || 'sin corte'})`);
+        if (JSON.stringify(antes.cortes ?? []) !== JSON.stringify(despues.cortes ?? []))
+          sin.push(
+            `el corte de ${String(s.servicio)} en ${codigo(s.opl)} (vuelve a ponerlo a mano: ${(antes.cortes as string[] | undefined)?.join(', ') || 'sin corte'})`,
+          );
         if (algo) cuerpos.push(c);
       }
       break;
@@ -121,12 +147,25 @@ export function inversoDe(aplicado: PasoAplicado, pais: string): Inverso {
         const antes = obj(c.antes);
         if (!antes) continue;
         const k = `${String(antes.activo)}|${String(antes.enCheckout)}`;
-        const g = grupos.get(k) ?? { ...p, servicio: base.servicio ?? d.servicio, ...(base.metodo ? { metodo: base.metodo } : {}), opls: [] as string[], agendas: [] as string[], activo: antes.activo, enCheckout: antes.enCheckout };
+        const g = grupos.get(k) ?? {
+          ...p,
+          servicio: base.servicio ?? d.servicio,
+          ...(base.metodo ? { metodo: base.metodo } : {}),
+          opls: [] as string[],
+          agendas: [] as string[],
+          activo: antes.activo,
+          enCheckout: antes.enCheckout,
+        };
         (g.opls as string[]).push(codigo(c.opl));
         (g.agendas as string[]).push(String(c.agenda ?? ''));
         grupos.set(k, g);
       }
-      for (const g of grupos.values()) cuerpos.push({ ...g, opls: [...new Set(g.opls as string[])].join(','), agendas: [...new Set(g.agendas as string[])] });
+      for (const g of grupos.values())
+        cuerpos.push({
+          ...g,
+          opls: [...new Set(g.opls as string[])].join(','),
+          agendas: [...new Set(g.agendas as string[])],
+        });
       break;
     }
     case 'editar_transferencia': {
@@ -137,7 +176,10 @@ export function inversoDe(aplicado: PasoAplicado, pais: string): Inverso {
         const c: R = { ...p, origen: codigo(d.origen ?? base.origen), destino: codigo(x.destino) };
         let algo = false;
         for (const campo of ['habilitada', 'preparacion', 'transito', 'dias'] as const) {
-          if (distinto(antes[campo], despues[campo])) { c[campo] = antes[campo]; algo = true; }
+          if (distinto(antes[campo], despues[campo])) {
+            c[campo] = antes[campo];
+            algo = true;
+          }
         }
         if (algo) cuerpos.push(c);
       }

@@ -49,7 +49,13 @@ export function nombresLargos(pasos: PasoEjecutado[]): string[] {
   return [...vistos].slice(0, MAX_ETIQUETAS);
 }
 
-const fichas = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+const fichas = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
 
 /**
  * Los nombres cortos que propuso el modelo, uno por uno: solo para nombres que
@@ -65,7 +71,9 @@ export function leerEtiquetas(v: unknown, largos: string[]): Record<string, stri
     const c = corto.trim().replace(/\s+/g, ' ');
     if (c.length < 2 || c.length > 32 || c.length >= largo.length) continue;
     const suyas = fichas(largo);
-    const vale = fichas(c).every((w) => (/^\d+$/.test(w) ? suyas.includes(w) : suyas.some((s) => s === w || (w.length >= 2 && s.startsWith(w)))));
+    const vale = fichas(c).every((w) =>
+      /^\d+$/.test(w) ? suyas.includes(w) : suyas.some((s) => s === w || (w.length >= 2 && s.startsWith(w))),
+    );
     if (vale) fuera[largo] = c;
   }
   return fuera;
@@ -81,15 +89,25 @@ export function vistasDe(herramienta: string): Vista[] {
 }
 
 /** Lo que el mensaje dice de la forma ("en un cuadro", "el total", "solo"…): entonces se presenta */
-export const PIDE_FORMA = /\b(cuadro|tabla|total(es)?|resum\w*|solo|detall\w*|porcentaje|uso|cu[aá]nt[oa]s|lista\w*)\b/i;
+export const PIDE_FORMA =
+  /\b(cuadro|tabla|total(es)?|resum\w*|solo|detall\w*|porcentaje|uso|cu[aá]nt[oa]s|lista\w*)\b/i;
 
-export function promptPresentar(mensaje: string, pasos: PasoEjecutado[], intermedios: Set<number>, fraseDelCodigo: string): { sistema: string; mensaje: string } {
+export function promptPresentar(
+  mensaje: string,
+  pasos: PasoEjecutado[],
+  intermedios: Set<number>,
+  fraseDelCodigo: string,
+): { sistema: string; mensaje: string } {
   const largos = nombresLargos(pasos);
-  const lineas = pasos.filter((p) => p.estado !== 'error').map((p) => [
-    `- Resultado ${p.n}: ${p.que}${intermedios.has(p.n) ? ' (intermedio: da sus códigos a otro paso)' : ''}${p.comprobacion ? ' (es una comprobación)' : ''}`,
-    `  Lo que dice: ${p.resumen}`,
-    `  Vistas permitidas: ${vistasDe(p.herramienta).join(', ')}`,
-  ].join('\n'));
+  const lineas = pasos
+    .filter((p) => p.estado !== 'error')
+    .map((p) =>
+      [
+        `- Resultado ${p.n}: ${p.que}${intermedios.has(p.n) ? ' (intermedio: da sus códigos a otro paso)' : ''}${p.comprobacion ? ' (es una comprobación)' : ''}`,
+        `  Lo que dice: ${p.resumen}`,
+        `  Vistas permitidas: ${vistasDe(p.herramienta).join(', ')}`,
+      ].join('\n'),
+    );
   return {
     sistema: SISTEMA_PRESENTAR,
     mensaje: `LO QUE PIDIÓ LA PERSONA
@@ -120,7 +138,11 @@ export function leerPresentacion(salida: string, pasos: PasoEjecutado[], materia
     const paso = validos.find((p) => p.n === n);
     if (!paso) return { ok: false, motivo: `el resultado ${String(r?.n)} no existe` };
     const v = String(r.vista ?? '') === 'cuadro' ? 'detalle' : (String(r.vista ?? '') as Vista);
-    if (!vistasDe(paso.herramienta).includes(v)) return { ok: false, motivo: `el resultado ${n} no tiene la vista «${String(r.vista)}» (tiene: ${vistasDe(paso.herramienta).join(', ')})` };
+    if (!vistasDe(paso.herramienta).includes(v))
+      return {
+        ok: false,
+        motivo: `el resultado ${n} no tiene la vista «${String(r.vista)}» (tiene: ${vistasDe(paso.herramienta).join(', ')})`,
+      };
     vistas[String(n)] = v;
   }
   const pedido = (Array.isArray(j.orden) ? j.orden : []).map(Number).filter((n) => validos.some((p) => p.n === n));
@@ -131,5 +153,8 @@ export function leerPresentacion(salida: string, pasos: PasoEjecutado[], materia
   const permitidos = new Set(numeros(material));
   if (frase && (frase.includes('|') || numeros(frase).some((n) => !permitidos.has(n)))) frase = '';
   const etiquetas = leerEtiquetas(j.etiquetas, nombresLargos(pasos));
-  return { ok: true, valor: { vistas, orden, frase: frase || null, ...(Object.keys(etiquetas).length ? { etiquetas } : {}) } };
+  return {
+    ok: true,
+    valor: { vistas, orden, frase: frase || null, ...(Object.keys(etiquetas).length ? { etiquetas } : {}) },
+  };
 }

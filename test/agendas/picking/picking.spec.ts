@@ -32,23 +32,17 @@ const AGENDAS_RC = [
   {
     name: 'Agenda Picking RC - 20026',
     services: ['s-rc'],
-    capacities: [
-      { capacityId: '651b444be69aaf0012c044c6', warehouseId: ALMACEN },
-    ],
+    capacities: [{ capacityId: '651b444be69aaf0012c044c6', warehouseId: ALMACEN }],
   },
   {
     name: 'Agenda Picking Olva - NO FUNCIONAL',
     services: ['s-rc'],
-    capacities: [
-      { capacityId: '651c80d62b24860012956e46', warehouseId: ALMACEN },
-    ],
+    capacities: [{ capacityId: '651c80d62b24860012956e46', warehouseId: ALMACEN }],
   },
   {
     name: 'Agenda Picking Andes - NO FUNCIONAL',
     services: ['s-rc'],
-    capacities: [
-      { capacityId: '651c9b1ccc58e90012651e4c', warehouseId: ALMACEN },
-    ],
+    capacities: [{ capacityId: '651c9b1ccc58e90012651e4c', warehouseId: ALMACEN }],
   },
 ];
 
@@ -59,11 +53,7 @@ function armar(agendas: Array<Record<string, unknown>>) {
     mapaServicios: vi.fn().mockResolvedValue(SERVICIOS),
   } as unknown as CatalogosRipleyService;
 
-  const servicio = new PickingService(
-    catalogos,
-    {} as RipleyHttpService,
-    {} as ContextoAuditoria,
-  );
+  const servicio = new PickingService(catalogos, {} as RipleyHttpService, {} as ContextoAuditoria);
 
   return { servicio, catalogos };
 }
@@ -93,15 +83,9 @@ describe('Agendas de un almacén: cada una con su propia capacidad', () => {
     // almacén y con identificadores distintos
     const { servicio } = armar(AGENDAS_RC);
 
-    const ids = (await servicio.listarAgendasPorOficina('20026')).map(
-      (a) => a.scheduleId,
-    );
+    const ids = (await servicio.listarAgendasPorOficina('20026')).map((a) => a.scheduleId);
 
-    expect(ids).toEqual([
-      '651b444be69aaf0012c044c6',
-      '651c80d62b24860012956e46',
-      '651c9b1ccc58e90012651e4c',
-    ]);
+    expect(ids).toEqual(['651b444be69aaf0012c044c6', '651c80d62b24860012956e46', '651c9b1ccc58e90012651e4c']);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -170,9 +154,7 @@ describe('Agendas de un almacén: cada una con su propia capacidad', () => {
       },
     ]);
 
-    expect(
-      (await servicio.listarAgendasPorOficina('20026'))[0].vigenteHasta,
-    ).toBeNull();
+    expect((await servicio.listarAgendasPorOficina('20026'))[0].vigenteHasta).toBeNull();
   });
 });
 
@@ -185,9 +167,7 @@ describe('Elegir una agenda entre varias del mismo servicio', () => {
       catalogos as unknown as {
         capacidadesDePicking: ReturnType<typeof vi.fn>;
       }
-    ).capacidadesDePicking = vi
-      .fn()
-      .mockResolvedValue({ capacityByDayArray: [] });
+    ).capacidadesDePicking = vi.fn().mockResolvedValue({ capacityByDayArray: [] });
 
     return { servicio, catalogos };
   }
@@ -212,9 +192,7 @@ describe('Elegir una agenda entre varias del mismo servicio', () => {
     // del panel enseñaban los datos de la misma
     const { servicio } = conCapacidades(AGENDAS_RC);
 
-    await expect(servicio.buscarCapacidades('20026', 'RC')).rejects.toThrow(
-      /tiene 3 agendas con servicio RC/,
-    );
+    await expect(servicio.buscarCapacidades('20026', 'RC')).rejects.toThrow(/tiene 3 agendas con servicio RC/);
   });
 
   it('y dice cuáles son, para poder desempatar', async () => {
@@ -230,9 +208,7 @@ describe('Elegir una agenda entre varias del mismo servicio', () => {
       {
         name: 'Agenda Picking S - 20026',
         services: ['s-s'],
-        capacities: [
-          { capacityId: '63d139467011f400114fa824', warehouseId: ALMACEN },
-        ],
+        capacities: [{ capacityId: '63d139467011f400114fa824', warehouseId: ALMACEN }],
       },
     ]);
 
@@ -245,23 +221,16 @@ describe('Elegir una agenda entre varias del mismo servicio', () => {
     const { servicio } = conCapacidades(AGENDAS_RC);
 
     await expect(
-      servicio.buscarCapacidades(
-        '20026',
-        undefined,
-        undefined,
-        'PE',
-        undefined,
-        'de-otro-almacen',
-      ),
+      servicio.buscarCapacidades('20026', undefined, undefined, 'PE', undefined, 'de-otro-almacen'),
     ).rejects.toThrow(/ninguna agenda de picking con ese identificador/);
   });
 
   it('sin servicio ni identificador, lo dice en vez de adivinar', async () => {
     const { servicio } = conCapacidades(AGENDAS_RC);
 
-    await expect(
-      servicio.buscarCapacidades('20026', undefined),
-    ).rejects.toThrow(/Indica el tipo de servicio o el identificador/);
+    await expect(servicio.buscarCapacidades('20026', undefined)).rejects.toThrow(
+      /Indica el tipo de servicio o el identificador/,
+    );
   });
 });
 
@@ -280,23 +249,14 @@ describe('Una agenda sin capacidades no es un error', () => {
         capacidadesDePicking: ReturnType<typeof vi.fn>;
       }
     ).capacidadesDePicking = vi.fn(() =>
-      respuesta instanceof Error
-        ? Promise.reject(respuesta)
-        : Promise.resolve(respuesta),
+      respuesta instanceof Error ? Promise.reject(respuesta) : Promise.resolve(respuesta),
     );
 
     return servicio;
   }
 
   const buscar = (servicio: PickingService) =>
-    servicio.buscarCapacidades(
-      '20026',
-      undefined,
-      undefined,
-      'PE',
-      undefined,
-      '651c80d62b24860012956e46',
-    );
+    servicio.buscarCapacidades('20026', undefined, undefined, 'PE', undefined, '651c80d62b24860012956e46');
 
   it('devuelve la agenda con cero días en vez de reventar', async () => {
     const servicio = conRespuesta(new RipleyApiError('No hay datos'));
@@ -316,9 +276,7 @@ describe('Una agenda sin capacidades no es un error', () => {
   it('un fallo que no sea "sin datos" sí sube', async () => {
     // Callar un 502 sería decir que la agenda no tiene días cuando lo que pasó
     // es que no se pudo preguntar
-    const servicio = conRespuesta(
-      new Error('La API corporativa respondió 502'),
-    );
+    const servicio = conRespuesta(new Error('La API corporativa respondió 502'));
 
     await expect(buscar(servicio)).rejects.toThrow(/502/);
   });

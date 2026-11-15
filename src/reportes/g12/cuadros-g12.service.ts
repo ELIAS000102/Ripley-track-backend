@@ -67,7 +67,10 @@ export class CuadrosG12Service {
     return (data ?? []) as Array<{ clave: ClaveComponente; generado: string; hoy: string }>;
   }
 
-  async guardar(pais: string, cuadro: Omit<CuadroGuardadoG12, 'peticiones'> & { peticiones: PeticionG12[] }): Promise<void> {
+  async guardar(
+    pais: string,
+    cuadro: Omit<CuadroGuardadoG12, 'peticiones'> & { peticiones: PeticionG12[] },
+  ): Promise<void> {
     const fila: FilaCuadro = {
       pais,
       clave: cuadro.clave,
@@ -91,7 +94,9 @@ export class CuadrosG12Service {
 
   private fallo(error: { code?: string; message?: string } | null, accion: string): never {
     if (error && ['42P01', 'PGRST205'].includes(error.code ?? '')) {
-      throw new BadGatewayException('Falta la tabla g12_cuadros en Supabase: ejecuta el SQL del G12 compartido de docs/supabase-setup.sql.');
+      throw new BadGatewayException(
+        'Falta la tabla g12_cuadros en Supabase: ejecuta el SQL del G12 compartido de docs/supabase-setup.sql.',
+      );
     }
     this.logger.error(`No se pudo ${accion}: ${error?.message ?? 'sin respuesta'}`);
     throw new BadGatewayException(`No se pudo ${accion}.`);

@@ -15,7 +15,11 @@ import type { AgendaConocida, ContextoTurno, PasoEjecutado, Pregunta } from './i
  * La pregunta es la de siempre: el turno espera y sigue en el mismo paso.
  */
 
-export interface Grupo { codigos: string[]; extra: Record<string, unknown>; exacta: boolean }
+export interface Grupo {
+  codigos: string[];
+  extra: Record<string, unknown>;
+  exacta: boolean;
+}
 
 /** Las herramientas de cambio que van a una agenda (y a su zona, en despacho y OPL) */
 const CON_ZONA = new Set(['editar_capacidad', 'editar_servicio_opl']);
@@ -26,15 +30,24 @@ export const TODAS = 'todas';
 /** Si hay más oficinas que esto por elegir, no se pregunta una por una */
 const MAX_DUDAS = 6;
 
-export const esDelAnterior = (v: unknown) => Boolean(v && typeof v === 'object' && !Array.isArray(v) && (v as { ref?: string }).ref === 'anterior');
+export const esDelAnterior = (v: unknown) =>
+  Boolean(v && typeof v === 'object' && !Array.isArray(v) && (v as { ref?: string }).ref === 'anterior');
 
 /** Las agendas que ENSEÑÓ el mensaje anterior (no las buscadas en este turno) */
 export function agendasDelAnterior(contexto: ContextoTurno): AgendaConocida[] {
-  return (contexto.anterior?.resultados ?? []).filter((r) => r.datos).flatMap((r) => agendasDeDatos(r.herramienta, r.datos));
+  return (contexto.anterior?.resultados ?? [])
+    .filter((r) => r.datos)
+    .flatMap((r) => agendasDeDatos(r.herramienta, r.datos));
 }
 
 /** Lo que trajo otro paso del plan ({ ref: 'paso', n }) o el mensaje anterior: sus agendas se vieron */
-export const esReferencia = (v: unknown) => Boolean(v && typeof v === 'object' && !Array.isArray(v) && ['anterior', 'paso'].includes(String((v as { ref?: string }).ref)));
+export const esReferencia = (v: unknown) =>
+  Boolean(
+    v &&
+    typeof v === 'object' &&
+    !Array.isArray(v) &&
+    ['anterior', 'paso'].includes(String((v as { ref?: string }).ref)),
+  );
 
 /**
  * Las agendas que se vieron en lo que nombra la referencia: el mensaje
@@ -68,7 +81,11 @@ function decodificar(id: string): { zona?: string; agenda?: string } | 'todas' {
 }
 
 /** Lo que se vio de cada oficina, por código */
-function vistasPorOficina(vistas: AgendaConocida[], codigos: string[], tipo: string | null): Map<string, AgendaConocida[]> {
+function vistasPorOficina(
+  vistas: AgendaConocida[],
+  codigos: string[],
+  tipo: string | null,
+): Map<string, AgendaConocida[]> {
   const m = new Map<string, AgendaConocida[]>();
   for (const a of deLasOficinas(vistas, codigos, tipo)) m.set(a.codigo, [...(m.get(a.codigo) ?? []), a]);
   return m;
@@ -79,7 +96,13 @@ function vistasPorOficina(vistas: AgendaConocida[], codigos: string[], tipo: str
  * persona; si no eligió, la única agenda que se vio de esa oficina. Null si no
  * hay ni lo uno ni lo otro (el paso va tal cual).
  */
-export function porEleccion(id: string, p: Record<string, unknown>, codigos: string[], vistas: AgendaConocida[], elegidas: Record<string, string> | undefined): { grupos: Grupo[]; notas: string[] } | null {
+export function porEleccion(
+  id: string,
+  p: Record<string, unknown>,
+  codigos: string[],
+  vistas: AgendaConocida[],
+  elegidas: Record<string, string> | undefined,
+): { grupos: Grupo[]; notas: string[] } | null {
   const cfg = CON_AGENDA[id];
   if (!cfg || !CON_ZONA.has(id) || p.agenda || p.zona || p.atajo || !codigos.length) return null;
   const tipo = cfg.tipo(p);
@@ -105,7 +128,7 @@ export function porEleccion(id: string, p: Record<string, unknown>, codigos: str
         if (vistasDeC.length) vistasDeC.forEach((a) => meter(c, extraDe(a)));
         else meter(c, conZona ? { zona: TODAS } : {});
       } else meter(c, d);
-      notas.push(`${c}: ${d === TODAS ? 'todas' : d.agenda ?? d.zona}`);
+      notas.push(`${c}: ${d === TODAS ? 'todas' : (d.agenda ?? d.zona)}`);
     } else if (vistasDeC.length) {
       // Una vista (o varias, si no hubo a quién preguntar): a esas
       usado = true;
@@ -117,7 +140,9 @@ export function porEleccion(id: string, p: Record<string, unknown>, codigos: str
   return {
     grupos: [...grupos.values()],
     notas: [
-      ...(notas.length ? [`elegido: ${notas.slice(0, 4).join('; ')}${notas.length > 4 ? ` y ${notas.length - 4} más` : ''}`] : []),
+      ...(notas.length
+        ? [`elegido: ${notas.slice(0, 4).join('; ')}${notas.length > 4 ? ` y ${notas.length - 4} más` : ''}`]
+        : []),
       ...(vistas_ ? [`las agendas que se vieron (${vistas_ === 1 ? '1 oficina' : `${vistas_} oficinas`})`] : []),
     ],
   };
@@ -134,12 +159,23 @@ export function serviciosVistos(v: unknown, hechos: PasoEjecutado[], contexto: C
   const de = (herramienta: string, datos: unknown): AgendaConocida[] => {
     if (!datos || typeof datos !== 'object') return [];
     if (herramienta === 'ejecutar_atajo') {
-      const bloques = (datos as { bloques?: Array<{ tipo: string; items?: Array<{ resultado?: unknown }> }> }).bloques ?? [];
+      const bloques =
+        (datos as { bloques?: Array<{ tipo: string; items?: Array<{ resultado?: unknown }> }> }).bloques ?? [];
       const dentro: Record<string, string> = { masivo: 'busqueda_masiva', opl: 'consultar_servicios_opl' };
-      return bloques.flatMap((b) => (dentro[b.tipo] ? (b.items ?? []).flatMap((i) => de(dentro[b.tipo], i.resultado)) : []));
+      return bloques.flatMap((b) =>
+        dentro[b.tipo] ? (b.items ?? []).flatMap((i) => de(dentro[b.tipo], i.resultado)) : [],
+      );
     }
     if (herramienta !== 'busqueda_masiva' && herramienta !== 'consultar_servicios_opl') return [];
-    return filasDe(herramienta, datos).filter((f) => f.agenda && f.servicio).map((f) => ({ codigo: f.codigo, tipo: 'opl', zona: f.zona ?? null, agenda: String(f.agenda), servicio: String(f.servicio) }));
+    return filasDe(herramienta, datos)
+      .filter((f) => f.agenda && f.servicio)
+      .map((f) => ({
+        codigo: f.codigo,
+        tipo: 'opl',
+        zona: f.zona ?? null,
+        agenda: String(f.agenda),
+        servicio: String(f.servicio),
+      }));
   };
   if (esDelAnterior(v)) return (contexto.anterior?.resultados ?? []).flatMap((r) => de(r.herramienta, r.datos));
   const r = v as { ref?: string; n?: number } | null;
@@ -153,9 +189,16 @@ export function serviciosVistos(v: unknown, hechos: PasoEjecutado[], contexto: C
  * servicios pedidos que tiene ahí. Los OPL sin nada visto siguen como estaban
  * (sin grupo propio). `completo`: todos los OPL tienen dónde ir.
  */
-export function porServicioVisto(id: string, p: Record<string, unknown>, codigos: string[], vistos: AgendaConocida[]): { grupos: Grupo[]; notas: string[]; completo: boolean } | null {
+export function porServicioVisto(
+  id: string,
+  p: Record<string, unknown>,
+  codigos: string[],
+  vistos: AgendaConocida[],
+): { grupos: Grupo[]; notas: string[]; completo: boolean } | null {
   if (id !== 'editar_servicio_opl' || p.agenda || p.zona || p.atajo || !codigos.length || !vistos.length) return null;
-  const pedidos = (Array.isArray(p.servicio) ? p.servicio : String(p.servicio ?? '').split(',')).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+  const pedidos = (Array.isArray(p.servicio) ? p.servicio : String(p.servicio ?? '').split(','))
+    .map((s) => String(s).trim().toUpperCase())
+    .filter(Boolean);
   if (!pedidos.length) return null;
   // "Todos los servicios": los que se vieron de cada OPL
   const todos = pedidos.length === 1 && pedidos[0] === 'TODOS';
@@ -171,28 +214,42 @@ export function porServicioVisto(id: string, p: Record<string, unknown>, codigos
       x.servicios.add(a.servicio.toUpperCase());
       suyas.set(k, x);
     }
-    if (!suyas.size) { sinVer.push(c); continue; }
+    if (!suyas.size) {
+      sinVer.push(c);
+      continue;
+    }
     for (const x of suyas.values()) {
-      const extra = { agenda: x.agenda, ...(x.zona ? { zona: x.zona } : {}), servicio: [...x.servicios].sort().join(',') };
+      const extra = {
+        agenda: x.agenda,
+        ...(x.zona ? { zona: x.zona } : {}),
+        servicio: [...x.servicios].sort().join(','),
+      };
       const k = JSON.stringify(extra);
       const g: Grupo = grupos.get(k) ?? { codigos: [], extra, exacta: true };
       if (!g.codigos.includes(c)) g.codigos.push(c);
       grupos.set(k, g);
     }
   }
-  if (!grupos.size) return todos ? { grupos: [], notas: ['no vi qué servicios tiene ninguno de esos OPL'], completo: true } : null;
+  if (!grupos.size)
+    return todos ? { grupos: [], notas: ['no vi qué servicios tiene ninguno de esos OPL'], completo: true } : null;
   // Con "todos", el que no se vio no se toca (no se sabe qué servicios tiene); con unos servicios nombrados, va tal cual
   if (sinVer.length && !todos) grupos.set('{}', { codigos: sinVer, extra: {}, exacta: false });
   const con = codigos.length - sinVer.length;
   return {
     grupos: [...grupos.values()],
-    notas: [`cada OPL en la agenda donde tiene ${todos ? 'sus servicios' : pedidos.join(' y ')} (${con === 1 ? '1 OPL' : `${con} OPL`})${sinVer.length ? `; sin verlo: ${sinVer.join(', ')}` : ''}`],
+    notas: [
+      `cada OPL en la agenda donde tiene ${todos ? 'sus servicios' : pedidos.join(' y ')} (${con === 1 ? '1 OPL' : `${con} OPL`})${sinVer.length ? `; sin verlo: ${sinVer.join(', ')}` : ''}`,
+    ],
     completo: !sinVer.length,
   };
 }
 
 /** Lo que hay que elegir de una oficina: sus agendas a la vista, o sus zonas */
-export interface PorElegir { codigo: string; que: 'agenda' | 'zona'; opciones: Array<{ id: string; texto: string }> }
+export interface PorElegir {
+  codigo: string;
+  que: 'agenda' | 'zona';
+  opciones: Array<{ id: string; texto: string }>;
+}
 
 /** De lo que se vio: las oficinas con VARIAS agendas a la vista y nada elegido */
 export function agendasPorElegir(vistas: AgendaConocida[], codigos: string[], tipo: string | null): PorElegir[] {
@@ -200,16 +257,32 @@ export function agendasPorElegir(vistas: AgendaConocida[], codigos: string[], ti
   return codigos.flatMap((codigo) => {
     const l = porOficina.get(codigo) ?? [];
     if (l.length < 2) return [];
-    return [{ codigo, que: 'agenda' as const, opciones: l.map((a) => ({ id: codificar(a), texto: `${codigo} · ${a.agenda}${a.zona && a.zona !== a.agenda ? ` (${a.zona})` : ''}` })) }];
+    return [
+      {
+        codigo,
+        que: 'agenda' as const,
+        opciones: l.map((a) => ({
+          id: codificar(a),
+          texto: `${codigo} · ${a.agenda}${a.zona && a.zona !== a.agenda ? ` (${a.zona})` : ''}`,
+        })),
+      },
+    ];
   });
 }
 
 /** De lo conocido (o buscado): las oficinas con más de una zona */
 export function oficinasConVariasZonas(agendas: AgendaConocida[], codigos: string[]): PorElegir[] {
   return codigos
-    .map((codigo) => ({ codigo, zonas: [...new Set(agendas.filter((a) => a.codigo === codigo).map((a) => a.zona ?? a.agenda))] }))
+    .map((codigo) => ({
+      codigo,
+      zonas: [...new Set(agendas.filter((a) => a.codigo === codigo).map((a) => a.zona ?? a.agenda))],
+    }))
     .filter((x) => x.zonas.length > 1)
-    .map((x) => ({ codigo: x.codigo, que: 'zona' as const, opciones: x.zonas.map((z) => ({ id: z, texto: `${x.codigo} · ${z}` })) }));
+    .map((x) => ({
+      codigo: x.codigo,
+      que: 'zona' as const,
+      opciones: x.zonas.map((z) => ({ id: z, texto: `${x.codigo} · ${z}` })),
+    }));
 }
 
 /** La pregunta: una duda por oficina con sus opciones y "todas"; con muchas oficinas, una sola: ¿todas? */
@@ -217,15 +290,22 @@ export function preguntaDeZonas(n: number, que: string, oficinas: PorElegir[]): 
   const deAgenda = oficinas.every((o) => o.que === 'agenda');
   if (oficinas.length > MAX_DUDAS) {
     return {
-      id: `zona:${n}:*`, etapa: 'zona', paso: n,
-      texto: `${oficinas.length} oficinas tienen varias ${deAgenda ? 'agendas' : 'zonas'} (${oficinas.slice(0, 4).map((o) => o.codigo).join(', ')}…). Para «${que}», ¿en todas?`,
+      id: `zona:${n}:*`,
+      etapa: 'zona',
+      paso: n,
+      texto: `${oficinas.length} oficinas tienen varias ${deAgenda ? 'agendas' : 'zonas'} (${oficinas
+        .slice(0, 4)
+        .map((o) => o.codigo)
+        .join(', ')}…). Para «${que}», ¿en todas?`,
       opciones: [{ id: TODAS, texto: deAgenda ? 'Sí, en todas las agendas' : 'Sí, en todas las zonas' }],
       libre: 'O dime cuál, con su nombre',
     };
   }
   const una = oficinas.length === 1 ? oficinas[0] : null;
   return {
-    id: `zona:${n}`, etapa: 'zona', paso: n,
+    id: `zona:${n}`,
+    etapa: 'zona',
+    paso: n,
     texto: una
       ? `De la ${una.codigo} hay ${una.opciones.length} ${una.que === 'agenda' ? 'agendas' : 'zonas'}. Para «${que}», ¿a cuál?`
       : `Estas oficinas tienen varias ${deAgenda ? 'agendas' : 'zonas'}. Para «${que}», ¿a cuál de cada una?`,
@@ -240,14 +320,20 @@ export function preguntaDeZonas(n: number, que: string, oficinas: PorElegir[]): 
 }
 
 /** Lo que eligió: { código: opción } (con "*" para todas las oficinas). Null si no contestó nada que valga */
-export function zonasDeLaRespuesta(p: Pregunta, r: { respuestas?: Record<string, unknown>; texto?: string }): Record<string, string> | null {
+export function zonasDeLaRespuesta(
+  p: Pregunta,
+  r: { respuestas?: Record<string, unknown>; texto?: string },
+): Record<string, string> | null {
   const elegidas: Record<string, string> = {};
   if (p.dudas?.length) {
     for (const d of p.dudas) {
       const v = String(r.respuestas?.[d.id] ?? '').trim();
       // También lo escrito, si es una de sus opciones ("1401 · Agenda …")
-      const t = String(r.texto ?? '').trim().toLowerCase();
-      const opcion = d.opciones.find((o) => o.id === v) ?? (t ? d.opciones.find((o) => o.texto.toLowerCase() === t) : undefined);
+      const t = String(r.texto ?? '')
+        .trim()
+        .toLowerCase();
+      const opcion =
+        d.opciones.find((o) => o.id === v) ?? (t ? d.opciones.find((o) => o.texto.toLowerCase() === t) : undefined);
       if (opcion) elegidas[d.id.split(':').pop()!] = opcion.id;
     }
     return Object.keys(elegidas).length === p.dudas.length ? elegidas : null;

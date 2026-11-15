@@ -18,16 +18,25 @@ export const AYUDA = [
   'Todavía no hago **cambios** (cerrar, activar, reasignar) ni **rutinas**: para eso, usa la v2.',
 ];
 
-export const esPedidoDeAyuda = (m: string) => /\b(ayuda|ayudame|que (puedes|sabes) hacer|que haces|como (te uso|funcionas)|para que sirves)\b/.test(plano(m));
+export const esPedidoDeAyuda = (m: string) =>
+  /\b(ayuda|ayudame|que (puedes|sabes) hacer|que haces|como (te uso|funcionas)|para que sirves)\b/.test(plano(m));
 
-export function respuestaDeCharla(mensaje: string, propuesta: string | null | undefined): { texto: string; deModelo: boolean } {
-  if (esPedidoDeAyuda(mensaje)) return { texto: `Esto es lo que puedo hacer:\n\n${AYUDA.map((a) => `- ${a}`).join('\n')}`, deModelo: false };
+export function respuestaDeCharla(
+  mensaje: string,
+  propuesta: string | null | undefined,
+): { texto: string; deModelo: boolean } {
+  if (esPedidoDeAyuda(mensaje))
+    return { texto: `Esto es lo que puedo hacer:\n\n${AYUDA.map((a) => `- ${a}`).join('\n')}`, deModelo: false };
   const t = String(propuesta ?? '').trim();
   const cifrasDelMensaje = new Set(mensaje.match(/\d+/g) ?? []);
   const inventa = (t.match(/\d+/g) ?? []).some((c) => !cifrasDelMensaje.has(c));
   if (t && t.length <= 400 && !inventa && !/\|/.test(t)) return { texto: t, deModelo: true };
   const m = plano(mensaje);
-  if (/\b(gracias|grax|genial|perfecto|excelente)\b/.test(m)) return { texto: '¡De nada! Si necesitas otra consulta, aquí estoy.', deModelo: false };
+  if (/\b(gracias|grax|genial|perfecto|excelente)\b/.test(m))
+    return { texto: '¡De nada! Si necesitas otra consulta, aquí estoy.', deModelo: false };
   if (/\b(chau|adios|hasta luego|nos vemos)\b/.test(m)) return { texto: '¡Hasta luego!', deModelo: false };
-  return { texto: '¡Hola! ¿Qué quieres consultar? Puedes pedirme un atajo, una capacidad, una transferencia o una simulación.', deModelo: false };
+  return {
+    texto: '¡Hola! ¿Qué quieres consultar? Puedes pedirme un atajo, una capacidad, una transferencia o una simulación.',
+    deModelo: false,
+  };
 }

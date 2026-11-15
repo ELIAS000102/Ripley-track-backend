@@ -40,18 +40,26 @@ export function ddmm(fecha: string | null | undefined): string {
   return dmy ? `${dmy[1]}/${dmy[2]}` : f;
 }
 
-const celda = (s: unknown) => String(s ?? '').replace(/\|/g, '/').replace(/\s+/g, ' ').trim();
+const celda = (s: unknown) =>
+  String(s ?? '')
+    .replace(/\|/g, '/')
+    .replace(/\s+/g, ' ')
+    .trim();
 const tabla = (cab: string[], filas: unknown[][]) =>
   filas.length
-    ? [`| ${cab.join(' | ')} |`, `| ${cab.map(() => '---').join(' | ')} |`, ...filas.slice(0, MAX_FILAS).map((f) => `| ${f.map(celda).join(' | ')} |`)].join('\n') +
-      (filas.length > MAX_FILAS ? `\n\n_(y ${filas.length - MAX_FILAS} filas más)_` : '')
+    ? [
+        `| ${cab.join(' | ')} |`,
+        `| ${cab.map(() => '---').join(' | ')} |`,
+        ...filas.slice(0, MAX_FILAS).map((f) => `| ${f.map(celda).join(' | ')} |`),
+      ].join('\n') + (filas.length > MAX_FILAS ? `\n\n_(y ${filas.length - MAX_FILAS} filas más)_` : '')
     : '';
-const algunos = (l: string[], n = 3) => (l.length <= n ? l.join(', ') : `${l.slice(0, n).join(', ')} y ${l.length - n} más`);
+const algunos = (l: string[], n = 3) =>
+  l.length <= n ? l.join(', ') : `${l.slice(0, n).join(', ')} y ${l.length - n} más`;
 
 // ───────────── Capacidad (picking, despacho, recepción) ─────────────
 
 function oficinasDe(b: BloqueEjecutado): OficinaCapacidad[] {
-  return b.items.flatMap((i) => ((i.resultado as CapacidadRespuesta | undefined)?.oficinas ?? []));
+  return b.items.flatMap((i) => (i.resultado as CapacidadRespuesta | undefined)?.oficinas ?? []);
 }
 
 /** Un día sin capacidad configurada (asignado -1) no cuenta como "sin cupo" */
@@ -62,24 +70,42 @@ function fraseCapacidad(b: BloqueEjecutado, hoy: string): string {
   const agendas = oficinas.flatMap((o) => o.agendas.map((a) => ({ o, a })));
   if (!agendas.length) return 'sin datos';
   const fechas = [...new Set(agendas.flatMap(({ a }) => a.dias.map((d) => d.fecha)))].sort();
-  const rango = fechas.length > 1 ? ` del ${ddmm(fechas[0])} al ${ddmm(fechas.at(-1))}` : fechas.length ? ` el ${ddmm(fechas[0])}` : '';
+  const rango =
+    fechas.length > 1
+      ? ` del ${ddmm(fechas[0])} al ${ddmm(fechas.at(-1))}`
+      : fechas.length
+        ? ` el ${ddmm(fechas[0])}`
+        : '';
   // "Todas las tiendas": muchas no tienen agendas de ese servicio; se cuentan las que sí
   const conAgendas = oficinas.filter((o) => o.agendas.length).length;
   const cuantas = (n: number) => `${n} ${n === 1 ? 'oficina' : 'oficinas'}`;
-  const partes = [conAgendas === oficinas.length ? `${cuantas(oficinas.length)}${rango}` : `${cuantas(conAgendas)} con agendas${rango} (de ${oficinas.length} consultadas)`];
+  const partes = [
+    conAgendas === oficinas.length
+      ? `${cuantas(oficinas.length)}${rango}`
+      : `${cuantas(conAgendas)} con agendas${rango} (de ${oficinas.length} consultadas)`,
+  ];
   const hoyCerradas = agendas.filter(({ a }) => a.dias.find((d) => d.fecha === hoy && !d.activo)).length;
   if (hoyCerradas && hoyCerradas === agendas.length) partes.push(`hoy (${ddmm(hoy)}) cerradas`);
   else if (hoyCerradas) partes.push(`${hoyCerradas} ${hoyCerradas === 1 ? 'agenda cerrada' : 'agendas cerradas'} hoy`);
-  const llenas = agendas.flatMap(({ o, a }) => a.dias.filter(sinCupo).map((d) => `${nombreCorto(o.oficina)} (${ddmm(d.fecha)})`));
-  partes.push(llenas.length ? `sin cupo ${algunos([...new Set(llenas)])}` : `${hoyCerradas && hoyCerradas === agendas.length ? 'los demás días, ' : ''}con cupo`);
+  const llenas = agendas.flatMap(({ o, a }) =>
+    a.dias.filter(sinCupo).map((d) => `${nombreCorto(o.oficina)} (${ddmm(d.fecha)})`),
+  );
+  partes.push(
+    llenas.length
+      ? `sin cupo ${algunos([...new Set(llenas)])}`
+      : `${hoyCerradas && hoyCerradas === agendas.length ? 'los demás días, ' : ''}con cupo`,
+  );
   const cerradasSiempre = agendas.filter(({ a }) => a.dias.length && a.dias.every((d) => !d.activo)).length;
-  if (cerradasSiempre && cerradasSiempre < agendas.length) partes.push(`${cerradasSiempre} ${cerradasSiempre === 1 ? 'cerrada' : 'cerradas'} todos los días`);
+  if (cerradasSiempre && cerradasSiempre < agendas.length)
+    partes.push(`${cerradasSiempre} ${cerradasSiempre === 1 ? 'cerrada' : 'cerradas'} todos los días`);
   return partes.join('; ');
 }
 
 function markdownCapacidad(b: BloqueEjecutado): string {
   const oficinas = oficinasDe(b);
-  const fechas = [...new Set(oficinas.flatMap((o) => o.agendas.flatMap((a) => a.dias.map((d) => d.fecha))))].sort().slice(0, MAX_DIAS);
+  const fechas = [...new Set(oficinas.flatMap((o) => o.agendas.flatMap((a) => a.dias.map((d) => d.fecha))))]
+    .sort()
+    .slice(0, MAX_DIAS);
   const filas = oficinas.flatMap((o) =>
     o.agendas.map((a) => [
       nombreCorto(o.oficina),
@@ -101,7 +127,8 @@ function busquedasDe(b: BloqueEjecutado): Array<Omit<BusquedaMasivaRespuesta, 'c
   return b.items.flatMap((i) => {
     const r = i.resultado as BusquedaMasivaRespuesta | BusquedaMasivaVarias | undefined;
     if (!r) return [];
-    if ('busquedas' in r) return r.busquedas.filter((x): x is Omit<BusquedaMasivaRespuesta, 'contexto'> => 'agendas' in x);
+    if ('busquedas' in r)
+      return r.busquedas.filter((x): x is Omit<BusquedaMasivaRespuesta, 'contexto'> => 'agendas' in x);
     return [r];
   });
 }
@@ -122,14 +149,22 @@ function fraseMasiva(b: BloqueEjecutado): string {
 }
 
 function markdownMasiva(b: BloqueEjecutado): string {
-  const filas = busquedasDe(b).flatMap((x) => x.agendas.map((a) => [x.servicio, nombreCorto(a.opl), a.agenda, a.activa ? 'activa' : 'inactiva', a.enCheckout ? 'sí' : 'no']));
+  const filas = busquedasDe(b).flatMap((x) =>
+    x.agendas.map((a) => [
+      x.servicio,
+      nombreCorto(a.opl),
+      a.agenda,
+      a.activa ? 'activa' : 'inactiva',
+      a.enCheckout ? 'sí' : 'no',
+    ]),
+  );
   return tabla(['Servicio', 'Tienda u OPL', 'Agenda', 'Estado', 'En checkout'], filas);
 }
 
 // ───────────── Servicios de OPL ─────────────
 
 function oplsDe(b: BloqueEjecutado) {
-  return b.items.flatMap((i) => ((i.resultado as TipoServicioRespuesta | undefined)?.opls ?? []));
+  return b.items.flatMap((i) => (i.resultado as TipoServicioRespuesta | undefined)?.opls ?? []);
 }
 
 function fraseOpl(b: BloqueEjecutado): string {
@@ -141,7 +176,14 @@ function fraseOpl(b: BloqueEjecutado): string {
 
 function markdownOpl(b: BloqueEjecutado): string {
   const filas = oplsDe(b).flatMap((o) =>
-    o.servicios.map((s) => [nombreCorto(o.opl), o.zona, s.code, s.activo ? 'activo' : 'inactivo', s.enCheckout ? 'sí' : 'no', s.diasHolgura ?? '']),
+    o.servicios.map((s) => [
+      nombreCorto(o.opl),
+      o.zona,
+      s.code,
+      s.activo ? 'activo' : 'inactivo',
+      s.enCheckout ? 'sí' : 'no',
+      s.diasHolgura ?? '',
+    ]),
   );
   return tabla(['OPL', 'Zona', 'Servicio', 'Estado', 'En checkout', 'Holgura'], filas);
 }
@@ -149,7 +191,7 @@ function markdownOpl(b: BloqueEjecutado): string {
 // ───────────── Transferencias ─────────────
 
 function destinosDe(b: BloqueEjecutado) {
-  return b.items.flatMap((i) => ((i.resultado as TransferenciaRespuesta | undefined)?.destinos ?? []));
+  return b.items.flatMap((i) => (i.resultado as TransferenciaRespuesta | undefined)?.destinos ?? []);
 }
 
 function fraseTransferencia(b: BloqueEjecutado): string {
@@ -162,14 +204,21 @@ function fraseTransferencia(b: BloqueEjecutado): string {
 function markdownTransferencia(b: BloqueEjecutado): string {
   return tabla(
     ['Origen', 'Destino', 'Habilitada', 'Preparación', 'Tránsito', 'Desfase'],
-    destinosDe(b).map((x) => [nombreCorto(x.origen), nombreCorto(x.destino), x.habilitada ? 'sí' : 'no', x.preparacion, x.transito, x.desfase]),
+    destinosDe(b).map((x) => [
+      nombreCorto(x.origen),
+      nombreCorto(x.destino),
+      x.habilitada ? 'sí' : 'no',
+      x.preparacion,
+      x.transito,
+      x.desfase,
+    ]),
   );
 }
 
 // ───────────── Simulación ─────────────
 
 function simulacionesDe(b: BloqueEjecutado) {
-  return b.items.flatMap((i) => ((i.resultado as SimulacionRespuesta | undefined)?.resultados ?? []));
+  return b.items.flatMap((i) => (i.resultado as SimulacionRespuesta | undefined)?.resultados ?? []);
 }
 
 /** "03/11/2026 00:00" → número comparable */
@@ -192,7 +241,13 @@ function fraseSimulacion(b: BloqueEjecutado): string {
 function markdownSimulacion(b: BloqueEjecutado): string {
   return tabla(
     ['OPL', 'Destino', 'Servicio', 'Entrega', 'Días'],
-    simulacionesDe(b).map((x) => [nombreCorto(x.opl), x.destino, x.servicio, x.entrega ? ddmm(x.entrega) : 'sin fecha', x.dias ?? '']),
+    simulacionesDe(b).map((x) => [
+      nombreCorto(x.opl),
+      x.destino,
+      x.servicio,
+      x.entrega ? ddmm(x.entrega) : 'sin fecha',
+      x.dias ?? '',
+    ]),
   );
 }
 
@@ -247,11 +302,25 @@ export function atajoVacio(e: Ejecucion): boolean {
 
 // ───────────── Una consulta suelta (1b): como un bloque de un atajo ─────────────
 
-const TIPO_DE: Record<string, string> = { busqueda_masiva: 'masivo', consultar_servicios_opl: 'opl', consultar_transferencia: 'transferencia', simular_entrega: 'simulacion' };
+const TIPO_DE: Record<string, string> = {
+  busqueda_masiva: 'masivo',
+  consultar_servicios_opl: 'opl',
+  consultar_transferencia: 'transferencia',
+  simular_entrega: 'simulacion',
+};
 
 function comoBloque(herramienta: string, datos: unknown): BloqueEjecutado {
-  const tipo = herramienta === 'consultar_capacidad' ? String((datos as CapacidadRespuesta)?.tipo ?? 'picking') : TIPO_DE[herramienta] ?? herramienta;
-  return { orden: 1, tipo: tipo as BloqueEjecutado['tipo'], accion: 'consultar', nota: null, items: [{ orden: 1, nota: null, resultado: datos }] };
+  const tipo =
+    herramienta === 'consultar_capacidad'
+      ? String((datos as CapacidadRespuesta)?.tipo ?? 'picking')
+      : (TIPO_DE[herramienta] ?? herramienta);
+  return {
+    orden: 1,
+    tipo: tipo as BloqueEjecutado['tipo'],
+    accion: 'consultar',
+    nota: null,
+    items: [{ orden: 1, nota: null, resultado: datos }],
+  };
 }
 
 /** La frase de una consulta, sin IA */
@@ -270,10 +339,13 @@ export function markdownConsulta(herramienta: string, datos: unknown): string {
 function fraseReporte(r: ReporteRespuesta | null): string {
   const cds = r?.cds ?? [];
   if (!cds.length) return 'sin datos';
-  const rango = r!.fechas.length > 1 ? ` del ${r!.fechas[0]} al ${r!.fechas.at(-1)}` : r!.fechas[0] ? ` el ${r!.fechas[0]}` : '';
+  const rango =
+    r!.fechas.length > 1 ? ` del ${r!.fechas[0]} al ${r!.fechas.at(-1)}` : r!.fechas[0] ? ` el ${r!.fechas[0]}` : '';
   const partes = cds.map((c) => {
     const nombre = `${partirCodigo(c.cd)} · ${c.nombre.replace(/^ripley\s+/i, '')}`;
-    return c.masCargada ? `${nombre}: lo más cargado, ${c.masCargada.jornada} el ${ddmm(c.masCargada.fecha)} (${c.masCargada.uso} %)` : `${nombre}: sin capacidad en el rango`;
+    return c.masCargada
+      ? `${nombre}: lo más cargado, ${c.masCargada.jornada} el ${ddmm(c.masCargada.fecha)} (${c.masCargada.uso} %)`
+      : `${nombre}: sin capacidad en el rango`;
   });
   return `${cds.length === 1 ? '1 CD' : `${cds.length} CDs`}${rango}. ${partes.join('; ')}`;
 }
@@ -284,10 +356,12 @@ function markdownReporte(r: ReporteRespuesta | null): string {
   if (!r?.cds?.length) return '';
   return r.cds
     .map((c) => {
-      const filas = [...c.jornadas.map((j) => [j.jornada, j.dias] as const), ['Total', c.total] as const].map(([nombre, dias]) => [
-        nombre,
-        ...dias.map((d) => `${d[0]} / ${d[1]} / ${d[2]} · ${d[3]} %${d[4] ? '' : ' CERRADA'}`),
-      ]);
+      const filas = [...c.jornadas.map((j) => [j.jornada, j.dias] as const), ['Total', c.total] as const].map(
+        ([nombre, dias]) => [
+          nombre,
+          ...dias.map((d) => `${d[0]} / ${d[1]} / ${d[2]} · ${d[3]} %${d[4] ? '' : ' CERRADA'}`),
+        ],
+      );
       return `**${partirCodigo(c.cd)} · ${c.nombre.replace(/^ripley\s+/i, '')}**\n\n${tabla(['Jornada', ...r.fechas.map((f) => `${f} (asig./ocup./disp. · uso)`)], filas)}`;
     })
     .join('\n\n');

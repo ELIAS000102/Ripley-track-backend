@@ -35,11 +35,18 @@ Reglas:
 Responde SOLO con un JSON, sin texto alrededor:
 {"hechos": [...], "dudas": []}`;
 
-export function promptAprender(texto: string, contexto: ContextoTurno, sabido: string[], fases: string[]): { sistema: string; mensaje: string } {
+export function promptAprender(
+  texto: string,
+  contexto: ContextoTurno,
+  sabido: string[],
+  fases: string[],
+): { sistema: string; mensaje: string } {
   const codigos = contexto.entidades
-    .map((e) => (e.porNombre
-      ? `- "${e.texto}" → ${e.candidatos.map((c) => `${c.codigo} · ${c.nombre ?? ''} (${c.es_cd ? 'CD' : c.tipo})`).join(' o ')}`
-      : `- ${e.texto}${e.candidatos[0] ? ` · ${e.candidatos[0].nombre ?? ''} (${e.candidatos[0].es_cd ? 'CD' : e.candidatos[0].tipo})` : ''}`))
+    .map((e) =>
+      e.porNombre
+        ? `- "${e.texto}" → ${e.candidatos.map((c) => `${c.codigo} · ${c.nombre ?? ''} (${c.es_cd ? 'CD' : c.tipo})`).join(' o ')}`
+        : `- ${e.texto}${e.candidatos[0] ? ` · ${e.candidatos[0].nombre ?? ''} (${e.candidatos[0].es_cd ? 'CD' : e.candidatos[0].tipo})` : ''}`,
+    )
     .join('\n');
   return {
     sistema: SISTEMA_APRENDER,
@@ -64,20 +71,34 @@ LO QUE ENSEÑA
 
 const FASES = new Set(['F1', 'F2', 'F3', 'DD']);
 const METODO_DE_FASE: Record<string, 'RT' | 'DP'> = { F1: 'RT', F2: 'RT', F3: 'RT', DD: 'DP' };
-const texto = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().replace(/\s+/g, ' ').slice(0, max) : null);
+const texto = (v: unknown, max: number) =>
+  typeof v === 'string' && v.trim() ? v.trim().replace(/\s+/g, ' ').slice(0, max) : null;
 
 /**
  * Lee lo que propone el modelo. Un hecho con un código que nadie dijo, una
  * fase que no existe o una fase que no cuadra con el método no vale: el turno
  * prueba otro modelo (no se arregla en silencio).
  */
-export function leerAprendido(salida: string, contexto: ContextoTurno, ensena: string, vacioVale = false): Lectura<{ hechos: Hecho[]; dudas: string[] }> {
+export function leerAprendido(
+  salida: string,
+  contexto: ContextoTurno,
+  ensena: string,
+  vacioVale = false,
+): Lectura<{ hechos: Hecho[]; dudas: string[] }> {
   const j = primerJson(salida);
   if (!j) return { ok: false, motivo: 'no devolvió un JSON' };
   const crudos = Array.isArray(j.hechos) ? j.hechos : [];
-  const dudas = Array.isArray(j.dudas) ? j.dudas.map((d) => texto(d, 200)).filter((d): d is string => Boolean(d)).slice(0, 3) : [];
+  const dudas = Array.isArray(j.dudas)
+    ? j.dudas
+        .map((d) => texto(d, 200))
+        .filter((d): d is string => Boolean(d))
+        .slice(0, 3)
+    : [];
   // Tras una aclaración puede no haber nada que aprender ("la 20048"): entonces no es un fallo
-  if (!crudos.length && !dudas.length) return vacioVale ? { ok: true, valor: { hechos: [], dudas: [] } } : { ok: false, motivo: 'no sacó nada de lo que se enseña' };
+  if (!crudos.length && !dudas.length)
+    return vacioVale
+      ? { ok: true, valor: { hechos: [], dudas: [] } }
+      : { ok: false, motivo: 'no sacó nada de lo que se enseña' };
   if (crudos.length > 6) return { ok: false, motivo: 'demasiados hechos de una vez' };
   const permitidos = codigosPermitidos(contexto, ensena);
   const hechos: Hecho[] = [];
@@ -85,31 +106,65 @@ export function leerAprendido(salida: string, contexto: ContextoTurno, ensena: s
     const h = (c ?? {}) as Record<string, unknown>;
     const n = i + 1;
     if (h.tipo === 'servicio') {
-      const codigo = String(h.codigo ?? '').trim().toUpperCase();
-      if (!/^[A-Z]{1,3}$/.test(codigo)) return { ok: false, motivo: `hecho ${n}: "${codigo}" no es un código de servicio` };
+      const codigo = String(h.codigo ?? '')
+        .trim()
+        .toUpperCase();
+      if (!/^[A-Z]{1,3}$/.test(codigo))
+        return { ok: false, motivo: `hecho ${n}: "${codigo}" no es un código de servicio` };
       const fase = h.fase ? String(h.fase).toUpperCase() : null;
       if (fase && !FASES.has(fase)) return { ok: false, motivo: `hecho ${n}: la fase "${fase}" no existe` };
       let metodo = h.metodo_entrega ? String(h.metodo_entrega).toUpperCase() : null;
-      if (metodo && metodo !== 'RT' && metodo !== 'DP') return { ok: false, motivo: `hecho ${n}: método "${metodo}" (es RT o DP)` };
-      if (fase && metodo && METODO_DE_FASE[fase] !== metodo) return { ok: false, motivo: `hecho ${n}: la fase ${fase} es de ${METODO_DE_FASE[fase]}, no de ${metodo}` };
+      if (metodo && metodo !== 'RT' && metodo !== 'DP')
+        return { ok: false, motivo: `hecho ${n}: método "${metodo}" (es RT o DP)` };
+      if (fase && metodo && METODO_DE_FASE[fase] !== metodo)
+        return { ok: false, motivo: `hecho ${n}: la fase ${fase} es de ${METODO_DE_FASE[fase]}, no de ${metodo}` };
       if (fase && !metodo) metodo = METODO_DE_FASE[fase];
       const origen = h.origen ? String(h.origen).trim() : null;
-      if (origen && (!/^\d{3,6}$/.test(origen) || !permitidos.has(origen))) return { ok: false, motivo: `hecho ${n}: el origen ${origen} no lo dijo nadie` };
-      hechos.push({ tipo: 'servicio', pais: contexto.pais, codigo, nombre: texto(h.nombre, 80), metodo_entrega: metodo as Hecho['metodo_entrega'], fase, origen, descripcion: texto(h.descripcion, 400) });
+      if (origen && (!/^\d{3,6}$/.test(origen) || !permitidos.has(origen)))
+        return { ok: false, motivo: `hecho ${n}: el origen ${origen} no lo dijo nadie` };
+      hechos.push({
+        tipo: 'servicio',
+        pais: contexto.pais,
+        codigo,
+        nombre: texto(h.nombre, 80),
+        metodo_entrega: metodo as Hecho['metodo_entrega'],
+        fase,
+        origen,
+        descripcion: texto(h.descripcion, 400),
+      });
     } else if (h.tipo === 'entidad') {
       const codigo = String(h.codigo ?? '').trim();
-      if (!/^\d{3,6}$/.test(codigo) || !permitidos.has(codigo)) return { ok: false, motivo: `hecho ${n}: el código ${codigo} no lo dijo nadie` };
+      if (!/^\d{3,6}$/.test(codigo) || !permitidos.has(codigo))
+        return { ok: false, motivo: `hecho ${n}: el código ${codigo} no lo dijo nadie` };
       const clase = h.clase ? String(h.clase) : null;
-      if (clase && !['tienda', 'almacen', 'opl'].includes(clase)) return { ok: false, motivo: `hecho ${n}: "${clase}" no es tienda, almacén ni OPL` };
+      if (clase && !['tienda', 'almacen', 'opl'].includes(clase))
+        return { ok: false, motivo: `hecho ${n}: "${clase}" no es tienda, almacén ni OPL` };
       const es_cd = h.es_cd === true;
       if (es_cd && clase && clase !== 'almacen') return { ok: false, motivo: `hecho ${n}: un CD es un almacén` };
-      const alias = Array.isArray(h.alias) ? h.alias.map((a) => texto(a, 60)).filter((a): a is string => Boolean(a)).slice(0, 5) : [];
-      hechos.push({ tipo: 'entidad', pais: contexto.pais, codigo, nombre: texto(h.nombre, 80), clase: (es_cd ? 'almacen' : clase) as Hecho['clase'], es_cd, alias });
+      const alias = Array.isArray(h.alias)
+        ? h.alias
+            .map((a) => texto(a, 60))
+            .filter((a): a is string => Boolean(a))
+            .slice(0, 5)
+        : [];
+      hechos.push({
+        tipo: 'entidad',
+        pais: contexto.pais,
+        codigo,
+        nombre: texto(h.nombre, 80),
+        clase: (es_cd ? 'almacen' : clase) as Hecho['clase'],
+        es_cd,
+        alias,
+      });
     } else if (h.tipo === 'termino') {
-      const palabra = texto(h.termino, 40)?.toLowerCase().replace(/^(el|la|los|las|un|una)\s+/, '') ?? null;
+      const palabra =
+        texto(h.termino, 40)
+          ?.toLowerCase()
+          .replace(/^(el|la|los|las|un|una)\s+/, '') ?? null;
       const significa = texto(h.significa, 240);
       if (!palabra || palabra.length < 2) return { ok: false, motivo: `hecho ${n}: un término sin la palabra` };
-      if (!significa || significa.length < 4) return { ok: false, motivo: `hecho ${n}: «${palabra}» sin lo que significa` };
+      if (!significa || significa.length < 4)
+        return { ok: false, motivo: `hecho ${n}: «${palabra}» sin lo que significa` };
       hechos.push({ tipo: 'termino', pais: contexto.pais, codigo: palabra, significa });
     } else {
       return { ok: false, motivo: `hecho ${n}: tipo "${String(h.tipo)}" (es servicio, entidad o termino)` };
@@ -129,6 +184,6 @@ export function hechoEnPalabras(h: Hecho): string {
     ].filter(Boolean);
     return `${h.codigo}${h.nombre ? ` · ${h.nombre}` : ''}${partes.length ? `: ${partes.join(', ')}` : ''}.${h.descripcion ? ` ${h.descripcion}` : ''}`;
   }
-  const clase = h.es_cd ? 'CD' : h.clase === 'almacen' ? 'almacén' : h.clase === 'opl' ? 'OPL' : h.clase ?? 'código';
+  const clase = h.es_cd ? 'CD' : h.clase === 'almacen' ? 'almacén' : h.clase === 'opl' ? 'OPL' : (h.clase ?? 'código');
   return `${h.codigo}${h.nombre ? ` · ${h.nombre}` : ''}: ${clase}${h.alias?.length ? ` (también «${h.alias.join('», «')}»)` : ''}.`;
 }

@@ -49,7 +49,12 @@ const TIPO_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 /** Para el nombre de un archivo: "BT Provincia" → "bt-provincia" */
 const paraArchivo = (t: string) =>
-  t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'grupo';
+  t
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'grupo';
 
 /**
  * Lead time: los grupos de cada país y, dentro de cada uno, sus matrices (por
@@ -87,7 +92,11 @@ export class LeadTimeController {
   /** PUT /grupos-leadtime/:id  { nombre, descripcion, tipo } */
   @Auditar('lead-time.editar-grupo')
   @Put(':id')
-  async actualizar(@Param('id', ParseUUIDPipe) id: string, @Body() body: EditarGrupoDto, @Usuario() usuario: UsuarioAutenticado) {
+  async actualizar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: EditarGrupoDto,
+    @Usuario() usuario: UsuarioAutenticado,
+  ) {
     return this.grupos.actualizar(id, body, usuario);
   }
 
@@ -107,8 +116,11 @@ export class LeadTimeController {
     const malla = mallaDe(query);
     const contenido = await this.servicio(grupo).plantilla(grupo, query.conDatos === true, malla);
     const cosa = grupo.tipo === 'matriz' ? 'matriz' : 'mallas';
-    const version = malla.tipo === 'evento' ? `evento-${paraArchivo(malla.nombre)}` : paraArchivo(nombreBase(grupo.pais));
-    const nombre = query.conDatos ? `${cosa}-${paraArchivo(grupo.nombre)}-${version}-${grupo.pais}.xlsx` : `plantilla-${cosa}.xlsx`;
+    const version =
+      malla.tipo === 'evento' ? `evento-${paraArchivo(malla.nombre)}` : paraArchivo(nombreBase(grupo.pais));
+    const nombre = query.conDatos
+      ? `${cosa}-${paraArchivo(grupo.nombre)}-${version}-${grupo.pais}.xlsx`
+      : `plantilla-${cosa}.xlsx`;
 
     res.setHeader('Content-Type', TIPO_XLSX);
     res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
@@ -131,10 +143,13 @@ export class LeadTimeController {
     @Usuario() usuario: UsuarioAutenticado,
   ) {
     if (!archivo?.buffer?.length) throw new BadRequestException('Falta el archivo: súbelo en el campo "archivo".');
-    if (!/\.xlsx$/i.test(archivo.originalname)) throw new BadRequestException('El archivo tiene que ser un Excel .xlsx: la plantilla del grupo.');
-    if (Boolean(query.desde) !== Boolean(query.hasta)) throw new BadRequestException('La vigencia lleva las dos fechas, desde y hasta, o ninguna.');
+    if (!/\.xlsx$/i.test(archivo.originalname))
+      throw new BadRequestException('El archivo tiene que ser un Excel .xlsx: la plantilla del grupo.');
+    if (Boolean(query.desde) !== Boolean(query.hasta))
+      throw new BadRequestException('La vigencia lleva las dos fechas, desde y hasta, o ninguna.');
     const malla = mallaDe(query);
-    if (query.desde && malla.tipo !== 'evento') throw new BadRequestException('La vigencia es de los eventos: la base vale siempre que no haya un evento.');
+    if (query.desde && malla.tipo !== 'evento')
+      throw new BadRequestException('La vigencia es de los eventos: la base vale siempre que no haya un evento.');
 
     const grupo = await this.grupos.obtener(id);
     const servicio = this.servicio(grupo);

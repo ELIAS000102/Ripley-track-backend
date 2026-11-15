@@ -48,9 +48,7 @@ export class ModoAgenteService {
     const expira = Date.now() + VIGENCIA_MS;
     this.editores.set(usuarioId, expira);
 
-    this.logger.warn(
-      `Modo EDITOR activado para ${usuarioId} hasta ${new Date(expira).toISOString()}`,
-    );
+    this.logger.warn(`Modo EDITOR activado para ${usuarioId} hasta ${new Date(expira).toISOString()}`);
 
     return this.estadoDe(expira);
   }
@@ -68,8 +66,7 @@ export class ModoAgenteService {
   estado(usuarioId: string): EstadoModo {
     const expira = this.editores.get(usuarioId);
 
-    if (!expira)
-      return { modo: 'consultor', expiraEn: null, minutosRestantes: 0 };
+    if (!expira) return { modo: 'consultor', expiraEn: null, minutosRestantes: 0 };
 
     if (expira <= Date.now()) {
       this.editores.delete(usuarioId);

@@ -12,10 +12,17 @@ import type { LlamadaHerramienta } from '../../src/rutinas/interfaces/rutinas.in
  */
 
 const llamada = (extra: Partial<LlamadaHerramienta> = {}): LlamadaHerramienta => ({
-  herramienta: 'Editar un tipo de servicio', estado: 200, problemas: [], escriturasEvitadas: 1, ...extra,
+  herramienta: 'Editar un tipo de servicio',
+  estado: 200,
+  problemas: [],
+  escriturasEvitadas: 1,
+  ...extra,
 });
 
-const bien = { respuesta: 'Listo.', rutina: { tipo: 'pasos', faltan: [], descartados: [], herramientas: ['Editar un tipo de servicio'] } };
+const bien = {
+  respuesta: 'Listo.',
+  rutina: { tipo: 'pasos', faltan: [], descartados: [], herramientas: ['Editar un tipo de servicio'] },
+};
 
 const evaluar = (extra: Partial<Parameters<typeof evaluarPaso>[0]> = {}) =>
   evaluarPaso({ respuesta: bien, llamadas: [llamada()], atajos: [], ...extra });
@@ -26,41 +33,122 @@ describe('Un paso que sale bien', () => {
   });
 
   it('"Ya estaba así" no es un fallo: pedía un estado que ya se cumplía', () => {
-    expect(evaluar({ llamadas: [llamada({ problemas: problemasDe({ servicios: [{ error: 'Ya estaba así. No he cambiado nada aquí.' }] }) })] }))
-      .toEqual({ estado: 'completado' });
+    expect(
+      evaluar({
+        llamadas: [
+          llamada({ problemas: problemasDe({ servicios: [{ error: 'Ya estaba así. No he cambiado nada aquí.' }] }) }),
+        ],
+      }),
+    ).toEqual({ estado: 'completado' });
   });
 
   it('un 400 porque todo ya estaba así: el estado que pedía el paso se cumple (1748)', () => {
-    expect(evaluar({ llamadas: [llamada(), llamada({ herramienta: 'Activar o desactivar agendas en bloque', estado: 400, yaEstaba: true })] }))
-      .toEqual({ estado: 'completado' });
+    expect(
+      evaluar({
+        llamadas: [
+          llamada(),
+          llamada({ herramienta: 'Activar o desactivar agendas en bloque', estado: 400, yaEstaba: true }),
+        ],
+      }),
+    ).toEqual({ estado: 'completado' });
   });
 
   it('el atajo que pide el paso, usado aunque sea con el nombre corto', () => {
-    expect(evaluar({
-      atajos: ['Estado del Next Day y Same Day de chile'],
-      respuesta: { ...bien, rutina: { ...bien.rutina, herramientas: ['Ejecutar un atajo'] } },
-      llamadas: [llamada({ herramienta: 'Ejecutar un atajo', atajo: 'estado del next day y same day de Chile' })],
-    })).toEqual({ estado: 'completado' });
+    expect(
+      evaluar({
+        atajos: ['Estado del Next Day y Same Day de chile'],
+        respuesta: { ...bien, rutina: { ...bien.rutina, herramientas: ['Ejecutar un atajo'] } },
+        llamadas: [llamada({ herramienta: 'Ejecutar un atajo', atajo: 'estado del next day y same day de Chile' })],
+      }),
+    ).toEqual({ estado: 'completado' });
   });
 });
 
 describe('Un paso que falla', () => {
   it.each([
-    ['si no se pudo hablar con n8n', { error: 'No se pudo hablar con n8n: comprueba que esté en marcha.' }, 'No se pudo hablar con n8n'],
+    [
+      'si no se pudo hablar con n8n',
+      { error: 'No se pudo hablar con n8n: comprueba que esté en marcha.' },
+      'No se pudo hablar con n8n',
+    ],
     ['si el flujo no es el de las rutinas', { respuesta: { respuesta: 'Hola' } }, 'reimporta el flujo actualizado'],
-    ['si el flujo no supo terminar', { respuesta: { respuesta: 'Se cayó el modelo', rutina: { error: true } } }, 'no pudo terminar el paso: Se cayó el modelo'],
-    ['si fue la IA la que se cayó a mitad, lo dice', { respuesta: { respuesta: 'El modelo de IA está saturado', rutina: { error: true, motivo: 'saturado' } } }, 'La IA (Gemini) estaba saturada a mitad del paso, también el modelo de respaldo'],
-    ['si la IA no dio un plan, ni la de respaldo: no se hizo nada', { respuesta: { rutina: { tipo: 'sinPlan', fallaIA: 'no respondió, ni la de respaldo (Service unavailable)' } } }, 'La IA que arma el plan (Gemini) no respondió, tampoco la de respaldo: no se hizo nada de este paso'],
-    ['si la IA dio algo que no es un plan', { respuesta: { rutina: { tipo: 'sinPlan', fallaIA: 'respondió algo que no es un plan' } } }, 'respondió algo que no es un plan'],
-    ['si le faltó un dato', { respuesta: { rutina: { tipo: 'faltan', faltan: ['la fecha del cambio'] } } }, 'Le faltó un dato para hacerlo: la fecha del cambio'],
+    [
+      'si el flujo no supo terminar',
+      { respuesta: { respuesta: 'Se cayó el modelo', rutina: { error: true } } },
+      'no pudo terminar el paso: Se cayó el modelo',
+    ],
+    [
+      'si fue la IA la que se cayó a mitad, lo dice',
+      { respuesta: { respuesta: 'El modelo de IA está saturado', rutina: { error: true, motivo: 'saturado' } } },
+      'La IA (Gemini) estaba saturada a mitad del paso, también el modelo de respaldo',
+    ],
+    [
+      'si la IA no dio un plan, ni la de respaldo: no se hizo nada',
+      { respuesta: { rutina: { tipo: 'sinPlan', fallaIA: 'no respondió, ni la de respaldo (Service unavailable)' } } },
+      'La IA que arma el plan (Gemini) no respondió, tampoco la de respaldo: no se hizo nada de este paso',
+    ],
+    [
+      'si la IA dio algo que no es un plan',
+      { respuesta: { rutina: { tipo: 'sinPlan', fallaIA: 'respondió algo que no es un plan' } } },
+      'respondió algo que no es un plan',
+    ],
+    [
+      'si le faltó un dato',
+      { respuesta: { rutina: { tipo: 'faltan', faltan: ['la fecha del cambio'] } } },
+      'Le faltó un dato para hacerlo: la fecha del cambio',
+    ],
     ['si no entendió la instrucción', { respuesta: { rutina: { tipo: 'aclarar' } } }, 'No entendió la instrucción'],
-    ['si el plan traía algo que no se puede hacer, y no se hizo nada', { respuesta: { rutina: { tipo: 'incompleto', descartados: ['el paso 2 (su lista "@1&@2" apunta a un paso que no está en este plan)'] } } }, 'No se hizo nada de este paso: el plan traía algo que no se puede hacer (el paso 2 (su lista "@1&@2"'],
-    ['si dejó parte sin hacer', { respuesta: { rutina: { tipo: 'pasos', descartados: ['lo que iba después del paso 4'] } } }, 'Dejó sin hacer parte del paso: lo que iba después del paso 4'],
-    ['si se paró a preguntar en vez de llamar', { respuesta: { respuesta: '¿De qué servicio?', rutina: { tipo: 'pasos', sinTerminar: true } } }, 'Se paró antes de terminar: en vez de llamar a las herramientas, contestó "¿De qué servicio?"'],
-    ['si le faltaron llamadas', { respuesta: { rutina: { tipo: 'pasos', sinTerminar: true, faltaron: ['1111'] } } }, 'No llegó a hacer todas las llamadas: faltaron 1111'],
-    ['si una herramienta respondió con error', { llamadas: [llamada({ estado: 400, problemas: ['Hay 4 opciones en el operador 1088 y no voy a elegir por ti'] })] }, '"Editar un tipo de servicio" respondió 400: Hay 4 opciones'],
-    ['si una herramienta respondió bien pero con filas que fallaron', { llamadas: [llamada({ problemas: ['La agenda no tiene el servicio DX'] })] }, '"Editar un tipo de servicio": La agenda no tiene el servicio DX'],
-    ['si una herramienta no llegó al backend', { respuesta: { ...bien, rutina: { ...bien.rutina, herramientas: ['Capacidad de agendas', 'Editar un tipo de servicio'] } } }, 'no llegó a responder'],
+    [
+      'si el plan traía algo que no se puede hacer, y no se hizo nada',
+      {
+        respuesta: {
+          rutina: {
+            tipo: 'incompleto',
+            descartados: ['el paso 2 (su lista "@1&@2" apunta a un paso que no está en este plan)'],
+          },
+        },
+      },
+      'No se hizo nada de este paso: el plan traía algo que no se puede hacer (el paso 2 (su lista "@1&@2"',
+    ],
+    [
+      'si dejó parte sin hacer',
+      { respuesta: { rutina: { tipo: 'pasos', descartados: ['lo que iba después del paso 4'] } } },
+      'Dejó sin hacer parte del paso: lo que iba después del paso 4',
+    ],
+    [
+      'si se paró a preguntar en vez de llamar',
+      { respuesta: { respuesta: '¿De qué servicio?', rutina: { tipo: 'pasos', sinTerminar: true } } },
+      'Se paró antes de terminar: en vez de llamar a las herramientas, contestó "¿De qué servicio?"',
+    ],
+    [
+      'si le faltaron llamadas',
+      { respuesta: { rutina: { tipo: 'pasos', sinTerminar: true, faltaron: ['1111'] } } },
+      'No llegó a hacer todas las llamadas: faltaron 1111',
+    ],
+    [
+      'si una herramienta respondió con error',
+      {
+        llamadas: [
+          llamada({ estado: 400, problemas: ['Hay 4 opciones en el operador 1088 y no voy a elegir por ti'] }),
+        ],
+      },
+      '"Editar un tipo de servicio" respondió 400: Hay 4 opciones',
+    ],
+    [
+      'si una herramienta respondió bien pero con filas que fallaron',
+      { llamadas: [llamada({ problemas: ['La agenda no tiene el servicio DX'] })] },
+      '"Editar un tipo de servicio": La agenda no tiene el servicio DX',
+    ],
+    [
+      'si una herramienta no llegó al backend',
+      {
+        respuesta: {
+          ...bien,
+          rutina: { ...bien.rutina, herramientas: ['Capacidad de agendas', 'Editar un tipo de servicio'] },
+        },
+      },
+      'no llegó a responder',
+    ],
     ['si no usó el atajo que pide el paso', { atajos: ['BT LIMA'] }, 'No usó el atajo que pide el paso: "BT LIMA"'],
   ])('%s', (_, extra, motivo) => {
     const r = evaluar(extra as never);
@@ -82,8 +170,9 @@ describe('Lo que salió mal dentro de una respuesta correcta', () => {
   });
 
   it('los no encontrados también cuentan', () => {
-    expect(problemasDe({ destinos: [], noEncontrados: [{ destino: '20099', motivo: 'no es destino del 20026' }] }))
-      .toEqual(['No se encontró 20099: no es destino del 20026']);
+    expect(
+      problemasDe({ destinos: [], noEncontrados: [{ destino: '20099', motivo: 'no es destino del 20026' }] }),
+    ).toEqual(['No se encontró 20099: no es destino del 20026']);
   });
 
   it('lo del simulacro no es un problema', () => {
@@ -93,20 +182,45 @@ describe('Lo que salió mal dentro de una respuesta correcta', () => {
 
 describe('Lo que ya estaba como se pedía', () => {
   it('una fila "Ya estaba activa." de un CD no es un problema, como "Ya estaba así"', () => {
-    expect(problemasDe({ jornadas: [{ jornada: 'SE', error: 'Ya estaba activa.' }, { jornada: 'ST', error: 'Ya estaba inactiva.' }] })).toEqual([]);
-    expect(problemasDe({ jornadas: [{ jornada: 'SE', error: 'La jornada no existe.' }] })).toEqual(['La jornada no existe.']);
+    expect(
+      problemasDe({
+        jornadas: [
+          { jornada: 'SE', error: 'Ya estaba activa.' },
+          { jornada: 'ST', error: 'Ya estaba inactiva.' },
+        ],
+      }),
+    ).toEqual([]);
+    expect(problemasDe({ jornadas: [{ jornada: 'SE', error: 'La jornada no existe.' }] })).toEqual([
+      'La jornada no existe.',
+    ]);
   });
 
   it.each([
     ['un CD donde todas ya estaban (1)', 'Ninguna de las 1 jornadas cambió. Motivos: Ya estaba activa.', true],
-    ['un CD con varias, todas ya estaban', 'Ninguna de las 3 jornadas cambió. Motivos: Ya estaba activa.; Ya estaba inactiva.', true],
-    ['un CD con un motivo de verdad', 'Ninguna de las 2 jornadas cambió. Motivos: Ya estaba activa.; La jornada RC no existe en el CD.', false],
+    [
+      'un CD con varias, todas ya estaban',
+      'Ninguna de las 3 jornadas cambió. Motivos: Ya estaba activa.; Ya estaba inactiva.',
+      true,
+    ],
+    [
+      'un CD con un motivo de verdad',
+      'Ninguna de las 2 jornadas cambió. Motivos: Ya estaba activa.; La jornada RC no existe en el CD.',
+      false,
+    ],
     ['un cambio en bloque', 'Las 21 agendas ya estaban así. No he cambiado nada.', true],
     ['una transferencia', 'La relación ya está así. No he cambiado nada.', true],
     ['la capacidad de un día', 'Ya estaba así (asignado 500, activa).', true],
     ['un tipo de servicio', 'Ya estaba así. No he cambiado nada aquí.', true],
-    ['varios servicios, todos ya estaban', 'Ninguno de los 2 cambios se pudo aplicar. SD (1110): Ya estaba así. No he cambiado nada aquí.; ST (1110): Ya estaba así. No he cambiado nada aquí.', true],
-    ['varios servicios, uno de verdad', 'Ninguno de los 2 cambios se pudo aplicar. SD (1110): Ya estaba así. No he cambiado nada aquí.; ST (1110): La agenda no tiene el servicio ST', false],
+    [
+      'varios servicios, todos ya estaban',
+      'Ninguno de los 2 cambios se pudo aplicar. SD (1110): Ya estaba así. No he cambiado nada aquí.; ST (1110): Ya estaba así. No he cambiado nada aquí.',
+      true,
+    ],
+    [
+      'varios servicios, uno de verdad',
+      'Ninguno de los 2 cambios se pudo aplicar. SD (1110): Ya estaba así. No he cambiado nada aquí.; ST (1110): La agenda no tiene el servicio ST',
+      false,
+    ],
     ['un error cualquiera', 'Hay 4 opciones en el operador 1088 y no voy a elegir por ti', false],
   ])('%s', (_, mensaje, esperado) => {
     expect(todoYaEstaba(mensaje)).toBe(esperado);
@@ -118,28 +232,55 @@ describe('Las simulaciones, en una prueba', () => {
     llamada({ herramienta: 'Simular una entrega', simulacion: true, escriturasEvitadas: 0, ...extra });
 
   it('se separan: la herramienta de simular entera, y los bloques de simulación de un atajo', () => {
-    expect(separarSimulacion('Simular una entrega', { filas: [{ operador: '1110', error: 'Sin cobertura' }] }))
-      .toEqual({ problemas: [], deSimulacion: ['Sin cobertura'], simulacion: true });
-    expect(separarSimulacion('Ejecutar un atajo', { bloques: [
-      { tipo: 'opl', items: [{ error: 'El 1088 no tiene la zona 4' }] },
-      { tipo: 'simulacion', items: [{ error: 'Sin cobertura' }] },
-    ] })).toEqual({ problemas: ['El 1088 no tiene la zona 4'], deSimulacion: ['Sin cobertura'], simulacion: false });
-    expect(separarSimulacion('Ejecutar un atajo', { bloques: [{ tipo: 'simulacion', items: [] }] }).simulacion).toBe(true);
+    expect(separarSimulacion('Simular una entrega', { filas: [{ operador: '1110', error: 'Sin cobertura' }] })).toEqual(
+      { problemas: [], deSimulacion: ['Sin cobertura'], simulacion: true },
+    );
+    expect(
+      separarSimulacion('Ejecutar un atajo', {
+        bloques: [
+          { tipo: 'opl', items: [{ error: 'El 1088 no tiene la zona 4' }] },
+          { tipo: 'simulacion', items: [{ error: 'Sin cobertura' }] },
+        ],
+      }),
+    ).toEqual({ problemas: ['El 1088 no tiene la zona 4'], deSimulacion: ['Sin cobertura'], simulacion: false });
+    expect(separarSimulacion('Ejecutar un atajo', { bloques: [{ tipo: 'simulacion', items: [] }] }).simulacion).toBe(
+      true,
+    );
   });
 
   it('una simulación que falla no tumba la prueba: simula sin las activaciones, que la prueba no hace', () => {
-    expect(evaluar({ prueba: true, llamadas: [llamada(), simular({ estado: 400, problemas: ['No hay agenda activa para el SE'] })] })).toEqual({ estado: 'completado' });
-    expect(evaluar({ prueba: true, llamadas: [llamada(), simular({ deSimulacion: ['Sin cobertura'] })] })).toEqual({ estado: 'completado' });
-    expect(evaluar({ prueba: true, llamadas: [llamada({ herramienta: 'Ejecutar un atajo', deSimulacion: ['Sin cobertura'] })] })).toEqual({ estado: 'completado' });
+    expect(
+      evaluar({
+        prueba: true,
+        llamadas: [llamada(), simular({ estado: 400, problemas: ['No hay agenda activa para el SE'] })],
+      }),
+    ).toEqual({ estado: 'completado' });
+    expect(evaluar({ prueba: true, llamadas: [llamada(), simular({ deSimulacion: ['Sin cobertura'] })] })).toEqual({
+      estado: 'completado',
+    });
+    expect(
+      evaluar({
+        prueba: true,
+        llamadas: [llamada({ herramienta: 'Ejecutar un atajo', deSimulacion: ['Sin cobertura'] })],
+      }),
+    ).toEqual({ estado: 'completado' });
   });
 
   it('en una ejecución real, sí cuenta', () => {
-    expect(evaluar({ llamadas: [simular({ estado: 400, problemas: ['No hay agenda activa para el SE'] })] }).motivo).toContain('"Simular una entrega" respondió 400');
-    expect(evaluar({ llamadas: [llamada({ herramienta: 'Ejecutar un atajo', deSimulacion: ['Sin cobertura'] })] }).motivo).toContain('Sin cobertura');
+    expect(
+      evaluar({ llamadas: [simular({ estado: 400, problemas: ['No hay agenda activa para el SE'] })] }).motivo,
+    ).toContain('"Simular una entrega" respondió 400');
+    expect(
+      evaluar({ llamadas: [llamada({ herramienta: 'Ejecutar un atajo', deSimulacion: ['Sin cobertura'] })] }).motivo,
+    ).toContain('Sin cobertura');
   });
 
   it('en una prueba, lo que no es simulación sigue contando', () => {
-    expect(evaluar({ prueba: true, llamadas: [llamada({ problemas: ['La agenda no tiene el servicio DX'] }), simular({ estado: 400 })] }).motivo)
-      .toContain('La agenda no tiene el servicio DX');
+    expect(
+      evaluar({
+        prueba: true,
+        llamadas: [llamada({ problemas: ['La agenda no tiene el servicio DX'] }), simular({ estado: 400 })],
+      }).motivo,
+    ).toContain('La agenda no tiene el servicio DX');
   });
 });

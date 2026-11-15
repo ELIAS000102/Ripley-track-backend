@@ -38,11 +38,7 @@ export async function enParalelo<T, R>(
   return salida;
 }
 
-export async function enLotes<T, R>(
-  items: T[],
-  tamano: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
+export async function enLotes<T, R>(items: T[], tamano: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const salida: R[] = [];
 
   for (let i = 0; i < items.length; i += tamano) {

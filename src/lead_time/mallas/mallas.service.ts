@@ -49,7 +49,9 @@ export class MallasService extends VersionadoLeadtime<OplMalla, OplInterpretada,
         if (exacta || codigo.includes('/')) return exacta;
         const suyas = opls.filter((o) => o.opl === codigo);
         if (suyas.length > 1) {
-          throw new BadRequestException(`La OPL ${codigo} tiene varios flujos (${suyas.map((o) => o.servicio).join(', ')}): pide uno, como "${suyas[0].codigo}".`);
+          throw new BadRequestException(
+            `La OPL ${codigo} tiene varios flujos (${suyas.map((o) => o.servicio).join(', ')}): pide uno, como "${suyas[0].codigo}".`,
+          );
         }
         return suyas[0];
       },

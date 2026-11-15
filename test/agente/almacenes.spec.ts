@@ -10,8 +10,12 @@ import { almacenesDePrueba } from '../fixtures/almacenes.js';
 describe('Los almacenes del agente', () => {
   it('"CD Villa", "VES" y "villa el salvador" son el 20026; un código o lo que no es un CD, tal cual', async () => {
     const a = almacenesDePrueba();
-    expect(await a.codigos(['CD Villa', 'VES', 'villa el salvador', '20021', 'Aldeas', 'Chorrillos'], 'PE'))
-      .toEqual(['20026', '20021', '20096', 'Chorrillos']);
+    expect(await a.codigos(['CD Villa', 'VES', 'villa el salvador', '20021', 'Aldeas', 'Chorrillos'], 'PE')).toEqual([
+      '20026',
+      '20021',
+      '20096',
+      'Chorrillos',
+    ]);
   });
 
   it('sin fuente de stock, la de por defecto de Perú, y se dice', async () => {
@@ -20,7 +24,9 @@ describe('Los almacenes del agente', () => {
   });
 
   it('en Chile no hay una por defecto: se pide', async () => {
-    await expect(almacenesDePrueba().fuente('', 'CL', 'la transferencia')).rejects.toThrow(/en CL no hay uno por defecto/);
+    await expect(almacenesDePrueba().fuente('', 'CL', 'la transferencia')).rejects.toThrow(
+      /en CL no hay uno por defecto/,
+    );
   });
 
   it('si no se puede leer la configuración, sigue con el texto tal cual', async () => {

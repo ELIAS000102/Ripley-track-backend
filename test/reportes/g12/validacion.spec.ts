@@ -15,29 +15,43 @@ describe('La configuración del G12', () => {
 
   it('limpia lo que llega: servicios en mayúsculas, la fila con su nombre exacto y los cuadros que faltan, vacíos', () => {
     const { configuracion, errores } = normalizarConfiguracion({
-      componentes: [{ clave: 'pickup_lima', filas: [{ nombre: ' San Isidro ' }], bloques: [{ tipo: 'simulacion', items: [{ fila: 'san isidro', campos: sim }] }] }],
+      componentes: [
+        {
+          clave: 'pickup_lima',
+          filas: [{ nombre: ' San Isidro ' }],
+          bloques: [{ tipo: 'simulacion', items: [{ fila: 'san isidro', campos: sim }] }],
+        },
+      ],
       resumen: [],
     });
     expect(errores).toEqual([]);
     const pickup = configuracion.componentes.find((c) => c.clave === 'pickup_lima')!;
     expect(pickup.filas).toEqual([{ nombre: 'San Isidro' }]);
-    expect(pickup.bloques[0].items[0]).toEqual({ fila: 'San Isidro', campos: { ...sim, servicio: 'RT', metodo: 'RT' } });
+    expect(pickup.bloques[0].items[0]).toEqual({
+      fila: 'San Isidro',
+      campos: { ...sim, servicio: 'RT', metodo: 'RT' },
+    });
     expect(configuracion.componentes).toHaveLength(CLAVES_COMPONENTES.length);
   });
 
   it('junta todos los errores: fila que no existe, bloque que el cuadro no admite, campos que faltan o sobran', () => {
     const { errores } = normalizarConfiguracion({
-      componentes: [{
-        clave: 'store_to_store',
-        filas: [{ nombre: 'San Isidro' }, { nombre: 'san isidro' }],
-        bloques: [
-          { tipo: 'simulacion', items: [{ fila: 'San Isidro', campos: sim }] },
-          { tipo: 'picking', items: [
-            { fila: 'Miraflores', campos: { codigo: '20030' } },
-            { fila: 'San Isidro', campos: { servicio: 'SS', colorFavorito: 'azul' } },
-          ] },
-        ],
-      }],
+      componentes: [
+        {
+          clave: 'store_to_store',
+          filas: [{ nombre: 'San Isidro' }, { nombre: 'san isidro' }],
+          bloques: [
+            { tipo: 'simulacion', items: [{ fila: 'San Isidro', campos: sim }] },
+            {
+              tipo: 'picking',
+              items: [
+                { fila: 'Miraflores', campos: { codigo: '20030' } },
+                { fila: 'San Isidro', campos: { servicio: 'SS', colorFavorito: 'azul' } },
+              ],
+            },
+          ],
+        },
+      ],
     });
     expect(errores.join('\n')).toMatch(/la fila "san isidro" está dos veces/);
     expect(errores.join('\n')).toMatch(/no lleva bloques de simulacion/);
@@ -49,18 +63,22 @@ describe('La configuración del G12', () => {
   it('un ítem repetido en una fila se rechaza: se sumaría dos veces', () => {
     const item = { fila: 'A', campos: { codigo: '1480', zona: 'BT. F.E. Ica' } };
     const { errores } = normalizarConfiguracion({
-      componentes: [{ clave: 'dd_troncal', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'despacho', items: [item, item] }] }],
+      componentes: [
+        { clave: 'dd_troncal', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'despacho', items: [item, item] }] },
+      ],
     });
     expect(errores.join(' ')).toMatch(/se contaría dos veces/);
   });
 
   it('una fila de total suma filas del cuadro que no sean totales, y no lleva ítems propios', () => {
     const { errores } = normalizarConfiguracion({
-      componentes: [{
-        clave: 'dd_lima',
-        filas: [{ nombre: 'Total', suma: ['A', 'Nada'] }, { nombre: 'A' }, { nombre: 'Otro total', suma: ['Total'] }],
-        bloques: [{ tipo: 'capacidad', items: [{ fila: 'Total', campos: { lun: 1 } }] }],
-      }],
+      componentes: [
+        {
+          clave: 'dd_lima',
+          filas: [{ nombre: 'Total', suma: ['A', 'Nada'] }, { nombre: 'A' }, { nombre: 'Otro total', suma: ['Total'] }],
+          bloques: [{ tipo: 'capacidad', items: [{ fila: 'Total', campos: { lun: 1 } }] }],
+        },
+      ],
     });
     expect(errores.join('\n')).toMatch(/suma "Nada", que no es una fila/);
     expect(errores.join('\n')).toMatch(/suma "Total", que también es un total/);
@@ -69,7 +87,21 @@ describe('La configuración del G12', () => {
 
   it('un cupo a mano necesita al menos un día, en enteros', () => {
     const { errores } = normalizarConfiguracion({
-      componentes: [{ clave: 'dd_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'capacidad', items: [{ fila: 'A', campos: {} }, { fila: 'A', campos: { lun: -3 } }] }] }],
+      componentes: [
+        {
+          clave: 'dd_lima',
+          filas: [{ nombre: 'A' }],
+          bloques: [
+            {
+              tipo: 'capacidad',
+              items: [
+                { fila: 'A', campos: {} },
+                { fila: 'A', campos: { lun: -3 } },
+              ],
+            },
+          ],
+        },
+      ],
     });
     expect(errores.join('\n')).toMatch(/al menos un día/);
     expect(errores.join('\n')).toMatch(/"lun" tiene que ser un entero/);
@@ -91,7 +123,17 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
     const antes = configuracionVacia();
     const dd = antes.componentes.find((c) => c.clave === 'dd_lima')!;
     dd.filas = [{ nombre: 'Centralizado MailAmericas' }];
-    dd.bloques = [{ tipo: 'simulacion', items: [{ fila: 'Centralizado MailAmericas', campos: { servicio: 'S', operador: '1100', region: 'Lima', provincia: 'Lima', distrito: 'La Molina' } }] }];
+    dd.bloques = [
+      {
+        tipo: 'simulacion',
+        items: [
+          {
+            fila: 'Centralizado MailAmericas',
+            campos: { servicio: 'S', operador: '1100', region: 'Lima', provincia: 'Lima', distrito: 'La Molina' },
+          },
+        ],
+      },
+    ];
 
     const despues = structuredClone(antes);
     despues.componentes.find((c) => c.clave === 'dd_lima')!.bloques[0].items[0].campos.distrito = 'Surco';
@@ -114,8 +156,12 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
   it('los sub-flujos del Oracle solo van en Despacho domicilio, sin repetir y sin un "*" suelto', async () => {
     const { configuracionVacia, normalizarConfiguracion } = await import('../../../src/reportes/g12/g12.validacion.js');
     const c = configuracionVacia();
-    c.componentes.find((x) => x.clave === 'dd_lima')!.filas = [{ nombre: '90 MIN', oracle: [' Serv. 90min ', 'Serv. 90min', ''] }];
-    expect(normalizarConfiguracion(c).configuracion.componentes.find((x) => x.clave === 'dd_lima')!.filas).toEqual([{ nombre: '90 MIN', oracle: ['Serv. 90min'] }]);
+    c.componentes.find((x) => x.clave === 'dd_lima')!.filas = [
+      { nombre: '90 MIN', oracle: [' Serv. 90min ', 'Serv. 90min', ''] },
+    ];
+    expect(normalizarConfiguracion(c).configuracion.componentes.find((x) => x.clave === 'dd_lima')!.filas).toEqual([
+      { nombre: '90 MIN', oracle: ['Serv. 90min'] },
+    ]);
 
     c.componentes.find((x) => x.clave === 'sfs')!.filas = [{ nombre: 'SFS Ica', oracle: ['x'] }];
     c.componentes.find((x) => x.clave === 'dd_lima')!.filas = [{ nombre: 'SAME DAY', oracle: ['*'] }];
@@ -128,7 +174,21 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
     const { CuadrosG12Service } = await import('../../../src/reportes/g12/cuadros-g12.service.js');
     const { supabaseEnMemoria } = await import('../../fixtures/supabase-memoria.js');
     const cuadros = new CuadrosG12Service(supabaseEnMemoria({}));
-    const cuadro = (clave: 'dd_lima' | 'sfs') => ({ clave, hoy: '2026-11-10', generado: 'x', peticiones: [], actualizacionId: null, usuarioEmail: null, componente: { clave, titulo: clave, receta: 'simulada' as const, filas: [], total: { unidades: 0, capacidad: 0, porcentaje: null } } });
+    const cuadro = (clave: 'dd_lima' | 'sfs') => ({
+      clave,
+      hoy: '2026-11-10',
+      generado: 'x',
+      peticiones: [],
+      actualizacionId: null,
+      usuarioEmail: null,
+      componente: {
+        clave,
+        titulo: clave,
+        receta: 'simulada' as const,
+        filas: [],
+        total: { unidades: 0, capacidad: 0, porcentaje: null },
+      },
+    });
     await cuadros.guardar('PE', cuadro('dd_lima'));
     await cuadros.guardar('PE', cuadro('sfs'));
     await cuadros.guardar('CL', cuadro('dd_lima'));
@@ -137,4 +197,3 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
     expect([...(await cuadros.todos('CL')).keys()]).toEqual(['dd_lima']);
   });
 });
-

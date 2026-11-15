@@ -70,9 +70,14 @@ function armar({
   const registrarCambio = vi.fn();
 
   return {
-    servicio: new ReasignarCapacidadAgenteService(picking, contexto, {
-      registrarCambio,
-    } as unknown as ContextoAuditoria, configuracionCdsFalsa()),
+    servicio: new ReasignarCapacidadAgenteService(
+      picking,
+      contexto,
+      {
+        registrarCambio,
+      } as unknown as ContextoAuditoria,
+      configuracionCdsFalsa(),
+    ),
     actualizar,
     registrarCambio,
   };
@@ -156,9 +161,9 @@ describe('Reasignar capacidad: quién puede con qué', () => {
   it('hacia AT, OP, SD o SE sí lo pide, y no escribe nada', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ origen: 'ST', destino: 'SE' })),
-    ).rejects.toThrow(/necesita autorización/);
+    await expect(servicio.reasignar(USUARIO, mover({ origen: 'ST', destino: 'SE' }))).rejects.toThrow(
+      /necesita autorización/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -166,18 +171,15 @@ describe('Reasignar capacidad: quién puede con qué', () => {
   it('y el mensaje dice entre cuáles sí se puede sin permiso', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ origen: 'AT', destino: 'OP' })),
-    ).rejects.toThrow(/solo se puede entre ST, S, RC/);
+    await expect(servicio.reasignar(USUARIO, mover({ origen: 'AT', destino: 'OP' }))).rejects.toThrow(
+      /solo se puede entre ST, S, RC/,
+    );
   });
 
   it('declarar la autorización lo desbloquea', async () => {
     const { servicio, actualizar } = armar();
 
-    const r = await servicio.reasignar(
-      USUARIO,
-      mover({ origen: 'ST', destino: 'SE', autorizado: true }),
-    );
+    const r = await servicio.reasignar(USUARIO, mover({ origen: 'ST', destino: 'SE', autorizado: true }));
 
     expect(actualizar).toHaveBeenCalledTimes(2);
     expect(r.conAutorizacion).toBe(true);
@@ -187,9 +189,9 @@ describe('Reasignar capacidad: quién puede con qué', () => {
     // Lo que se vigila es a dónde va a parar tanto como de dónde sale
     const { servicio } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ origen: 'SD', destino: 'S' })),
-    ).rejects.toThrow(/necesita autorización/);
+    await expect(servicio.reasignar(USUARIO, mover({ origen: 'SD', destino: 'S' }))).rejects.toThrow(
+      /necesita autorización/,
+    );
   });
 
   it('en el 20096 la pareja libre es S y SG', async () => {
@@ -197,10 +199,7 @@ describe('Reasignar capacidad: quién puede con qué', () => {
       agendas: ['S', 'SG'].map(agenda),
     });
 
-    await servicio.reasignar(
-      USUARIO,
-      mover({ cd: '20096', origen: 'S', destino: 'SG' }),
-    );
+    await servicio.reasignar(USUARIO, mover({ cd: '20096', origen: 'S', destino: 'SG' }));
 
     expect(actualizar).toHaveBeenCalledTimes(2);
   });
@@ -211,12 +210,9 @@ describe('Reasignar capacidad: quién puede con qué', () => {
       pais: 'CL',
     });
 
-    await expect(
-      servicio.reasignar(
-        USUARIO,
-        mover({ cd: '10095', origen: 'ST', destino: 'S' }),
-      ),
-    ).rejects.toThrow(/toda reasignación necesita permiso/);
+    await expect(servicio.reasignar(USUARIO, mover({ cd: '10095', origen: 'ST', destino: 'S' }))).rejects.toThrow(
+      /toda reasignación necesita permiso/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -235,9 +231,9 @@ describe('Reasignar capacidad: las fechas', () => {
   it('cruzar fechas está cerrado, y no escribe nada', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ fechaDestino: '2026-09-24' })),
-    ).rejects.toThrow(/dentro de la misma fecha/);
+    await expect(servicio.reasignar(USUARIO, mover({ fechaDestino: '2026-09-24' }))).rejects.toThrow(
+      /dentro de la misma fecha/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -284,10 +280,17 @@ describe('Reasignar capacidad: las fechas', () => {
       }),
     );
 
-    expect([r.origen.jornada, r.origen.fecha, r.destino.jornada, r.destino.fecha]).toEqual(['DX', '2026-09-24', 'ND', '2026-09-23']);
+    expect([r.origen.jornada, r.origen.fecha, r.destino.jornada, r.destino.fecha]).toEqual([
+      'DX',
+      '2026-09-24',
+      'ND',
+      '2026-09-23',
+    ]);
     // Primero se suma al ND de hoy, después se descuenta del DX de mañana
-    expect(actualizar.mock.calls.map(([id, body]) => `${id} ${(body as { day: string }).day.slice(0, 10)}`))
-      .toEqual(['s-ND 2026-09-23', 's-DX 2026-09-24']);
+    expect(actualizar.mock.calls.map(([id, body]) => `${id} ${(body as { day: string }).day.slice(0, 10)}`)).toEqual([
+      's-ND 2026-09-23',
+      's-DX 2026-09-24',
+    ]);
   });
 
   it('si llegan fecha y fechaOrigen, manda fechaOrigen', async () => {
@@ -322,9 +325,9 @@ describe('Reasignar capacidad: cuándo se niega', () => {
     // 1000 asignadas y 950 ocupadas: solo 50 libres
     const { servicio, actualizar } = armar({ ocupado: 950 });
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ unidades: 100 })),
-    ).rejects.toThrow(/solo hay 50 libres y se piden 100/);
+    await expect(servicio.reasignar(USUARIO, mover({ unidades: 100 }))).rejects.toThrow(
+      /solo hay 50 libres y se piden 100/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -332,17 +335,15 @@ describe('Reasignar capacidad: cuándo se niega', () => {
   it('y dice que dejaría la jornada sobrevendida', async () => {
     const { servicio } = armar({ ocupado: 950 });
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ unidades: 100 })),
-    ).rejects.toThrow(/sobrevendida/);
+    await expect(servicio.reasignar(USUARIO, mover({ unidades: 100 }))).rejects.toThrow(/sobrevendida/);
   });
 
   it('si la jornada no es de ese CD', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ destino: 'SG' })),
-    ).rejects.toThrow(/SG no es una jornada de 20026/);
+    await expect(servicio.reasignar(USUARIO, mover({ destino: 'SG' }))).rejects.toThrow(
+      /SG no es una jornada de 20026/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -350,9 +351,7 @@ describe('Reasignar capacidad: cuándo se niega', () => {
   it('si el origen y el destino son la misma', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ destino: 'ST' })),
-    ).rejects.toThrow(/la misma jornada/);
+    await expect(servicio.reasignar(USUARIO, mover({ destino: 'ST' }))).rejects.toThrow(/la misma jornada/);
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -360,17 +359,17 @@ describe('Reasignar capacidad: cuándo se niega', () => {
   it('si el CD no se reconoce, y dice cuáles hay', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ cd: 'CD Inventado' })),
-    ).rejects.toThrow(/No reconozco.*20026.*20096/s);
+    await expect(servicio.reasignar(USUARIO, mover({ cd: 'CD Inventado' }))).rejects.toThrow(
+      /No reconozco.*20026.*20096/s,
+    );
   });
 
   it('si esa jornada no tiene el día configurado', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.reasignar(USUARIO, mover({ fecha: '2026-12-25' })),
-    ).rejects.toThrow(/no tiene configurado el 2026-12-25/);
+    await expect(servicio.reasignar(USUARIO, mover({ fecha: '2026-12-25' }))).rejects.toThrow(
+      /no tiene configurado el 2026-12-25/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -386,14 +385,19 @@ describe('Reasignar capacidad: el país sale del código del CD', () => {
 
   it('el 10095 con pais="PE" es de Chile: no se contesta "no lo encontré en Perú"', async () => {
     const { servicio, armarContexto } = conContexto();
-    await servicio.reasignar(USUARIO, mover({ cd: '10095', origen: 'ND', destino: 'DX', pais: 'PE', autorizado: true }));
+    await servicio.reasignar(
+      USUARIO,
+      mover({ cd: '10095', origen: 'ND', destino: 'DX', pais: 'PE', autorizado: true }),
+    );
     expect(armarContexto).toHaveBeenCalledWith(USUARIO, 'CL');
   });
 
   it('un CD que sí es del país pedido no cambia nada, y un nombre tampoco', async () => {
     const { servicio, armarContexto } = conContexto();
     await servicio.reasignar(USUARIO, mover({ cd: '20026', pais: 'PE' }));
-    await expect(servicio.reasignar(USUARIO, mover({ cd: 'fulfillment', pais: 'PE', origen: 'ND', destino: 'DX' }))).rejects.toThrow();
+    await expect(
+      servicio.reasignar(USUARIO, mover({ cd: 'fulfillment', pais: 'PE', origen: 'ND', destino: 'DX' })),
+    ).rejects.toThrow();
     expect(armarContexto.mock.calls.map((c) => c[1])).toEqual(['PE', 'PE']);
   });
 });
@@ -402,10 +406,7 @@ describe('Reasignar capacidad: el CD por su nombre', () => {
   it('"villa el salvador" es el 20026', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.reasignar(
-      USUARIO,
-      mover({ cd: 'CD Villa El Salvador' }),
-    );
+    const r = await servicio.reasignar(USUARIO, mover({ cd: 'CD Villa El Salvador' }));
 
     expect(r.cd).toBe('20026 - CD Villa El Salvador');
   });
@@ -413,10 +414,7 @@ describe('Reasignar capacidad: el CD por su nombre', () => {
   it('"aldeas" es el 20096', async () => {
     const { servicio } = armar({ agendas: ['S', 'SG'].map(agenda) });
 
-    const r = await servicio.reasignar(
-      USUARIO,
-      mover({ cd: 'aldeas', origen: 'S', destino: 'SG' }),
-    );
+    const r = await servicio.reasignar(USUARIO, mover({ cd: 'aldeas', origen: 'S', destino: 'SG' }));
 
     expect(r.cd).toBe('20096 - CD Aldea 6');
   });

@@ -80,8 +80,11 @@ async function montar() {
   const http = { put: vi.fn(() => of({ data: { ok: true } })), get: vi.fn(() => of({ data: {} })) };
   const config = {
     get: (clave: string) =>
-      clave === 'cifrado.clave' ? 'una-clave-de-prueba-con-mas-de-treinta-y-dos-caracteres'
-        : clave === 'ripley.urls' ? { PE: 'https://interno' } : '',
+      clave === 'cifrado.clave'
+        ? 'una-clave-de-prueba-con-mas-de-treinta-y-dos-caracteres'
+        : clave === 'ripley.urls'
+          ? { PE: 'https://interno' }
+          : '',
   };
 
   @Module({
@@ -100,11 +103,14 @@ async function montar() {
       {
         provide: RipleyHttpService,
         inject: [ContextoAuditoria],
-        useFactory: (contexto: ContextoAuditoria) => new RipleyHttpService(
-          http as unknown as HttpService, config as unknown as ConfigService, contexto,
-          { obtenerParaUso: vi.fn().mockResolvedValue('token-de-ripley') } as unknown as TokenRipleyService,
-          { olvidar: vi.fn() } as unknown as CacheCatalogosService,
-        ),
+        useFactory: (contexto: ContextoAuditoria) =>
+          new RipleyHttpService(
+            http as unknown as HttpService,
+            config as unknown as ConfigService,
+            contexto,
+            { obtenerParaUso: vi.fn().mockResolvedValue('token-de-ripley') } as unknown as TokenRipleyService,
+            { olvidar: vi.fn() } as unknown as CacheCatalogosService,
+          ),
       },
       { provide: APP_GUARD, useClass: SupabaseAuthGuard },
       { provide: APP_GUARD, useClass: AgenteGuard },
@@ -135,7 +141,8 @@ describe('Un paso de una rutina llamando a una herramienta', () => {
     m = await montar();
   });
 
-  const comoPaso = (r: request.Test, token: string) => r.set('Authorization', `Bearer ${token}`).set('X-Origen', 'agente');
+  const comoPaso = (r: request.Test, token: string) =>
+    r.set('Authorization', `Bearer ${token}`).set('X-Origen', 'agente');
 
   it('en una prueba escribe sin el interruptor, pero en simulacro: nada sale hacia Ripley', async () => {
     const { token } = m.emitir('prueba');
@@ -154,7 +161,12 @@ describe('Un paso de una rutina llamando a una herramienta', () => {
 
     expect(m.llamadas.tomar(permiso.id)).toEqual([
       { herramienta: 'Editar capacidad de una agenda', estado: 200, problemas: [], escriturasEvitadas: 1 },
-      { herramienta: 'Capacidad de agendas', estado: 200, problemas: ['El operador 1088 no tiene la zona 4'], escriturasEvitadas: 0 },
+      {
+        herramienta: 'Capacidad de agendas',
+        estado: 200,
+        problemas: ['El operador 1088 no tiene la zona 4'],
+        escriturasEvitadas: 0,
+      },
     ]);
   });
 
@@ -165,8 +177,19 @@ describe('Un paso de una rutina llamando a una herramienta', () => {
     await comoPaso(request(m.servidor).put('/agente/tipo-servicio'), token).expect(400);
 
     expect(m.llamadas.tomar(permiso.id)).toEqual([
-      { herramienta: 'Activar o desactivar agendas en bloque', estado: 400, problemas: [], escriturasEvitadas: 0, yaEstaba: true },
-      { herramienta: 'Editar un tipo de servicio', estado: 400, problemas: ['La agenda no tiene el servicio DX'], escriturasEvitadas: 0 },
+      {
+        herramienta: 'Activar o desactivar agendas en bloque',
+        estado: 400,
+        problemas: [],
+        escriturasEvitadas: 0,
+        yaEstaba: true,
+      },
+      {
+        herramienta: 'Editar un tipo de servicio',
+        estado: 400,
+        problemas: ['La agenda no tiene el servicio DX'],
+        escriturasEvitadas: 0,
+      },
     ]);
   });
 

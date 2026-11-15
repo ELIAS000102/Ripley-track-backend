@@ -121,10 +121,32 @@ export function normalizar(s: string): string {
 // ───────────────────────── Fechas ─────────────────────────
 
 const MESES: Record<string, number> = {
-  enero: 1, ene: 1, febrero: 2, feb: 2, marzo: 3, mar: 3, abril: 4, abr: 4,
-  mayo: 5, may: 5, junio: 6, jun: 6, julio: 7, jul: 7, agosto: 8, ago: 8,
-  septiembre: 9, setiembre: 9, sep: 9, set: 9, octubre: 10, oct: 10,
-  noviembre: 11, nov: 11, diciembre: 12, dic: 12,
+  enero: 1,
+  ene: 1,
+  febrero: 2,
+  feb: 2,
+  marzo: 3,
+  mar: 3,
+  abril: 4,
+  abr: 4,
+  mayo: 5,
+  may: 5,
+  junio: 6,
+  jun: 6,
+  julio: 7,
+  jul: 7,
+  agosto: 8,
+  ago: 8,
+  septiembre: 9,
+  setiembre: 9,
+  sep: 9,
+  set: 9,
+  octubre: 10,
+  oct: 10,
+  noviembre: 11,
+  nov: 11,
+  diciembre: 12,
+  dic: 12,
 };
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -151,7 +173,9 @@ function diferencia(desde: string, hasta: string): number {
 function fechasDelTexto(original: string, plano: string, hoy: string): string[] {
   const anio = Number(hoy.slice(0, 4));
   const encontradas: Array<{ pos: number; fecha: string }> = [];
-  const anotar = (pos: number, f: string | null) => { if (f) encontradas.push({ pos, fecha: f }); };
+  const anotar = (pos: number, f: string | null) => {
+    if (f) encontradas.push({ pos, fecha: f });
+  };
 
   // 2026-10-03
   for (const m of original.matchAll(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g)) {
@@ -184,7 +208,9 @@ function fechasDelTexto(original: string, plano: string, hoy: string): string[] 
   }
   // "el viernes", "este lunes", "el proximo martes": la siguiente vez (hoy incluido)
   const hoyDia = new Date(`${hoy}T00:00:00Z`).getUTCDay();
-  for (const m of plano.matchAll(/\b(?:el|este|esta|proximo|el proximo) (domingo|lunes|martes|miercoles|jueves|viernes|sabado)\b/g)) {
+  for (const m of plano.matchAll(
+    /\b(?:el|este|esta|proximo|el proximo) (domingo|lunes|martes|miercoles|jueves|viernes|sabado)\b/g,
+  )) {
     const objetivo = DIAS_SEMANA.indexOf(m[1]);
     const salto = (objetivo - hoyDia + 7) % 7;
     anotar(m.index + 30_000, sumar(hoy, salto));
@@ -237,7 +263,21 @@ export function fechasDichas(original: string, hoy: string): string[] {
 
 /** Los códigos de servicio y de jornada que se usan en la operación */
 export const SERVICIOS_CONOCIDOS = [
-  'ST', 'SS', 'SG', 'SE', 'RT', 'RE', 'DT', 'SD', 'S', 'EX', 'AT', 'OP', 'ND', 'DX', 'RC',
+  'ST',
+  'SS',
+  'SG',
+  'SE',
+  'RT',
+  'RE',
+  'DT',
+  'SD',
+  'S',
+  'EX',
+  'AT',
+  'OP',
+  'ND',
+  'DX',
+  'RC',
 ];
 
 /**
@@ -284,7 +324,8 @@ function sinFechas(original: string): string {
 const CAMBIO =
   /\b(cambia|cambiar|cambiale|modifica|modificar|actualiza|actualizar|sube|subir|subele|baja|bajar|bajale|aumenta|aumentar|reduce|reducir|asigna|asignar|pon|poner|ponle|desactiva|desactivar|desactivalo|desactivala|desactivalas|desactivalos|habilita|habilitar|deshabilita|deshabilitar|inhabilita|cierra|cerrar|cierralo|abre|abrir|abrelo|apertura|aperturar|apertura|apaga|apagar|enciende|encender|prende|prender|quita|quitar|corta|cortar|cortale|reabre|reabrir|reasigna|reasignar|traspasa|traspasar|mueve|mover|bloquea|bloquear|desbloquea)\b|(?<!esta |estan |sigue |siguen |queda |quedan |este |esten )\bactiva(r|la|las|lo|los)?\b(?! (y|o) (inactiva|desactiva))/;
 
-const ACTIVAR = /\b(activa\w*|habilita\w*|abre|abrir|abrelo|apertur\w*|reabr\w*|enciende|encender|prende|prender|desbloquea\w*)\b/;
+const ACTIVAR =
+  /\b(activa\w*|habilita\w*|abre|abrir|abrelo|apertur\w*|reabr\w*|enciende|encender|prende|prender|desbloquea\w*)\b/;
 const DESACTIVAR = /\b(desactiva\w*|deshabilita\w*|inhabilita\w*|cierra\w*|cerrar|corta\w*|apaga\w*|bloquea\w*)\b/;
 
 /**
@@ -310,9 +351,12 @@ const TEMAS: Record<string, RegExp> = {
   transferencia: /transferenc|desfase|desface|fuente de stock|tiempo de transito|dias de preparacion/,
   simulacion: /simul|cuando lleg|fecha de entrega|cuanto (demora|tarda)|tiempo de entrega/,
   reporte: /\breporte\b|todos los cds?\b|que cds?\b|saturad|carga (general|de los cds?)|como esta la carga/,
-  servicio: /\bservicios? (de|del|que tiene|tiene)|tipos? de servicio|con que servicios|checkout|hora de corte|\bcortes?\b de|holgura|ocurrenc/,
-  masiva: /\b(que|cuales|cuantos|cuantas) (opls?|operadores|couriers?|agendas)\b|\b(opls?|operadores|agendas) (de|del|con|que tienen)\b|quien(es)? tiene|en bloque|masiv/,
-  capacidad: /capacidad|ocupaci|disponib|\bcupos?\b|asignad|\bagendas?\b|jornadas?|picking|despacho|recepci|recib|\bzonas?\b|\bfechas?\b/,
+  servicio:
+    /\bservicios? (de|del|que tiene|tiene)|tipos? de servicio|con que servicios|checkout|hora de corte|\bcortes?\b de|holgura|ocurrenc/,
+  masiva:
+    /\b(que|cuales|cuantos|cuantas) (opls?|operadores|couriers?|agendas)\b|\b(opls?|operadores|agendas) (de|del|con|que tienen)\b|quien(es)? tiene|en bloque|masiv/,
+  capacidad:
+    /capacidad|ocupaci|disponib|\bcupos?\b|asignad|\bagendas?\b|jornadas?|picking|despacho|recepci|recib|\bzonas?\b|\bfechas?\b/,
 };
 
 /** El consumo al 100 % dicho sin la cifra */
@@ -325,14 +369,16 @@ const CAPACIDAD_DE_TRANSFERENCIA =
 
 // ───────────────────────── Atajos ─────────────────────────
 
-const COMUNES = new Set((
-  'a al con de del el en es la las lo los o para por se su sus un una y que si no mas menos ' +
-  'todo todos toda todas cada contra propio propia cual cuales esta este solicitar consultar ' +
-  'saber ver dar dame estado activar desactivar simular simulacion capacidad despacho picking ' +
-  'recepcion opl opls operador operadores agenda agendas zona zonas servicio servicios tienda ' +
-  'tiendas almacen cd cds chile peru lima uno dos tres cinco once disponibles disponible siempre ' +
-  's sd se st ss sg rt re dt dp ex at op rc nd dx'
-).split(' '));
+const COMUNES = new Set(
+  (
+    'a al con de del el en es la las lo los o para por se su sus un una y que si no mas menos ' +
+    'todo todos toda todas cada contra propio propia cual cuales esta este solicitar consultar ' +
+    'saber ver dar dame estado activar desactivar simular simulacion capacidad despacho picking ' +
+    'recepcion opl opls operador operadores agenda agendas zona zonas servicio servicios tienda ' +
+    'tiendas almacen cd cds chile peru lima uno dos tres cinco once disponibles disponible siempre ' +
+    's sd se st ss sg rt re dt dp ex at op rc nd dx'
+  ).split(' '),
+);
 
 /** Lo que se dice entre paréntesis en una descripción es su apodo: "(BT LIMA)" */
 function apodos(p: AtajoConocido): string[] {
@@ -363,22 +409,32 @@ function tocaAtajo(plano: string, lista: AtajoConocido[]): boolean {
 
 /** El tema de cada tipo de bloque de un atajo, en los términos de TEMAS */
 const TEMA_DEL_TIPO: Record<string, string> = {
-  picking: 'capacidad', despacho: 'capacidad', recepcion: 'capacidad',
-  opl: 'servicios', masivo: 'servicios', simulacion: 'simulacion', transferencia: 'transferencia',
+  picking: 'capacidad',
+  despacho: 'capacidad',
+  recepcion: 'capacidad',
+  opl: 'servicios',
+  masivo: 'servicios',
+  simulacion: 'simulacion',
+  transferencia: 'transferencia',
 };
 /** "servicio" y "masiva" son el mismo tema visto desde dos lados: qué tiene uno, quién tiene uno */
 const temaDe = (t: string) => (t === 'servicio' || t === 'masiva' ? 'servicios' : t);
 
 /** Palabras que no distinguen un atajo de otro, además de COMUNES */
-const GENERICAS = new Set((
-  'para forma tipo tipos cuentan cuenta tienen tiene editar masiva masivo respectivo respectivos ' +
-  'respectivas respectiva sobre entre hacia desde estado estados activo activos activa activas ' +
-  'inactivo inactivos dias fecha fechas'
-).split(' '));
-
-const palabrasPropias = (texto: string) => new Set(
-  normalizar(texto).split(' ').filter((t) => t.length >= 4 && !/^\d+$/.test(t) && !COMUNES.has(t) && !GENERICAS.has(t)),
+const GENERICAS = new Set(
+  (
+    'para forma tipo tipos cuentan cuenta tienen tiene editar masiva masivo respectivo respectivos ' +
+    'respectivas respectiva sobre entre hacia desde estado estados activo activos activa activas ' +
+    'inactivo inactivos dias fecha fechas'
+  ).split(' '),
 );
+
+const palabrasPropias = (texto: string) =>
+  new Set(
+    normalizar(texto)
+      .split(' ')
+      .filter((t) => t.length >= 4 && !/^\d+$/.test(t) && !COMUNES.has(t) && !GENERICAS.has(t)),
+  );
 
 /**
  * El filtro previo: qué atajos pueden servir para el mensaje.
@@ -407,27 +463,42 @@ function atajosPosibles(
     const motivos: string[] = [];
     let puntos = 0;
 
-    if (dicho.nombradas.includes(p.nombre)) { puntos += 10; motivos.push('nombrada'); }
+    if (dicho.nombradas.includes(p.nombre)) {
+      puntos += 10;
+      motivos.push('nombrada');
+    }
 
     const suyos = serviciosDelTexto(texto);
     const comunes = dicho.servicios.filter((s) => suyos.includes(s));
-    if (comunes.length) { puntos += 3 * comunes.length; motivos.push(`servicio ${comunes.join(', ')}`); }
-    else if (dicho.servicios.length && suyos.length) puntos -= 4;
+    if (comunes.length) {
+      puntos += 3 * comunes.length;
+      motivos.push(`servicio ${comunes.join(', ')}`);
+    } else if (dicho.servicios.length && suyos.length) puntos -= 4;
 
     const suyosTemas = new Set([
       ...(p.tipos ?? []).map((t) => TEMA_DEL_TIPO[t]).filter(Boolean),
-      ...Object.keys(TEMAS).filter((t) => TEMAS[t].test(normalizar(texto))).map(temaDe),
+      ...Object.keys(TEMAS)
+        .filter((t) => TEMAS[t].test(normalizar(texto)))
+        .map(temaDe),
     ]);
     const temaComun = [...temasDichos].find((t) => suyosTemas.has(t));
-    if (temaComun) { puntos += 2; motivos.push(`tema ${temaComun}`); }
-    else if (temasDichos.size && suyosTemas.size) puntos -= 2;
+    if (temaComun) {
+      puntos += 2;
+      motivos.push(`tema ${temaComun}`);
+    } else if (temasDichos.size && suyosTemas.size) puntos -= 2;
 
     const plano2 = ` ${normalizar(texto)} `;
     const codigos = dicho.codigos.filter((c) => plano2.includes(` ${c} `));
-    if (codigos.length) { puntos += 4 * codigos.length; motivos.push(`código ${codigos.join(', ')}`); }
+    if (codigos.length) {
+      puntos += 4 * codigos.length;
+      motivos.push(`código ${codigos.join(', ')}`);
+    }
 
     const propias = [...palabrasPropias(texto)].filter((t) => propiasDichas.has(t));
-    if (propias.length) { puntos += 2 * Math.min(2, propias.length); motivos.push(`dice "${propias.slice(0, 2).join('", "')}"`); }
+    if (propias.length) {
+      puntos += 2 * Math.min(2, propias.length);
+      motivos.push(`dice "${propias.slice(0, 2).join('", "')}"`);
+    }
 
     return { nombre: p.nombre, motivo: motivos.join(' · '), puntos };
   });
@@ -465,10 +536,13 @@ export function interpretar(
   const lista = opciones.atajos ?? [];
 
   // ── El país: dicho, o deducido del CD ──
-  let pais: 'PE' | 'CL' | null = /\b(chile|chilen[oa]s?)\b/.test(plano) ? 'CL'
-    : /\b(peru|peruan[oa]s?)\b/.test(plano) ? 'PE'
-    : opciones.pais === 'CL' || opciones.pais === 'PE' ? opciones.pais
-    : null;
+  let pais: 'PE' | 'CL' | null = /\b(chile|chilen[oa]s?)\b/.test(plano)
+    ? 'CL'
+    : /\b(peru|peruan[oa]s?)\b/.test(plano)
+      ? 'PE'
+      : opciones.pais === 'CL' || opciones.pais === 'PE'
+        ? opciones.pais
+        : null;
 
   // ── Los CDs: por código siempre; por nombre solo si se habla de un CD ──
   const sinF = sinFechas(original);
@@ -498,8 +572,9 @@ export function interpretar(
     const t = m[1];
     const antes = normalizar(sinF.slice(Math.max(0, m.index - 12), m.index));
     const despues = normalizar(sinF.slice(m.index + t.length, m.index + t.length + 12));
-    const esCantidad = /(?:^| )(a|en|de a|hasta|por|unidades)$/.test(antes) && !/(?:^| )(opl|operador)$/.test(antes)
-      || /^(unidades|und|uds|u)\b/.test(despues);
+    const esCantidad =
+      (/(?:^| )(a|en|de a|hasta|por|unidades)$/.test(antes) && !/(?:^| )(opl|operador)$/.test(antes)) ||
+      /^(unidades|und|uds|u)\b/.test(despues);
 
     if (/^\d{5}$/.test(t)) {
       if (!cds.some((c) => c.code === t) && !almacenes.includes(t)) almacenes.push(t);
@@ -531,17 +606,27 @@ export function interpretar(
   const accion: Interpretacion['accion'] = cambio ? 'cambiar' : 'consultar';
 
   const sinDesactivar = sinEstados.replace(new RegExp(DESACTIVAR.source, 'g'), ' ');
-  const sentido = !cambio ? null
-    : pedido ? (ESTADO_APAGADO.test(pedido[2]) ? 'desactivar' : 'activar')
-    : DESACTIVAR.test(sinEstados) && !ACTIVAR.test(sinDesactivar) ? 'desactivar'
-    : ACTIVAR.test(sinDesactivar) ? 'activar'
-    : null;
+  const sentido = !cambio
+    ? null
+    : pedido
+      ? ESTADO_APAGADO.test(pedido[2])
+        ? 'desactivar'
+        : 'activar'
+      : DESACTIVAR.test(sinEstados) && !ACTIVAR.test(sinDesactivar)
+        ? 'desactivar'
+        : ACTIVAR.test(sinDesactivar)
+          ? 'activar'
+          : null;
 
-  const agenda: Interpretacion['agenda'] = /recepci|recib/.test(plano) ? 'recepcion'
-    : /despacho|\bzonas?\b/.test(plano) ? 'despacho'
-    : /picking|jornada/.test(plano) || cds.length ? 'picking'
-    : operadores.length && fechas && cambio ? 'despacho'
-    : null;
+  const agenda: Interpretacion['agenda'] = /recepci|recib/.test(plano)
+    ? 'recepcion'
+    : /despacho|\bzonas?\b/.test(plano)
+      ? 'despacho'
+      : /picking|jornada/.test(plano) || cds.length
+        ? 'picking'
+        : operadores.length && fechas && cambio
+          ? 'despacho'
+          : null;
 
   /*
    * "La capacidad de transferencia del 20026 a la 20021" —cuántas unidades al
@@ -557,22 +642,30 @@ export function interpretar(
   const hayCodigos = cds.length + operadores.length + almacenes.length > 0;
 
   // ── Atajos ──
-  const listar = /\batajos?\b|preconfiguraci/.test(plano)
-    && /\b(cuales|que|lista|listado|hay|tienes|tenemos|existen|guardadas|muestrame|ensename)\b/.test(plano)
-    && !/\b(ejecuta|ejecutar|corre|correr|lanza|lanzar|haz)\b/.test(plano);
+  const listar =
+    /\batajos?\b|preconfiguraci/.test(plano) &&
+    /\b(cuales|que|lista|listado|hay|tienes|tenemos|existen|guardadas|muestrame|ensename)\b/.test(plano) &&
+    !/\b(ejecuta|ejecutar|corre|correr|lanza|lanzar|haz)\b/.test(plano);
   const atajos = atajosNombrados(plano, lista);
   const tocaGuardada = tocaAtajo(plano, lista);
-  const posibles = listar ? [] : atajosPosibles(plano, lista, {
-    nombradas: atajos,
-    servicios,
-    temas,
-    codigos: [...cds.map((c) => c.code), ...operadores, ...almacenes],
-  });
+  const posibles = listar
+    ? []
+    : atajosPosibles(plano, lista, {
+        nombradas: atajos,
+        servicios,
+        temas,
+        codigos: [...cds.map((c) => c.code), ...operadores, ...almacenes],
+      });
 
   // ── Los candidatos ──
   const candidatos: Caso[] = [];
   const motivos: string[] = [];
-  const agregar = (c: Caso, por: string) => { if (!candidatos.includes(c)) { candidatos.push(c); motivos.push(`${c}: ${por}`); } };
+  const agregar = (c: Caso, por: string) => {
+    if (!candidatos.includes(c)) {
+      candidatos.push(c);
+      motivos.push(`${c}: ${por}`);
+    }
+  };
 
   if (listar) agregar('atajos', 'pregunta cuáles hay');
   if (atajos.length && !cambio) agregar('atajo', 'nombra uno guardado');
@@ -583,10 +676,15 @@ export function interpretar(
     agregar('editar_transferencia', 'verbo de cambio y transferencia');
   } else if (cambio) {
     if (cds.length || agenda || fechas || capacidadDeTransferencia || /asignad|capacidad|cupo/.test(plano)) {
-      agregar('editar_capacidad', cds.length ? 'cambio sobre un CD' : fechas ? 'cambio sobre días' : 'cambio de capacidad');
+      agregar(
+        'editar_capacidad',
+        cds.length ? 'cambio sobre un CD' : fechas ? 'cambio sobre días' : 'cambio de capacidad',
+      );
     }
-    if (/checkout|hora de corte|\bcortes? de\b|holgura|ocurrenc/.test(plano)
-        || (servicios.length && !fechas && !cds.length && !agenda)) {
+    if (
+      /checkout|hora de corte|\bcortes? de\b|holgura|ocurrenc/.test(plano) ||
+      (servicios.length && !fechas && !cds.length && !agenda)
+    ) {
       agregar('editar_servicio', 'cambio sobre un servicio');
     }
   } else {
@@ -596,11 +694,20 @@ export function interpretar(
     if (temas.includes('servicio') && (hayCodigos || /\b(el|la|del) [a-z]+\b/.test(plano))) {
       agregar('tipo_servicio', 'pregunta por los servicios de un código');
     }
-    if (servicios.length && !operadores.length && !almacenes.length && !cds.length
-        && (temas.includes('masiva') || /\b(opls?|operadores|agendas)\b/.test(plano))) {
+    if (
+      servicios.length &&
+      !operadores.length &&
+      !almacenes.length &&
+      !cds.length &&
+      (temas.includes('masiva') || /\b(opls?|operadores|agendas)\b/.test(plano))
+    ) {
       agregar('busqueda_masiva', 'pregunta qué operadores tienen un servicio');
     }
-    if (temas.includes('capacidad') && (hayCodigos || agenda || capacidadDeTransferencia) && !temas.includes('transferencia')) {
+    if (
+      temas.includes('capacidad') &&
+      (hayCodigos || agenda || capacidadDeTransferencia) &&
+      !temas.includes('transferencia')
+    ) {
       agregar('capacidad', 'pregunta por la capacidad de un código');
     }
   }
@@ -615,7 +722,11 @@ export function interpretar(
    * caso propio: va al agente del tema principal, que pide lo demás a los
    * agentes de los otros temas.
    */
-  const pideCruce = !cambio && /\b(cruce|cruza|cruzar|cruzalo|cruzalos|compara|comparar|comparalo|comparacion|coincid\w*|contrasta\w*|versus|vs)\b/.test(plano);
+  const pideCruce =
+    !cambio &&
+    /\b(cruce|cruza|cruzar|cruzalo|cruzalos|compara|comparar|comparalo|comparacion|coincid\w*|contrasta\w*|versus|vs)\b/.test(
+      plano,
+    );
   const cruceDeServicios = pideCruce && servicios.length >= 2 && !hayCodigos;
 
   if (cruceDeServicios) agregar('busqueda_masiva', 'cruza los operadores de varios servicios');
@@ -637,7 +748,10 @@ export function interpretar(
         // Nombrada, sí; que solo pueda servir (el filtro previo) lo decide el modelo
         return atajos.length > 0;
       case 'editar_capacidad':
-        return Boolean(cds.length || operadores.length || almacenes.length) && Boolean(fechas || cds.length || servicios.length);
+        return (
+          Boolean(cds.length || operadores.length || almacenes.length) &&
+          Boolean(fechas || cds.length || servicios.length)
+        );
       case 'editar_servicio':
         return Boolean(servicios.length) && !fechas;
       case 'editar_transferencia':
@@ -695,8 +809,7 @@ export function interpretar(
     // que el mensaje lleve códigos: "la capacidad del big ticket" puede ser la
     // guardada; "la capacidad del 1130" no. Y también si el filtro previo
     // encontró alguna que puede servir
-    const dudaGuardada = ((tocaGuardada && !hayCodigos) || hayPosibles)
-      && !['atajo', 'atajos'].includes(candidatos[0]);
+    const dudaGuardada = ((tocaGuardada && !hayCodigos) || hayPosibles) && !['atajo', 'atajos'].includes(candidatos[0]);
     if (!dudaGuardada) {
       caso = candidatos[0];
       certeza = 'alta';

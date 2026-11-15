@@ -22,7 +22,9 @@ export class WebhookAgenteService {
   async preguntar(cuerpo: Record<string, unknown>, esperaMs = ESPERA_PASO_MS): Promise<RespuestaAgente> {
     const url = this.config.get<string>('agente.webhookUrl')?.trim();
     if (!url) {
-      throw new Error('No hay webhook de n8n configurado (N8N_WEBHOOK_URL): sin él, Silvana no puede ejecutar la rutina.');
+      throw new Error(
+        'No hay webhook de n8n configurado (N8N_WEBHOOK_URL): sin él, Silvana no puede ejecutar la rutina.',
+      );
     }
 
     let res: Response;

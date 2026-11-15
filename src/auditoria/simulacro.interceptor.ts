@@ -1,10 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-  SetMetadata,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor, SetMetadata } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import { map, Observable } from 'rxjs';
@@ -60,16 +54,16 @@ export class SimulacroInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map((cuerpo) => {
         if (!this.contexto.enSimulacro()) return cuerpo;
-        if (this.reflector.getAllAndOverride<boolean>(SIN_MARCA_SIMULACRO, [context.getHandler(), context.getClass()])) {
+        if (
+          this.reflector.getAllAndOverride<boolean>(SIN_MARCA_SIMULACRO, [context.getHandler(), context.getClass()])
+        ) {
           return cuerpo;
         }
 
         context.switchToHttp().getResponse<Response>().setHeader?.('X-Simulacro', 'si');
 
         const plano =
-          cuerpo !== null &&
-          typeof cuerpo === 'object' &&
-          Object.getPrototypeOf(cuerpo) === Object.prototype;
+          cuerpo !== null && typeof cuerpo === 'object' && Object.getPrototypeOf(cuerpo) === Object.prototype;
 
         if (!plano) return cuerpo;
 

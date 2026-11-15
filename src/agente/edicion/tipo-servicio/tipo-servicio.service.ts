@@ -1,20 +1,11 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplService } from '../../../configuracion/tipo-servicio/opl/opl.service.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarTipoServicioDto } from '../../dto/edicion.dto.js';
-import type {
-  EstadoServicio,
-  ServicioEditado,
-  TipoServicioEditado,
-} from '../../interfaces/edicion.interface.js';
+import type { EstadoServicio, ServicioEditado, TipoServicioEditado } from '../../interfaces/edicion.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
@@ -22,7 +13,11 @@ import { filtrarPorNombre } from '../../utils/nombre.util.js';
 import { AgendasDeAtajoService } from '../capacidad/agendas-de-atajo.service.js';
 
 /** El código de un operador tal como lo guarda un atajo: "1088" o "1088 - Courier" */
-const codigoDeOpl = (s: string) => resolverAliasOpl(String(s ?? '').trim()).split(/\s*[-·]\s*/)[0].trim().toUpperCase();
+const codigoDeOpl = (s: string) =>
+  resolverAliasOpl(String(s ?? '').trim())
+    .split(/\s*[-·]\s*/)[0]
+    .trim()
+    .toUpperCase();
 import { POR_VEZ } from '../../constantes/limites.constants.js';
 
 /**
@@ -103,10 +98,7 @@ export class EditarTipoServicioAgenteService {
     private readonly agendasGuardadas: AgendasDeAtajoService,
   ) {}
 
-  async editar(
-    usuario: UsuarioAutenticado,
-    dto: EditarTipoServicioDto,
-  ): Promise<TipoServicioEditado> {
+  async editar(usuario: UsuarioAutenticado, dto: EditarTipoServicioDto): Promise<TipoServicioEditado> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
@@ -157,18 +149,15 @@ export class EditarTipoServicioAgenteService {
       // Lo que se dijo explícitamente manda; lo demás, lo guardado
       const suyas = guardadas?.agendas.filter((a) => codigoDeOpl(a.codigo) === codigoDeOpl(termino)) ?? [];
       const variantes: EditarTipoServicioDto[] = suyas.length
-        ? suyas.map((g) => ({ ...dto, zona: dto.zona || g.zona || undefined, agenda: dto.agenda || g.agenda || undefined }))
+        ? suyas.map((g) => ({
+            ...dto,
+            zona: dto.zona || g.zona || undefined,
+            agenda: dto.agenda || g.agenda || undefined,
+          }))
         : [dto];
 
       for (const pedido of variantes) {
-        const { filas, etiqueta } = await this.editarUnOpl(
-          termino,
-          pedido,
-          pedidos,
-          cambio,
-          corte,
-          pais,
-        );
+        const { filas, etiqueta } = await this.editarUnOpl(termino, pedido, pedidos, cambio, corte, pais);
 
         if (!opls.includes(etiqueta)) opls.push(etiqueta);
         servicios.push(...filas);
@@ -252,9 +241,7 @@ export class EditarTipoServicioAgenteService {
     // Se resuelven todos antes de escribir ninguno: descubrir a mitad que el
     // tercer código no existe deja la agenda con dos servicios cambiados
     const resueltos = pedidos.map((codigo) => {
-      const servicio = servicios.find(
-        (s) => s.code?.toUpperCase() === codigo.toUpperCase(),
-      );
+      const servicio = servicios.find((s) => s.code?.toUpperCase() === codigo.toUpperCase());
 
       if (!servicio) {
         return {
@@ -316,9 +303,7 @@ export class EditarTipoServicioAgenteService {
         };
       }
 
-      const nuevo = despues.find(
-        (s) => s.idServicio === r.servicio!.idServicio,
-      );
+      const nuevo = despues.find((s) => s.idServicio === r.servicio!.idServicio);
 
       return {
         ...base,
@@ -327,9 +312,7 @@ export class EditarTipoServicioAgenteService {
         // Por `estadoDe` y no a mano: el "antes" y el "después" tienen que
         // enseñar los mismos campos, y escrito dos veces uno se queda corto
         despues: this.estadoDe(nuevo ?? {}),
-        ...(r.cambia
-          ? {}
-          : { error: 'Ya estaba así. No he cambiado nada aquí.' }),
+        ...(r.cambia ? {} : { error: 'Ya estaba así. No he cambiado nada aquí.' }),
       };
     });
 
@@ -343,20 +326,14 @@ export class EditarTipoServicioAgenteService {
    * operador, y aplicar la misma a varios de golpe es un cambio que nadie pidió
    * con ese detalle.
    */
-  private oplsPedidos(
-    opl: string,
-    corte?: { id: number; value: string },
-  ): string[] {
+  private oplsPedidos(opl: string, corte?: { id: number; value: string }): string[] {
     const lista = partirLista(opl);
 
     if (!lista.length) {
       throw new BadRequestException('Indica al menos un operador logístico.');
     }
 
-    const unicos = lista.filter(
-      (o, i) =>
-        lista.findIndex((x) => x.toLowerCase() === o.toLowerCase()) === i,
-    );
+    const unicos = lista.filter((o, i) => lista.findIndex((x) => x.toLowerCase() === o.toLowerCase()) === i);
 
     if (corte && unicos.length > 1) {
       throw new BadRequestException(
@@ -383,10 +360,7 @@ export class EditarTipoServicioAgenteService {
    * código correcto o dejarlo estar—, y un mensaje genérico le quita la
    * información con la que decide.
    */
-  private exigirAlgunResultado(
-    servicios: ServicioEditado[],
-    cambiados: number,
-  ): void {
+  private exigirAlgunResultado(servicios: ServicioEditado[], cambiados: number): void {
     if (cambiados) return;
 
     const motivos = [...new Set(servicios.map((s) => s.error))].filter(Boolean);
@@ -398,15 +372,9 @@ export class EditarTipoServicioAgenteService {
       motivos.length === 1
         ? motivos[0]!
         : `Ninguno de los ${servicios.length} cambios se pudo aplicar. ` +
-          servicios
-            .map(
-              (s) => `${s.servicio}${s.opl ? ` (${s.opl})` : ''}: ${s.error}`,
-            )
-            .join('; ');
+          servicios.map((s) => `${s.servicio}${s.opl ? ` (${s.opl})` : ''}: ${s.error}`).join('; ');
 
-    throw nadaExiste
-      ? new NotFoundException(texto)
-      : new BadRequestException(texto);
+    throw nadaExiste ? new NotFoundException(texto) : new BadRequestException(texto);
   }
 
   /**
@@ -468,20 +436,14 @@ export class EditarTipoServicioAgenteService {
    * distinta para cada servicio, y aplicar la misma a varios de golpe es un
    * cambio que nadie pidió con ese detalle.
    */
-  private serviciosPedidos(
-    servicio: string,
-    corte?: { id: number; value: string },
-  ): string[] {
+  private serviciosPedidos(servicio: string, corte?: { id: number; value: string }): string[] {
     const lista = partirLista(servicio);
 
     if (!lista.length) {
       throw new BadRequestException('Indica al menos un servicio.');
     }
 
-    const unicos = lista.filter(
-      (s, i) =>
-        lista.findIndex((x) => x.toUpperCase() === s.toUpperCase()) === i,
-    );
+    const unicos = lista.filter((s, i) => lista.findIndex((x) => x.toUpperCase() === s.toUpperCase()) === i);
 
     if (corte && unicos.length > 1) {
       throw new BadRequestException(
@@ -491,9 +453,7 @@ export class EditarTipoServicioAgenteService {
     }
 
     if (unicos.length > SERVICIOS_MAXIMOS) {
-      throw new BadRequestException(
-        `Son ${unicos.length} servicios y el máximo por vez es ${SERVICIOS_MAXIMOS}.`,
-      );
+      throw new BadRequestException(`Son ${unicos.length} servicios y el máximo por vez es ${SERVICIOS_MAXIMOS}.`);
     }
 
     return unicos;
@@ -515,9 +475,7 @@ export class EditarTipoServicioAgenteService {
     const { opls } = await this.opl.buscarOpl(buscado, pais);
 
     if (!opls.length) {
-      throw new NotFoundException(
-        `No se encontró ningún operador logístico que coincida con "${dto.opl}"`,
-      );
+      throw new NotFoundException(`No se encontró ningún operador logístico que coincida con "${dto.opl}"`);
     }
 
     const operador = opls.find((o) => o.code === buscado.trim()) ?? opls[0];
@@ -543,21 +501,13 @@ export class EditarTipoServicioAgenteService {
     return { operador, zona, agenda };
   }
 
-  private unica<T>(
-    candidatos: T[],
-    todos: T[],
-    etiqueta: (item: T) => string,
-    donde: string,
-    que: string,
-  ): T {
+  private unica<T>(candidatos: T[], todos: T[], etiqueta: (item: T) => string, donde: string, que: string): T {
     if (candidatos.length === 1) return candidatos[0];
 
     const opciones = todos.map(etiqueta).join(', ') || 'ninguna';
 
     if (!candidatos.length) {
-      throw new NotFoundException(
-        `No encontré ${que} que pides en ${donde}. Las opciones son: ${opciones}`,
-      );
+      throw new NotFoundException(`No encontré ${que} que pides en ${donde}. Las opciones son: ${opciones}`);
     }
 
     throw new BadRequestException(
@@ -568,17 +518,13 @@ export class EditarTipoServicioAgenteService {
   // ---------- Horas de corte ----------
 
   /** "jueves" + "17:00" → { id: 4, value: "17:00" } */
-  private resolverCorte(
-    dto: EditarTipoServicioDto,
-  ): { id: number; value: string } | undefined {
+  private resolverCorte(dto: EditarTipoServicioDto): { id: number; value: string } | undefined {
     const dia = dto.dia?.trim().toLowerCase();
 
     if (!dia && !dto.corte) return undefined;
 
     if (!dia || !dto.corte) {
-      throw new BadRequestException(
-        'Para cambiar una hora de corte hacen falta las dos cosas: el día y la hora.',
-      );
+      throw new BadRequestException('Para cambiar una hora de corte hacen falta las dos cosas: el día y la hora.');
     }
 
     const encontrado = DIAS.find(([, nombres]) => nombres.includes(dia));
@@ -593,9 +539,7 @@ export class EditarTipoServicioAgenteService {
   }
 
   /** Los cortes como los lee una persona: "lunes 23:30, martes 23:30" */
-  private cortesLegibles(
-    cortes?: Array<{ id?: number; label?: string; value?: string }>,
-  ): string[] {
+  private cortesLegibles(cortes?: Array<{ id?: number; label?: string; value?: string }>): string[] {
     return (cortes ?? [])
       .filter((c) => c?.value?.trim())
       .map((c) => `${c.label?.trim() || `día ${c.id}`} ${c.value!.trim()}`);
@@ -614,8 +558,7 @@ export class EditarTipoServicioAgenteService {
     antes: EstadoServicio,
     cortesActuales?: Array<{ id?: number; value?: string }>,
   ): boolean {
-    const distinto = <T>(pedido: T | undefined, actual: T) =>
-      pedido !== undefined && pedido !== actual;
+    const distinto = <T>(pedido: T | undefined, actual: T) => pedido !== undefined && pedido !== actual;
 
     const actual = cortesActuales?.find((c) => c.id === corte?.id);
     const cambiaCorte = !!corte && actual?.value?.trim() !== corte.value;
@@ -637,7 +580,13 @@ export class EditarTipoServicioAgenteService {
    * hacerlo dos veces es la forma de que el simulacro y la realidad difieran.
    */
   private previsto<
-    T extends { isActive?: boolean; enabledForCheckout?: boolean; cortes?: unknown; slackDays?: unknown; maxOcurrence?: unknown },
+    T extends {
+      isActive?: boolean;
+      enabledForCheckout?: boolean;
+      cortes?: unknown;
+      slackDays?: unknown;
+      maxOcurrence?: unknown;
+    },
   >(servicio: T, guardado: unknown): T {
     if (!guardado || typeof guardado !== 'object') return servicio;
 
@@ -681,5 +630,4 @@ export class EditarTipoServicioAgenteService {
       maxOcurrencia: numeroONulo(servicio.maxOcurrence),
     };
   }
-
 }

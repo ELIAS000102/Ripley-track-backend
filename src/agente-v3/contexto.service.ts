@@ -2,7 +2,14 @@ import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import { AtajosService } from '../configuracion/atajos/atajos.service.js';
 import { almacenesDe, codigosDichos, mencionesDe, parecidosDe, type EntidadDirectorio } from './entidades.js';
-import type { AtajoDelContexto, ContextoTurno, MensajeAnterior, Pais, PasoPlan, ResultadoAnterior } from './interfaces/agente-v3.interface.js';
+import type {
+  AtajoDelContexto,
+  ContextoTurno,
+  MensajeAnterior,
+  Pais,
+  PasoPlan,
+  ResultadoAnterior,
+} from './interfaces/agente-v3.interface.js';
 
 /**
  * Etapa 1 · Contexto: todo lo que se sabe del mensaje SIN la IA. Una sola
@@ -44,18 +51,22 @@ export function paisDeLosCodigos(mensaje: string, directorio: EntidadDirectorio[
 
 /** Lo que trajo un mensaje guardado (v3: `datos`; v2: `datos` por tandas), sin las filas si ya no se guardan */
 export function resultadosGuardados(resultados: Array<Record<string, unknown>> | null): ResultadoAnterior[] {
-  return (resultados ?? []).map((r) => ({
-    herramienta: String(r.herramienta ?? ''),
-    titulo: String(r.descripcion ?? r.titulo ?? r.herramienta ?? ''),
-    datos: r.datos ?? null,
-    ...(Array.isArray(r.cumplen) ? { cumplen: (r.cumplen as unknown[]).map(String) } : {}),
-  })).filter((r) => r.herramienta);
+  return (resultados ?? [])
+    .map((r) => ({
+      herramienta: String(r.herramienta ?? ''),
+      titulo: String(r.descripcion ?? r.titulo ?? r.herramienta ?? ''),
+      datos: r.datos ?? null,
+      ...(Array.isArray(r.cumplen) ? { cumplen: (r.cumplen as unknown[]).map(String) } : {}),
+    }))
+    .filter((r) => r.herramienta);
 }
 
 /** El día de hoy en la zona del país */
 export function hoyEn(pais: Pais, ahora = new Date()): string {
   const zona = pais === 'CL' ? 'America/Santiago' : 'America/Lima';
-  return new Intl.DateTimeFormat('en-CA', { timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ahora);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    ahora,
+  );
 }
 
 export function paisDelAtajo(nombre: string, descripcion: string | null): Pais {
@@ -76,9 +87,17 @@ export function paisDelMensaje(mensaje: string): Pais | null {
 export function planGuardado(plan: Record<string, unknown> | null): { version: 2 | 3; pasos: PasoPlan[] | null } {
   if (!plan) return { version: 2, pasos: null };
   if (plan.v === 3 && Array.isArray(plan.pasos)) return { version: 3, pasos: plan.pasos as PasoPlan[] };
-  const ia = Array.isArray(plan.pasos_ia) ? (plan.pasos_ia as Array<{ herramienta?: string; parametros?: { nombre?: string } }>) : [];
+  const ia = Array.isArray(plan.pasos_ia)
+    ? (plan.pasos_ia as Array<{ herramienta?: string; parametros?: { nombre?: string } }>)
+    : [];
   const atajos = ia.filter((p) => p.herramienta === 'ejecutar_atajo' && p.parametros?.nombre);
-  return { version: 2, pasos: ia.length && atajos.length === ia.length ? atajos.map((p) => ({ herramienta: 'ejecutar_atajo', param: { nombre: p.parametros!.nombre } })) : null };
+  return {
+    version: 2,
+    pasos:
+      ia.length && atajos.length === ia.length
+        ? atajos.map((p) => ({ herramienta: 'ejecutar_atajo', param: { nombre: p.parametros!.nombre } }))
+        : null,
+  };
 }
 
 @Injectable()
@@ -103,7 +122,11 @@ export class ContextoV3Service {
   }
 
   async armar(mensaje: string, chatId: string, usuarioId: string, respondeA: string | null): Promise<ContextoTurno> {
-    const [mensajes, atajos, directorio] = await Promise.all([this.mensajesDelChat(chatId, usuarioId, respondeA), this.atajosConPais(), this.leerDirectorio()]);
+    const [mensajes, atajos, directorio] = await Promise.all([
+      this.mensajesDelChat(chatId, usuarioId, respondeA),
+      this.atajosConPais(),
+      this.leerDirectorio(),
+    ]);
     const ultimo = mensajes.ultimo;
     const elegido = mensajes.elegido;
     const fila = elegido ?? ultimo;
@@ -122,7 +145,10 @@ export class ContextoV3Service {
         version: guardado.version,
         elegido: Boolean(elegido),
         // Sin contenido y sin ser una charla ni algo que se enseñó: falló o quedó en una pregunta. Se puede retomar
-        fallido: fila.con_contenido === false && !['charla', 'aprender'].includes(String(fila.plan?.origen ?? '')) && Boolean(fila.persona),
+        fallido:
+          fila.con_contenido === false &&
+          !['charla', 'aprender'].includes(String(fila.plan?.origen ?? '')) &&
+          Boolean(fila.persona),
       };
     }
 
@@ -133,20 +159,35 @@ export class ContextoV3Service {
     const pais: Pais = dicho ?? porCodigos ?? elegido?.pais ?? ultimo?.pais ?? 'PE';
     const motivo_pais = dicho
       ? `el mensaje dice ${dicho === 'CL' ? 'Chile' : 'Perú'}`
-      : porCodigos ? `los códigos del mensaje son de ${porCodigos === 'CL' ? 'Chile' : 'Perú'}`
-        : elegido?.pais ? 'el del mensaje al que respondes' : ultimo?.pais ? 'el del último mensaje del chat' : 'un chat nuevo es de Perú';
+      : porCodigos
+        ? `los códigos del mensaje son de ${porCodigos === 'CL' ? 'Chile' : 'Perú'}`
+        : elegido?.pais
+          ? 'el del mensaje al que respondes'
+          : ultimo?.pais
+            ? 'el del último mensaje del chat'
+            : 'un chat nuevo es de Perú';
     const antes = elegido?.pais ?? ultimo?.pais ?? null;
-    const avisos = porCodigos && antes && antes !== porCodigos ? [`Paso a ${porCodigos === 'CL' ? 'Chile' : 'Perú'}: ${motivo_pais}.`] : [];
+    const avisos =
+      porCodigos && antes && antes !== porCodigos
+        ? [`Paso a ${porCodigos === 'CL' ? 'Chile' : 'Perú'}: ${motivo_pais}.`]
+        : [];
 
     const servicios = await this.serviciosDe(pais);
     return {
-      hoy: hoyEn(pais), pais, motivo_pais, atajos, anterior,
+      hoy: hoyEn(pais),
+      pais,
+      motivo_pais,
+      atajos,
+      anterior,
       entidades: mencionesDe(mensaje, directorio, pais),
       almacenes: almacenesDe(directorio, pais),
       parecidos: parecidosDe(mensaje, directorio, pais, codigosDichos(mencionesDe(mensaje, directorio, pais))),
       vocabulario: await this.vocabularioDe(pais),
       servicios,
-      aclaraciones: [], pregunta: null, rondas: 0, avisos,
+      aclaraciones: [],
+      pregunta: null,
+      rondas: 0,
+      avisos,
     };
   }
 
@@ -157,10 +198,17 @@ export class ContextoV3Service {
    */
   async cambiarPais(contexto: ContextoTurno, mensaje: string, pais: Pais, motivo: string): Promise<ContextoTurno> {
     if (pais === contexto.pais) return contexto;
-    const [servicios, directorio, vocabulario] = await Promise.all([this.serviciosDe(pais), this.leerDirectorio(), this.vocabularioDe(pais)]);
+    const [servicios, directorio, vocabulario] = await Promise.all([
+      this.serviciosDe(pais),
+      this.leerDirectorio(),
+      this.vocabularioDe(pais),
+    ]);
     return {
       ...contexto,
-      pais, hoy: hoyEn(pais), motivo_pais: motivo, servicios,
+      pais,
+      hoy: hoyEn(pais),
+      motivo_pais: motivo,
+      servicios,
       entidades: mencionesDe(mensaje, directorio, pais),
       almacenes: almacenesDe(directorio, pais),
       parecidos: parecidosDe(mensaje, directorio, pais, codigosDichos(mencionesDe(mensaje, directorio, pais))),
@@ -171,7 +219,12 @@ export class ContextoV3Service {
 
   /** Las palabras que enseñó el equipo (agente_vocabulario). Sin la tabla (falta el sql/03), ninguna */
   async vocabularioDe(pais: Pais): Promise<Array<{ termino: string; significa: string }>> {
-    const { data, error } = await this.supabase.admin.from('agente_vocabulario').select('termino, significa').eq('pais', pais).order('termino').limit(80);
+    const { data, error } = await this.supabase.admin
+      .from('agente_vocabulario')
+      .select('termino, significa')
+      .eq('pais', pais)
+      .order('termino')
+      .limit(80);
     if (error) return [];
     return (data ?? []) as Array<{ termino: string; significa: string }>;
   }
@@ -188,7 +241,10 @@ export class ContextoV3Service {
 
   private async leerDirectorio(): Promise<EntidadDirectorio[]> {
     if (this.directorio && Date.now() - this.directorio.cuando < 5 * 60000) return this.directorio.filas;
-    const { data, error } = await this.supabase.admin.from('agente_entidades').select('pais, codigo, tipo, es_cd, nombre, alias').limit(5000);
+    const { data, error } = await this.supabase.admin
+      .from('agente_entidades')
+      .select('pais, codigo, tipo, es_cd, nombre, alias')
+      .limit(5000);
     if (error) {
       this.logger.warn(`No se pudo leer el directorio: ${error.message}`);
       return this.directorio?.filas ?? [];
@@ -199,9 +255,11 @@ export class ContextoV3Service {
 
   /** Los servicios del país, con lo aprendido (origen, descripción) si ya están sus columnas (sql/02) */
   async serviciosDe(pais: Pais): Promise<ContextoTurno['servicios']> {
-    const leer = (campos: string) => this.supabase.admin.from('agente_servicios').select(campos).eq('pais', pais).order('codigo');
+    const leer = (campos: string) =>
+      this.supabase.admin.from('agente_servicios').select(campos).eq('pais', pais).order('codigo');
     let { data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente, origen, descripcion');
-    if (error && /column|does not exist|42703/i.test(`${error.code ?? ''} ${error.message}`)) ({ data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente'));
+    if (error && /column|does not exist|42703/i.test(`${error.code ?? ''} ${error.message}`))
+      ({ data, error } = await leer('codigo, nombre, metodo_entrega, fase, fuente'));
     if (error) this.logger.warn(`No se pudieron leer los servicios: ${error.message}`);
     return (data ?? []) as unknown as ContextoTurno['servicios'];
   }
@@ -219,7 +277,12 @@ export class ContextoV3Service {
 
     let elegido: FilaMensaje | null = null;
     if (respondeA && UUID.test(respondeA)) {
-      const r = await this.supabase.admin.from('agente_mensajes').select(campos).eq('id', respondeA).eq('chat_id', chatId).maybeSingle();
+      const r = await this.supabase.admin
+        .from('agente_mensajes')
+        .select(campos)
+        .eq('id', respondeA)
+        .eq('chat_id', chatId)
+        .maybeSingle();
       if (r.error) this.logger.warn(`No se pudo leer el mensaje respondido: ${r.error.message}`);
       const m = r.data as FilaMensaje | null;
       elegido = m && m.usuario_id === usuarioId ? m : null;
@@ -230,7 +293,12 @@ export class ContextoV3Service {
   private async atajosConPais(): Promise<AtajoDelContexto[]> {
     try {
       const lista = await this.atajos.listar();
-      return lista.map((a) => ({ nombre: a.nombre, descripcion: a.descripcion, tipos: (a.tipos ?? []) as string[], pais: paisDelAtajo(a.nombre, a.descripcion) }));
+      return lista.map((a) => ({
+        nombre: a.nombre,
+        descripcion: a.descripcion,
+        tipos: (a.tipos ?? []) as string[],
+        pais: paisDelAtajo(a.nombre, a.descripcion),
+      }));
     } catch (e) {
       this.logger.warn(`Sin atajos para el contexto: ${(e as Error).message}`);
       return [];

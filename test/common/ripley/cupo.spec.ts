@@ -42,11 +42,18 @@ describe('El cupo por ventana', () => {
   it('una configuración vacía o rota cae en 110 cada 60 s', () => {
     expect(cupoDe(undefined)).toEqual(CUPO_POR_DEFECTO);
     expect(cupoDe('/x')).toEqual({ llamadas: 110, ventanaMs: 60_000, margenMs: 1_000 });
-    expect(cupoDe({ llamadas: '100', ventanaMs: 'nada', margenMs: '0' })).toEqual({ llamadas: 100, ventanaMs: 60_000, margenMs: 0 });
+    expect(cupoDe({ llamadas: '100', ventanaMs: 'nada', margenMs: '0' })).toEqual({
+      llamadas: 100,
+      ventanaMs: 60_000,
+      margenMs: 0,
+    });
   });
 });
 
-function armar(opciones: { cupo: Record<string, unknown>; respuesta?: (n: number) => { status?: number; retry?: string } | null }) {
+function armar(opciones: {
+  cupo: Record<string, unknown>;
+  respuesta?: (n: number) => { status?: number; retry?: string } | null;
+}) {
   const llamadas: number[] = [];
   const http = {
     get: () =>
@@ -55,7 +62,10 @@ function armar(opciones: { cupo: Record<string, unknown>; respuesta?: (n: number
         const fallo = opciones.respuesta?.(llamadas.length) ?? null;
         setTimeout(() => {
           if (fallo?.status) {
-            s.error({ message: String(fallo.status), response: { status: fallo.status, data: '', headers: fallo.retry ? { 'retry-after': fallo.retry } : {} } });
+            s.error({
+              message: String(fallo.status),
+              response: { status: fallo.status, data: '', headers: fallo.retry ? { 'retry-after': fallo.retry } : {} },
+            });
             return;
           }
           s.next({ data: { ok: true } });
@@ -64,17 +74,24 @@ function armar(opciones: { cupo: Record<string, unknown>; respuesta?: (n: number
       }),
   } as unknown as HttpService;
   const config = {
-    get: (clave: string) => ({
-      'ripley.urls': { PE: 'https://api' },
-      'ripley.ritmo.general': { paralelas: '8', intervaloMs: '0' },
-      'ripley.cupo': opciones.cupo,
-    } as Record<string, unknown>)[clave],
+    get: (clave: string) =>
+      (
+        ({
+          'ripley.urls': { PE: 'https://api' },
+          'ripley.ritmo.general': { paralelas: '8', intervaloMs: '0' },
+          'ripley.cupo': opciones.cupo,
+        }) as Record<string, unknown>
+      )[clave],
   } as unknown as ConfigService;
   const tokens = { obtenerParaUso: async () => 'token' } as unknown as TokenRipleyService;
   const cache = { olvidar: () => undefined } as unknown as CacheCatalogosService;
   const contexto = new ContextoAuditoria();
   const ripley = new RipleyHttpService(http, config, contexto, tokens, cache);
-  (ripley as unknown as { logger: Record<string, unknown> }).logger = { log: () => undefined, warn: () => undefined, error: () => undefined };
+  (ripley as unknown as { logger: Record<string, unknown> }).logger = {
+    log: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+  };
   return { ripley, contexto, llamadas };
 }
 

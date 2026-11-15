@@ -1,19 +1,9 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  soloFecha,
-} from '../../../common/ripley/utils/date.util.js';
+import { hoyEnPais, isoToRipleyDate, soloFecha } from '../../../common/ripley/utils/date.util.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
 import {
   listaDeCds,
@@ -24,10 +14,7 @@ import {
 } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { ReasignarCapacidadDto } from '../../dto/edicion.dto.js';
-import type {
-  CapacidadReasignada,
-  JornadaReasignada,
-} from '../../interfaces/edicion.interface.js';
+import type { CapacidadReasignada, JornadaReasignada } from '../../interfaces/edicion.interface.js';
 
 const NO_FUNCIONAL = /no\s*funcional/i;
 
@@ -56,10 +43,7 @@ export class ReasignarCapacidadAgenteService {
     private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 
-  async reasignar(
-    usuario: UsuarioAutenticado,
-    dto: ReasignarCapacidadDto,
-  ): Promise<CapacidadReasignada> {
+  async reasignar(usuario: UsuarioAutenticado, dto: ReasignarCapacidadDto): Promise<CapacidadReasignada> {
     // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
     // Los CDs, sus jornadas y sus reglas: los de la configuración del panel
     const todos = await this.configuracionCds.todos();
@@ -71,20 +55,12 @@ export class ReasignarCapacidadAgenteService {
     const destino = dto.destino.trim().toUpperCase();
 
     if (origen === destino) {
-      throw new BadRequestException(
-        `El origen y el destino son la misma jornada (${origen}). No hay nada que mover.`,
-      );
+      throw new BadRequestException(`El origen y el destino son la misma jornada (${origen}). No hay nada que mover.`);
     }
 
     this.exigirJornadasDelCd(cd, origen, destino);
 
-    const { fechaOrigen, fechaDestino } = this.fechas(
-      dto,
-      pais,
-      cd,
-      origen,
-      destino,
-    );
+    const { fechaOrigen, fechaDestino } = this.fechas(dto, pais, cd, origen, destino);
 
     this.exigirAutorizacion(cd, origen, destino, dto.autorizado);
 
@@ -96,12 +72,7 @@ export class ReasignarCapacidadAgenteService {
     const agendaDestino = this.agendaDe(agendas, destino, cd, hoy);
 
     const diaOrigen = await this.dia(agendaOrigen, fechaOrigen, pais, origen);
-    const diaDestino = await this.dia(
-      agendaDestino,
-      fechaDestino,
-      pais,
-      destino,
-    );
+    const diaDestino = await this.dia(agendaDestino, fechaDestino, pais, destino);
 
     this.exigirUnidadesLibres(diaOrigen, dto.unidades, origen, fechaOrigen);
 
@@ -144,20 +115,8 @@ export class ReasignarCapacidadAgenteService {
     const resultado = {
       cd: `${cd.code} - ${cd.nombre}`,
       unidades: dto.unidades,
-      origen: this.estado(
-        origen,
-        agendaOrigen.nombre,
-        fechaOrigen,
-        diaOrigen,
-        -dto.unidades,
-      ),
-      destino: this.estado(
-        destino,
-        agendaDestino.nombre,
-        fechaDestino,
-        diaDestino,
-        dto.unidades,
-      ),
+      origen: this.estado(origen, agendaOrigen.nombre, fechaOrigen, diaOrigen, -dto.unidades),
+      destino: this.estado(destino, agendaDestino.nombre, fechaDestino, diaDestino, dto.unidades),
     };
 
     this.auditoria.registrarCambio(
@@ -176,9 +135,7 @@ export class ReasignarCapacidadAgenteService {
     return {
       contexto,
       ...resultado,
-      ...(necesitaAutorizacion(cd, origen, destino)
-        ? { conAutorizacion: true }
-        : {}),
+      ...(necesitaAutorizacion(cd, origen, destino) ? { conAutorizacion: true } : {}),
     };
   }
 
@@ -253,12 +210,7 @@ export class ReasignarCapacidadAgenteService {
    * del chat para una operación legítima, y permitirlo sin más convierte una
    * frase mal entendida en capacidad movida a una jornada que nadie revisa.
    */
-  private exigirAutorizacion(
-    cd: Cd,
-    origen: string,
-    destino: string,
-    autorizado: boolean | undefined,
-  ): void {
+  private exigirAutorizacion(cd: Cd, origen: string, destino: string, autorizado: boolean | undefined): void {
     if (!necesitaAutorizacion(cd, origen, destino)) return;
     if (autorizado === true) return;
 
@@ -339,15 +291,9 @@ export class ReasignarCapacidadAgenteService {
     ocupado: number;
     activo: boolean;
   }> {
-    const capacidades = await this.picking.obtener(
-      agenda.scheduleId,
-      isoToRipleyDate(fecha),
-      pais,
-    );
+    const capacidades = await this.picking.obtener(agenda.scheduleId, isoToRipleyDate(fecha), pais);
 
-    const dia = (capacidades?.capacityByDayArray ?? []).find(
-      (d) => soloFecha(d.day) === fecha,
-    );
+    const dia = (capacidades?.capacityByDayArray ?? []).find((d) => soloFecha(d.day) === fecha);
 
     if (!dia) {
       throw new NotFoundException(

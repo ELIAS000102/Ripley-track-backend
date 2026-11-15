@@ -43,7 +43,11 @@ export class GeminiService {
     return this.config.get<Record<number, string>>('agente.v3.gemini.claves')?.[cuenta] ?? '';
   }
 
-  async generar(modelo: Pick<ModeloElegido, 'cuenta' | 'nombre'>, prompt: Prompt, opciones: OpcionesGemini = {}): Promise<SalidaGemini> {
+  async generar(
+    modelo: Pick<ModeloElegido, 'cuenta' | 'nombre'>,
+    prompt: Prompt,
+    opciones: OpcionesGemini = {},
+  ): Promise<SalidaGemini> {
     const clave = this.clave(modelo.cuenta);
     if (!clave) return { error: `sin clave de Gemini para la cuenta ${modelo.cuenta} (GEMINI_CLAVE_${modelo.cuenta})` };
     const base = this.config.get<string>('agente.v3.gemini.url') ?? 'https://generativelanguage.googleapis.com/v1beta';
@@ -72,11 +76,20 @@ export class GeminiService {
       const datos = (await res.json().catch(() => ({}))) as RespuestaApi;
       if (!res.ok) {
         const e = datos.error;
-        return { error: `${res.status} ${e?.status ?? ''} ${String(e?.message ?? res.statusText).slice(0, 200)}`.replace(/\s+/g, ' ').trim() };
+        return {
+          error: `${res.status} ${e?.status ?? ''} ${String(e?.message ?? res.statusText).slice(0, 200)}`
+            .replace(/\s+/g, ' ')
+            .trim(),
+        };
       }
-      if (datos.promptFeedback?.blockReason) return { error: `bloqueado por Gemini: ${datos.promptFeedback.blockReason}` };
+      if (datos.promptFeedback?.blockReason)
+        return { error: `bloqueado por Gemini: ${datos.promptFeedback.blockReason}` };
       // El texto de la respuesta, sin lo que el modelo "pensó" (thought)
-      const texto = (datos.candidates?.[0]?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? '').join('').trim();
+      const texto = (datos.candidates?.[0]?.content?.parts ?? [])
+        .filter((p) => !p.thought)
+        .map((p) => p.text ?? '')
+        .join('')
+        .trim();
       if (!texto) return { error: `Gemini no devolvió texto (${datos.candidates?.[0]?.finishReason ?? 'sin motivo'})` };
       return { salida: texto };
     } catch (e) {

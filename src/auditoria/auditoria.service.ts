@@ -3,8 +3,7 @@ import { SupabaseService } from '../common/supabase/supabase.service.js';
 import type { RegistroSinRol } from './interfaces/auditoria.interface.js';
 
 /** Campos que nunca deben quedar guardados en claro */
-const CAMPOS_SENSIBLES =
-  /password|contrasena|contraseña|token|secret|authorization|apikey/i;
+const CAMPOS_SENSIBLES = /password|contrasena|contraseña|token|secret|authorization|apikey/i;
 
 /** Tope de tamaño de los datos guardados por petición */
 const MAX_CARACTERES_DATOS = 10_000;
@@ -28,12 +27,10 @@ export class AuditoriaService {
   }
 
   private async insertar(registro: RegistroSinRol): Promise<void> {
-    const { error } = await this.supabase.admin
-      .from(this.supabase.tablaAuditoria)
-      .insert({
-        ...registro,
-        usuario_rol: await this.rolDe(registro.usuario_id),
-      });
+    const { error } = await this.supabase.admin.from(this.supabase.tablaAuditoria).insert({
+      ...registro,
+      usuario_rol: await this.rolDe(registro.usuario_id),
+    });
 
     if (error) {
       this.logger.error(
@@ -52,16 +49,10 @@ export class AuditoriaService {
   private async rolDe(usuarioId: string | null): Promise<string | null> {
     if (!usuarioId) return null;
 
-    const { data, error } = await this.supabase.admin
-      .from('profiles')
-      .select('rol')
-      .eq('id', usuarioId)
-      .maybeSingle();
+    const { data, error } = await this.supabase.admin.from('profiles').select('rol').eq('id', usuarioId).maybeSingle();
 
     if (error) {
-      this.logger.warn(
-        `No se pudo leer el rol de ${usuarioId}: ${error.message}`,
-      );
+      this.logger.warn(`No se pudo leer el rol de ${usuarioId}: ${error.message}`);
       return null;
     }
 
@@ -79,12 +70,10 @@ export class AuditoriaService {
 
     if (datos && typeof datos === 'object') {
       return Object.fromEntries(
-        Object.entries(datos as Record<string, unknown>).map(
-          ([clave, valor]) => [
-            clave,
-            CAMPOS_SENSIBLES.test(clave) ? '[CENSURADO]' : this.censurar(valor),
-          ],
-        ),
+        Object.entries(datos as Record<string, unknown>).map(([clave, valor]) => [
+          clave,
+          CAMPOS_SENSIBLES.test(clave) ? '[CENSURADO]' : this.censurar(valor),
+        ]),
       );
     }
 

@@ -41,9 +41,7 @@ function armar(servicios = SERVICIOS) {
       opls: [{ id: 'o-1', code: '1088', nombre: 'Courier Paquetería' }],
     }),
     listarZonas: vi.fn().mockResolvedValue([{ mainZone: 'z-4', nombre: 'Zona 4' }]),
-    listarAgendas: vi
-      .fn()
-      .mockResolvedValue([{ mainSchedule: 'a-1', nombre: 'Agenda Zona 4' }]),
+    listarAgendas: vi.fn().mockResolvedValue([{ mainSchedule: 'a-1', nombre: 'Agenda Zona 4' }]),
     listarServicios: vi.fn().mockResolvedValue({ servicios }),
     actualizarServicio,
   } as unknown as OplService;
@@ -53,16 +51,20 @@ function armar(servicios = SERVICIOS) {
   } as unknown as ContextoAgenteService;
 
   return {
-    servicio: new EditarTipoServicioAgenteService(opl, contexto, {
-      registrarCambio: vi.fn(),
-      enSimulacro: () => false,
-    } as unknown as ContextoAuditoria, { leer: vi.fn() } as never),
+    servicio: new EditarTipoServicioAgenteService(
+      opl,
+      contexto,
+      {
+        registrarCambio: vi.fn(),
+        enSimulacro: () => false,
+      } as unknown as ContextoAuditoria,
+      { leer: vi.fn() } as never,
+    ),
     actualizarServicio,
   };
 }
 
-const pedir = (extra: Record<string, unknown>) =>
-  ({ opl: '1088', servicio: 'S', pais: 'CL', ...extra }) as never;
+const pedir = (extra: Record<string, unknown>) => ({ opl: '1088', servicio: 'S', pais: 'CL', ...extra }) as never;
 
 describe('Cambiar la holgura', () => {
   it('se escribe, que es lo que no se podía', async () => {
@@ -70,10 +72,7 @@ describe('Cambiar la holgura', () => {
 
     await servicio.editar(USUARIO, pedir({ diasHolgura: 2 }));
 
-    expect(actualizarServicio).toHaveBeenCalledWith(
-      's-s',
-      expect.objectContaining({ slackDays: 2 }),
-    );
+    expect(actualizarServicio).toHaveBeenCalledWith('s-s', expect.objectContaining({ slackDays: 2 }));
   });
 
   it('y el máximo de ocurrencias igual', async () => {
@@ -81,10 +80,7 @@ describe('Cambiar la holgura', () => {
 
     await servicio.editar(USUARIO, pedir({ maxOcurrencia: 15 }));
 
-    expect(actualizarServicio).toHaveBeenCalledWith(
-      's-s',
-      expect.objectContaining({ maxOcurrence: 15 }),
-    );
+    expect(actualizarServicio).toHaveBeenCalledWith('s-s', expect.objectContaining({ maxOcurrence: 15 }));
   });
 
   it('cambiar la holgura NO toca el estado ni el checkout', async () => {
@@ -102,9 +98,7 @@ describe('Cambiar la holgura', () => {
   it('desactivar tampoco toca la holgura', async () => {
     // Uno que SÍ está activo: desactivar el que ya estaba apagado no cambia
     // nada y el service lo rechaza, que es otra cosa
-    const { servicio, actualizarServicio } = armar([
-      { ...SERVICIOS[0], isActive: true, enabledForCheckout: true },
-    ]);
+    const { servicio, actualizarServicio } = armar([{ ...SERVICIOS[0], isActive: true, enabledForCheckout: true }]);
 
     // Desactivar apaga el checkout —eso sí se contagia— pero no la holgura:
     // son configuración, no estado
@@ -119,9 +113,7 @@ describe('Cambiar la holgura', () => {
   it('pedir el valor que ya tiene no escribe, y lo dice', async () => {
     const { servicio, actualizarServicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, pedir({ diasHolgura: 1 })),
-    ).rejects.toThrow(/Ya estaba así/);
+    await expect(servicio.editar(USUARIO, pedir({ diasHolgura: 1 }))).rejects.toThrow(/Ya estaba así/);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -131,22 +123,15 @@ describe('Cambiar la holgura', () => {
 
     await servicio.editar(USUARIO, pedir({ diasHolgura: 0 }));
 
-    expect(actualizarServicio).toHaveBeenCalledWith(
-      's-s',
-      expect.objectContaining({ slackDays: 0 }),
-    );
+    expect(actualizarServicio).toHaveBeenCalledWith('s-s', expect.objectContaining({ slackDays: 0 }));
   });
 
   it('el número viene como texto de Ripley y se compara igual', async () => {
     // Llega "1" en vez de 1 según el endpoint; sin normalizar, pedir 1 se
     // vería como un cambio y escribiría por nada
-    const { servicio, actualizarServicio } = armar([
-      { ...SERVICIOS[0], slackDays: '1' as unknown as number },
-    ]);
+    const { servicio, actualizarServicio } = armar([{ ...SERVICIOS[0], slackDays: '1' as unknown as number }]);
 
-    await expect(
-      servicio.editar(USUARIO, pedir({ diasHolgura: 1 })),
-    ).rejects.toThrow(/Ya estaba así/);
+    await expect(servicio.editar(USUARIO, pedir({ diasHolgura: 1 }))).rejects.toThrow(/Ya estaba así/);
 
     expect(actualizarServicio).not.toHaveBeenCalled();
   });
@@ -197,8 +182,7 @@ describe('Lo que el DTO no deja pasar', () => {
   });
 
   it('pero el vacío que manda n8n no es un error: es "no lo indico"', async () => {
-    expect(await validar({ diasHolgura: '', maxOcurrencia: '', activo: 'false' }))
-      .toBeNull();
+    expect(await validar({ diasHolgura: '', maxOcurrencia: '', activo: 'false' })).toBeNull();
   });
 
   it('y un número en texto se convierte, que es como viaja desde el chat', async () => {
@@ -215,8 +199,6 @@ describe('Lo que el DTO no deja pasar', () => {
   it('sin nada que cambiar, lo dice y nombra los campos', async () => {
     const { servicio } = armar();
 
-    await expect(servicio.editar(USUARIO, pedir({}))).rejects.toThrow(
-      /diasHolgura/,
-    );
+    await expect(servicio.editar(USUARIO, pedir({}))).rejects.toThrow(/diasHolgura/);
   });
 });

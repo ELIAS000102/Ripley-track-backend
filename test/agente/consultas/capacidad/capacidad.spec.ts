@@ -34,9 +34,7 @@ function armar({
     const agendas = agendasPorOficina?.[codigo];
 
     if (!agendas) {
-      return Promise.reject(
-        new Error(`No se encontró el almacén con código ${codigo}`),
-      );
+      return Promise.reject(new Error(`No se encontró el almacén con código ${codigo}`));
     }
 
     return Promise.resolve(agendas);
@@ -53,9 +51,7 @@ function armar({
     const zonas = zonasPorOperador?.[codigo];
 
     if (!zonas) {
-      return Promise.reject(
-        new Error(`No se encontró el operador con código ${codigo}`),
-      );
+      return Promise.reject(new Error(`No se encontró el operador con código ${codigo}`));
     }
 
     return Promise.resolve(zonas);
@@ -63,9 +59,7 @@ function armar({
 
   const despacho = {
     listarZonas,
-    listarAgendas: vi
-      .fn()
-      .mockResolvedValue([{ mainScheduleId: 'ms-1', nombre: 'Agenda DT' }]),
+    listarAgendas: vi.fn().mockResolvedValue([{ mainScheduleId: 'ms-1', nombre: 'Agenda DT' }]),
     buscarCapacidades: vi.fn().mockResolvedValue({
       agenda: { unitMeasure: 'UNIDAD', servicios: ['EX', 'DT'] },
       dias: [{ date: '27-09-2026', assigned: '90', occupied: 0, active: true }],
@@ -127,9 +121,7 @@ describe('Capacidad: varias oficinas de una vez', () => {
   it('despacho también', async () => {
     const { servicio } = armar({ zonasPorOperador: DESPACHO });
 
-    const r = await servicio.consultar(
-      consultar({ tipo: 'despacho', codigo: '1130, 1140' }),
-    );
+    const r = await servicio.consultar(consultar({ tipo: 'despacho', codigo: '1130, 1140' }));
 
     expect(r.oficinas).toHaveLength(2);
     expect(r.oficinas[0].agendas[0].agenda).toBe('Agenda DT');
@@ -147,23 +139,15 @@ describe('Capacidad: varias oficinas de una vez', () => {
   it('los separa por espacios, como se escriben en el chat', async () => {
     const { servicio, listarZonas } = armar({ zonasPorOperador: DESPACHO });
 
-    await servicio
-      .consultar(consultar({ tipo: 'despacho', codigo: '1130 1017 1024' }))
-      .catch(() => null);
+    await servicio.consultar(consultar({ tipo: 'despacho', codigo: '1130 1017 1024' })).catch(() => null);
 
-    expect(listarZonas.mock.calls.map((c) => c[0])).toEqual([
-      '1130',
-      '1017',
-      '1024',
-    ]);
+    expect(listarZonas.mock.calls.map((c) => c[0])).toEqual(['1130', '1017', '1024']);
   });
 
   it('una que falla no arrastra a las demás', async () => {
     const { servicio } = armar({ zonasPorOperador: DESPACHO });
 
-    const r = await servicio.consultar(
-      consultar({ tipo: 'despacho', codigo: '1130, 9999' }),
-    );
+    const r = await servicio.consultar(consultar({ tipo: 'despacho', codigo: '1130, 9999' }));
 
     expect(r.oficinas[0].agendas).toHaveLength(1);
     expect(r.oficinas[1].error).toMatch(/No se encontró el operador/);
@@ -173,9 +157,9 @@ describe('Capacidad: varias oficinas de una vez', () => {
   it('si fallan todas, es un 404 con los motivos', async () => {
     const { servicio } = armar({ zonasPorOperador: DESPACHO });
 
-    await expect(
-      servicio.consultar(consultar({ tipo: 'despacho', codigo: '8888, 9999' })),
-    ).rejects.toThrow(/Ninguna de las 2 oficinas se pudo consultar/);
+    await expect(servicio.consultar(consultar({ tipo: 'despacho', codigo: '8888, 9999' }))).rejects.toThrow(
+      /Ninguna de las 2 oficinas se pudo consultar/,
+    );
   });
 
   it('una repetida se consulta una sola vez', async () => {
@@ -194,9 +178,7 @@ describe('Capacidad: varias oficinas de una vez', () => {
     const { servicio, listarAgendasPorOficina } = armar();
 
     await expect(
-      servicio.consultar(
-        consultar({ codigo: Array.from({ length: 31 }, (_, i) => String(1000 + i)).join(' ') }),
-      ),
+      servicio.consultar(consultar({ codigo: Array.from({ length: 31 }, (_, i) => String(1000 + i)).join(' ') })),
     ).rejects.toThrow(/máximo por vez es 30[\s\S]*reporte de los CDs/);
 
     expect(listarAgendasPorOficina).not.toHaveBeenCalled();
@@ -207,9 +189,7 @@ describe('Capacidad: el alias y los avisos', () => {
   it('"90 min" es el 1130 en despacho, y se dice cuál era', async () => {
     const { servicio, listarZonas } = armar({ zonasPorOperador: DESPACHO });
 
-    const r = await servicio.consultar(
-      consultar({ tipo: 'despacho', codigo: '90 min' }),
-    );
+    const r = await servicio.consultar(consultar({ tipo: 'despacho', codigo: '90 min' }));
 
     expect(listarZonas).toHaveBeenCalledWith('1130', 'PE');
     expect(r.oficinas[0].oficina).toBe('1130 (90 min)');
@@ -231,9 +211,7 @@ describe('Capacidad: el alias y los avisos', () => {
       agendasPorOficina: { ...PICKING, '20099': [] },
     });
 
-    const r = await servicio.consultar(
-      consultar({ codigo: '20026, 20099', servicio: 'S' }),
-    );
+    const r = await servicio.consultar(consultar({ codigo: '20026, 20099', servicio: 'S' }));
 
     expect(r.sinDatos.join(' ')).toMatch(/20099:/);
   });
@@ -271,9 +249,7 @@ describe('Consultar recepción', () => {
   it('pasa el filtro de servicio tal cual', async () => {
     const { servicio, capacidadesDeLaOficina } = armar();
 
-    await servicio.consultar(
-      consultar({ tipo: 'recepcion', codigo: '20021', servicio: 'SE' }),
-    );
+    await servicio.consultar(consultar({ tipo: 'recepcion', codigo: '20021', servicio: 'SE' }));
 
     expect(capacidadesDeLaOficina).toHaveBeenCalledWith(
       '20021',
@@ -286,9 +262,7 @@ describe('Consultar recepción', () => {
   it('devuelve la agenda con sus días y su ocupación', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      consultar({ tipo: 'recepcion', codigo: '20021', desde: '2026-09-27' }),
-    );
+    const r = await servicio.consultar(consultar({ tipo: 'recepcion', codigo: '20021', desde: '2026-09-27' }));
 
     expect(r.tipo).toBe('recepcion');
     expect(r.oficinas[0].agendas[0]).toMatchObject({
@@ -327,9 +301,7 @@ describe('Consultar recepción', () => {
       },
     ]);
 
-    const r = await servicio.consultar(
-      consultar({ tipo: 'recepcion', codigo: '20021', desde: '2026-09-27' }),
-    );
+    const r = await servicio.consultar(consultar({ tipo: 'recepcion', codigo: '20021', desde: '2026-09-27' }));
 
     expect(r.oficinas[0].agendas.map((a) => a.agenda)).toEqual(['Buena']);
     expect(r.sinDatos.join(' ')).toMatch(/Rota.*se cayó la red/);
@@ -339,12 +311,8 @@ describe('Consultar recepción', () => {
     const { servicio, capacidadesDeLaOficina } = armar();
     capacidadesDeLaOficina.mockResolvedValue([]);
 
-    const r = await servicio.consultar(
-      consultar({ tipo: 'recepcion', codigo: '20021' }),
-    );
+    const r = await servicio.consultar(consultar({ tipo: 'recepcion', codigo: '20021' }));
 
-    expect(r.sinDatos.join(' ')).toMatch(
-      /20021.*no tiene agendas de recepción/,
-    );
+    expect(r.sinDatos.join(' ')).toMatch(/20021.*no tiene agendas de recepción/);
   });
 });

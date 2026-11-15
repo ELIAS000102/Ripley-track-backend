@@ -25,17 +25,40 @@ import { claveMalla, type DiaMalla, type OplMalla } from './interfaces/malla.int
 
 const ERRORES_MAXIMOS = 50;
 
-const normalizar = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[\s_.]+/g, ' ').trim();
+const normalizar = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\s_.]+/g, ' ')
+    .trim();
 
 const DIA_DE: Record<string, Dia> = {
-  lunes: 'L', lun: 'L', martes: 'M', mar: 'M', miercoles: 'W', mie: 'W', jueves: 'J', jue: 'J',
-  viernes: 'V', vie: 'V', sabado: 'S', sab: 'S', domingo: 'D', dom: 'D',
+  lunes: 'L',
+  lun: 'L',
+  martes: 'M',
+  mar: 'M',
+  miercoles: 'W',
+  mie: 'W',
+  jueves: 'J',
+  jue: 'J',
+  viernes: 'V',
+  vie: 'V',
+  sabado: 'S',
+  sab: 'S',
+  domingo: 'D',
+  dom: 'D',
 };
 
 type Marca = 'venta' | 'transito' | 'recojo' | 'despacho';
 const MARCA: Record<string, Marca> = { venta: 'venta', transito: 'transito', recojo: 'recojo', despacho: 'despacho' };
 
-const NOMBRE_MARCA: Record<Marca, string> = { venta: 'Venta', transito: 'Transito', recojo: 'Recojo', despacho: 'Despacho' };
+const NOMBRE_MARCA: Record<Marca, string> = {
+  venta: 'Venta',
+  transito: 'Transito',
+  recojo: 'Recojo',
+  despacho: 'Despacho',
+};
 
 /**
  * Qué le sobra o le falta a una fila, dicho para corregirlo: "falta la
@@ -54,7 +77,12 @@ function queFalta(p: Record<Marca, number[]>) {
 /** Lo que sí tiene la fila, con su día y su columna: "Despacho el martes (columna L)" */
 function queHay(p: Record<Marca, number[]>, calendario: Array<{ col: number; dia: Dia }>) {
   const marcas = (['venta', 'transito', 'recojo', 'despacho'] as const)
-    .flatMap((m) => p[m].map((i) => ({ i, texto: `${NOMBRE_MARCA[m]} el ${NOMBRE_DIA[calendario[i].dia]} (columna ${letra(calendario[i].col)})` })))
+    .flatMap((m) =>
+      p[m].map((i) => ({
+        i,
+        texto: `${NOMBRE_MARCA[m]} el ${NOMBRE_DIA[calendario[i].dia]} (columna ${letra(calendario[i].col)})`,
+      })),
+    )
     .sort((a, b) => a.i - b.i);
   return marcas.length ? marcas.map((m) => m.texto).join(', ') : 'nada';
 }
@@ -85,7 +113,11 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
 
   const encontrado = buscarEncabezado(libro);
   if (!encontrado) {
-    return { items: [], avisos: [], errores: ['No encontré la fila de encabezado: la columna A tiene que empezar por "OPL", como en la plantilla.'] };
+    return {
+      items: [],
+      avisos: [],
+      errores: ['No encontré la fila de encabezado: la columna A tiene que empezar por "OPL", como en la plantilla.'],
+    };
   }
   const { hoja, fila: filaEncabezado } = encontrado;
 
@@ -105,28 +137,48 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
   }
 
   if (calendario.length < 7) {
-    return { items: [], avisos: [], errores: [`El encabezado (fila ${filaEncabezado}) tiene que llevar los días del calendario: Lunes, Martes, Miércoles… al menos una semana entera.`] };
+    return {
+      items: [],
+      avisos: [],
+      errores: [
+        `El encabezado (fila ${filaEncabezado}) tiene que llevar los días del calendario: Lunes, Martes, Miércoles… al menos una semana entera.`,
+      ],
+    };
   }
   for (let i = 1; i < calendario.length; i++) {
     const [a, b] = [calendario[i - 1], calendario[i]];
     if (b.col !== a.col + 1 || DIAS.indexOf(b.dia) !== (DIAS.indexOf(a.dia) + 1) % 7) {
-      return { items: [], avisos: [], errores: [`Los días del calendario tienen que ir seguidos y en orden: después del ${NOMBRE_DIA[a.dia]} (columna ${letra(a.col)}) va el ${NOMBRE_DIA[DIAS[(DIAS.indexOf(a.dia) + 1) % 7]]} en la columna ${letra(a.col + 1)}.`] };
+      return {
+        items: [],
+        avisos: [],
+        errores: [
+          `Los días del calendario tienen que ir seguidos y en orden: después del ${NOMBRE_DIA[a.dia]} (columna ${letra(a.col)}) va el ${NOMBRE_DIA[DIAS[(DIAS.indexOf(a.dia) + 1) % 7]]} en la columna ${letra(a.col + 1)}.`,
+        ],
+      };
     }
   }
   if (!colServicio) {
-    return { items: [], avisos: [], errores: ['Falta la columna "Flujo" (o "T. de servicio") en el encabezado, junto a "OPL".'] };
+    return {
+      items: [],
+      avisos: [],
+      errores: ['Falta la columna "Flujo" (o "T. de servicio") en el encabezado, junto a "OPL".'],
+    };
   }
 
   const errores: string[] = [];
   const avisos: string[] = [];
-  const anotar = (texto: string) => { if (errores.length < ERRORES_MAXIMOS) errores.push(texto); };
+  const anotar = (texto: string) => {
+    if (errores.length < ERRORES_MAXIMOS) errores.push(texto);
+  };
   const opls = new Map<string, OplMalla>();
   const filaDe = new Map<string, number>();
 
   for (let n = filaEncabezado + 1; n <= hoja.rowCount; n++) {
     const fila = hoja.getRow(n);
     const codigoCrudo = textoDeCelda(fila.getCell(1).value);
-    const marcas = calendario.map((c, i) => ({ i, texto: textoDeCelda(fila.getCell(c.col).value) })).filter((m) => m.texto);
+    const marcas = calendario
+      .map((c, i) => ({ i, texto: textoDeCelda(fila.getCell(c.col).value) }))
+      .filter((m) => m.texto);
     if (!codigoCrudo && !marcas.length) continue;
 
     const codigo = codigoCrudo.replace(/\.0+$/, '');
@@ -135,11 +187,15 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
     const donde = `Fila ${n}${codigo ? ` (OPL ${codigo}${servicio ? ` ${servicio}` : ''})` : ''}`;
 
     if (!/^[A-Za-z0-9._-]{1,20}$/.test(codigo)) {
-      anotar(`${donde}: el código de OPL "${codigoCrudo || '(vacío)'}" no es válido; son letras, números, punto, guion o guion bajo, hasta 20.`);
+      anotar(
+        `${donde}: el código de OPL "${codigoCrudo || '(vacío)'}" no es válido; son letras, números, punto, guion o guion bajo, hasta 20.`,
+      );
       continue;
     }
     if (!/^[A-Za-z0-9 ._-]{1,20}$/.test(servicio)) {
-      anotar(`${donde}: ${servicio ? `el flujo "${servicio}" no es válido; son letras, números, espacio, punto o guion, hasta 20` : 'falta el flujo (tipo de servicio)'}.`);
+      anotar(
+        `${donde}: ${servicio ? `el flujo "${servicio}" no es válido; son letras, números, espacio, punto o guion, hasta 20` : 'falta el flujo (tipo de servicio)'}.`,
+      );
       continue;
     }
 
@@ -147,7 +203,10 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
     for (const m of marcas) {
       const marca = MARCA[normalizar(m.texto)];
       if (marca) posiciones[marca].push(m.i);
-      else avisos.push(`${donde}: "${m.texto}" en la columna ${letra(calendario[m.i].col)} no es Venta, Transito, Recojo ni Despacho; se ignora.`);
+      else
+        avisos.push(
+          `${donde}: "${m.texto}" en la columna ${letra(calendario[m.i].col)} no es Venta, Transito, Recojo ni Despacho; se ignora.`,
+        );
     }
     const { venta, transito, recojo, despacho } = posiciones;
     if (venta.length !== 1 || despacho.length !== 1 || transito.length > 1 || recojo.length > 1) {
@@ -157,7 +216,9 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
     const [v, d, t, r] = [venta[0], despacho[0], transito[0] ?? null, recojo[0] ?? null];
     const entreMedias = (x: number | null) => x === null || (x > v && x < d);
     if (d <= v || !entreMedias(t) || !entreMedias(r) || (t !== null && t === r)) {
-      anotar(`${donde}: la "Venta" va primero y la "Despacho" al final; el tránsito y el recojo, entre las dos y en días distintos.`);
+      anotar(
+        `${donde}: la "Venta" va primero y la "Despacho" al final; el tránsito y el recojo, entre las dos y en días distintos.`,
+      );
       continue;
     }
 
@@ -165,32 +226,49 @@ export async function leerMalla(contenido: Buffer): Promise<Lectura<OplMalla>> {
     if (colDia) {
       const dicho = DIA_DE[normalizar(textoDeCelda(fila.getCell(colDia).value))];
       if (dicho && dicho !== diaVenta) {
-        anotar(`${donde}: la columna Día dice ${NOMBRE_DIA[dicho]}, pero la "Venta" está en un ${NOMBRE_DIA[diaVenta]}.`);
+        anotar(
+          `${donde}: la columna Día dice ${NOMBRE_DIA[dicho]}, pero la "Venta" está en un ${NOMBRE_DIA[diaVenta]}.`,
+        );
         continue;
       }
     }
 
     // Cada OPL y flujo es una malla; los flujos se comparan sin mayúsculas
-    const flujo = [...opls.values()].find((o) => o.opl === codigo && o.servicio.toUpperCase() === servicio.toUpperCase())?.servicio ?? servicio;
+    const flujo =
+      [...opls.values()].find((o) => o.opl === codigo && o.servicio.toUpperCase() === servicio.toUpperCase())
+        ?.servicio ?? servicio;
     const clave = claveMalla(codigo, flujo);
-    const malla = opls.get(clave) ?? { codigo: clave, opl: codigo, servicio: flujo, nombre, dias: Array<DiaMalla | null>(7).fill(null) };
+    const malla = opls.get(clave) ?? {
+      codigo: clave,
+      opl: codigo,
+      servicio: flujo,
+      nombre,
+      dias: Array<DiaMalla | null>(7).fill(null),
+    };
     if (!opls.has(clave)) opls.set(clave, malla);
     if (!malla.nombre && nombre) malla.nombre = nombre;
 
     const i = DIAS.indexOf(diaVenta);
     const dia = `${clave}|${i}`;
     if (filaDe.has(dia)) {
-      anotar(`${donde}: la OPL ${codigo} ya tiene una venta el ${NOMBRE_DIA[diaVenta]} en el flujo ${flujo}, en la fila ${filaDe.get(dia)}.`);
+      anotar(
+        `${donde}: la OPL ${codigo} ya tiene una venta el ${NOMBRE_DIA[diaVenta]} en el flujo ${flujo}, en la fila ${filaDe.get(dia)}.`,
+      );
       continue;
     }
     filaDe.set(dia, n);
     malla.dias[i] = { transito: t === null ? null : t - v, recojo: r === null ? null : r - v, despacho: d - v };
   }
 
-  const items = [...opls.values()].sort((a, b) => a.opl.localeCompare(b.opl, 'es', { numeric: true }) || a.servicio.localeCompare(b.servicio, 'es'));
+  const items = [...opls.values()].sort(
+    (a, b) => a.opl.localeCompare(b.opl, 'es', { numeric: true }) || a.servicio.localeCompare(b.servicio, 'es'),
+  );
   for (const o of items) {
     const faltan = DIAS.filter((_, i) => !o.dias[i]).map((d) => NOMBRE_DIA[d]);
-    if (faltan.length) avisos.push(`OPL ${o.opl}, flujo ${o.servicio}: no tiene venta el ${faltan.join(', ')}; lo vendido esos días va con el siguiente día que sí.`);
+    if (faltan.length)
+      avisos.push(
+        `OPL ${o.opl}, flujo ${o.servicio}: no tiene venta el ${faltan.join(', ')}; lo vendido esos días va con el siguiente día que sí.`,
+      );
   }
   if (!items.length && !errores.length) errores.push('La malla no tiene ninguna OPL.');
 

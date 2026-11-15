@@ -1,12 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  Matches,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 import { PaisDto } from '../../../common/dto/pais.dto.js';
 
 export class ReporteCdsDto extends PaisDto {

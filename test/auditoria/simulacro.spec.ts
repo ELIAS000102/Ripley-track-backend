@@ -55,7 +55,9 @@ class ControladorDePrueba {
   async escribir() {
     this.contexto.identificarUsuario(USUARIO.id, USUARIO.email);
     const antes = await this.ripley.get<{ valor: number }>('/dato', 'PE');
-    const r = await this.ripley.put<{ matchedCount?: number }>('/dato', 'PE', { valor: 2 }, undefined, { matchedCount: 1 });
+    const r = await this.ripley.put<{ matchedCount?: number }>('/dato', 'PE', { valor: 2 }, undefined, {
+      matchedCount: 1,
+    });
     return { antes: antes.valor, coincidencias: r.matchedCount };
   }
 
@@ -267,17 +269,22 @@ describe('Una vez en simulacro, no se sale', () => {
       contexto.activarSimulacro();
       contexto.activarSimulacro();
       expect(contexto.enSimulacro()).toBe(true);
-      expect(Object.getOwnPropertyNames(ContextoAuditoria.prototype).filter((m) => /desactivar|salir/i.test(m))).toEqual([]);
+      expect(
+        Object.getOwnPropertyNames(ContextoAuditoria.prototype).filter((m) => /desactivar|salir/i.test(m)),
+      ).toEqual([]);
     });
   });
 
   it('las escrituras evitadas se cuentan por petición', () => {
     const contexto = new ContextoAuditoria();
 
-    contexto.ejecutar(() => {
-      contexto.anotarEscrituraEvitada({ metodo: 'put', accion: 'actualizar' });
-      expect(contexto.escriturasEvitadas()).toEqual([{ metodo: 'put', accion: 'actualizar' }]);
-    }, { simulacro: true });
+    contexto.ejecutar(
+      () => {
+        contexto.anotarEscrituraEvitada({ metodo: 'put', accion: 'actualizar' });
+        expect(contexto.escriturasEvitadas()).toEqual([{ metodo: 'put', accion: 'actualizar' }]);
+      },
+      { simulacro: true },
+    );
 
     // Otra petición empieza de cero, y fuera de una no hay simulacro que valga
     contexto.ejecutar(() => expect(contexto.escriturasEvitadas()).toEqual([]), { simulacro: true });

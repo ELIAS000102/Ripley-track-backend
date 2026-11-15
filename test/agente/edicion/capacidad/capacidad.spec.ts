@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-  ValidationPipe,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { EditarCapacidadDto } from '../../../../src/agente/dto/edicion.dto.js';
 import type { DespachoService } from '../../../../src/agendas/despacho/despacho.service.js';
@@ -43,7 +39,10 @@ function armar(
     dias?: Array<Record<string, unknown>>;
     porAlmacen?: Record<string, Array<Record<string, unknown>>>;
     /** Lo que guarda el atajo que se nombre, por código */
-    atajo?: { nombre: string; agendas: Array<{ codigo: string; servicio: string | null; zona: string | null; agenda: string | null }> };
+    atajo?: {
+      nombre: string;
+      agendas: Array<{ codigo: string; servicio: string | null; zona: string | null; agenda: string | null }>;
+    };
   } = {},
 ) {
   const actualizarPicking = vi.fn().mockResolvedValue({ ok: true });
@@ -58,9 +57,7 @@ function armar(
     if (opciones.porAlmacen) {
       const suyas = opciones.porAlmacen[codigo];
 
-      return suyas
-        ? Promise.resolve(suyas)
-        : Promise.reject(new Error(`No se encontró el almacén ${codigo}`));
+      return suyas ? Promise.resolve(suyas) : Promise.reject(new Error(`No se encontró el almacén ${codigo}`));
     }
 
     return Promise.resolve(
@@ -82,12 +79,8 @@ function armar(
   } as unknown as PickingService;
 
   const despacho = {
-    listarZonas: vi
-      .fn()
-      .mockResolvedValue([{ zoneId: 'z-1', nombre: 'Lima Centro' }]),
-    listarAgendas: vi
-      .fn()
-      .mockResolvedValue([{ mainScheduleId: 'ms-1', nombre: 'Agenda DT' }]),
+    listarZonas: vi.fn().mockResolvedValue([{ zoneId: 'z-1', nombre: 'Lima Centro' }]),
+    listarAgendas: vi.fn().mockResolvedValue([{ mainScheduleId: 'ms-1', nombre: 'Agenda DT' }]),
     buscarCapacidades: vi.fn().mockResolvedValue({
       agenda: { unitMeasure: 'unidades' },
       // Despacho habla en DD-MM-YYYY y manda "assigned" como texto
@@ -208,10 +201,7 @@ describe('Edición del agente: lo que sí escribe', () => {
   it('cambia el asignado y devuelve el antes y el después', async () => {
     const { servicio, actualizarPicking } = armar();
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', asignado: 1800 }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', asignado: 1800 }));
 
     expect(actualizarPicking).toHaveBeenCalledWith(
       'cap-1',
@@ -231,10 +221,7 @@ describe('Edición del agente: lo que sí escribe', () => {
   it('cambiar solo "activa" conserva el asignado que ya tenía', async () => {
     const { servicio, actualizarPicking } = armar();
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', activa: false }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', activa: false }));
 
     expect(actualizarPicking).toHaveBeenCalledWith(
       'cap-1',
@@ -283,58 +270,37 @@ describe('Edición del agente: cuándo se niega', () => {
   ) {
     const { servicio, actualizarPicking, actualizarDespacho } = armar(opciones);
 
-    await expect(
-      servicio.editarCapacidad(USUARIO, dto as never),
-    ).rejects.toThrow(error);
+    await expect(servicio.editarCapacidad(USUARIO, dto as never)).rejects.toThrow(error);
 
-    await expect(
-      servicio.editarCapacidad(USUARIO, dto as never),
-    ).rejects.toThrow(fragmento);
+    await expect(servicio.editarCapacidad(USUARIO, dto as never)).rejects.toThrow(fragmento);
 
     expect(actualizarPicking).not.toHaveBeenCalled();
     expect(actualizarDespacho).not.toHaveBeenCalled();
   }
 
   it('si no se pide ningún cambio', async () => {
-    await rechaza(
-      editar({ servicio: 'S' }),
-      BadRequestException,
-      /nada que cambiar/,
-    );
+    await rechaza(editar({ servicio: 'S' }), BadRequestException, /nada que cambiar/);
   });
 
   it('si la fecha ya pasó', async () => {
-    await rechaza(
-      editar({ servicio: 'S', asignado: 100, fecha: AYER }),
-      BadRequestException,
-      /ya pasó/,
-    );
+    await rechaza(editar({ servicio: 'S', asignado: 100, fecha: AYER }), BadRequestException, /ya pasó/);
   });
 
   it('si la fecha está a más de un año', async () => {
     const lejos = `${Number(HOY.slice(0, 4)) + 2}${HOY.slice(4)}`;
 
-    await rechaza(
-      editar({ servicio: 'S', asignado: 100, fecha: lejos }),
-      BadRequestException,
-      /más de un año/,
-    );
+    await rechaza(editar({ servicio: 'S', asignado: 100, fecha: lejos }), BadRequestException, /más de un año/);
   });
 
   it('si el filtro deja más de una agenda', async () => {
     // Dos agendas y ningún "servicio" que las distinga. En una consulta se
     // tomaría la primera; aquí eso sería cambiar la que nadie pidió.
-    await rechaza(
-      editar({ asignado: 100 }),
-      BadRequestException,
-      /no voy a elegir por ti/,
-      {
-        agendas: [
-          { scheduleId: 'a', nombre: 'Picking S', typeOfService: 'S' },
-          { scheduleId: 'b', nombre: 'Picking ST', typeOfService: 'ST' },
-        ],
-      },
-    );
+    await rechaza(editar({ asignado: 100 }), BadRequestException, /no voy a elegir por ti/, {
+      agendas: [
+        { scheduleId: 'a', nombre: 'Picking S', typeOfService: 'S' },
+        { scheduleId: 'b', nombre: 'Picking ST', typeOfService: 'ST' },
+      ],
+    });
   });
 
   it('y dice cuáles son las opciones', async () => {
@@ -345,51 +311,36 @@ describe('Edición del agente: cuándo se niega', () => {
       ],
     });
 
-    await expect(
-      servicio.editarCapacidad(USUARIO, editar({ asignado: 100 })),
-    ).rejects.toThrow(/S \(Picking S\), ST \(Picking ST\)/);
+    await expect(servicio.editarCapacidad(USUARIO, editar({ asignado: 100 }))).rejects.toThrow(
+      /S \(Picking S\), ST \(Picking ST\)/,
+    );
   });
 
   it('si el servicio pedido no existe en ese almacén', async () => {
-    await rechaza(
-      editar({ servicio: 'ZZ', asignado: 100 }),
-      NotFoundException,
-      /No encontré el servicio que pides/,
-    );
+    await rechaza(editar({ servicio: 'ZZ', asignado: 100 }), NotFoundException, /No encontré el servicio que pides/);
   });
 
   it('si el día no está configurado en la agenda', async () => {
-    await rechaza(
-      editar({ servicio: 'S', asignado: 100 }),
-      NotFoundException,
-      /no se crean días nuevos/i,
-      { dias: [] },
-    );
+    await rechaza(editar({ servicio: 'S', asignado: 100 }), NotFoundException, /no se crean días nuevos/i, {
+      dias: [],
+    });
   });
 
   it('si el asignado quedaría por debajo de lo ya ocupado', async () => {
     // 1282 ocupados: dejarlo en 900 deja la agenda sobrevendida
-    await rechaza(
-      editar({ servicio: 'S', asignado: 900 }),
-      BadRequestException,
-      /sobrevendido/,
-    );
+    await rechaza(editar({ servicio: 'S', asignado: 900 }), BadRequestException, /sobrevendido/);
   });
 
   it('y ahí sugiere lo que la operación hace de verdad', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', asignado: 0 })),
-    ).rejects.toThrow(/activa: false/);
+    await expect(servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', asignado: 0 }))).rejects.toThrow(
+      /activa: false/,
+    );
   });
 
   it('si el día ya está exactamente así', async () => {
-    await rechaza(
-      editar({ servicio: 'S', asignado: 1688, activa: true }),
-      BadRequestException,
-      /ya estaba así/i,
-    );
+    await rechaza(editar({ servicio: 'S', asignado: 1688, activa: true }), BadRequestException, /ya estaba así/i);
   });
 });
 
@@ -414,8 +365,7 @@ describe('Edición del agente: lo que llega tras validar', () => {
     data: '',
   };
 
-  const validar = (cuerpo: Record<string, unknown>) =>
-    pipe.transform(cuerpo, meta) as Promise<EditarCapacidadDto>;
+  const validar = (cuerpo: Record<string, unknown>) => pipe.transform(cuerpo, meta) as Promise<EditarCapacidadDto>;
 
   /** Un cuerpo como el que arma n8n: todos los campos, vacíos los que no usó */
   const comoN8n = (relleno: Record<string, unknown>) => ({
@@ -462,9 +412,7 @@ describe('Edición del agente: lo que llega tras validar', () => {
   });
 
   it('un asignado que no es número se rechaza, no se convierte en NaN', async () => {
-    await expect(
-      validar(comoN8n({ asignado: 'mil ochocientos' })),
-    ).rejects.toThrow(BadRequestException);
+    await expect(validar(comoN8n({ asignado: 'mil ochocientos' }))).rejects.toThrow(BadRequestException);
   });
 
   it('sigue habiendo tope para el asignado', async () => {
@@ -479,19 +427,13 @@ describe('Edición del agente: lo que llega tras validar', () => {
 });
 
 describe('Edición del agente: varios días de una vez', () => {
-  const dias = (n: number) =>
-    Array.from({ length: n }, (_, i) =>
-      diaPicking(sumarDias(MANANA, i), 350, 0),
-    );
+  const dias = (n: number) => Array.from({ length: n }, (_, i) => diaPicking(sumarDias(MANANA, i), 350, 0));
 
   it('cierra todo el rango con una sola llamada al backend', async () => {
     const { servicio, actualizarPicking } = armar({ dias: dias(4) });
     const hasta = sumarDias(MANANA, 3);
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', activa: false, hasta }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', activa: false, hasta }));
 
     expect(r.oficinas[0].agendas[0].dias).toHaveLength(4);
     expect(r.resumen).toEqual({ pedidos: 4, cambiados: 4, sinCambiar: 0 });
@@ -508,10 +450,7 @@ describe('Edición del agente: varios días de una vez', () => {
     const { servicio, obtenerPicking } = armar({ dias: dias(4) });
     const hasta = sumarDias(MANANA, 3);
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', activa: false, hasta }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', activa: false, hasta }));
 
     // Escribir un día no cambia los otros, así que una lectura basta
     expect(obtenerPicking).toHaveBeenCalledTimes(1);
@@ -520,10 +459,7 @@ describe('Edición del agente: varios días de una vez', () => {
   it('un día que falla no arrastra a los demás', async () => {
     // Solo existen el primero y el tercero
     const { servicio } = armar({
-      dias: [
-        diaPicking(MANANA, 350, 0),
-        diaPicking(sumarDias(MANANA, 2), 350, 0),
-      ],
+      dias: [diaPicking(MANANA, 350, 0), diaPicking(sumarDias(MANANA, 2), 350, 0)],
     });
 
     const r = await servicio.editarCapacidad(
@@ -532,9 +468,7 @@ describe('Edición del agente: varios días de una vez', () => {
     );
 
     expect(r.resumen).toEqual({ pedidos: 3, cambiados: 2, sinCambiar: 1 });
-    expect(r.oficinas[0].agendas[0].dias[1].error).toMatch(
-      /no se crean días nuevos/,
-    );
+    expect(r.oficinas[0].agendas[0].dias[1].error).toMatch(/no se crean días nuevos/);
     expect(r.oficinas[0].agendas[0].dias[1].despues).toBeNull();
     expect(r.oficinas[0].agendas[0].dias[2].despues?.activo).toBe(false);
   });
@@ -542,15 +476,9 @@ describe('Edición del agente: varios días de una vez', () => {
   it('el historial guarda el conjunto, no el último día', async () => {
     const { servicio, registrarCambio } = armar({ dias: dias(3) });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', activa: false, hasta: sumarDias(MANANA, 2) }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', activa: false, hasta: sumarDias(MANANA, 2) }));
 
-    const [antes, despues] = registrarCambio.mock.calls[0] as [
-      { dias: unknown[] },
-      { dias: unknown[] },
-    ];
+    const [antes, despues] = registrarCambio.mock.calls[0] as [{ dias: unknown[] }, { dias: unknown[] }];
 
     expect(antes.dias).toHaveLength(3);
     expect(despues.dias).toHaveLength(3);
@@ -599,19 +527,10 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
     // tiene una respuesta posible.
     const { servicio, actualizarPicking } = armar({ agendas: AGENDAS_20026 });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'RC', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }));
 
-    expect(r.oficinas[0].agendas[0].agenda).toBe(
-      'RC - Agenda Picking RC - 20026',
-    );
-    expect(actualizarPicking).toHaveBeenCalledWith(
-      'c-rc',
-      expect.objectContaining({ active: false }),
-      'PE',
-    );
+    expect(r.oficinas[0].agendas[0].agenda).toBe('RC - Agenda Picking RC - 20026');
+    expect(actualizarPicking).toHaveBeenCalledWith('c-rc', expect.objectContaining({ active: false }), 'PE');
   });
 
   it('también deja fuera las que tienen la vigencia vencida', async () => {
@@ -634,16 +553,9 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
       ],
     });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'RC', activa: false }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }));
 
-    expect(actualizarPicking).toHaveBeenCalledWith(
-      'c-rc',
-      expect.anything(),
-      'PE',
-    );
+    expect(actualizarPicking).toHaveBeenCalledWith('c-rc', expect.anything(), 'PE');
   });
 
   it('una vigencia que aún no ha vencido no estorba', async () => {
@@ -658,10 +570,7 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
       ],
     });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'RC', activa: false }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }));
 
     expect(actualizarPicking).toHaveBeenCalledOnce();
   });
@@ -670,10 +579,7 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
     const { servicio, actualizarPicking } = armar({ agendas: AGENDAS_20026 });
 
     await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ agenda: 'Agenda Picking Olva - NO FUNCIONAL', activa: false }),
-      ),
+      servicio.editarCapacidad(USUARIO, editar({ agenda: 'Agenda Picking Olva - NO FUNCIONAL', activa: false })),
     ).rejects.toThrow(/NO FUNCIONAL: no se edita desde el chat/);
 
     expect(actualizarPicking).not.toHaveBeenCalled();
@@ -719,12 +625,9 @@ describe('Edición del agente: las agendas NO FUNCIONAL no se editan', () => {
       ],
     });
 
-    await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ servicio: 'RC', activa: false }),
-      ),
-    ).rejects.toThrow(/indicando el nombre exacto en "agenda"/);
+    await expect(servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }))).rejects.toThrow(
+      /indicando el nombre exacto en "agenda"/,
+    );
   });
 });
 
@@ -744,26 +647,17 @@ describe('Edición del agente: varias jornadas de una vez', () => {
   it('cambia las dos y devuelve una entrada por agenda', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S, ST', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S, ST', activa: false }));
 
     expect(r.oficinas[0].agendas).toHaveLength(2);
-    expect(r.oficinas[0].agendas.map((a) => a.agenda)).toEqual([
-      'S - Picking S',
-      'ST - Picking ST',
-    ]);
+    expect(r.oficinas[0].agendas.map((a) => a.agenda)).toEqual(['S - Picking S', 'ST - Picking ST']);
     expect(actualizarPicking).toHaveBeenCalledTimes(2);
   });
 
   it('la lista viene igual aunque se pida una sola', async () => {
     const { servicio } = armar({ agendas: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', activa: false }));
 
     expect(r.oficinas[0].agendas).toHaveLength(1);
   });
@@ -771,10 +665,7 @@ describe('Edición del agente: varias jornadas de una vez', () => {
   it('una jornada que no existe no arrastra a las demás', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S, ZZ', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S, ZZ', activa: false }));
 
     expect(r.oficinas[0].agendas[1].error).toBeTruthy();
     expect(r.oficinas[0].agendas[1].dias).toHaveLength(0);
@@ -787,10 +678,7 @@ describe('Edición del agente: varias jornadas de una vez', () => {
   it('una jornada repetida se escribe una sola vez', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S, s', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S, s', activa: false }));
 
     expect(r.oficinas[0].agendas).toHaveLength(1);
     expect(actualizarPicking).toHaveBeenCalledOnce();
@@ -801,12 +689,9 @@ describe('Edición del agente: varias jornadas de una vez', () => {
 
     const muchas = Array.from({ length: 31 }, (_, i) => `J${i}`).join(', ');
 
-    await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ servicio: muchas, activa: false }),
-      ),
-    ).rejects.toThrow(/máximo por vez es 30[\s\S]*herramienta del CD/);
+    await expect(servicio.editarCapacidad(USUARIO, editar({ servicio: muchas, activa: false }))).rejects.toThrow(
+      /máximo por vez es 30[\s\S]*herramienta del CD/,
+    );
 
     expect(actualizarPicking).not.toHaveBeenCalled();
   });
@@ -830,10 +715,7 @@ describe('Edición del agente: el servicio se busca exacto primero', () => {
   it('"S" es la S, no las tres que empiezan por S', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: VARIAS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'S', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'S', activa: false }));
 
     expect(r.oficinas[0].agendas[0].agenda).toBe('S - Picking S');
     expect(actualizarPicking).toHaveBeenCalledOnce();
@@ -843,10 +725,7 @@ describe('Edición del agente: el servicio se busca exacto primero', () => {
   it('y sigue valiendo buscar por parte del nombre', async () => {
     const { servicio } = armar({ agendas: VARIAS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'SD', agenda: 'Picking SD', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'SD', agenda: 'Picking SD', activa: false }));
 
     expect(r.oficinas[0].agendas[0].agenda).toBe('SD - Picking SD');
   });
@@ -867,10 +746,7 @@ describe('Edición del agente: varias oficinas de una vez', () => {
   it('cambia las dos y devuelve un grupo por oficina', async () => {
     const { servicio, actualizarPicking } = armar({ porAlmacen: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ codigo: '20026, 20096', servicio: 'S', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ codigo: '20026, 20096', servicio: 'S', activa: false }));
 
     expect(r.oficinas).toHaveLength(2);
     expect(r.oficinas.map((o) => o.oficina)).toEqual(['20026', '20096']);
@@ -881,24 +757,15 @@ describe('Edición del agente: varias oficinas de una vez', () => {
   it('los separa por espacios', async () => {
     const { servicio, listarAgendasPorOficina } = armar({ porAlmacen: DOS });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ codigo: '20026 20096', servicio: 'S', activa: false }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ codigo: '20026 20096', servicio: 'S', activa: false }));
 
-    expect(listarAgendasPorOficina.mock.calls.map((c) => c[0])).toEqual([
-      '20026',
-      '20096',
-    ]);
+    expect(listarAgendasPorOficina.mock.calls.map((c) => c[0])).toEqual(['20026', '20096']);
   });
 
   it('la lista viene igual aunque se pida una sola', async () => {
     const { servicio } = armar({ porAlmacen: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ codigo: '20026', servicio: 'S', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ codigo: '20026', servicio: 'S', activa: false }));
 
     expect(r.oficinas).toHaveLength(1);
   });
@@ -906,10 +773,7 @@ describe('Edición del agente: varias oficinas de una vez', () => {
   it('una que falla no arrastra a las demás', async () => {
     const { servicio, actualizarPicking } = armar({ porAlmacen: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ codigo: '20026, 99999', servicio: 'S', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ codigo: '20026, 99999', servicio: 'S', activa: false }));
 
     expect(r.oficinas[1].agendas[0].error).toMatch(/No se encontró el almacén/);
     expect(actualizarPicking).toHaveBeenCalledOnce();
@@ -919,10 +783,7 @@ describe('Edición del agente: varias oficinas de una vez', () => {
   it('una repetida se escribe una sola vez', async () => {
     const { servicio, actualizarPicking } = armar({ porAlmacen: DOS });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ codigo: '20026, 20026', servicio: 'S', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ codigo: '20026, 20026', servicio: 'S', activa: false }));
 
     expect(r.oficinas).toHaveLength(1);
     expect(actualizarPicking).toHaveBeenCalledOnce();
@@ -932,14 +793,9 @@ describe('Edición del agente: varias oficinas de una vez', () => {
     // Con varias, "agenda S del día 2" no dice de cuál almacén se habla
     const { servicio, registrarCambio } = armar({ porAlmacen: DOS });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ codigo: '20026, 20096', servicio: 'S', activa: false }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ codigo: '20026, 20096', servicio: 'S', activa: false }));
 
-    const [antes] = registrarCambio.mock.calls[0] as [
-      { dias: Array<{ oficina: string }> },
-    ];
+    const [antes] = registrarCambio.mock.calls[0] as [{ dias: Array<{ oficina: string }> }];
 
     expect(antes.dias.map((x) => x.oficina)).toEqual(['20026', '20096']);
   });
@@ -955,10 +811,7 @@ describe('Edición del agente: el tope de escrituras', () => {
     const codigos = Array.from({ length: 31 }, (_, i) => String(4000 + i)).join(' ');
 
     await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ codigo: codigos, servicio: 'S', activa: false }),
-      ),
+      servicio.editarCapacidad(USUARIO, editar({ codigo: codigos, servicio: 'S', activa: false })),
     ).rejects.toThrow(/máximo por vez es 30/);
 
     expect(actualizarPicking).not.toHaveBeenCalled();
@@ -975,7 +828,10 @@ describe('Edición del agente: el tope de escrituras', () => {
 
     const error = await servicio
       .editarCapacidad(USUARIO, editar({ codigo: codigos, servicio: 'S', activa: false }))
-      .then(() => null, (e: Error) => e);
+      .then(
+        () => null,
+        (e: Error) => e,
+      );
 
     expect(error?.message ?? '').not.toMatch(/máximo por vez/);
   });
@@ -1038,13 +894,9 @@ describe('Edición del agente: el mensaje dice en qué campo responder', () => {
 
   function conZonas(zonas = CINCO_ZONAS) {
     const base = armar();
-    const despacho = (
-      base.servicio as unknown as { despacho: { listarZonas: unknown } }
-    ).despacho;
+    const despacho = (base.servicio as unknown as { despacho: { listarZonas: unknown } }).despacho;
 
-    (despacho as { listarZonas: unknown }).listarZonas = vi
-      .fn()
-      .mockResolvedValue(zonas);
+    (despacho as { listarZonas: unknown }).listarZonas = vi.fn().mockResolvedValue(zonas);
 
     return base;
   }
@@ -1053,10 +905,7 @@ describe('Edición del agente: el mensaje dice en qué campo responder', () => {
     const { servicio } = conZonas();
 
     await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ tipo: 'despacho', codigo: '1100', activa: false }),
-      ),
+      servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1100', activa: false })),
     ).rejects.toThrow(/nombre exacto en "zona"/);
   });
 
@@ -1064,10 +913,7 @@ describe('Edición del agente: el mensaje dice en qué campo responder', () => {
     const { servicio } = conZonas();
 
     await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ tipo: 'despacho', codigo: '1100', activa: false }),
-      ),
+      servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1100', activa: false })),
     ).rejects.toThrow(/"zona": "todas"/);
   });
 
@@ -1105,12 +951,9 @@ describe('Edición del agente: "todas" las agendas', () => {
   it('sin decir nada, sigue preguntando', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: TRES });
 
-    await expect(
-      servicio.editarCapacidad(
-        USUARIO,
-        editar({ servicio: 'RC', activa: false }),
-      ),
-    ).rejects.toThrow(/no voy a elegir por ti/);
+    await expect(servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', activa: false }))).rejects.toThrow(
+      /no voy a elegir por ti/,
+    );
 
     expect(actualizarPicking).not.toHaveBeenCalled();
   });
@@ -1118,10 +961,7 @@ describe('Edición del agente: "todas" las agendas', () => {
   it('con "todas", las toca todas', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: TRES });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'RC', agenda: 'todas', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', agenda: 'todas', activa: false }));
 
     expect(r.oficinas[0].agendas).toHaveLength(3);
     expect(actualizarPicking).toHaveBeenCalledTimes(3);
@@ -1131,10 +971,7 @@ describe('Edición del agente: "todas" las agendas', () => {
     // Si viajara como filtro, buscaría una agenda llamada "todas"
     const { servicio } = armar({ agendas: TRES });
 
-    const r = await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'RC', agenda: 'todos', activa: false }),
-    );
+    const r = await servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', agenda: 'todos', activa: false }));
 
     expect(r.oficinas[0].agendas).toHaveLength(3);
   });
@@ -1142,10 +979,7 @@ describe('Edición del agente: "todas" las agendas', () => {
   it('y nombrar una sigue tocando solo esa', async () => {
     const { servicio, actualizarPicking } = armar({ agendas: TRES });
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ servicio: 'RC', agenda: 'Picking RC dos', activa: false }),
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ servicio: 'RC', agenda: 'Picking RC dos', activa: false }));
 
     expect(actualizarPicking).toHaveBeenCalledOnce();
     expect(actualizarPicking.mock.calls[0][0]).toBe('c-2');
@@ -1180,10 +1014,7 @@ describe('Editar recepción', () => {
   it('resuelve la agenda una sola vez para todo el rango', async () => {
     const { servicio, prepararAgenda } = armar();
 
-    await servicio.editarCapacidad(
-      USUARIO,
-      editar({ hasta: sumarDias(HOY, 4) }) as never,
-    );
+    await servicio.editarCapacidad(USUARIO, editar({ hasta: sumarDias(HOY, 4) }) as never);
 
     expect(prepararAgenda).toHaveBeenCalledTimes(1);
   });
@@ -1223,8 +1054,9 @@ describe('Edición del agente: la disponibilidad', () => {
 
   it('asignado y disponible a la vez no: el disponible ya fija el asignado', async () => {
     const { servicio, actualizarDespacho } = armar();
-    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1130', asignado: 200, disponible: 30 })))
-      .rejects.toThrow(/"asignado" o "disponible", no los dos/);
+    await expect(
+      servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1130', asignado: 200, disponible: 30 })),
+    ).rejects.toThrow(/"asignado" o "disponible", no los dos/);
     expect(actualizarDespacho).not.toHaveBeenCalled();
   });
 });
@@ -1251,47 +1083,68 @@ describe('Edición del agente: sobre un atajo', () => {
   function conAtajo() {
     const base = armar({ atajo: BT_LIMA });
     const despacho = (base.servicio as unknown as { despacho: { listarZonas: unknown } }).despacho;
-    (despacho as { listarZonas: unknown }).listarZonas = vi.fn((codigo: string) => Promise.resolve(
-      codigo === '1401' ? DOS_ZONAS : [{ zoneId: 'z-9', nombre: `Agenda ${codigo} - Suc. Aldea 6 Perif.` }, { zoneId: 'z-8', nombre: `Zona ${codigo} BT` }],
-    ));
+    (despacho as { listarZonas: unknown }).listarZonas = vi.fn((codigo: string) =>
+      Promise.resolve(
+        codigo === '1401'
+          ? DOS_ZONAS
+          : [
+              { zoneId: 'z-9', nombre: `Agenda ${codigo} - Suc. Aldea 6 Perif.` },
+              { zoneId: 'z-8', nombre: `Zona ${codigo} BT` },
+            ],
+      ),
+    );
     return base;
   }
 
   it('sin el atajo, el 1401 tiene dos zonas y pregunta cuál', async () => {
     const { servicio } = conAtajo();
-    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', activa: false })))
-      .rejects.toThrow(/nombre exacto en "zona"/);
+    await expect(
+      servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', activa: false })),
+    ).rejects.toThrow(/nombre exacto en "zona"/);
   });
 
   it('con ella, cambia solo la zona guardada, sin preguntar', async () => {
     const { servicio, actualizarDespacho } = conAtajo();
-    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', disponible: 30, atajo: 'bt lima' }));
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ tipo: 'despacho', codigo: '1401', disponible: 30, atajo: 'bt lima' }),
+    );
     expect(actualizarDespacho).toHaveBeenCalledOnce();
     expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
   });
 
   it('con el nombre de antes, "preconfiguracion", también: el flujo viejo lo manda hasta que se reimporte', async () => {
     const { servicio, actualizarDespacho } = conAtajo();
-    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', disponible: 30, preconfiguracion: 'bt lima' }));
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ tipo: 'despacho', codigo: '1401', disponible: 30, preconfiguracion: 'bt lima' }),
+    );
     expect(actualizarDespacho.mock.calls[0].slice(0, 3)).toEqual(['1401', 'z-1', 'ms-1']);
   });
 
   it('"todos" son todos los códigos del atajo, cada uno con su zona', async () => {
     const { servicio, actualizarDespacho } = conAtajo();
-    const r = await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: 'todos', activa: false, atajo: 'BT LIMA' }));
+    const r = await servicio.editarCapacidad(
+      USUARIO,
+      editar({ tipo: 'despacho', codigo: 'todos', activa: false, atajo: 'BT LIMA' }),
+    );
     expect(r.oficinas.map((o) => o.oficina)).toEqual(['1401', '1402']);
     expect(actualizarDespacho.mock.calls.map((c) => c[1])).toEqual(['z-1', 'z-9']);
   });
 
   it('un código que no está en ella se cambia como siempre', async () => {
     const { servicio } = conAtajo();
-    await expect(servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1404', activa: false, atajo: 'BT LIMA' })))
-      .rejects.toThrow(/nombre exacto en "zona"/);
+    await expect(
+      servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1404', activa: false, atajo: 'BT LIMA' })),
+    ).rejects.toThrow(/nombre exacto en "zona"/);
   });
 
   it('lo que se dice explícitamente manda sobre lo guardado', async () => {
     const { servicio, actualizarDespacho } = conAtajo();
-    await servicio.editarCapacidad(USUARIO, editar({ tipo: 'despacho', codigo: '1401', zona: 'BT', activa: false, atajo: 'BT LIMA' }));
+    await servicio.editarCapacidad(
+      USUARIO,
+      editar({ tipo: 'despacho', codigo: '1401', zona: 'BT', activa: false, atajo: 'BT LIMA' }),
+    );
     expect(actualizarDespacho.mock.calls[0][1]).toBe('z-2');
   });
 });

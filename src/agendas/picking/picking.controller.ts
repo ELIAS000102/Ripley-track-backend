@@ -1,15 +1,8 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { PickingService } from './picking.service.js';
-import {
-  ActualizarPickingBodyDto,
-  ActualizarPickingQueryDto,
-} from './dto/actualizar-picking.dto.js';
-import {
-  BuscarCapacidadesDto,
-  ListarAgendasDto,
-  ObtenerPickingDto,
-} from './dto/buscar-picking.dto.js';
+import { ActualizarPickingBodyDto, ActualizarPickingQueryDto } from './dto/actualizar-picking.dto.js';
+import { BuscarCapacidadesDto, ListarAgendasDto, ObtenerPickingDto } from './dto/buscar-picking.dto.js';
 import { PaisDto } from '../../common/dto/pais.dto.js';
 
 /**
@@ -29,10 +22,7 @@ export class PickingController {
   /** GET /agendas/picking/agendas?officeCode=20026&pais=PE */
   @Get('agendas')
   async agendas(@Query() query: ListarAgendasDto) {
-    return this.pickingService.listarAgendasPorOficina(
-      query.officeCode,
-      query.pais,
-    );
+    return this.pickingService.listarAgendasPorOficina(query.officeCode, query.pais);
   }
 
   /**
@@ -44,14 +34,7 @@ export class PickingController {
   @Get('buscar')
   async buscar(@Query() query: BuscarCapacidadesDto) {
     const { officeCode, typeOfService, from, pais, dias, scheduleId } = query;
-    return this.pickingService.buscarCapacidades(
-      officeCode,
-      typeOfService,
-      from,
-      pais,
-      dias,
-      scheduleId,
-    );
+    return this.pickingService.buscarCapacidades(officeCode, typeOfService, from, pais, dias, scheduleId);
   }
 
   /** GET /agendas/picking?scheduleId=...&pais=PE&from=14-09-2026 */
@@ -64,10 +47,7 @@ export class PickingController {
   /** PUT /agendas/picking?scheduleId=...&pais=PE */
   @Auditar('picking.actualizar')
   @Put()
-  async actualizar(
-    @Query() query: ActualizarPickingQueryDto,
-    @Body() body: ActualizarPickingBodyDto,
-  ) {
+  async actualizar(@Query() query: ActualizarPickingQueryDto, @Body() body: ActualizarPickingBodyDto) {
     const { scheduleId, pais } = query;
     return this.pickingService.actualizar(scheduleId, body, pais);
   }

@@ -21,10 +21,7 @@ import { configuracionCdsFalsa } from '../../../fixtures/cds.js';
 const USUARIO = { id: 'u1', email: 'ana@ripley.com.pe' } as UsuarioAutenticado;
 const HOY = '2026-09-23';
 
-const agenda = (
-  typeOfService: string,
-  nombre = `Agenda Picking ${typeOfService}`,
-) => ({
+const agenda = (typeOfService: string, nombre = `Agenda Picking ${typeOfService}`) => ({
   scheduleId: `s-${typeOfService}-${nombre}`,
   nombre,
   typeOfService,
@@ -33,9 +30,7 @@ const agenda = (
   vigenteHasta: null,
 });
 
-const AGENDAS_20026 = ['RC', 'ST', 'S', 'SE', 'SD', 'AT', 'OP'].map((j) =>
-  agenda(j),
-);
+const AGENDAS_20026 = ['RC', 'ST', 'S', 'SE', 'SD', 'AT', 'OP'].map((j) => agenda(j));
 
 function armar({
   agendas = AGENDAS_20026,
@@ -78,17 +73,21 @@ function armar({
   const registrarCambio = vi.fn();
 
   return {
-    servicio: new EditarCdAgenteService(picking, contexto, {
-      registrarCambio,
-    } as unknown as ContextoAuditoria, configuracionCdsFalsa()),
+    servicio: new EditarCdAgenteService(
+      picking,
+      contexto,
+      {
+        registrarCambio,
+      } as unknown as ContextoAuditoria,
+      configuracionCdsFalsa(),
+    ),
     actualizar,
     listar: picking.listarAgendasPorOficina as ReturnType<typeof vi.fn>,
     registrarCambio,
   };
 }
 
-const cerrar = (extra: Record<string, unknown> = {}) =>
-  ({ cd: '20026', fecha: HOY, activa: false, ...extra }) as never;
+const cerrar = (extra: Record<string, unknown> = {}) => ({ cd: '20026', fecha: HOY, activa: false, ...extra }) as never;
 
 describe('Cortar un CD: una llamada, todas las jornadas', () => {
   it('corta las siete jornadas del 20026 de una vez', async () => {
@@ -113,15 +112,7 @@ describe('Cortar un CD: una llamada, todas las jornadas', () => {
       antes: true,
       despues: false,
     });
-    expect(r.jornadas.map((j) => j.jornada).sort()).toEqual([
-      'AT',
-      'OP',
-      'RC',
-      'S',
-      'SD',
-      'SE',
-      'ST',
-    ]);
+    expect(r.jornadas.map((j) => j.jornada).sort()).toEqual(['AT', 'OP', 'RC', 'S', 'SD', 'SE', 'ST']);
   });
 
   /**
@@ -176,10 +167,7 @@ describe('Cortar un CD: una llamada, todas las jornadas', () => {
       },
     });
 
-    const r = await servicio.editar(
-      USUARIO,
-      cerrar({ cd: 'CD Villa El Salvador' }),
-    );
+    const r = await servicio.editar(USUARIO, cerrar({ cd: 'CD Villa El Salvador' }));
 
     expect(listar).toHaveBeenCalledOnce();
     expect(r.cds).toEqual(['20026 - CD Villa El Salvador']);
@@ -248,9 +236,7 @@ describe('Cortar un CD: lo que queda fuera', () => {
       activo: false,
     });
 
-    await expect(servicio.editar(USUARIO, cerrar())).rejects.toThrow(
-      /Ninguna de las 1 jornadas cambió/,
-    );
+    await expect(servicio.editar(USUARIO, cerrar())).rejects.toThrow(/Ninguna de las 1 jornadas cambió/);
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -270,9 +256,9 @@ describe('Cortar un CD: lo que queda fuera', () => {
   it('si el CD no se reconoce, se dice cuáles hay', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, cerrar({ cd: 'CD Inventado' })),
-    ).rejects.toThrow(/No reconozco.*20026.*20096/s);
+    await expect(servicio.editar(USUARIO, cerrar({ cd: 'CD Inventado' }))).rejects.toThrow(
+      /No reconozco.*20026.*20096/s,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -280,9 +266,7 @@ describe('Cortar un CD: lo que queda fuera', () => {
   it('el rango no puede ir al revés', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, cerrar({ hasta: '2026-09-20' })),
-    ).rejects.toThrow(/va al revés/);
+    await expect(servicio.editar(USUARIO, cerrar({ hasta: '2026-09-20' }))).rejects.toThrow(/va al revés/);
 
     expect(actualizar).not.toHaveBeenCalled();
   });

@@ -16,7 +16,19 @@ export const CDS_MAXIMOS = 10;
 
 /** "st, S " → ["ST", "S"]: las jornadas van siempre en mayúsculas y sin repetir */
 const jornadas = ({ value }: { value: unknown }) =>
-  Array.isArray(value) ? [...new Set(value.map((v) => String(v ?? '').trim().toUpperCase()).filter(Boolean))] : value;
+  Array.isArray(value)
+    ? [
+        ...new Set(
+          value
+            .map((v) =>
+              String(v ?? '')
+                .trim()
+                .toUpperCase(),
+            )
+            .filter(Boolean),
+        ),
+      ]
+    : value;
 
 /**
  * Los alias tal como se escriben —el primero es el nombre que lleva el CD en el
@@ -26,12 +38,14 @@ const jornadas = ({ value }: { value: unknown }) =>
 const alias = ({ value }: { value: unknown }) => {
   if (!Array.isArray(value)) return value;
   const vistos = new Set<string>();
-  return value.map((v) => String(v ?? '').trim()).filter((v) => {
-    const clave = v.toLowerCase();
-    if (!v || vistos.has(clave)) return false;
-    vistos.add(clave);
-    return true;
-  });
+  return value
+    .map((v) => String(v ?? '').trim())
+    .filter((v) => {
+      const clave = v.toLowerCase();
+      if (!v || vistos.has(clave)) return false;
+      vistos.add(clave);
+      return true;
+    });
 };
 
 export class CdDto {

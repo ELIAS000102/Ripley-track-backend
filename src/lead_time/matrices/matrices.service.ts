@@ -57,7 +57,8 @@ export class MatricesService extends VersionadoLeadtime<TiendaMalla, TiendaInter
   async calcular(grupo: GrupoRef, codigo: string, fecha: string, pedida: MallaElegida = { tipo: 'regular' }) {
     const { item: tienda, nombre } = await this.itemVigente(grupo, codigo, pedida);
     const fechas = fechasDeVenta(tienda, fecha);
-    if (!fechas) throw new BadRequestException(`La tienda ${codigo} no tiene ningún día de transferencia con recepción.`);
+    if (!fechas)
+      throw new BadRequestException(`La tienda ${codigo} no tiene ningún día de transferencia con recepción.`);
     return { codigo: tienda.codigo, tienda: tienda.tienda, matriz: nombre, desfase: tienda.desfase, ...fechas };
   }
 }

@@ -21,8 +21,7 @@ import { VaciosComoAusentesPipe } from '../../../src/common/pipes/vacios-como-au
 
 const pipe = new VaciosComoAusentesPipe();
 
-const como = (tipo: ArgumentMetadata['type']) =>
-  ({ type: tipo }) as ArgumentMetadata;
+const como = (tipo: ArgumentMetadata['type']) => ({ type: tipo }) as ArgumentMetadata;
 
 describe('Un vacío cuenta como no indicado', () => {
   it('en el query', () => {
@@ -32,15 +31,16 @@ describe('Un vacío cuenta como no indicado', () => {
   });
 
   it('y en el cuerpo, que es lo que faltaba', () => {
-    expect(
-      pipe.transform({ nombre: 'Paquetería Lima', soloPrimeras: '' }, como('body')),
-    ).toEqual({ nombre: 'Paquetería Lima' });
+    expect(pipe.transform({ nombre: 'Paquetería Lima', soloPrimeras: '' }, como('body'))).toEqual({
+      nombre: 'Paquetería Lima',
+    });
   });
 
   it('un 0 y un false se quedan: son valores, no ausencias', () => {
-    expect(
-      pipe.transform({ asignado: 0, activa: false, zona: '' }, como('body')),
-    ).toEqual({ asignado: 0, activa: false });
+    expect(pipe.transform({ asignado: 0, activa: false, zona: '' }, como('body'))).toEqual({
+      asignado: 0,
+      activa: false,
+    });
   });
 
   it('un null se queda: @IsOptional() ya lo ignora, y aquí significaría otra cosa', () => {
@@ -62,12 +62,7 @@ describe('Lo que no toca', () => {
   it('lo anidado, que es dato del usuario y no un campo de este backend', () => {
     // `campos` son los datos de un ítem de atajo: lo que haya ahí
     // lo valida el DTO de esa operación, no este pipe
-    expect(
-      pipe.transform(
-        { nombre: 'X', bloques: [{ items: [{ campos: { codigo: '' } }] }] },
-        como('body'),
-      ),
-    ).toEqual({
+    expect(pipe.transform({ nombre: 'X', bloques: [{ items: [{ campos: { codigo: '' } }] }] }, como('body'))).toEqual({
       nombre: 'X',
       bloques: [{ items: [{ campos: { codigo: '' } }] }],
     });
@@ -98,31 +93,20 @@ describe('El 400 que se vio en n8n', () => {
   });
 
   it('con el pipe delante, pasa', async () => {
-    const limpio = pipe.transform(
-      { nombre: 'Paquetería Lima', soloPrimeras: '' },
-      como('body'),
-    );
+    const limpio = pipe.transform({ nombre: 'Paquetería Lima', soloPrimeras: '' }, como('body'));
 
     expect(await validarComoNest(limpio)).toEqual([]);
   });
 
   it('y un soloPrimeras de verdad sigue llegando y sigue siendo número', async () => {
-    const limpio = pipe.transform(
-      { nombre: 'Paquetería Lima', soloPrimeras: '2' },
-      como('body'),
-    );
+    const limpio = pipe.transform({ nombre: 'Paquetería Lima', soloPrimeras: '2' }, como('body'));
 
     expect(await validarComoNest(limpio)).toEqual([]);
-    expect(
-      plainToInstance(EjecutarAtajoDto, limpio).soloPrimeras,
-    ).toBe(2);
+    expect(plainToInstance(EjecutarAtajoDto, limpio).soloPrimeras).toBe(2);
   });
 
   it('un soloPrimeras imposible sigue rechazándose: el pipe no tapa nada', async () => {
-    const limpio = pipe.transform(
-      { nombre: 'Paquetería Lima', soloPrimeras: '0' },
-      como('body'),
-    );
+    const limpio = pipe.transform({ nombre: 'Paquetería Lima', soloPrimeras: '0' }, como('body'));
 
     expect((await validarComoNest(limpio)).join(' ')).toContain('soloPrimeras');
   });

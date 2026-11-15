@@ -53,9 +53,7 @@ function armar(lista = agendas(3)) {
 
   const masivo = {
     listarMetodosEntrega: vi.fn().mockResolvedValue(CATALOGO),
-    listarOrigenes: vi
-      .fn()
-      .mockResolvedValue([{ code: 'warehouse', nombre: 'Bodega' }]),
+    listarOrigenes: vi.fn().mockResolvedValue([{ code: 'warehouse', nombre: 'Bodega' }]),
     consultarEstado: vi.fn().mockResolvedValue(lista),
     actualizar,
   } as unknown as OplMasivoService;
@@ -78,8 +76,7 @@ function armar(lista = agendas(3)) {
   };
 }
 
-const editar = (extra: Record<string, unknown>) =>
-  ({ servicio: 'SE', ...extra }) as never;
+const editar = (extra: Record<string, unknown>) => ({ servicio: 'SE', ...extra }) as never;
 
 describe('Cambio en bloque: lo que sí hace', () => {
   it('desactiva las agendas alcanzadas y devuelve la lista entera', async () => {
@@ -96,9 +93,7 @@ describe('Cambio en bloque: lo que sí hace', () => {
 
     // La lista va entera: un cambio en bloque solo se revisa viendo nombres
     expect(r.cambiadas).toHaveLength(3);
-    expect(r.cambiadas[0]).toEqual(
-      expect.objectContaining({ opl: 'Olva', agenda: 'Agenda 0' }),
-    );
+    expect(r.cambiadas[0]).toEqual(expect.objectContaining({ opl: 'Olva', agenda: 'Agenda 0' }));
 
     expect(actualizar).toHaveBeenCalledOnce();
   });
@@ -106,10 +101,7 @@ describe('Cambio en bloque: lo que sí hace', () => {
   it('acota por operador cuando se lo piden', async () => {
     const { servicio, actualizar } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ activo: false, opls: 'Olva' }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ activo: false, opls: 'Olva' }));
 
     expect(r.resumen.alcanzadas).toBe(2);
     expect(r.opls).toBe('Olva');
@@ -118,15 +110,9 @@ describe('Cambio en bloque: lo que sí hace', () => {
 
   it('varios operadores en una sola llamada', async () => {
     // "Activa el SE en Olva y Urbano" es una confirmación, no dos
-    const { servicio, actualizar } = armar([
-      ...agendas(2),
-      { ...agendas(1)[0], id: 'r-otro', opl: 'Shalom' },
-    ]);
+    const { servicio, actualizar } = armar([...agendas(2), { ...agendas(1)[0], id: 'r-otro', opl: 'Shalom' }]);
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ activo: false, opls: 'Olva, Urbano' }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ activo: false, opls: 'Olva, Urbano' }));
 
     expect(r.resumen.alcanzadas).toBe(2);
     expect(r.opls).toBe('Olva, Urbano');
@@ -144,10 +130,7 @@ describe('Cambio en bloque: lo que sí hace', () => {
 
   it('no toca las que ya estaban como se pide', async () => {
     // Dos ya inactivas y una activa: solo se escribe una
-    const { servicio, actualizar } = armar([
-      ...agendas(2, false),
-      { ...agendas(1)[0], id: 'r-activa' },
-    ]);
+    const { servicio, actualizar } = armar([...agendas(2, false), { ...agendas(1)[0], id: 'r-activa' }]);
 
     const r = await servicio.editar(USUARIO, editar({ activo: false }));
 
@@ -157,9 +140,7 @@ describe('Cambio en bloque: lo que sí hace', () => {
       cambiadas: 1,
       sinCambiar: 2,
     });
-    expect(actualizar.mock.calls[0][0].cambios).toEqual([
-      expect.objectContaining({ mainRouteId: 'r-activa' }),
-    ]);
+    expect(actualizar.mock.calls[0][0].cambios).toEqual([expect.objectContaining({ mainRouteId: 'r-activa' })]);
   });
 
   it('deduce el método de entrega del servicio', async () => {
@@ -226,9 +207,9 @@ describe('Cambio en bloque: cuándo se niega', () => {
   it('si la búsqueda alcanza más agendas de las revisables', async () => {
     const { servicio, actualizar } = armar(agendas(40));
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false })),
-    ).rejects.toThrow(/alcanza 40 agendas y el máximo por vez es 30/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false }))).rejects.toThrow(
+      /alcanza 40 agendas y el máximo por vez es 30/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -236,17 +217,15 @@ describe('Cambio en bloque: cuándo se niega', () => {
   it('y sugiere acotar o usar el panel', async () => {
     const { servicio } = armar(agendas(40));
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false })),
-    ).rejects.toThrow(/Acota por operador|desde el panel/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false }))).rejects.toThrow(
+      /Acota por operador|desde el panel/,
+    );
   });
 
   it('respeta un tope más bajo si lo piden', async () => {
     const { servicio, actualizar } = armar(agendas(10));
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false, maximo: 5 })),
-    ).rejects.toThrow(/máximo por vez es 5/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false, maximo: 5 }))).rejects.toThrow(/máximo por vez es 5/);
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -254,18 +233,16 @@ describe('Cambio en bloque: cuándo se niega', () => {
   it('si no se pide ningún cambio', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(servicio.editar(USUARIO, editar({}))).rejects.toThrow(
-      /nada que cambiar/,
-    );
+    await expect(servicio.editar(USUARIO, editar({}))).rejects.toThrow(/nada que cambiar/);
     expect(actualizar).not.toHaveBeenCalled();
   });
 
   it('si los filtros no alcanzan ninguna agenda', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false, opls: 'Inexistente' })),
-    ).rejects.toThrow(/no alcanzó ninguna agenda/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false, opls: 'Inexistente' }))).rejects.toThrow(
+      /no alcanzó ninguna agenda/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -273,9 +250,7 @@ describe('Cambio en bloque: cuándo se niega', () => {
   it('si todas estaban ya como se piden', async () => {
     const { servicio, actualizar } = armar(agendas(3, false));
 
-    await expect(
-      servicio.editar(USUARIO, editar({ activo: false })),
-    ).rejects.toThrow(/ya estaban así/);
+    await expect(servicio.editar(USUARIO, editar({ activo: false }))).rejects.toThrow(/ya estaban así/);
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -283,9 +258,9 @@ describe('Cambio en bloque: cuándo se niega', () => {
   it('si ningún método tiene ese servicio', async () => {
     const { servicio, actualizar } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ servicio: 'ZZ', activo: false })),
-    ).rejects.toThrow(/Ningún método de entrega tiene el servicio/);
+    await expect(servicio.editar(USUARIO, editar({ servicio: 'ZZ', activo: false }))).rejects.toThrow(
+      /Ningún método de entrega tiene el servicio/,
+    );
 
     expect(actualizar).not.toHaveBeenCalled();
   });
@@ -335,10 +310,7 @@ describe('Cambio en bloque: el historial', () => {
 
     await servicio.editar(USUARIO, editar({ activo: false }));
 
-    const [antes, despues] = registrarCambio.mock.calls[0] as [
-      { agendas: unknown[] },
-      { agendas: unknown[] },
-    ];
+    const [antes, despues] = registrarCambio.mock.calls[0] as [{ agendas: unknown[] }, { agendas: unknown[] }];
 
     expect(antes.agendas).toHaveLength(3);
     expect(despues.agendas).toHaveLength(3);

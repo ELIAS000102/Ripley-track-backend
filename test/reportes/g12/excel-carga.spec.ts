@@ -2,18 +2,29 @@ import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
 import type { UsuarioAutenticado } from '../../../src/auth/interfaces/auth.interface.js';
-import { excelDeCarga, leerPlantillaExcelCarga, nombreExcelDeCarga } from '../../../src/reportes/g12/excel-carga-g12.js';
-import { DESCARGAS_EXCEL_POR_DIA, hashDeClave, OracleG12Service } from '../../../src/reportes/g12/oracle-g12.service.js';
+import {
+  excelDeCarga,
+  leerPlantillaExcelCarga,
+  nombreExcelDeCarga,
+} from '../../../src/reportes/g12/excel-carga-g12.js';
+import {
+  DESCARGAS_EXCEL_POR_DIA,
+  hashDeClave,
+  OracleG12Service,
+} from '../../../src/reportes/g12/oracle-g12.service.js';
 import { supabaseEnMemoria, type Fila } from '../../fixtures/supabase-memoria.js';
 
 const ANA = { id: 'ana', email: 'ana.perez@ripley.com.pe' } as UsuarioAutenticado;
 const DATOS = { url: 'https://x.supabase.co', anon: 'anon-123', clave: 'a'.repeat(48), pais: 'PE', email: ANA.email };
 
-const textos = async (xlsx: Buffer, parte = 'xl/sharedStrings.xml') => (await JSZip.loadAsync(xlsx)).file(parte)!.async('string');
+const textos = async (xlsx: Buffer, parte = 'xl/sharedStrings.xml') =>
+  (await JSZip.loadAsync(xlsx)).file(parte)!.async('string');
 
 function montar() {
   const tablas: Record<string, Fila[]> = {};
-  const config = { get: (k: string) => ({ 'supabase.url': DATOS.url, 'supabase.anonKey': DATOS.anon })[k] } as unknown as ConfigService;
+  const config = {
+    get: (k: string) => ({ 'supabase.url': DATOS.url, 'supabase.anonKey': DATOS.anon })[k],
+  } as unknown as ConfigService;
   return { oracle: new OracleG12Service(supabaseEnMemoria(tablas), config), tablas };
 }
 
@@ -27,7 +38,8 @@ describe('El Excel de carga descargable', () => {
     expect(zip.file('customXml/item1.xml')).toBeTruthy();
     const conexiones = await zip.file('xl/connections.xml')!.async('string');
     // LEER_CONSUMOS es solo de conexión (no se carga en una hoja): no tiene conexión propia
-    for (const q of ['CONSUMOS', 'ULTIMA_CARGA', 'ESPERAR_PEDIDOS', 'SUBIR_A_SUPABASE']) expect(conexiones).toContain(`Location=${q};`);
+    for (const q of ['CONSUMOS', 'ULTIMA_CARGA', 'ESPERAR_PEDIDOS', 'SUBIR_A_SUPABASE'])
+      expect(conexiones).toContain(`Location=${q};`);
     // Consumos y la última carga se revisan solas cada minuto, como los pedidos
     expect(conexiones).toMatch(/interval="1" name="Consulta - CONSUMOS"[^>]*refreshOnLoad="1"/);
     expect(conexiones).toMatch(/interval="1" name="Consulta - ULTIMA_CARGA"[^>]*refreshOnLoad="1"/);
@@ -59,14 +71,24 @@ describe('El Excel de carga descargable', () => {
     const clave = /<t>([0-9a-f]{48})<\/t>/.exec(ss)?.[1];
     expect(clave).toBeTruthy();
     expect(tablas.g12_claves_carga).toHaveLength(1);
-    expect(tablas.g12_claves_carga[0]).toMatchObject({ usuario_id: 'ana', activa: true, origen: 'descarga', hash: hashDeClave(clave!) });
+    expect(tablas.g12_claves_carga[0]).toMatchObject({
+      usuario_id: 'ana',
+      activa: true,
+      origen: 'descarga',
+      hash: hashDeClave(clave!),
+    });
     expect(JSON.stringify(tablas.g12_claves_carga)).not.toContain(clave!);
 
     // Ya tiene uno: sin confirmar, 409 con cuándo lo descargó; confirmando, el de antes deja de valer
     await expect(oracle.descargarExcel(ANA, 'PE', false)).rejects.toMatchObject({ status: 409 });
     await oracle.descargarExcel(ANA, 'CL', true);
     expect(tablas.g12_claves_carga.map((k) => k.activa)).toEqual([false, true]);
-    expect(await oracle.miExcel('ana')).toMatchObject({ tieneClave: true, origen: 'descarga', descargasHoy: 2, descargasMaximas: DESCARGAS_EXCEL_POR_DIA });
+    expect(await oracle.miExcel('ana')).toMatchObject({
+      tieneClave: true,
+      origen: 'descarga',
+      descargasHoy: 2,
+      descargasMaximas: DESCARGAS_EXCEL_POR_DIA,
+    });
   });
 
   it(`como mucho ${DESCARGAS_EXCEL_POR_DIA} descargas al día`, async () => {

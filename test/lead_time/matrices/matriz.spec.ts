@@ -1,6 +1,11 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it, vi } from 'vitest';
-import { fechasDeVenta, interpretarTienda, leerCeldaRecepcion, paresDeTienda } from '../../../src/lead_time/matrices/matriz.calculo.js';
+import {
+  fechasDeVenta,
+  interpretarTienda,
+  leerCeldaRecepcion,
+  paresDeTienda,
+} from '../../../src/lead_time/matrices/matriz.calculo.js';
 import { leerMatriz } from '../../../src/lead_time/matrices/matriz.lector.js';
 import { crearPlantilla } from '../../../src/lead_time/matrices/matriz.plantilla.js';
 import { MatricesService } from '../../../src/lead_time/matrices/matrices.service.js';
@@ -18,21 +23,36 @@ import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditori
  */
 
 const _ = null;
-const fila = (codigo: string, tienda: string, desfase: number, transferencia: (string | null)[], recepcion: (string | null)[], intermedio: (string | null)[] = [_, _, _, _, _, _, _]): TiendaMalla =>
-  ({ codigo, tienda, desfase, transferencia, intermedio, recepcion });
+const fila = (
+  codigo: string,
+  tienda: string,
+  desfase: number,
+  transferencia: (string | null)[],
+  recepcion: (string | null)[],
+  intermedio: (string | null)[] = [_, _, _, _, _, _, _],
+): TiendaMalla => ({ codigo, tienda, desfase, transferencia, intermedio, recepcion });
 
-const MALL_CONCEPCION = fila('10002', 'Mall Concepcion', 0,
+const MALL_CONCEPCION = fila(
+  '10002',
+  'Mall Concepcion',
+  0,
   ['B', 'P-A-11', 'C', 'P-C-28', _, _, 'A'],
   ['P-C-28', 'A', 'B', 'P-A-11', 'C', _, _],
-  ['A', 'B', 'P-A-11', 'C', 'P-C-28', _, _]);
+  ['A', 'B', 'P-A-11', 'C', 'P-C-28', _, _],
+);
 const ARICA = fila('10021', 'Arica', 1, [_, _, _, 'A', _, _, 'P-A-49'], [_, 'A', _, _, 'P-A-49', _, _]);
 const PUNTA_ARENAS = fila('10096', 'Punta Arenas', 0, [_, _, _, 'A', _, _, _], ['A+7', _, _, _, _, _, _]);
 const NUEVA_VALDIVIA = fila('10098', 'Nueva Valdivia', 0, ['X', 'C', _, 'A', _, _, 'B'], ['A', 'B', _, 'C', _, _, _]);
 
 describe('Las reglas de la matriz', () => {
   it('cada transferencia con la recepción de su etiqueta, siempre hacia delante', () => {
-    expect(paresDeTienda(MALL_CONCEPCION).pares.map((p) => `${p.transfiere}>${p.recepciona}`))
-      .toEqual(['L>W', 'M>J', 'W>V', 'J>L', 'D>M']);
+    expect(paresDeTienda(MALL_CONCEPCION).pares.map((p) => `${p.transfiere}>${p.recepciona}`)).toEqual([
+      'L>W',
+      'M>J',
+      'W>V',
+      'J>L',
+      'D>M',
+    ]);
   });
 
   it('el desfase se suma a la recepción, en días naturales', () => {
@@ -43,7 +63,12 @@ describe('Las reglas de la matriz', () => {
   it('"+N" suma días a la recepción', () => {
     expect(leerCeldaRecepcion('A+7')).toEqual({ etiqueta: 'A', suma: 7 });
     expect(leerCeldaRecepcion('P-B-14')).toEqual({ etiqueta: 'P-B-14', suma: 0 });
-    expect(paresDeTienda(PUNTA_ARENAS).pares[0]).toMatchObject({ transfiere: 'J', recepciona: 'L', suma: 7, diasHastaRecepcion: 11 });
+    expect(paresDeTienda(PUNTA_ARENAS).pares[0]).toMatchObject({
+      transfiere: 'J',
+      recepciona: 'L',
+      suma: 7,
+      diasHastaRecepcion: 11,
+    });
   });
 
   it('una etiqueta sin pareja en la recepción se ignora', () => {
@@ -63,10 +88,26 @@ describe('Las reglas de la matriz', () => {
   });
 
   it('las fechas de los ejemplos que se validaron con la operación', () => {
-    expect(fechasDeVenta(NUEVA_VALDIVIA, '2026-10-09')).toMatchObject({ transferencia: '2026-10-11', recepcion: '2026-10-13', despacho: '2026-10-13' });
-    expect(fechasDeVenta(PUNTA_ARENAS, '2026-10-09')).toMatchObject({ transferencia: '2026-10-15', recepcion: '2026-10-26', despacho: '2026-10-26' });
-    expect(fechasDeVenta(MALL_CONCEPCION, '2026-10-12')).toMatchObject({ transferencia: '2026-10-12', recepcion: '2026-10-14', despacho: '2026-10-14' });
-    expect(fechasDeVenta(ARICA, '2026-10-08')).toMatchObject({ transferencia: '2026-10-08', recepcion: '2026-10-13', despacho: '2026-10-14' });
+    expect(fechasDeVenta(NUEVA_VALDIVIA, '2026-10-09')).toMatchObject({
+      transferencia: '2026-10-11',
+      recepcion: '2026-10-13',
+      despacho: '2026-10-13',
+    });
+    expect(fechasDeVenta(PUNTA_ARENAS, '2026-10-09')).toMatchObject({
+      transferencia: '2026-10-15',
+      recepcion: '2026-10-26',
+      despacho: '2026-10-26',
+    });
+    expect(fechasDeVenta(MALL_CONCEPCION, '2026-10-12')).toMatchObject({
+      transferencia: '2026-10-12',
+      recepcion: '2026-10-14',
+      despacho: '2026-10-14',
+    });
+    expect(fechasDeVenta(ARICA, '2026-10-08')).toMatchObject({
+      transferencia: '2026-10-08',
+      recepcion: '2026-10-13',
+      despacho: '2026-10-14',
+    });
   });
 
   it('una tienda sin ningún día válido no tiene lead time', () => {
@@ -85,7 +126,8 @@ async function libroOriginal(filas: unknown[][], encabezado?: unknown[]) {
   for (const f of filas) hoja.addRow(f);
   return Buffer.from(await libro.xlsx.writeBuffer());
 }
-const filaExcel = (t: TiendaMalla) => [Number(t.codigo), t.tienda, t.desfase, ...t.transferencia, ...t.intermedio, ...t.recepcion].map((v) => v ?? ' ');
+const filaExcel = (t: TiendaMalla) =>
+  [Number(t.codigo), t.tienda, t.desfase, ...t.transferencia, ...t.intermedio, ...t.recepcion].map((v) => v ?? ' ');
 
 describe('Leer el Excel', () => {
   it('el original, con el encabezado en la fila 1 y los espacios sueltos como vacíos', async () => {
@@ -117,18 +159,50 @@ describe('Leer el Excel', () => {
 
   it('una columna movida rechaza el archivo entero', async () => {
     const D = ['L', 'M', 'W', 'J', 'V', 'S', 'D'];
-    const r = await leerMatriz(await libroOriginal([filaExcel(ARICA)], ['Codigo', 'Desfase', 'Tienda', ...D, ...D, ...D]));
+    const r = await leerMatriz(
+      await libroOriginal([filaExcel(ARICA)], ['Codigo', 'Desfase', 'Tienda', ...D, ...D, ...D]),
+    );
 
     expect(r.tiendas).toEqual([]);
     expect(r.errores[0]).toMatch(/columna B dice "desfase" y debería decir "TIENDA"/);
   });
 
   it.each([
-    ['un código que no es un código', (f: unknown[]) => { f[0] = 'Total'; }, /el código "Total" no es válido/],
-    ['un desfase que no es un número', (f: unknown[]) => { f[2] = 'uno'; }, /el desfase "uno" tiene que ser un número entero/],
-    ['un "+N" en la transferencia', (f: unknown[]) => { f[6] = 'A+7'; }, /"A\+7" en la columna G \(transferencia\): el "\+N" solo va en la recepción/],
-    ['una etiqueta dos veces en la recepción', (f: unknown[]) => { f[17] = 'A'; }, /la etiqueta "A" está dos veces en la recepción/],
-    ['un "+N" mal escrito', (f: unknown[]) => { f[17] = 'A+'; }, /un "\+N" se escribe como "A\+7"/],
+    [
+      'un código que no es un código',
+      (f: unknown[]) => {
+        f[0] = 'Total';
+      },
+      /el código "Total" no es válido/,
+    ],
+    [
+      'un desfase que no es un número',
+      (f: unknown[]) => {
+        f[2] = 'uno';
+      },
+      /el desfase "uno" tiene que ser un número entero/,
+    ],
+    [
+      'un "+N" en la transferencia',
+      (f: unknown[]) => {
+        f[6] = 'A+7';
+      },
+      /"A\+7" en la columna G \(transferencia\): el "\+N" solo va en la recepción/,
+    ],
+    [
+      'una etiqueta dos veces en la recepción',
+      (f: unknown[]) => {
+        f[17] = 'A';
+      },
+      /la etiqueta "A" está dos veces en la recepción/,
+    ],
+    [
+      'un "+N" mal escrito',
+      (f: unknown[]) => {
+        f[17] = 'A+';
+      },
+      /un "\+N" se escribe como "A\+7"/,
+    ],
   ])('%s es un error, con su fila', async (_nombre, romper, mensaje) => {
     const mala = filaExcel(ARICA);
     romper(mala);
@@ -145,7 +219,9 @@ describe('Leer el Excel', () => {
   });
 
   it('lo que no es un Excel se dice', async () => {
-    expect((await leerMatriz(Buffer.from('no soy un excel'))).errores).toEqual(['El archivo no es un Excel .xlsx que se pueda abrir.']);
+    expect((await leerMatriz(Buffer.from('no soy un excel'))).errores).toEqual([
+      'El archivo no es un Excel .xlsx que se pueda abrir.',
+    ]);
   });
 });
 
@@ -153,17 +229,35 @@ describe('Guardar y leer la matriz', () => {
   function supabaseFalso(tiendasGuardadas: unknown[] = []) {
     const insertados: Array<{ tabla: string; datos: unknown }> = [];
     const borrados: string[] = [];
-    const cabecera = { id: 'm-1', pais: 'CL', tipo: 'regular', archivo: 'a.xlsx', tiendas: 2, avisos: [], cargado_por: 'u@r.cl', cargado_en: '2026-10-08T10:00:00Z' };
+    const cabecera = {
+      id: 'm-1',
+      pais: 'CL',
+      tipo: 'regular',
+      archivo: 'a.xlsx',
+      tiendas: 2,
+      avisos: [],
+      cargado_por: 'u@r.cl',
+      cargado_en: '2026-10-08T10:00:00Z',
+    };
 
     const consulta = (tabla: string) => {
-      const resultado = () => (tabla === 'matrices' ? { data: cabecera, error: null } : { data: tiendasGuardadas, error: null });
+      const resultado = () =>
+        tabla === 'matrices' ? { data: cabecera, error: null } : { data: tiendasGuardadas, error: null };
       // Una promesa con los métodos del constructor de consultas: se puede encadenar y esperar
       const q = Promise.resolve(resultado()) as unknown as Record<string, unknown>;
       for (const m of ['select', 'eq', 'order', 'limit']) q[m] = () => q;
       q.maybeSingle = async () => resultado();
       q.single = async () => ({ data: { id: 'm-2', cargado_en: '2026-10-08T11:00:00Z' }, error: null });
-      q.insert = (datos: unknown) => { insertados.push({ tabla, datos }); return tabla === 'matrices' ? q : Promise.resolve({ error: null }); };
-      q.delete = () => ({ eq: async (_c: string, id: string) => { borrados.push(id); return { error: null }; } });
+      q.insert = (datos: unknown) => {
+        insertados.push({ tabla, datos });
+        return tabla === 'matrices' ? q : Promise.resolve({ error: null });
+      };
+      q.delete = () => ({
+        eq: async (_c: string, id: string) => {
+          borrados.push(id);
+          return { error: null };
+        },
+      });
       return q;
     };
     const supabase = { admin: { from: vi.fn(consulta) } } as unknown as SupabaseService;
@@ -176,12 +270,25 @@ describe('Guardar y leer la matriz', () => {
   it('una carga buena guarda la versión y sus tiendas, y queda en el historial de cambios', async () => {
     const { servicio, insertados, auditoria } = supabaseFalso();
 
-    const r = await servicio.cargar(await libroOriginal([filaExcel(MALL_CONCEPCION), filaExcel(ARICA)]), 'matriz.xlsx', GRUPO, USUARIO);
+    const r = await servicio.cargar(
+      await libroOriginal([filaExcel(MALL_CONCEPCION), filaExcel(ARICA)]),
+      'matriz.xlsx',
+      GRUPO,
+      USUARIO,
+    );
 
     expect(r).toMatchObject({ id: 'm-2', pais: 'CL', tiendas: 2 });
-    expect(insertados[0]).toMatchObject({ tabla: 'matrices', datos: { grupo_id: 'g-st', pais: 'CL', tipo: 'regular', tiendas: 2, cargado_por: 'u@ripley.cl' } });
+    expect(insertados[0]).toMatchObject({
+      tabla: 'matrices',
+      datos: { grupo_id: 'g-st', pais: 'CL', tipo: 'regular', tiendas: 2, cargado_por: 'u@ripley.cl' },
+    });
     expect(insertados[1].tabla).toBe('matriz_tiendas');
-    expect((insertados[1].datos as unknown[])[1]).toMatchObject({ version_id: 'm-2', codigo: '10021', desfase: 1, recepcion: [_, 'A', _, _, 'P-A-49', _, _] });
+    expect((insertados[1].datos as unknown[])[1]).toMatchObject({
+      version_id: 'm-2',
+      codigo: '10021',
+      desfase: 1,
+      recepcion: [_, 'A', _, _, 'P-A-49', _, _],
+    });
     expect(auditoria.registrarCambio).toHaveBeenCalled();
   });
 

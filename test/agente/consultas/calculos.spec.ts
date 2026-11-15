@@ -7,17 +7,24 @@ import { fechaLegible } from '../../../src/agente/consultas/simulacion/simulacio
  */
 
 const dia = (fecha: string, activo: boolean, disponible: number) => ({
-  fecha, activo, asignado: 100, ocupado: 100 - disponible, disponible, uso: 100 - disponible,
+  fecha,
+  activo,
+  asignado: 100,
+  ocupado: 100 - disponible,
+  disponible,
+  uso: 100 - disponible,
 });
 
 describe('El primer día con cupo de una agenda', () => {
   it('es el primero activo con disponible, no el primero de la lista', () => {
-    expect(primerDiaDisponible([
-      dia('2026-10-02', false, 196), // inactivo: con cupo, pero no se vende
-      dia('2026-10-03', true, 0),    // activo y lleno
-      dia('2026-10-04', true, 150),
-      dia('2026-10-05', true, 290),
-    ])).toBe('2026-10-04');
+    expect(
+      primerDiaDisponible([
+        dia('2026-10-02', false, 196), // inactivo: con cupo, pero no se vende
+        dia('2026-10-03', true, 0), // activo y lleno
+        dia('2026-10-04', true, 150),
+        dia('2026-10-05', true, 290),
+      ]),
+    ).toBe('2026-10-04');
   });
 
   it('si no hay ninguno, null: no se inventa una fecha', () => {

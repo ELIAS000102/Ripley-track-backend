@@ -14,7 +14,9 @@ import { fileURLToPath } from 'node:url';
  */
 
 /** Desde `src/reportes/g12/` y desde `dist/reportes/g12/`: la carpeta `assets` está en la raíz */
-export const RUTA_PLANTILLA_EXCEL_CARGA = fileURLToPath(new URL('../../../assets/g12/G12-carga-oracle.xlsx', import.meta.url));
+export const RUTA_PLANTILLA_EXCEL_CARGA = fileURLToPath(
+  new URL('../../../assets/g12/G12-carga-oracle.xlsx', import.meta.url),
+);
 
 export interface DatosExcelCarga {
   url: string;
@@ -33,7 +35,12 @@ const MARCADORES: Array<[keyof DatosExcelCarga, string]> = [
 ];
 
 const escaparXml = (texto: string) =>
-  texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 
 let plantilla: Promise<Buffer> | null = null;
 
@@ -41,7 +48,9 @@ let plantilla: Promise<Buffer> | null = null;
 export function leerPlantillaExcelCarga(ruta = RUTA_PLANTILLA_EXCEL_CARGA): Promise<Buffer> {
   if (!plantilla) {
     plantilla = readFile(ruta);
-    plantilla.catch(() => { plantilla = null; });
+    plantilla.catch(() => {
+      plantilla = null;
+    });
   }
   return plantilla;
 }
@@ -63,9 +72,10 @@ export async function excelDeCarga(plantillaXlsx: Buffer, datos: DatosExcelCarga
   const libro = zip.file('xl/workbook.xml');
   if (libro) {
     const wb = await libro.async('string');
-    zip.file('xl/workbook.xml', wb.includes('fullCalcOnLoad')
-      ? wb
-      : wb.replace(/<calcPr\b/, '<calcPr fullCalcOnLoad="1"'));
+    zip.file(
+      'xl/workbook.xml',
+      wb.includes('fullCalcOnLoad') ? wb : wb.replace(/<calcPr\b/, '<calcPr fullCalcOnLoad="1"'),
+    );
   }
 
   // Sin el nombre de quien armó la plantilla
@@ -82,6 +92,9 @@ export async function excelDeCarga(plantillaXlsx: Buffer, datos: DatosExcelCarga
 
 /** "G12-carga-oracle-ana.perez@ripley.com.pe.xlsx": el correo de la persona, sin lo que no vale en un nombre de archivo */
 export function nombreExcelDeCarga(email: string): string {
-  const limpio = email.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, '_');
+  const limpio = email
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9@._+-]/g, '_');
   return `G12-carga-oracle-${limpio || 'usuario'}.xlsx`;
 }

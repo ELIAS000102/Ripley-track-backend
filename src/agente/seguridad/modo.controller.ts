@@ -39,12 +39,7 @@ export class ModoAgenteController {
    */
   @Auditar('agente.cambiarModo')
   @Put()
-  cambiar(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: CambiarModoDto,
-  ) {
-    return body.modo === 'editor'
-      ? this.modo.activar(usuario.id)
-      : this.modo.desactivar(usuario.id);
+  cambiar(@Usuario() usuario: UsuarioAutenticado, @Body() body: CambiarModoDto) {
+    return body.modo === 'editor' ? this.modo.activar(usuario.id) : this.modo.desactivar(usuario.id);
   }
 }

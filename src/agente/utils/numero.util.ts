@@ -12,9 +12,7 @@
  * `Infinity` pasa como número válido. Se queda `isFinite`, que es el que no deja
  * entrar lo que no se puede enseñar ni comparar.
  */
-export function numeroONulo(
-  valor: number | string | null | undefined,
-): number | null {
+export function numeroONulo(valor: number | string | null | undefined): number | null {
   if (valor === null || valor === undefined || valor === '') return null;
 
   const numero = Number(valor);

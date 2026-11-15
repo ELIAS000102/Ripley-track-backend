@@ -19,10 +19,7 @@ async function bootstrap() {
 
   // El orden importa: primero se descartan los query params vacíos y solo
   // después se valida, para que "?desde=" cuente como no indicado.
-  app.useGlobalPipes(
-    new VaciosComoAusentesPipe(),
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
+  app.useGlobalPipes(new VaciosComoAusentesPipe(), new ValidationPipe({ whitelist: true, transform: true }));
 
   const port = configService.get<number>('port', 3000);
   await app.listen(port);

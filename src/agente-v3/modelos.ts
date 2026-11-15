@@ -41,10 +41,13 @@ export function elegirModelo(rol: RolModelo, turnoId: string, intentos: IntentoM
   const fallidos = intentos.filter((i) => !i.ok);
   const saturados = new Set(fallidos.filter((i) => i.clase === 'saturado').map((i) => i.nombre));
   const descartado = (nombre: string, cuenta: number) =>
-    saturados.has(nombre) || fallidos.some((i) => i.nombre === nombre && i.cuenta === cuenta && (i.clase !== 'respuesta' || i.rol === rol));
+    saturados.has(nombre) ||
+    fallidos.some((i) => i.nombre === nombre && i.cuenta === cuenta && (i.clase !== 'respuesta' || i.rol === rol));
 
   const primera = cuentaDelTurno(turnoId);
-  const cuentas = CUENTAS.map((_, k) => CUENTAS[(CUENTAS.indexOf(primera as (typeof CUENTAS)[number]) + k) % CUENTAS.length]);
+  const cuentas = CUENTAS.map(
+    (_, k) => CUENTAS[(CUENTAS.indexOf(primera as (typeof CUENTAS)[number]) + k) % CUENTAS.length],
+  );
 
   // Aprender empieza por el 3.5 Flash; los demás roles, por los Flash-Lite
   for (const nombre of rol === 'aprender' ? MODELOS_DE_APRENDER : MODELOS) {

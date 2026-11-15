@@ -13,9 +13,7 @@ import type { DiasDisponibles } from '../../configuracion/transf-suc/interfaces/
  * consulta solo tenía el nombre canónico. Mientras solo se leyera daba igual;
  * en cuanto la consulta hubiera tenido que entender "vie", no habría podido.
  */
-export const DIAS: ReadonlyArray<
-  [clave: keyof DiasDisponibles, nombres: string[]]
-> = [
+export const DIAS: ReadonlyArray<[clave: keyof DiasDisponibles, nombres: string[]]> = [
   ['monday', ['lunes', 'lun']],
   ['tuesday', ['martes', 'mar']],
   ['wednesday', ['miercoles', 'miércoles', 'mie', 'mié']],

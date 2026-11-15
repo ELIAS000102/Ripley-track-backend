@@ -27,7 +27,13 @@ const BLOQUE: Record<string, { herramienta: string; tipo: string | null }> = {
   opl: { herramienta: 'consultar_servicios_opl', tipo: 'opl' },
 };
 
-const plano = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const plano = (s: unknown) =>
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 export const mismoNombre = (a: unknown, b: unknown) => Boolean(plano(a)) && plano(a) === plano(b);
 
 function sinRepetir(l: AgendaConocida[]): AgendaConocida[] {
@@ -44,35 +50,55 @@ function sinRepetir(l: AgendaConocida[]): AgendaConocida[] {
 export function agendasDeDatos(herramienta: string, datos: unknown, tipo: string | null = null): AgendaConocida[] {
   if (!datos || typeof datos !== 'object') return [];
   if (herramienta === 'ejecutar_atajo') {
-    const bloques = (datos as { bloques?: Array<{ tipo: string; items?: Array<{ resultado?: unknown }> }> }).bloques ?? [];
-    return sinRepetir(bloques.flatMap((b) => {
-      const de = BLOQUE[b.tipo];
-      return de ? (b.items ?? []).filter((i) => i.resultado).flatMap((i) => agendasDeDatos(de.herramienta, i.resultado, de.tipo)) : [];
-    }));
+    const bloques =
+      (datos as { bloques?: Array<{ tipo: string; items?: Array<{ resultado?: unknown }> }> }).bloques ?? [];
+    return sinRepetir(
+      bloques.flatMap((b) => {
+        const de = BLOQUE[b.tipo];
+        return de
+          ? (b.items ?? [])
+              .filter((i) => i.resultado)
+              .flatMap((i) => agendasDeDatos(de.herramienta, i.resultado, de.tipo))
+          : [];
+      }),
+    );
   }
-  if (herramienta === 'consultar_capacidad') tipo = tipo ?? ((datos as { tipo?: string }).tipo ?? null);
+  if (herramienta === 'consultar_capacidad') tipo = tipo ?? (datos as { tipo?: string }).tipo ?? null;
   else if (herramienta === 'consultar_servicios_opl') tipo = 'opl';
   else return [];
-  return sinRepetir(filasDe(herramienta, datos).filter((f) => f.agenda).map((f) => ({
-    codigo: f.codigo, tipo, zona: f.zona ?? null, agenda: String(f.agenda), servicio: f.servicio ?? null,
-  })));
+  return sinRepetir(
+    filasDe(herramienta, datos)
+      .filter((f) => f.agenda)
+      .map((f) => ({
+        codigo: f.codigo,
+        tipo,
+        zona: f.zona ?? null,
+        agenda: String(f.agenda),
+        servicio: f.servicio ?? null,
+      })),
+  );
 }
 
 /** Todo lo que se conoce en el turno */
 export function agendasConocidas(contexto: ContextoTurno): AgendaConocida[] {
-  const delAnterior = (contexto.anterior?.resultados ?? []).filter((r) => r.datos).flatMap((r) => agendasDeDatos(r.herramienta, r.datos));
+  const delAnterior = (contexto.anterior?.resultados ?? [])
+    .filter((r) => r.datos)
+    .flatMap((r) => agendasDeDatos(r.herramienta, r.datos));
   return sinRepetir([...delAnterior, ...(contexto.agendas ?? [])]);
 }
 
 /** Los códigos que trajo el mensaje anterior ({ ref: 'anterior' }) */
 export function codigosDelAnterior(contexto: ContextoTurno): string[] {
   const res = (contexto.anterior?.resultados ?? []).filter((x) => x.datos);
-  return [...new Set(res.flatMap((x) => x.cumplen ?? codigosQueCumplen(filasDe(x.herramienta, x.datos, contexto.hoy))))];
+  return [
+    ...new Set(res.flatMap((x) => x.cumplen ?? codigosQueCumplen(filasDe(x.herramienta, x.datos, contexto.hoy)))),
+  ];
 }
 
 /** Las conocidas de esas oficinas y de ese tipo (las de OPL valen también como de despacho, y al revés) */
 export function deLasOficinas(conocidas: AgendaConocida[], codigos: string[], tipo: string | null): AgendaConocida[] {
-  const compatible = (t: string | null) => !tipo || !t || t === tipo || ((t === 'opl' || t === 'despacho') && (tipo === 'opl' || tipo === 'despacho'));
+  const compatible = (t: string | null) =>
+    !tipo || !t || t === tipo || ((t === 'opl' || t === 'despacho') && (tipo === 'opl' || tipo === 'despacho'));
   return conocidas.filter((a) => codigos.includes(a.codigo) && compatible(a.tipo));
 }
 
@@ -82,19 +108,24 @@ export function deLasOficinas(conocidas: AgendaConocida[], codigos: string[], ti
  * ("centralizado" → todas las centralizadas).
  */
 export function lasQueEncajan(agendas: AgendaConocida[], agenda: unknown, zona: unknown): AgendaConocida[] {
-  const filtra = (exacto: boolean) => agendas.filter((a) => {
-    const cumple = (v: unknown) => !plano(v) || (exacto
-      ? mismoNombre(a.agenda, v) || mismoNombre(a.zona, v)
-      : plano(a.agenda).includes(plano(v)) || plano(a.zona).includes(plano(v)));
-    return cumple(agenda) && cumple(zona);
-  });
+  const filtra = (exacto: boolean) =>
+    agendas.filter((a) => {
+      const cumple = (v: unknown) =>
+        !plano(v) ||
+        (exacto
+          ? mismoNombre(a.agenda, v) || mismoNombre(a.zona, v)
+          : plano(a.agenda).includes(plano(v)) || plano(a.zona).includes(plano(v)));
+      return cumple(agenda) && cumple(zona);
+    });
   const exactas = filtra(true);
   return exactas.length ? exactas : filtra(false);
 }
 
 /** "1100 · despacho · Centralizado HUB San Luis › Centralizado HUB San Luis · S" */
 export function agendaEnLinea(a: AgendaConocida): string {
-  return [a.codigo, a.tipo, `${a.zona && !mismoNombre(a.zona, a.agenda) ? `${a.zona} › ` : ''}${a.agenda}`, a.servicio].filter(Boolean).join(' · ');
+  return [a.codigo, a.tipo, `${a.zona && !mismoNombre(a.zona, a.agenda) ? `${a.zona} › ` : ''}${a.agenda}`, a.servicio]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**
@@ -105,7 +136,10 @@ export function agendasParaPrompt(contexto: ContextoTurno, max = 80): string[] {
   const todas = agendasConocidas(contexto);
   if (!todas.length) return [];
   const delMensaje = new Set(contexto.entidades.flatMap((e) => e.candidatos.map((c) => c.codigo)));
-  const ordenadas = [...todas.filter((a) => delMensaje.has(a.codigo)), ...todas.filter((a) => !delMensaje.has(a.codigo))];
+  const ordenadas = [
+    ...todas.filter((a) => delMensaje.has(a.codigo)),
+    ...todas.filter((a) => !delMensaje.has(a.codigo)),
+  ];
   const lineas = ordenadas.slice(0, max).map((a) => `- ${agendaEnLinea(a)}`);
   return todas.length > max ? [...lineas, `- …y ${todas.length - max} más`] : lineas;
 }

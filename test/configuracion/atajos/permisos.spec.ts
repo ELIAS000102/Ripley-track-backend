@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  PERMITIDO_AGENTE,
-  PERMITIDO_AGENTE_EDITOR,
-} from '../../../src/agente/seguridad/permitido-agente.decorator.js';
+import { PERMITIDO_AGENTE, PERMITIDO_AGENTE_EDITOR } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
 import type { UsuarioAutenticado } from '../../../src/auth/interfaces/auth.interface.js';
 import type { EjecutorAtajoService } from '../../../src/configuracion/atajos/ejecutor.service.js';
 import { AtajosController } from '../../../src/configuracion/atajos/atajos.controller.js';
@@ -23,24 +20,20 @@ const USUARIO = { id: 'u1', email: 'jose@ripley.com.pe' } as UsuarioAutenticado;
 
 describe('Las rutas', () => {
   it('responde en /configuracion/atajos y, mientras se reimporta el flujo, en la de antes', () => {
-    expect(Reflect.getMetadata('path', AtajosController)).toEqual(['configuracion/atajos', 'configuracion/preconfiguraciones']);
+    expect(Reflect.getMetadata('path', AtajosController)).toEqual([
+      'configuracion/atajos',
+      'configuracion/preconfiguraciones',
+    ]);
   });
 });
 
 const marcada = (metodo: string, clave: string) =>
-  Reflect.getMetadata(
-    clave,
-    AtajosController.prototype[
-      metodo as keyof AtajosController
-    ] as object,
-  ) === true;
+  Reflect.getMetadata(clave, AtajosController.prototype[metodo as keyof AtajosController] as object) === true;
 
 function armar(bloques: { accion: string }[], _puedeEscribir = false) {
   const ejecutar = vi.fn().mockResolvedValue({ bloques: [] });
 
-  const porNombre = vi
-    .fn()
-    .mockResolvedValue({ nombre: 'BT Lima', bloques } as Atajo);
+  const porNombre = vi.fn().mockResolvedValue({ nombre: 'BT Lima', bloques } as Atajo);
 
   const controller = new AtajosController(
     { porNombre } as unknown as AtajosService,
@@ -73,19 +66,9 @@ describe('Lo que el agente alcanza de los atajos', () => {
   });
 
   it('ninguna lleva @PermitidoAgenteEditor(): el permiso no lo da la ruta', () => {
-    const metodos = [
-      'listar',
-      'obtener',
-      'crear',
-      'editar',
-      'retirar',
-      'ejecutar',
-      'ejecutarPorNombre',
-    ];
+    const metodos = ['listar', 'obtener', 'crear', 'editar', 'retirar', 'ejecutar', 'ejecutarPorNombre'];
 
-    expect(
-      metodos.filter((m) => marcada(m, PERMITIDO_AGENTE_EDITOR)),
-    ).toEqual([]);
+    expect(metodos.filter((m) => marcada(m, PERMITIDO_AGENTE_EDITOR))).toEqual([]);
   });
 });
 
@@ -103,9 +86,7 @@ describe('Ejecutar no pide el modo editor, porque no escribe', () => {
   it('el controller ya no mira el modo: no tiene con qué', () => {
     // Era `exigirModoEditorSiEscribe`, y existía porque el permiso dependía del
     // contenido. Sin bloques de edición no hay contenido del que dependa.
-    expect(
-      'exigirModoEditorSiEscribe' in AtajosController.prototype,
-    ).toBe(false);
+    expect('exigirModoEditorSiEscribe' in AtajosController.prototype).toBe(false);
   });
 
   it('se ejecuta por nombre, que es como se pide en el chat', async () => {

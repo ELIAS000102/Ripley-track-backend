@@ -59,10 +59,18 @@ describe('Crear una rutina', () => {
     const r = await servicio.crear(JOSE, APERTURA as never);
 
     expect([r.activa, r.version, r.propia, r.probada]).toEqual([false, 1, true, false]);
-    expect(r.tareas?.map((t) => [t.orden, t.nombre, t.pasos.length])).toEqual([[1, 'Activar la S y el DX', 2], [2, 'Revisar el picking', 1]]);
-    expect(r.tareas?.[0].pasos[0].atajos).toEqual([{ id: 'a-sameday', nombre: 'Estado del Next Day y Same Day de chile', activa: true }]);
+    expect(r.tareas?.map((t) => [t.orden, t.nombre, t.pasos.length])).toEqual([
+      [1, 'Activar la S y el DX', 2],
+      [2, 'Revisar el picking', 1],
+    ]);
+    expect(r.tareas?.[0].pasos[0].atajos).toEqual([
+      { id: 'a-sameday', nombre: 'Estado del Next Day y Same Day de chile', activa: true },
+    ]);
     expect(r.tareas?.[0].pasos[1].guias).toMatchObject([{ id: 'g-cl', nombre: 'BT Provincia Chile', tipo: 'malla' }]);
-    expect(r.horarios?.map((h) => [h.orden, h.dias, h.hora, h.tareas])).toEqual([[1, [1, 2, 3, 4, 5], '08:00', []], [2, [6], '10:00', [2]]]);
+    expect(r.horarios?.map((h) => [h.orden, h.dias, h.hora, h.tareas])).toEqual([
+      [1, [1, 2, 3, 4, 5], '08:00', []],
+      [2, [6], '10:00', [2]],
+    ]);
   });
 
   it('dice por qué todavía no se puede activar', async () => {
@@ -72,11 +80,36 @@ describe('Crear una rutina', () => {
   });
 
   it.each([
-    ['dos horarios el mismo día a la misma hora', { horarios: [{ dias: [1], hora: '08:00' }, { dias: [1, 2], hora: '08:00' }] }, 'el lunes a las 08:00 está en los horarios 1 y 2'],
-    ['un horario que nombra una tarea que no existe', { horarios: [{ dias: [1], hora: '08:00', tareas: [3] }] }, 'el horario 1 nombra la tarea 3, y la rutina tiene 2'],
-    ['un atajo retirado', { tareas: [{ nombre: 'x', pasos: [{ instruccion: 'x', atajos: ['a-vieja'] }] }] }, 'el atajo "Vieja" está retirado'],
-    ['un atajo que no existe', { tareas: [{ nombre: 'x', pasos: [{ instruccion: 'x', atajos: ['a-nada'] }] }] }, 'no existe el atajo a-nada'],
-    ['una guía de otro país', { tareas: [{ nombre: 'x', pasos: [{ instruccion: 'x', guias: ['g-pe'] }] }] }, '"Matriz ST" es de PE y la rutina de CL'],
+    [
+      'dos horarios el mismo día a la misma hora',
+      {
+        horarios: [
+          { dias: [1], hora: '08:00' },
+          { dias: [1, 2], hora: '08:00' },
+        ],
+      },
+      'el lunes a las 08:00 está en los horarios 1 y 2',
+    ],
+    [
+      'un horario que nombra una tarea que no existe',
+      { horarios: [{ dias: [1], hora: '08:00', tareas: [3] }] },
+      'el horario 1 nombra la tarea 3, y la rutina tiene 2',
+    ],
+    [
+      'un atajo retirado',
+      { tareas: [{ nombre: 'x', pasos: [{ instruccion: 'x', atajos: ['a-vieja'] }] }] },
+      'el atajo "Vieja" está retirado',
+    ],
+    [
+      'un atajo que no existe',
+      { tareas: [{ nombre: 'x', pasos: [{ instruccion: 'x', atajos: ['a-nada'] }] }] },
+      'no existe el atajo a-nada',
+    ],
+    [
+      'una guía de otro país',
+      { tareas: [{ nombre: 'x', pasos: [{ instruccion: 'x', guias: ['g-pe'] }] }] },
+      '"Matriz ST" es de PE y la rutina de CL',
+    ],
   ])('no se guarda con %s', async (_, cambio, motivo) => {
     const { servicio, tablas } = montar();
     await expect(servicio.crear(JOSE, { ...APERTURA, ...cambio } as never)).rejects.toThrow(motivo);
@@ -90,7 +123,9 @@ describe('Solo su creador la toca', () => {
     const r = await servicio.crear(JOSE, APERTURA as never);
 
     expect((await servicio.listar(ANA)).map((x) => [x.nombre, x.propia])).toEqual([['Apertura de Chile', false]]);
-    await expect(servicio.editar(r.id, ANA, { nombre: 'Otra' })).rejects.toThrow('corre con su cuenta y su token de Ripley');
+    await expect(servicio.editar(r.id, ANA, { nombre: 'Otra' })).rejects.toThrow(
+      'corre con su cuenta y su token de Ripley',
+    );
     await expect(servicio.activar(r.id, ANA)).rejects.toThrow('Solo quien la creó');
     await expect(servicio.borrar(r.id, ANA)).rejects.toThrow('Solo quien la creó');
   });
@@ -129,7 +164,12 @@ describe('Activar exige una prueba correcta de la versión actual', () => {
     const { servicio, r } = await probada();
     await servicio.activar(r.id, JOSE);
     const cambiada = await servicio.editar(r.id, JOSE, { nombre: 'Apertura CL' });
-    expect([cambiada.nombre, cambiada.version, cambiada.activa, cambiada.desactivada]).toEqual(['Apertura CL', 1, true, false]);
+    expect([cambiada.nombre, cambiada.version, cambiada.activa, cambiada.desactivada]).toEqual([
+      'Apertura CL',
+      1,
+      true,
+      false,
+    ]);
   });
 
   it('guardarla entera tal como estaba, que es lo que hace el panel, tampoco la apaga', async () => {
@@ -144,8 +184,15 @@ describe('Activar exige una prueba correcta de la versión actual', () => {
     await servicio.activar(r.id, JOSE);
     const cambiada = await servicio.editar(r.id, JOSE, { horarios: [{ dias: [1, 2, 3, 4, 5], hora: '07:30' }] });
 
-    expect([cambiada.version, cambiada.activa, cambiada.desactivada, cambiada.probada]).toEqual([2, false, true, false]);
-    expect(cambiada.noActivable).toBe('Pruébala antes de activarla: cambió después de la última prueba correcta (versión 1, ahora 2).');
+    expect([cambiada.version, cambiada.activa, cambiada.desactivada, cambiada.probada]).toEqual([
+      2,
+      false,
+      true,
+      false,
+    ]);
+    expect(cambiada.noActivable).toBe(
+      'Pruébala antes de activarla: cambió después de la última prueba correcta (versión 1, ahora 2).',
+    );
     await expect(servicio.activar(r.id, JOSE)).rejects.toThrow('cambió después de la última prueba correcta');
   });
 
@@ -160,7 +207,17 @@ describe('Lo que está corriendo o detenido', () => {
   it('mientras corre no se cambia ni se borra', async () => {
     const { servicio, tablas } = montar();
     const r = await servicio.crear(JOSE, APERTURA as never);
-    tablas.rutina_ejecuciones = [{ id: 'e1', rutina_id: r.id, estado: 'en_curso', modo: 'real', origen: 'programada', version: 1, creado_en: '2026-10-13T13:00:00Z' }];
+    tablas.rutina_ejecuciones = [
+      {
+        id: 'e1',
+        rutina_id: r.id,
+        estado: 'en_curso',
+        modo: 'real',
+        origen: 'programada',
+        version: 1,
+        creado_en: '2026-10-13T13:00:00Z',
+      },
+    ];
 
     await expect(servicio.editar(r.id, JOSE, { nombre: 'x' })).rejects.toThrow('Se está ejecutando ahora');
     await expect(servicio.borrar(r.id, JOSE)).rejects.toThrow('Se está ejecutando ahora');
@@ -171,14 +228,40 @@ describe('Lo que está corriendo o detenido', () => {
     const r = await servicio.crear(JOSE, APERTURA as never);
     Object.assign(tablas.rutinas[0], { activa: true, probada_version: 1 });
     tablas.rutina_ejecuciones = [
-      { id: 'e1', rutina_id: r.id, estado: 'completada', modo: 'real', origen: 'programada', version: 1, creado_en: '2026-10-12T13:00:00Z' },
-      { id: 'e2', rutina_id: r.id, estado: 'detenida', modo: 'real', origen: 'programada', version: 1, tarea_detenida: 1, motivo: 'token de Ripley vencido', creado_en: '2026-10-13T13:00:00Z' },
+      {
+        id: 'e1',
+        rutina_id: r.id,
+        estado: 'completada',
+        modo: 'real',
+        origen: 'programada',
+        version: 1,
+        creado_en: '2026-10-12T13:00:00Z',
+      },
+      {
+        id: 'e2',
+        rutina_id: r.id,
+        estado: 'detenida',
+        modo: 'real',
+        origen: 'programada',
+        version: 1,
+        tarea_detenida: 1,
+        motivo: 'token de Ripley vencido',
+        creado_en: '2026-10-13T13:00:00Z',
+      },
     ];
 
     const vista = (await servicio.listar(JOSE))[0];
-    expect([vista.detenida?.id, vista.detenida?.tarea_detenida, vista.ultima?.id, vista.proxima]).toEqual(['e2', 1, 'e2', null]);
+    expect([vista.detenida?.id, vista.detenida?.tarea_detenida, vista.ultima?.id, vista.proxima]).toEqual([
+      'e2',
+      1,
+      'e2',
+      null,
+    ]);
 
-    await servicio.editar(r.id, JOSE, { tareas: [{ nombre: 'Solo una', pasos: [{ instruccion: 'dame el reporte de los CDs' }] }], horarios: [{ dias: [1], hora: '08:00' }] });
+    await servicio.editar(r.id, JOSE, {
+      tareas: [{ nombre: 'Solo una', pasos: [{ instruccion: 'dame el reporte de los CDs' }] }],
+      horarios: [{ dias: [1], hora: '08:00' }],
+    });
     expect(tablas.rutina_ejecuciones.find((e) => e.id === 'e2')).toMatchObject({ estado: 'cancelada' });
   });
 
@@ -186,7 +269,17 @@ describe('Lo que está corriendo o detenido', () => {
     const { servicio, tablas } = montar();
     const r = await servicio.crear(JOSE, APERTURA as never);
     Object.assign(tablas.rutinas[0], { activa: true, probada_version: 1 });
-    tablas.rutina_ejecuciones = [{ id: 'p1', rutina_id: r.id, estado: 'detenida', modo: 'prueba', origen: 'manual', version: 1, creado_en: '2026-10-13T13:00:00Z' }];
+    tablas.rutina_ejecuciones = [
+      {
+        id: 'p1',
+        rutina_id: r.id,
+        estado: 'detenida',
+        modo: 'prueba',
+        origen: 'manual',
+        version: 1,
+        creado_en: '2026-10-13T13:00:00Z',
+      },
+    ];
 
     const vista = (await servicio.listar(JOSE))[0];
     expect([vista.detenida?.id, vista.proxima !== null]).toEqual(['p1', true]);
@@ -208,7 +301,10 @@ describe('Lo que queda en el registro de uso', () => {
     const { servicio, registrarCambio } = montar();
     await servicio.crear(JOSE, APERTURA as never);
     expect(registrarCambio).toHaveBeenCalledWith(null, {
-      nombre: 'Apertura de Chile', pais: 'CL', activa: false, version: 1,
+      nombre: 'Apertura de Chile',
+      pais: 'CL',
+      activa: false,
+      version: 1,
       tareas: ['Activar la S y el DX (2 paso(s))', 'Revisar el picking (1 paso(s))'],
       horarios: ['5,1,2,3,4 08:00', '6 10:00 · tareas 2'],
     });

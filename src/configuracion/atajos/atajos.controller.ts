@@ -1,25 +1,11 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { Usuario } from '../../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js';
 import { PermitidoAgente } from '../../agente/seguridad/permitido-agente.decorator.js';
 import { EjecutorAtajoService } from './ejecutor.service.js';
 import { AtajosService } from './atajos.service.js';
-import {
-  CrearAtajoDto,
-  EditarAtajoDto,
-  EjecutarAtajoDto,
-  ListarAtajosDto,
-} from './dto/atajos.dto.js';
+import { CrearAtajoDto, EditarAtajoDto, EjecutarAtajoDto, ListarAtajosDto } from './dto/atajos.dto.js';
 
 /**
  * Atajos: tandas de consulta con sus datos ya puestos.
@@ -73,19 +59,10 @@ export class AtajosController {
   @Auditar('atajo.ejecutar')
   @PermitidoAgente()
   @Post('ejecutar')
-  async ejecutarPorNombre(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: EjecutarAtajoDto,
-  ) {
-    const atajo = await this.atajos.porNombre(
-      body.nombre,
-    );
+  async ejecutarPorNombre(@Usuario() usuario: UsuarioAutenticado, @Body() body: EjecutarAtajoDto) {
+    const atajo = await this.atajos.porNombre(body.nombre);
 
-    return this.ejecutor.ejecutar(
-      usuario,
-      atajo,
-      body.soloPrimeras,
-    );
+    return this.ejecutor.ejecutar(usuario, atajo, body.soloPrimeras);
   }
 
   /** GET .../atajos/{id} */
@@ -97,20 +74,14 @@ export class AtajosController {
   /** POST .../atajos */
   @Auditar('atajo.crear')
   @Post()
-  async crear(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: CrearAtajoDto,
-  ) {
+  async crear(@Usuario() usuario: UsuarioAutenticado, @Body() body: CrearAtajoDto) {
     return this.atajos.crear(usuario, body);
   }
 
   /** PUT .../atajos/{id} */
   @Auditar('atajo.editar')
   @Put(':id')
-  async editar(
-    @Param('id') id: string,
-    @Body() body: EditarAtajoDto,
-  ) {
+  async editar(@Param('id') id: string, @Body() body: EditarAtajoDto) {
     return this.atajos.editar(id, body);
   }
 
@@ -145,10 +116,6 @@ export class AtajosController {
   ) {
     const atajo = await this.atajos.obtener(id);
 
-    return this.ejecutor.ejecutar(
-      usuario,
-      atajo,
-      soloPrimeras ? Number(soloPrimeras) : undefined,
-    );
+    return this.ejecutor.ejecutar(usuario, atajo, soloPrimeras ? Number(soloPrimeras) : undefined);
   }
 }

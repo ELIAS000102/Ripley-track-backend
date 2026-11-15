@@ -68,26 +68,27 @@ function armar(relaciones = RELACIONES) {
   const registrarCambio = vi.fn();
 
   return {
-    servicio: new EditarTransferenciaAgenteService(transf, contexto, {
-      registrarCambio,
-      enSimulacro: () => false,
-    } as unknown as ContextoAuditoria, almacenesDePrueba()),
+    servicio: new EditarTransferenciaAgenteService(
+      transf,
+      contexto,
+      {
+        registrarCambio,
+        enSimulacro: () => false,
+      } as unknown as ContextoAuditoria,
+      almacenesDePrueba(),
+    ),
     actualizarRelacion,
     registrarCambio,
   };
 }
 
-const editar = (extra: Record<string, unknown>) =>
-  ({ origen: '20026', destino: '20021', ...extra }) as never;
+const editar = (extra: Record<string, unknown>) => ({ origen: '20026', destino: '20021', ...extra }) as never;
 
 describe('Editar una transferencia: lo que sí cambia', () => {
   it('habilita la relación sin tocar los días ni los períodos', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    await servicio.editar(
-      USUARIO,
-      editar({ destino: '1121', habilitada: true }),
-    );
+    await servicio.editar(USUARIO, editar({ destino: '1121', habilitada: true }));
 
     expect(actualizarRelacion).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -105,10 +106,7 @@ describe('Editar una transferencia: lo que sí cambia', () => {
     const { servicio } = armar();
 
     // Estaba en 1 + 2 = 3; se pide 2 + 4
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ preparacion: 2, transito: 4 }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ preparacion: 2, transito: 4 }));
 
     expect(r.destinos[0].antes?.desfase).toBe(3);
     expect(r.origen).toBe('20026 - CD Villa El Salvador');
@@ -166,9 +164,7 @@ describe('Editar una transferencia: cuándo se niega', () => {
   it('si no se pide ningún cambio', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    await expect(servicio.editar(USUARIO, editar({}))).rejects.toThrow(
-      /nada que cambiar/,
-    );
+    await expect(servicio.editar(USUARIO, editar({}))).rejects.toThrow(/nada que cambiar/);
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });
 
@@ -176,12 +172,9 @@ describe('Editar una transferencia: cuándo se niega', () => {
     // "Chorrillos" está en los dos destinos, y son sitios distintos
     const { servicio, actualizarRelacion } = armar();
 
-    await expect(
-      servicio.editar(
-        USUARIO,
-        editar({ destino: 'Chorrillos', habilitada: false }),
-      ),
-    ).rejects.toThrow(/coincide con 2 destinos/);
+    await expect(servicio.editar(USUARIO, editar({ destino: 'Chorrillos', habilitada: false }))).rejects.toThrow(
+      /coincide con 2 destinos/,
+    );
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });
@@ -197,17 +190,17 @@ describe('Editar una transferencia: cuándo se niega', () => {
   it('si la relación no existe, y lo distingue de estar deshabilitada', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ destino: '99999', habilitada: true })),
-    ).rejects.toThrow(/la relación no existe/);
+    await expect(servicio.editar(USUARIO, editar({ destino: '99999', habilitada: true }))).rejects.toThrow(
+      /la relación no existe/,
+    );
   });
 
   it('si el día no se reconoce', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ dias: 'lunes, lunez' })),
-    ).rejects.toThrow(/No reconozco el día "lunez"/);
+    await expect(servicio.editar(USUARIO, editar({ dias: 'lunes, lunez' }))).rejects.toThrow(
+      /No reconozco el día "lunez"/,
+    );
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });
@@ -215,12 +208,9 @@ describe('Editar una transferencia: cuándo se niega', () => {
   it('si ya estaba exactamente así', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    await expect(
-      servicio.editar(
-        USUARIO,
-        editar({ habilitada: true, preparacion: 1, transito: 2 }),
-      ),
-    ).rejects.toThrow(/ya está así/);
+    await expect(servicio.editar(USUARIO, editar({ habilitada: true, preparacion: 1, transito: 2 }))).rejects.toThrow(
+      /ya está así/,
+    );
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });
@@ -228,9 +218,7 @@ describe('Editar una transferencia: cuándo se niega', () => {
   it('y los días iguales tampoco cuentan como cambio', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ dias: 'lunes, martes' })),
-    ).rejects.toThrow(/ya está así/);
+    await expect(servicio.editar(USUARIO, editar({ dias: 'lunes, martes' }))).rejects.toThrow(/ya está así/);
   });
 });
 
@@ -257,16 +245,13 @@ describe('Editar una transferencia: tipos de error', () => {
   it('un destino ambiguo es 400 y uno inexistente es 404', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.editar(
-        USUARIO,
-        editar({ destino: 'Chorrillos', habilitada: false }),
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(servicio.editar(USUARIO, editar({ destino: 'Chorrillos', habilitada: false }))).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
-    await expect(
-      servicio.editar(USUARIO, editar({ destino: 'nada', habilitada: false })),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(servicio.editar(USUARIO, editar({ destino: 'nada', habilitada: false }))).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
 
@@ -281,16 +266,10 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
   it('cambia los dos y devuelve uno por cada uno', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ destino: '20021, 1121', transito: 7 }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ destino: '20021, 1121', transito: 7 }));
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 2, sinCambiar: 0 });
-    expect(r.destinos.map((d) => d.destino)).toEqual([
-      '20021 - Chorrillos',
-      '1121 - Suc. Chorrillos',
-    ]);
+    expect(r.destinos.map((d) => d.destino)).toEqual(['20021 - Chorrillos', '1121 - Suc. Chorrillos']);
     expect(actualizarRelacion).toHaveBeenCalledTimes(2);
   });
 
@@ -307,10 +286,7 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
   it('uno que falla no arrastra a los demás', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ destino: '20021, inexistente', transito: 7 }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ destino: '20021, inexistente', transito: 7 }));
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
     expect(r.destinos[1].error).toMatch(/no tiene ninguna relación/);
@@ -324,10 +300,7 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
     const { servicio, actualizarRelacion } = armar();
 
     // La 1121 ya está deshabilitada; la 20021 no
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ destino: '20021, 1121', habilitada: false }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ destino: '20021, 1121', habilitada: false }));
 
     expect(r.resumen).toEqual({ pedidos: 2, cambiados: 1, sinCambiar: 1 });
     expect(r.destinos[1].error).toMatch(/Ya estaba así/);
@@ -337,9 +310,9 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
   it('si ninguno cambia, es un error y no se escribe nada', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    await expect(
-      servicio.editar(USUARIO, editar({ destino: '20021', habilitada: true })),
-    ).rejects.toThrow(/ya está así/);
+    await expect(servicio.editar(USUARIO, editar({ destino: '20021', habilitada: true }))).rejects.toThrow(
+      /ya está así/,
+    );
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });
@@ -347,10 +320,7 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
   it('un destino repetido se escribe una sola vez', async () => {
     const { servicio, actualizarRelacion } = armar();
 
-    const r = await servicio.editar(
-      USUARIO,
-      editar({ destino: '20021, 20021', transito: 7 }),
-    );
+    const r = await servicio.editar(USUARIO, editar({ destino: '20021, 20021', transito: 7 }));
 
     expect(r.destinos).toHaveLength(1);
     expect(actualizarRelacion).toHaveBeenCalledOnce();
@@ -361,9 +331,9 @@ describe('Editar una transferencia: varios destinos de una vez', () => {
 
     const muchos = Array.from({ length: 31 }, (_, i) => `d${i}`).join(', ');
 
-    await expect(
-      servicio.editar(USUARIO, editar({ destino: muchos, transito: 7 })),
-    ).rejects.toThrow(/máximo por vez es 30/);
+    await expect(servicio.editar(USUARIO, editar({ destino: muchos, transito: 7 }))).rejects.toThrow(
+      /máximo por vez es 30/,
+    );
 
     expect(actualizarRelacion).not.toHaveBeenCalled();
   });
@@ -373,7 +343,11 @@ describe('Editar una transferencia: de dónde sale el stock', () => {
   it('sin origen, el 20026 (el de por defecto), y la respuesta lo dice', async () => {
     const { servicio, actualizarRelacion } = armar();
     const r = await servicio.editar(USUARIO, { destino: '20021', habilitada: false } as never);
-    expect([r.origen, r.origenPorDefecto, actualizarRelacion.mock.calls.length]).toEqual(['20026 - CD Villa El Salvador', true, 1]);
+    expect([r.origen, r.origenPorDefecto, actualizarRelacion.mock.calls.length]).toEqual([
+      '20026 - CD Villa El Salvador',
+      true,
+      1,
+    ]);
   });
 
   it('el origen por su alias: "CD Villa" es el 20026, y no se dice que fuera por defecto', async () => {

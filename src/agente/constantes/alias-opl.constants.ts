@@ -35,7 +35,5 @@ export function resolverAliasOpl(termino: string): string {
  * operador se le está hablando.
  */
 export function aliasUsado(termino: string): string | undefined {
-  return ALIAS_OPL.some(([patron]) => patron.test(termino))
-    ? termino.trim()
-    : undefined;
+  return ALIAS_OPL.some(([patron]) => patron.test(termino)) ? termino.trim() : undefined;
 }

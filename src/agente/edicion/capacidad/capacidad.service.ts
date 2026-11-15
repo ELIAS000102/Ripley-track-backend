@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DespachoService } from '../../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { RecepcionService } from '../../../agendas/recepcion/recepcion.service.js';
@@ -56,8 +51,7 @@ type CambioPedido = Pick<EditarCapacidadDto, 'asignado' | 'activa'> & { disponib
 type Pedido = EditarCapacidadDto & { delAtajo?: boolean };
 
 /** Se compara para decidir si un fallo total es un 404 o un 400 */
-const SIN_CONFIGURAR =
-  'No está configurado en esta agenda; no se crean días nuevos.';
+const SIN_CONFIGURAR = 'No está configurado en esta agenda; no se crean días nuevos.';
 
 /**
  * Agendas que la operación marca como fuera de uso en su propio nombre.
@@ -207,7 +201,9 @@ export class EditarCapacidadAgenteService {
     const donde = [
       origenes.length && `el origen ${origenes.join(', ')}`,
       destinos.length && `el destino ${destinos.join(', ')}`,
-    ].filter(Boolean).join(' hacia ');
+    ]
+      .filter(Boolean)
+      .join(' hacia ');
 
     const elegidas = this.seleccionar(
       candidatas,
@@ -260,7 +256,11 @@ export class EditarCapacidadAgenteService {
         grupo.agendas.push({ agenda: rutaDe(agenda), dias });
       } catch (e) {
         fallos.push(e);
-        grupo.agendas.push({ agenda: rutaDe(agenda), dias: [], error: motivoDelFallo(e, 'No se pudo preparar esta agenda') });
+        grupo.agendas.push({
+          agenda: rutaDe(agenda),
+          dias: [],
+          error: motivoDelFallo(e, 'No se pudo preparar esta agenda'),
+        });
       }
     }
 
@@ -281,17 +281,12 @@ export class EditarCapacidadAgenteService {
     };
   }
 
-  async editarCapacidad(
-    usuario: UsuarioAutenticado,
-    dto: EditarCapacidadDto,
-  ): Promise<EdicionRespuesta> {
+  async editarCapacidad(usuario: UsuarioAutenticado, dto: EditarCapacidadDto): Promise<EdicionRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
     if (dto.asignado === undefined && dto.disponible === undefined && dto.activa === undefined) {
-      throw new BadRequestException(
-        'No hay nada que cambiar: indica "asignado" (o "disponible"), "activa" o las dos.',
-      );
+      throw new BadRequestException('No hay nada que cambiar: indica "asignado" (o "disponible"), "activa" o las dos.');
     }
     if (dto.asignado !== undefined && dto.disponible !== undefined) {
       throw new BadRequestException(
@@ -306,7 +301,9 @@ export class EditarCapacidadAgenteService {
     const atajo = dto.atajo ?? dto.preconfiguracion;
     const guardadas = atajo ? await this.agendasGuardadas.leer(atajo, dto.tipo) : null;
     const todosLosSuyos = guardadas && /^\s*(tod[oa]s|\*)\s*$/i.test(dto.codigo);
-    const pedidoDeCodigos = todosLosSuyos ? [...new Set(guardadas.agendas.map((a) => a.codigo))].join(', ') : dto.codigo;
+    const pedidoDeCodigos = todosLosSuyos
+      ? [...new Set(guardadas.agendas.map((a) => a.codigo))].join(', ')
+      : dto.codigo;
 
     // En picking el servicio identifica la jornada y puede venir más de una:
     // "cierra la ST y la RC del 20026" es una decisión, no dos
@@ -387,11 +384,7 @@ export class EditarCapacidadAgenteService {
    * (diez jornadas por treinta y un días), así que nada de lo que ya funciona
    * deja de funcionar: lo que corta es la multiplicación al añadir oficinas.
    */
-  private oficinasPedidas(
-    codigo: string,
-    jornadas: Array<string | undefined>,
-    fechas: string[],
-  ): string[] {
+  private oficinasPedidas(codigo: string, jornadas: Array<string | undefined>, fechas: string[]): string[] {
     const unicas = partirListaUnica(codigo);
 
     if (!unicas.length) {
@@ -399,9 +392,7 @@ export class EditarCapacidadAgenteService {
     }
 
     if (unicas.length > OFICINAS_MAXIMAS) {
-      throw new BadRequestException(
-        `Son ${unicas.length} oficinas y el máximo por vez es ${OFICINAS_MAXIMAS}.`,
-      );
+      throw new BadRequestException(`Son ${unicas.length} oficinas y el máximo por vez es ${OFICINAS_MAXIMAS}.`);
     }
 
     const escrituras = unicas.length * jornadas.length * fechas.length;
@@ -435,8 +426,7 @@ export class EditarCapacidadAgenteService {
   ): Promise<OficinaEditada> {
     // En despacho el código es un operador, y "90 min" es el 1130. En picking
     // es un almacén: otro catálogo, donde el alias no significa nada.
-    const resuelto =
-      dto.tipo === 'despacho' ? resolverAliasOpl(codigo) : codigo;
+    const resuelto = dto.tipo === 'despacho' ? resolverAliasOpl(codigo) : codigo;
 
     const agendas: AgendaEditada[] = [];
 
@@ -492,11 +482,7 @@ export class EditarCapacidadAgenteService {
 
   // ---------- Picking: almacén → agenda → días ----------
 
-  private async editarPicking(
-    dto: Pedido,
-    pais: string,
-    fechas: string[],
-  ): Promise<AgendaEditada[]> {
+  private async editarPicking(dto: Pedido, pais: string, fechas: string[]): Promise<AgendaEditada[]> {
     const todas = await this.picking.listarAgendasPorOficina(dto.codigo, pais);
     const utilizables = this.soloUtilizables(
       todas,
@@ -528,20 +514,11 @@ export class EditarCapacidadAgenteService {
     const salida: AgendaEditada[] = [];
 
     for (const agenda of elegidas) {
-      const capacidades = await this.picking.obtener(
-        agenda.scheduleId,
-        isoToRipleyDate(fechas[0]),
-        pais,
-      );
+      const capacidades = await this.picking.obtener(agenda.scheduleId, isoToRipleyDate(fechas[0]), pais);
 
       // Se lee una vez por agenda: Ripley devuelve la agenda entera desde esa
       // fecha, y escribir un día no cambia el estado de los otros
-      const porFecha = new Map(
-        (capacidades?.capacityByDayArray ?? []).map((x) => [
-          soloFecha(x.day),
-          x,
-        ]),
-      );
+      const porFecha = new Map((capacidades?.capacityByDayArray ?? []).map((x) => [soloFecha(x.day), x]));
 
       const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
         this.picking.actualizar(
@@ -562,11 +539,7 @@ export class EditarCapacidadAgenteService {
 
   // ---------- Despacho: operador → zona → agenda → días ----------
 
-  private async editarDespacho(
-    dto: Pedido,
-    pais: string,
-    fechas: string[],
-  ): Promise<AgendaEditada[]> {
+  private async editarDespacho(dto: Pedido, pais: string, fechas: string[]): Promise<AgendaEditada[]> {
     const zonas = await this.despacho.listarZonas(dto.codigo, pais);
 
     // Pedir "todas" las agendas de un operador que tiene varias zonas alcanza
@@ -609,9 +582,7 @@ export class EditarCapacidadAgenteService {
           pais,
         );
 
-        const porFecha = new Map(
-          detalle.map((x) => [ripleyDateToIso(x.date), x]),
-        );
+        const porFecha = new Map(detalle.map((x) => [ripleyDateToIso(x.date), x]));
 
         const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
           this.despacho.actualizar(
@@ -642,15 +613,8 @@ export class EditarCapacidadAgenteService {
    * eso, treinta y un días eran treinta y una relecturas de una respuesta que
    * trae dos mil días por agenda.
    */
-  private async editarRecepcion(
-    dto: Pedido,
-    pais: string,
-    fechas: string[],
-  ): Promise<AgendaEditada[]> {
-    const todas = await this.recepcion.listarAgendasPorOficina(
-      dto.codigo,
-      pais,
-    );
+  private async editarRecepcion(dto: Pedido, pais: string, fechas: string[]): Promise<AgendaEditada[]> {
+    const todas = await this.recepcion.listarAgendasPorOficina(dto.codigo, pais);
 
     const utilizables = this.soloUtilizables(
       todas,
@@ -679,11 +643,7 @@ export class EditarCapacidadAgenteService {
 
     for (const agenda of elegidas) {
       // Una vez por agenda, no una por día
-      const preparada = await this.recepcion.prepararAgenda(
-        dto.codigo,
-        agenda.scheduleId,
-        pais,
-      );
+      const preparada = await this.recepcion.prepararAgenda(dto.codigo, agenda.scheduleId, pais);
 
       const { dias: detalle } = await this.recepcion.buscarCapacidades(
         dto.codigo,
@@ -697,11 +657,7 @@ export class EditarCapacidadAgenteService {
       const porFecha = new Map(detalle.map((x) => [soloFecha(x.day), x]));
 
       const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
-        this.recepcion.guardarDia(
-          preparada,
-          { day: dia.day, assigned: cambio.asignado, active: cambio.activa },
-          pais,
-        ),
+        this.recepcion.guardarDia(preparada, { day: dia.day, assigned: cambio.asignado, active: cambio.activa }, pais),
       );
 
       salida.push({
@@ -732,10 +688,7 @@ export class EditarCapacidadAgenteService {
     fechas: string[],
     porFecha: Map<string, T>,
     dto: CambioPedido,
-    escribir: (
-      dia: T,
-      cambio: { asignado: number; activa: boolean },
-    ) => Promise<unknown>,
+    escribir: (dia: T, cambio: { asignado: number; activa: boolean }) => Promise<unknown>,
   ): Promise<DiaEditado[]> {
     const dias: DiaEditado[] = [];
 
@@ -752,12 +705,7 @@ export class EditarCapacidadAgenteService {
         continue;
       }
 
-      const antes = this.estado(
-        fecha,
-        dia.active,
-        Number(dia.assigned),
-        Number(dia.occupied),
-      );
+      const antes = this.estado(fecha, dia.active, Number(dia.assigned), Number(dia.occupied));
 
       try {
         const cambio = this.resolverCambio(dto, antes);
@@ -766,12 +714,7 @@ export class EditarCapacidadAgenteService {
         dias.push({
           fecha,
           antes,
-          despues: this.estado(
-            fecha,
-            cambio.activa,
-            cambio.asignado,
-            antes.ocupado,
-          ),
+          despues: this.estado(fecha, cambio.activa, cambio.asignado, antes.ocupado),
         });
       } catch (e) {
         dias.push({ fecha, antes, despues: null, error: (e as Error).message });
@@ -789,9 +732,7 @@ export class EditarCapacidadAgenteService {
     const hasta = dto.hasta?.trim() || desde;
 
     if (hasta < desde) {
-      throw new BadRequestException(
-        `El rango va al revés: ${desde} es posterior a ${hasta}.`,
-      );
+      throw new BadRequestException(`El rango va al revés: ${desde} es posterior a ${hasta}.`);
     }
 
     this.exigirFechaUtil(desde, pais);
@@ -834,11 +775,7 @@ export class EditarCapacidadAgenteService {
       );
     }
 
-    return agendas.filter(
-      (a) =>
-        !NO_FUNCIONAL.test(nombreDe(a) ?? '') &&
-        !this.vencida(vigenciaDe(a), hoy),
-    );
+    return agendas.filter((a) => !NO_FUNCIONAL.test(nombreDe(a) ?? '') && !this.vencida(vigenciaDe(a), hoy));
   }
 
   /**
@@ -850,10 +787,7 @@ export class EditarCapacidadAgenteService {
    * rotulada "NO FUNCIONAL" que aún no ha vencido: ninguna de las dos señales
    * basta sola.
    */
-  private vencida(
-    vigenteHasta: string | null | undefined,
-    hoy: string,
-  ): boolean {
+  private vencida(vigenteHasta: string | null | undefined, hoy: string): boolean {
     return !!vigenteHasta && vigenteHasta < hoy;
   }
 
@@ -864,16 +798,8 @@ export class EditarCapacidadAgenteService {
    * compartida con la consulta: estaba aquí dentro y el otro lado seguía con un
    * `includes` suelto, con el que una zona que es prefijo de otra traía las dos.
    */
-  private filtrar<T>(
-    lista: T[],
-    filtros: Array<
-      [string | undefined, (item: T) => string | null | undefined]
-    >,
-  ): T[] {
-    return filtros.reduce(
-      (quedan, [buscado, de]) => filtrarPorNombre(quedan, buscado, de),
-      lista,
-    );
+  private filtrar<T>(lista: T[], filtros: Array<[string | undefined, (item: T) => string | null | undefined]>): T[] {
+    return filtros.reduce((quedan, [buscado, de]) => filtrarPorNombre(quedan, buscado, de), lista);
   }
 
   /**
@@ -896,9 +822,7 @@ export class EditarCapacidadAgenteService {
 
     if (!candidatos.length) {
       throw new NotFoundException(
-        `No encontré ${que} que pides en ${donde}. Las opciones son: ${
-          todos.map(etiqueta).join(', ') || 'ninguna'
-        }`,
+        `No encontré ${que} que pides en ${donde}. Las opciones son: ${todos.map(etiqueta).join(', ') || 'ninguna'}`,
       );
     }
 
@@ -912,9 +836,7 @@ export class EditarCapacidadAgenteService {
     throw new BadRequestException(
       `Hay ${candidatos.length} opciones en ${donde} y no voy a elegir por ti. ` +
         `Repite indicando el nombre exacto en "${campo}", o pon "${campo}": "todas" ` +
-        `para tocarlas todas. Las opciones son: ${candidatos
-          .map(etiqueta)
-          .join(', ')}`,
+        `para tocarlas todas. Las opciones son: ${candidatos.map(etiqueta).join(', ')}`,
     );
   }
 
@@ -945,9 +867,7 @@ export class EditarCapacidadAgenteService {
     const hoy = hoyEnPais(pais);
 
     if (fecha < hoy) {
-      throw new BadRequestException(
-        `${fecha} ya pasó (hoy es ${hoy}). No se edita el pasado desde el chat.`,
-      );
+      throw new BadRequestException(`${fecha} ya pasó (hoy es ${hoy}). No se edita el pasado desde el chat.`);
     }
 
     const limite = `${Number(hoy.slice(0, 4)) + 1}${hoy.slice(4)}`;
@@ -964,11 +884,7 @@ export class EditarCapacidadAgenteService {
    * Devolver un 200 con todos los días fallidos deja al agente decidiendo si
    * eso fue un éxito, y decide que sí más veces de las que debería.
    */
-  private exigirAlgunCambio(
-    dias: DiaEditado[],
-    agendas: AgendaEditada[],
-    fallos: unknown[],
-  ): void {
+  private exigirAlgunCambio(dias: DiaEditado[], agendas: AgendaEditada[], fallos: unknown[]): void {
     if (dias.some((d) => !d.error)) return;
 
     // Con un solo fallo se relanza su error tal cual, para no perder ni el
@@ -978,18 +894,13 @@ export class EditarCapacidadAgenteService {
     // Una agenda que ni se pudo resolver también es un motivo, y suele ser el
     // más útil: dice que el nombre estaba mal, no que el día no existiera
     const motivos = [
-      ...new Set([
-        ...agendas.filter((a) => a.error).map((a) => a.error!),
-        ...dias.map((d) => d.error!),
-      ]),
+      ...new Set([...agendas.filter((a) => a.error).map((a) => a.error!), ...dias.map((d) => d.error!)]),
     ];
 
     const total = dias.length + agendas.filter((a) => a.error).length;
 
     const mensaje =
-      total === 1
-        ? motivos[0]!
-        : `No se cambió nada de lo ${total} pedido. Motivos: ${motivos.join(' · ')}`;
+      total === 1 ? motivos[0]! : `No se cambió nada de lo ${total} pedido. Motivos: ${motivos.join(' · ')}`;
 
     // Si lo único que pasó es que esos días no existen en la agenda, es un
     // "no encontrado" y no una petición mal formada: el agente los traduce
@@ -1006,10 +917,7 @@ export class EditarCapacidadAgenteService {
    * en un rango cada uno pisa al anterior: sin esto, el historial diría que se
    * tocó un solo día.
    */
-  private registrarEnAuditoria(resultado: {
-    tipo: string;
-    oficinas: OficinaEditada[];
-  }): void {
+  private registrarEnAuditoria(resultado: { tipo: string; oficinas: OficinaEditada[] }): void {
     // Cada fila lleva su oficina: con varias, "agenda RC del día 2" no dice
     // de cuál almacén se está hablando, y deshacerlo exige saberlo
     const resumir = (lado: 'antes' | 'despues') =>
@@ -1033,12 +941,7 @@ export class EditarCapacidadAgenteService {
     );
   }
 
-  private estado(
-    fecha: string,
-    activo: boolean,
-    asignado: number,
-    ocupado: number,
-  ): EstadoDia {
+  private estado(fecha: string, activo: boolean, asignado: number, ocupado: number): EstadoDia {
     return {
       fecha,
       activo,

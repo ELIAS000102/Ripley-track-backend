@@ -26,7 +26,14 @@ import type {
 
 export const TIPOS_SOLICITUD: TipoSolicitudG12[] = ['picking', 'recepcion', 'despacho'];
 export const CLUSTERS: ClusterG12[] = ['LIMA', 'PROVINCIA'];
-export const VENTANAS_SOLICITUD: VentanaSolicitudG12[] = ['picking', 'recepcion_lima', 'recepcion_lima_se', 'recepcion_provincia', 'recepcion_cronograma', 'despacho'];
+export const VENTANAS_SOLICITUD: VentanaSolicitudG12[] = [
+  'picking',
+  'recepcion_lima',
+  'recepcion_lima_se',
+  'recepcion_provincia',
+  'recepcion_cronograma',
+  'despacho',
+];
 
 export const NOMBRE_VENTANA: Record<VentanaSolicitudG12, string> = {
   picking: 'Picking',
@@ -37,7 +44,11 @@ export const NOMBRE_VENTANA: Record<VentanaSolicitudG12, string> = {
   despacho: 'Despacho',
 };
 
-export const NOMBRE_TIPO_SOLICITUD: Record<TipoSolicitudG12, string> = { picking: 'Picking', recepcion: 'Recepción', despacho: 'Despacho' };
+export const NOMBRE_TIPO_SOLICITUD: Record<TipoSolicitudG12, string> = {
+  picking: 'Picking',
+  recepcion: 'Recepción',
+  despacho: 'Despacho',
+};
 
 /** Los del Excel (CONFIGURACION N3:N6): picking de tienda 50 %, recepción 60 %, despacho 60 % */
 export const UMBRALES_POR_DEFECTO: Record<TipoSolicitudG12, number> = { picking: 0.5, recepcion: 0.6, despacho: 0.6 };
@@ -65,24 +76,46 @@ export const MAXIMO_AGENDAS_SOLICITUD = 400;
 export function solicitudesVacias(): ConfiguracionSolicitudesG12 {
   return {
     umbrales: { ...UMBRALES_POR_DEFECTO },
-    ventanas: Object.fromEntries(VENTANAS_SOLICITUD.map((v) => [v, { ...VENTANAS_POR_DEFECTO[v] }])) as ConfiguracionSolicitudesG12['ventanas'],
+    ventanas: Object.fromEntries(
+      VENTANAS_SOLICITUD.map((v) => [v, { ...VENTANAS_POR_DEFECTO[v] }]),
+    ) as ConfiguracionSolicitudesG12['ventanas'],
     agendas: [],
   };
 }
 
 /** La ventana que le toca a una agenda si no dice otra */
-export function ventanaPorDefecto(tipo: TipoSolicitudG12, cluster: ClusterG12, servicio?: unknown): VentanaSolicitudG12 {
+export function ventanaPorDefecto(
+  tipo: TipoSolicitudG12,
+  cluster: ClusterG12,
+  servicio?: unknown,
+): VentanaSolicitudG12 {
   if (tipo !== 'recepcion') return tipo;
   if (cluster === 'PROVINCIA') return 'recepcion_provincia';
-  return String(servicio ?? '').trim().toUpperCase() === 'SE' ? 'recepcion_lima_se' : 'recepcion_lima';
+  return String(servicio ?? '')
+    .trim()
+    .toUpperCase() === 'SE'
+    ? 'recepcion_lima_se'
+    : 'recepcion_lima';
 }
 
-const comparable = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const comparable = (s: unknown) =>
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 type EntradaSolicitudes = {
   umbrales?: Partial<Record<string, unknown>>;
   ventanas?: Partial<Record<string, { desde?: unknown; dias?: unknown }>>;
-  agendas?: Array<{ tipo?: unknown; cluster?: unknown; nombre?: unknown; ventana?: unknown; campos?: Record<string, unknown> }>;
+  agendas?: Array<{
+    tipo?: unknown;
+    cluster?: unknown;
+    nombre?: unknown;
+    ventana?: unknown;
+    campos?: Record<string, unknown>;
+  }>;
 };
 
 /**
@@ -93,7 +126,12 @@ type EntradaSolicitudes = {
 export function normalizarSolicitudes(
   entrada: EntradaSolicitudes,
   errores: string[],
-  limpiarCampos: (tipo: TipoSolicitudG12, campos: Record<string, unknown>, donde: string, errores: string[]) => Record<string, string | number>,
+  limpiarCampos: (
+    tipo: TipoSolicitudG12,
+    campos: Record<string, unknown>,
+    donde: string,
+    errores: string[],
+  ) => Record<string, string | number>,
 ): ConfiguracionSolicitudesG12 {
   const salida = solicitudesVacias();
 
@@ -101,7 +139,8 @@ export function normalizarSolicitudes(
     const crudo = entrada.umbrales?.[tipo];
     if (crudo === undefined || crudo === null || crudo === '') continue;
     const n = Number(crudo);
-    if (!Number.isFinite(n) || n <= 0 || n > 2) errores.push(`Solicitudes: el umbral de ${NOMBRE_TIPO_SOLICITUD[tipo]} tiene que estar entre 0 y 2 (200 %).`);
+    if (!Number.isFinite(n) || n <= 0 || n > 2)
+      errores.push(`Solicitudes: el umbral de ${NOMBRE_TIPO_SOLICITUD[tipo]} tiene que estar entre 0 y 2 (200 %).`);
     else salida.umbrales[tipo] = Math.round(n * 1000) / 1000;
   }
 
@@ -111,23 +150,30 @@ export function normalizarSolicitudes(
     const desde = Number(crudo.desde ?? VENTANAS_POR_DEFECTO[v].desde);
     const dias = Number(crudo.dias ?? VENTANAS_POR_DEFECTO[v].dias);
     if (!Number.isInteger(desde) || desde < 0 || !Number.isInteger(dias) || dias < 1 || desde + dias > HASTA_MAXIMO) {
-      errores.push(`Solicitudes: la ventana "${NOMBRE_VENTANA[v]}" tiene que empezar en 0 o más días y no pasar de ${HASTA_MAXIMO} días desde hoy.`);
+      errores.push(
+        `Solicitudes: la ventana "${NOMBRE_VENTANA[v]}" tiene que empezar en 0 o más días y no pasar de ${HASTA_MAXIMO} días desde hoy.`,
+      );
       continue;
     }
     salida.ventanas[v] = { desde, dias };
   }
 
   const agendas = entrada.agendas ?? [];
-  if (agendas.length > MAXIMO_AGENDAS_SOLICITUD) errores.push(`Solicitudes: son demasiadas agendas (máximo ${MAXIMO_AGENDAS_SOLICITUD}).`);
+  if (agendas.length > MAXIMO_AGENDAS_SOLICITUD)
+    errores.push(`Solicitudes: son demasiadas agendas (máximo ${MAXIMO_AGENDAS_SOLICITUD}).`);
   const vistas = new Set<string>();
   agendas.slice(0, MAXIMO_AGENDAS_SOLICITUD).forEach((a, i) => {
     const donde = `Solicitudes, agenda ${i + 1}`;
-    const tipo = String(a.tipo ?? '').trim().toLowerCase() as TipoSolicitudG12;
+    const tipo = String(a.tipo ?? '')
+      .trim()
+      .toLowerCase() as TipoSolicitudG12;
     if (!TIPOS_SOLICITUD.includes(tipo)) {
       errores.push(`${donde}: el tipo tiene que ser picking, recepcion o despacho.`);
       return;
     }
-    const cluster = String(a.cluster ?? '').trim().toUpperCase() as ClusterG12;
+    const cluster = String(a.cluster ?? '')
+      .trim()
+      .toUpperCase() as ClusterG12;
     if (!CLUSTERS.includes(cluster)) {
       errores.push(`${donde}: el clúster tiene que ser LIMA o PROVINCIA.`);
       return;
@@ -141,13 +187,18 @@ export function normalizarSolicitudes(
     const ventanaCruda = String(a.ventana ?? '').trim();
     let ventana: VentanaSolicitudG12;
     if (!ventanaCruda) ventana = ventanaPorDefecto(tipo, cluster, campos.servicio);
-    else if (VENTANAS_SOLICITUD.includes(ventanaCruda as VentanaSolicitudG12)) ventana = ventanaCruda as VentanaSolicitudG12;
+    else if (VENTANAS_SOLICITUD.includes(ventanaCruda as VentanaSolicitudG12))
+      ventana = ventanaCruda as VentanaSolicitudG12;
     else {
-      errores.push(`${donde} (${nombre}): la ventana "${ventanaCruda}" no existe. Son: ${VENTANAS_SOLICITUD.join(', ')}.`);
+      errores.push(
+        `${donde} (${nombre}): la ventana "${ventanaCruda}" no existe. Son: ${VENTANAS_SOLICITUD.join(', ')}.`,
+      );
       return;
     }
     if (!ventana.startsWith(tipo)) {
-      errores.push(`${donde} (${nombre}): una agenda de ${NOMBRE_TIPO_SOLICITUD[tipo]} no usa la ventana "${NOMBRE_VENTANA[ventana]}".`);
+      errores.push(
+        `${donde} (${nombre}): una agenda de ${NOMBRE_TIPO_SOLICITUD[tipo]} no usa la ventana "${NOMBRE_VENTANA[ventana]}".`,
+      );
       return;
     }
     // La misma agenda dos veces saldría dos veces en la lista
@@ -220,7 +271,17 @@ export function filasDeSolicitud(
     codigo: String(a.campos.codigo ?? ''),
   };
   if (leida.error || !leida.agendas.length) {
-    return [{ ...base, servicio: a.campos.servicio ? String(a.campos.servicio) : null, zona: a.campos.zona ? String(a.campos.zona) : null, agenda: a.campos.agenda ? String(a.campos.agenda) : null, agendaId: null, dias: [], error: leida.error || 'No se encontró la agenda.' }];
+    return [
+      {
+        ...base,
+        servicio: a.campos.servicio ? String(a.campos.servicio) : null,
+        zona: a.campos.zona ? String(a.campos.zona) : null,
+        agenda: a.campos.agenda ? String(a.campos.agenda) : null,
+        agendaId: null,
+        dias: [],
+        error: leida.error || 'No se encontró la agenda.',
+      },
+    ];
   }
   const ventana = config.ventanas[a.ventana] ?? VENTANAS_POR_DEFECTO[a.ventana];
   const desde = sumarDias(hoy, ventana.desde);

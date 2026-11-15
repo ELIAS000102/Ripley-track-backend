@@ -64,8 +64,7 @@ function armar(relaciones = RELACIONES) {
   };
 }
 
-const consultar = (extra: Record<string, unknown> = {}) =>
-  ({ ...extra }) as never;
+const consultar = (extra: Record<string, unknown> = {}) => ({ ...extra }) as never;
 
 describe('Consultar transferencias: varios destinos de una vez', () => {
   /**
@@ -76,10 +75,7 @@ describe('Consultar transferencias: varios destinos de una vez', () => {
   it('resuelve una lista separada por comas', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ origen: '20026', destino: '20058, 20048, 20023' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ origen: '20026', destino: '20058, 20048, 20023' }));
 
     expect(r.destinos).toHaveLength(3);
     expect(r.destinos.map((d) => d.destino)).toEqual([
@@ -94,26 +90,18 @@ describe('Consultar transferencias: varios destinos de una vez', () => {
   it('los que no existen van aparte, y los demás se devuelven igual', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ origen: '20026', destino: '20058, 99999' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ origen: '20026', destino: '20058, 99999' }));
 
     // Lo que importa son los que sí están: ocho de once no es un fallo
     expect(r.destinos).toHaveLength(1);
-    expect(r.noEncontrados).toEqual([
-      { destino: '99999', motivo: expect.stringMatching(/no existe/) },
-    ]);
+    expect(r.noEncontrados).toEqual([{ destino: '99999', motivo: expect.stringMatching(/no existe/) }]);
     expect(r.aviso).toBeUndefined();
   });
 
   it('solo avisa cuando no queda nada que enseñar', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ origen: '20026', destino: '99999, 88888' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ origen: '20026', destino: '99999, 88888' }));
 
     expect(r.destinos).toHaveLength(0);
     expect(r.noEncontrados).toHaveLength(2);
@@ -121,15 +109,9 @@ describe('Consultar transferencias: varios destinos de una vez', () => {
   });
 
   it('un destino ambiguo dice con cuáles coincide', async () => {
-    const { servicio } = armar([
-      relacion('20058', 'Chorrillos'),
-      relacion('1121', 'Suc. Chorrillos'),
-    ]);
+    const { servicio } = armar([relacion('20058', 'Chorrillos'), relacion('1121', 'Suc. Chorrillos')]);
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ origen: '20026', destino: 'Chorrillos' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ origen: '20026', destino: 'Chorrillos' }));
 
     expect(r.noEncontrados?.[0].motivo).toMatch(/Coincide con 2 destinos/);
     expect(r.noEncontrados?.[0].motivo).toMatch(/20058 - Chorrillos/);
@@ -138,10 +120,7 @@ describe('Consultar transferencias: varios destinos de una vez', () => {
   it('un destino repetido se resuelve una sola vez', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ origen: '20026', destino: '20058, 20058' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ origen: '20026', destino: '20058, 20058' }));
 
     expect(r.destinos).toHaveLength(1);
   });
@@ -149,10 +128,7 @@ describe('Consultar transferencias: varios destinos de una vez', () => {
   it('la lista viene igual aunque se pida un destino solo', async () => {
     const { servicio } = armar();
 
-    const r = await servicio.consultar(
-      USUARIO,
-      consultar({ origen: '20026', destino: '20058' }),
-    );
+    const r = await servicio.consultar(USUARIO, consultar({ origen: '20026', destino: '20058' }));
 
     // Una sola forma que interpretar, vengan uno o veinte
     expect(r.destinos).toHaveLength(1);
@@ -199,10 +175,13 @@ describe('Consultar transferencias: de dónde sale el stock', () => {
   it('en Chile no hay origen por defecto: se pide', async () => {
     const { servicio, buscarAlmacen } = armar();
     // El contexto del agente resuelve Chile
-    (servicio as unknown as { contexto: { armar: unknown } }).contexto.armar = vi.fn().mockResolvedValue({ pais: 'CL' });
+    (servicio as unknown as { contexto: { armar: unknown } }).contexto.armar = vi
+      .fn()
+      .mockResolvedValue({ pais: 'CL' });
 
-    await expect(servicio.consultar(USUARIO, consultar({ pais: 'CL', destino: '10021' })))
-      .rejects.toThrow(/Falta el almacén de origen .* en CL no hay uno por defecto/);
+    await expect(servicio.consultar(USUARIO, consultar({ pais: 'CL', destino: '10021' }))).rejects.toThrow(
+      /Falta el almacén de origen .* en CL no hay uno por defecto/,
+    );
     expect(buscarAlmacen).not.toHaveBeenCalled();
   });
 

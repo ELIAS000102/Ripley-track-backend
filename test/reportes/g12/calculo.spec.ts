@@ -13,7 +13,13 @@ import {
   totalDe,
 } from '../../../src/reportes/g12/g12.calculo.js';
 import { definicionDe } from '../../../src/reportes/g12/g12.componentes.js';
-import type { AgendaG12, ComponenteReporteG12, DiaG12, EntradasFilaG12, SimulacionG12 } from '../../../src/reportes/g12/interfaces/g12.interface.js';
+import type {
+  AgendaG12,
+  ComponenteReporteG12,
+  DiaG12,
+  EntradasFilaG12,
+  SimulacionG12,
+} from '../../../src/reportes/g12/interfaces/g12.interface.js';
 
 /**
  * Las recetas del G12 con los números del Excel del 9 de noviembre de 2026
@@ -22,9 +28,25 @@ import type { AgendaG12, ComponenteReporteG12, DiaG12, EntradasFilaG12, Simulaci
  */
 
 const HOY = '2026-11-09';
-const dia = (fecha: string, asignado: number, ocupado: number, activo = true): DiaG12 => ({ fecha, activo, asignado, ocupado, disponible: asignado - ocupado });
-const sim = (servicio: string, fecha: string | null, extra: Partial<SimulacionG12> = {}): SimulacionG12 => ({ servicio, fecha, pedido: { servicio }, ...extra });
-const agenda = (tipo: AgendaG12['tipo'], pedido: Record<string, string>, agendas: AgendaG12['agendas'], error: string | null = null): AgendaG12 => ({ tipo, pedido, agendas, error });
+const dia = (fecha: string, asignado: number, ocupado: number, activo = true): DiaG12 => ({
+  fecha,
+  activo,
+  asignado,
+  ocupado,
+  disponible: asignado - ocupado,
+});
+const sim = (servicio: string, fecha: string | null, extra: Partial<SimulacionG12> = {}): SimulacionG12 => ({
+  servicio,
+  fecha,
+  pedido: { servicio },
+  ...extra,
+});
+const agenda = (
+  tipo: AgendaG12['tipo'],
+  pedido: Record<string, string>,
+  agendas: AgendaG12['agendas'],
+  error: string | null = null,
+): AgendaG12 => ({ tipo, pedido, agendas, error });
 const entradas = (e: Partial<EntradasFilaG12>): EntradasFilaG12 => ({ simulaciones: [], agendas: [], fijas: [], ...e });
 
 describe('El lead time', () => {
@@ -40,8 +62,14 @@ describe('El lead time', () => {
 
 describe('La fecha de una fila', () => {
   it('con prioridad manda el primer servicio que dé fecha: RE si la hay, si no RT', () => {
-    expect(elegirFecha([sim('RE', null), sim('RT', '2026-11-10')], ['RE', 'RT'])).toEqual({ flujo: 'RT', fecha: '2026-11-10' });
-    expect(elegirFecha([sim('RE', '2026-11-12'), sim('RT', '2026-11-10')], ['RE', 'RT'])).toEqual({ flujo: 'RE', fecha: '2026-11-12' });
+    expect(elegirFecha([sim('RE', null), sim('RT', '2026-11-10')], ['RE', 'RT'])).toEqual({
+      flujo: 'RT',
+      fecha: '2026-11-10',
+    });
+    expect(elegirFecha([sim('RE', '2026-11-12'), sim('RT', '2026-11-10')], ['RE', 'RT'])).toEqual({
+      flujo: 'RE',
+      fecha: '2026-11-12',
+    });
     // Sin ninguna fecha, la fila se queda con el de siempre
     expect(elegirFecha([sim('RE', null), sim('RT', null)], ['RE', 'RT'])).toEqual({ flujo: 'RT', fecha: null });
   });
@@ -61,71 +89,123 @@ describe('Receta "simulada"', () => {
   const sts = definicionDe('sts_lima');
 
   it('Pickup RT mira el picking del día ANTERIOR: San Isidro, 66 de 230', () => {
-    const f = filaSimulada(pickup, 'San Isidro', entradas({
-      simulaciones: [sim('RE', null), sim('RT', '2026-11-10')],
-      agendas: [
-        agenda('picking', { codigo: '20027', servicio: 'RT' }, [{ agenda: 'Agenda RT', servicio: 'RT', dias: [dia('2026-11-09', 230, 66), dia('2026-11-10', 230, 10)] }]),
-        agenda('picking', { codigo: '20027', servicio: 'RE' }, [{ agenda: 'Agenda RE', servicio: 'RE', dias: [dia('2026-11-10', 99, 99)] }]),
-      ],
-    }), HOY);
+    const f = filaSimulada(
+      pickup,
+      'San Isidro',
+      entradas({
+        simulaciones: [sim('RE', null), sim('RT', '2026-11-10')],
+        agendas: [
+          agenda('picking', { codigo: '20027', servicio: 'RT' }, [
+            { agenda: 'Agenda RT', servicio: 'RT', dias: [dia('2026-11-09', 230, 66), dia('2026-11-10', 230, 10)] },
+          ]),
+          agenda('picking', { codigo: '20027', servicio: 'RE' }, [
+            { agenda: 'Agenda RE', servicio: 'RE', dias: [dia('2026-11-10', 99, 99)] },
+          ]),
+        ],
+      }),
+      HOY,
+    );
 
-    expect(f).toMatchObject({ flujo: 'RT', fecha: '2026-11-10', unidades: 66, capacidad: 230, porcentaje: 29, estado: 'ok' });
+    expect(f).toMatchObject({
+      flujo: 'RT',
+      fecha: '2026-11-10',
+      unidades: 66,
+      capacidad: 230,
+      porcentaje: 29,
+      estado: 'ok',
+    });
     expect(f.detalle.agendas).toHaveLength(1);
     expect(f.detalle.agendas[0]).toMatchObject({ agenda: 'Agenda RT', dia: '2026-11-09' });
   });
 
   it('Site to Store mira la recepción del mismo día: San Borja ST el 12, 34 de 140', () => {
-    const f = filaSimulada(sts, 'San Borja', entradas({
-      simulaciones: [sim('ST', '2026-11-12')],
-      agendas: [agenda('recepcion', { codigo: '20089' }, [
-        { agenda: 'Recepción ST', servicio: 'ST', dias: [dia('2026-11-12', 140, 34)] },
-        { agenda: 'Recepción SS', servicio: 'SS', dias: [dia('2026-11-12', 50, 1)] },
-      ])],
-    }), HOY);
+    const f = filaSimulada(
+      sts,
+      'San Borja',
+      entradas({
+        simulaciones: [sim('ST', '2026-11-12')],
+        agendas: [
+          agenda('recepcion', { codigo: '20089' }, [
+            { agenda: 'Recepción ST', servicio: 'ST', dias: [dia('2026-11-12', 140, 34)] },
+            { agenda: 'Recepción SS', servicio: 'SS', dias: [dia('2026-11-12', 50, 1)] },
+          ]),
+        ],
+      }),
+      HOY,
+    );
     // Sin servicio en el ítem, de la oficina se queda la agenda del flujo
     expect(f).toMatchObject({ flujo: 'ST', unidades: 34, capacidad: 140, porcentaje: 24 });
   });
 
   it('en despacho la zona suma todas sus agendas, como el Excel', () => {
-    const f = filaSimulada(definicionDe('dd_troncal'), 'BT. F.E. Ica', entradas({
-      simulaciones: [sim('S', '2026-11-12')],
-      agendas: [agenda('despacho', { codigo: '1480', zona: 'BT. F.E. Ica' }, [
-        { agenda: 'Agenda 1', servicio: 'S', zona: 'BT. F.E. Ica', dias: [dia('2026-11-12', 120, 5)] },
-        { agenda: 'Agenda 2', servicio: 'S', zona: 'BT. F.E. Ica', dias: [dia('2026-11-12', 80, 3)] },
-      ])],
-    }), HOY);
+    const f = filaSimulada(
+      definicionDe('dd_troncal'),
+      'BT. F.E. Ica',
+      entradas({
+        simulaciones: [sim('S', '2026-11-12')],
+        agendas: [
+          agenda('despacho', { codigo: '1480', zona: 'BT. F.E. Ica' }, [
+            { agenda: 'Agenda 1', servicio: 'S', zona: 'BT. F.E. Ica', dias: [dia('2026-11-12', 120, 5)] },
+            { agenda: 'Agenda 2', servicio: 'S', zona: 'BT. F.E. Ica', dias: [dia('2026-11-12', 80, 3)] },
+          ]),
+        ],
+      }),
+      HOY,
+    );
     expect(f).toMatchObject({ unidades: 8, capacidad: 200, porcentaje: 4 });
   });
 
   it('en picking, un ítem que encaja con varias agendas no se suma: dice cuáles y qué escribir', () => {
-    const f = filaSimulada(definicionDe('dd_lima'), 'X', entradas({
-      simulaciones: [sim('S', '2026-11-11')],
-      agendas: [agenda('picking', { codigo: '20026', servicio: 'RC' }, [
-        { agenda: 'RC 1', servicio: 'RC', dias: [dia('2026-11-11', 100, 1)] },
-        { agenda: 'RC 2', servicio: 'RC', dias: [dia('2026-11-11', 100, 1)] },
-      ])],
-    }), HOY);
+    const f = filaSimulada(
+      definicionDe('dd_lima'),
+      'X',
+      entradas({
+        simulaciones: [sim('S', '2026-11-11')],
+        agendas: [
+          agenda('picking', { codigo: '20026', servicio: 'RC' }, [
+            { agenda: 'RC 1', servicio: 'RC', dias: [dia('2026-11-11', 100, 1)] },
+            { agenda: 'RC 2', servicio: 'RC', dias: [dia('2026-11-11', 100, 1)] },
+          ]),
+        ],
+      }),
+      HOY,
+    );
     expect(f.capacidad).toBeNull();
     expect(f.detalle.avisos.join(' ')).toMatch(/encajan 2 agendas .*«RC 1».*escribe en "agenda"/);
   });
 
   it('un cupo a mano da la capacidad de ese día de la semana; las unidades quedan para el Oracle', () => {
     // 2026-11-11 es miércoles
-    const f = filaSimulada(definicionDe('dd_lima'), 'Big Ticket Lima', entradas({
-      simulaciones: [sim('S', '2026-11-11')],
-      fijas: [[400, 400, 280, 280, 280, 280, 0]],
-    }), HOY);
+    const f = filaSimulada(
+      definicionDe('dd_lima'),
+      'Big Ticket Lima',
+      entradas({
+        simulaciones: [sim('S', '2026-11-11')],
+        fijas: [[400, 400, 280, 280, 280, 280, 0]],
+      }),
+      HOY,
+    );
     expect(f).toMatchObject({ capacidad: 280, unidades: null, porcentaje: null, leadTime: { etiqueta: '48' } });
   });
 
   it('sin fecha la fila sale OFF y a cero, y con todas las simulaciones fallidas, en error', () => {
-    const off = filaSimulada(definicionDe('sfs'), 'SFS Ica', entradas({
-      simulaciones: [sim('DT', null, { mensaje: 'No se encuentran agendas' })],
-      agendas: [agenda('despacho', { codigo: '1170' }, [{ agenda: 'A', servicio: 'DT', dias: [] }])],
-    }), HOY);
+    const off = filaSimulada(
+      definicionDe('sfs'),
+      'SFS Ica',
+      entradas({
+        simulaciones: [sim('DT', null, { mensaje: 'No se encuentran agendas' })],
+        agendas: [agenda('despacho', { codigo: '1170' }, [{ agenda: 'A', servicio: 'DT', dias: [] }])],
+      }),
+      HOY,
+    );
     expect(off).toMatchObject({ estado: 'off', fecha: null, unidades: 0, capacidad: 0, porcentaje: 0 });
 
-    const fallo = filaSimulada(definicionDe('sfs'), 'SFS Ica', entradas({ simulaciones: [sim('DT', null, { error: 'No existe el operador 9999' })] }), HOY);
+    const fallo = filaSimulada(
+      definicionDe('sfs'),
+      'SFS Ica',
+      entradas({ simulaciones: [sim('DT', null, { error: 'No existe el operador 9999' })] }),
+      HOY,
+    );
     expect(fallo.estado).toBe('error');
     expect(fallo.detalle.avisos).toContain('DT: No existe el operador 9999');
   });
@@ -137,23 +217,45 @@ describe('Receta "simulada"', () => {
 
 describe('Receta "primer día"', () => {
   const s2s = definicionDe('store_to_store');
-  const picking = (dias: DiaG12[]) => [agenda('picking', { codigo: '20027', servicio: 'SS' }, [{ agenda: 'SS', servicio: 'SS', dias }])];
+  const picking = (dias: DiaG12[]) => [
+    agenda('picking', { codigo: '20027', servicio: 'SS' }, [{ agenda: 'SS', servicio: 'SS', dias }]),
+  ];
 
   it('el primer día activo y con cupo en los próximos diez: San Isidro el 11, 125 de 140', () => {
-    const f = filaPrimerDia(s2s, 'San Isidro', entradas({
-      agendas: picking([dia('2026-11-08', 140, 0), dia('2026-11-09', 140, 140), dia('2026-11-10', 140, 10, false), dia('2026-11-11', 140, 125)]),
-    }), HOY);
+    const f = filaPrimerDia(
+      s2s,
+      'San Isidro',
+      entradas({
+        agendas: picking([
+          dia('2026-11-08', 140, 0),
+          dia('2026-11-09', 140, 140),
+          dia('2026-11-10', 140, 10, false),
+          dia('2026-11-11', 140, 125),
+        ]),
+      }),
+      HOY,
+    );
     expect(f).toMatchObject({ fecha: '2026-11-11', unidades: 125, capacidad: 140, porcentaje: 89, estado: 'ok' });
   });
 
   it('sin ninguno en diez días, APAGADO a cero', () => {
-    const f = filaPrimerDia(s2s, 'Jockey Plaza', entradas({ agendas: picking([dia('2026-11-09', 0, 0), dia('2026-11-25', 100, 0)]) }), HOY);
+    const f = filaPrimerDia(
+      s2s,
+      'Jockey Plaza',
+      entradas({ agendas: picking([dia('2026-11-09', 0, 0), dia('2026-11-25', 100, 0)]) }),
+      HOY,
+    );
     expect(f).toMatchObject({ fecha: null, estado: 'apagado', unidades: 0, capacidad: 0, porcentaje: 0 });
   });
 
   it('SE express solo cuenta de lunes a viernes', () => {
     const sabado = '2026-11-14';
-    const f = filaPrimerDia(definicionDe('se_express'), 'CD PICK - SE', entradas({ agendas: picking([dia(sabado, 100, 0)]) }), sabado);
+    const f = filaPrimerDia(
+      definicionDe('se_express'),
+      'CD PICK - SE',
+      entradas({ agendas: picking([dia(sabado, 100, 0)]) }),
+      sabado,
+    );
     expect(f).toMatchObject({ estado: 'off', fecha: null });
   });
 });
@@ -168,28 +270,61 @@ describe('Totales y resumen', () => {
       ['Centralizado FLOTA Ñ', entradas({ simulaciones: [sim('S', '2026-11-11')], fijas: fijo(150) })],
       ['Courrier Lima Periferia', entradas({ simulaciones: [sim('S', '2026-11-11')], fijas: fijo(100) })],
     ]);
-    const filas = calcularFilas(dd, [
-      { nombre: 'Paquetería Lima Total', suma: ['Centralizado MailAmericas', 'Centralizado URBANO', 'Centralizado FLOTA Ñ', 'Courrier Lima Periferia'] },
-      { nombre: 'Centralizado MailAmericas' }, { nombre: 'Centralizado URBANO' }, { nombre: 'Centralizado FLOTA Ñ' }, { nombre: 'Courrier Lima Periferia' },
-    ], e, HOY);
+    const filas = calcularFilas(
+      dd,
+      [
+        {
+          nombre: 'Paquetería Lima Total',
+          suma: ['Centralizado MailAmericas', 'Centralizado URBANO', 'Centralizado FLOTA Ñ', 'Courrier Lima Periferia'],
+        },
+        { nombre: 'Centralizado MailAmericas' },
+        { nombre: 'Centralizado URBANO' },
+        { nombre: 'Centralizado FLOTA Ñ' },
+        { nombre: 'Courrier Lima Periferia' },
+      ],
+      e,
+      HOY,
+    );
 
-    expect(filas[0]).toMatchObject({ esTotal: true, fecha: '2026-11-11', capacidad: 1550, unidades: null, leadTime: { etiqueta: '48' } });
+    expect(filas[0]).toMatchObject({
+      esTotal: true,
+      fecha: '2026-11-11',
+      capacidad: 1550,
+      unidades: null,
+      leadTime: { etiqueta: '48' },
+    });
     // El total del cuadro no cuenta dos veces la fila de total
     expect(totalDe(filas).capacidad).toBe(1550);
   });
 
   it('el total de SFS suma sus filas: 820 y no los 675 del Excel', () => {
     const capacidades = [30, 20, 20, 30, 10, 50, 75, 60, 125, 125, 80, 100, 75, 10, 10];
-    const filas = capacidades.map((c, i) => ({ nombre: `SFS ${i}`, esTotal: false, unidades: 1, capacidad: c } as never));
+    const filas = capacidades.map(
+      (c, i) => ({ nombre: `SFS ${i}`, esTotal: false, unidades: 1, capacidad: c }) as never,
+    );
     expect(totalDe(filas)).toMatchObject({ capacidad: 820, unidades: 15 });
   });
 
   it('el resumen suma cuadros o filas y avisa si a alguna parte le faltan unidades', () => {
-    const comp = (clave: string, unidades: number | null, capacidad: number, filas: Array<Record<string, unknown>> = []) =>
-      ({ clave, titulo: clave, receta: 'simulada', filas, total: { unidades, capacidad, porcentaje: null } }) as unknown as ComponenteReporteG12;
+    const comp = (
+      clave: string,
+      unidades: number | null,
+      capacidad: number,
+      filas: Array<Record<string, unknown>> = [],
+    ) =>
+      ({
+        clave,
+        titulo: clave,
+        receta: 'simulada',
+        filas,
+        total: { unidades, capacidad, porcentaje: null },
+      }) as unknown as ComponenteReporteG12;
     const r = calcularResumen(
       [
-        { nombre: 'Despacho a domicilio', partes: [{ componente: 'dd_lima', fila: 'Paquetería Lima Total' }, { componente: 'sfs' }] },
+        {
+          nombre: 'Despacho a domicilio',
+          partes: [{ componente: 'dd_lima', fila: 'Paquetería Lima Total' }, { componente: 'sfs' }],
+        },
         { nombre: 'Retiro cercano', partes: [{ componente: 'retiro_cercano' }] },
       ],
       [
@@ -221,11 +356,21 @@ describe('Las agendas de una fila', () => {
 
 describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', () => {
   const fila = (nombre: string, fecha: string | null, capacidad: number | null, unidades: number | null = null) => ({
-    nombre, esTotal: false, flujo: 'S', fecha, leadTime: null, unidades, capacidad, porcentaje: null, estado: 'ok' as const,
+    nombre,
+    esTotal: false,
+    flujo: 'S',
+    fecha,
+    leadTime: null,
+    unidades,
+    capacidad,
+    porcentaje: null,
+    estado: 'ok' as const,
     detalle: { simulaciones: [], agendas: [], capacidadFija: capacidad, avisos: [] },
   });
   const comp = () => ({
-    clave: 'dd_lima' as const, titulo: 'Despacho domicilio', receta: 'simulada' as const,
+    clave: 'dd_lima' as const,
+    titulo: 'Despacho domicilio',
+    receta: 'simulada' as const,
     filas: [
       { ...fila('Paquetería Lima Total', '2026-11-12', 1100), esTotal: true },
       fila('Centralizado MailAmericas', '2026-11-12', 600),
@@ -237,17 +382,25 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
   });
   const config = [
     { nombre: 'Paquetería Lima Total', suma: ['Centralizado MailAmericas', 'Centralizado URBANO'] },
-    { nombre: 'Centralizado MailAmericas' }, { nombre: 'Centralizado URBANO' }, { nombre: 'Big Ticket Lima' }, { nombre: 'SAME DAY' },
+    { nombre: 'Centralizado MailAmericas' },
+    { nombre: 'Centralizado URBANO' },
+    { nombre: 'Big Ticket Lima' },
+    { nombre: 'SAME DAY' },
   ];
 
   it('cada fila suma su SUB_FLUJO en su fecha; sin coincidencia o sin fecha, 0; el total se vuelve a sumar', () => {
-    const r = aplicarUnidadesOracle(comp(), config, [
-      { fecha: '2026-11-12', subFlujo: 'Centralizado MailAmericas', unidades: 600 },
-      { fecha: '2026-11-12', subFlujo: 'Centralizado MailAmericas', unidades: 83 },
-      { fecha: '2026-11-12', subFlujo: 'Centralizado URBANO', unidades: 999 },
-      { fecha: '2026-11-13', subFlujo: 'centralizado  urbano ', unidades: 202 },
-      { fecha: '2026-11-13', subFlujo: 'SD_RM - 1er Turno', unidades: 40 },
-    ], 'carga del 11/11 08:31');
+    const r = aplicarUnidadesOracle(
+      comp(),
+      config,
+      [
+        { fecha: '2026-11-12', subFlujo: 'Centralizado MailAmericas', unidades: 600 },
+        { fecha: '2026-11-12', subFlujo: 'Centralizado MailAmericas', unidades: 83 },
+        { fecha: '2026-11-12', subFlujo: 'Centralizado URBANO', unidades: 999 },
+        { fecha: '2026-11-13', subFlujo: 'centralizado  urbano ', unidades: 202 },
+        { fecha: '2026-11-13', subFlujo: 'SD_RM - 1er Turno', unidades: 40 },
+      ],
+      'carga del 11/11 08:31',
+    );
 
     expect(r.filas.map((f) => [f.nombre, f.unidades, f.porcentaje])).toEqual([
       ['Paquetería Lima Total', 885, 80],
@@ -258,14 +411,23 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
       ['SAME DAY', 0, null],
     ]);
     expect(r.total).toEqual({ unidades: 946, capacidad: 1380, porcentaje: 69 });
-    expect(r.filas[1].detalle.avisos).toEqual(['Unidades del Oracle (carga del 11/11 08:31): suma «Centralizado MailAmericas».']);
+    expect(r.filas[1].detalle.avisos).toEqual([
+      'Unidades del Oracle (carga del 11/11 08:31): suma «Centralizado MailAmericas».',
+    ]);
     expect(r.filas[1].subFlujosOracle).toEqual(['Centralizado MailAmericas']);
     // SAME DAY encaja con "SD_RM - 1er Turno" por defecto, pero sin fecha no suma nada
     expect(r.filas[4]).toMatchObject({ unidades: 0, subFlujosOracle: ['SD_RM - 1er Turno'] });
   });
 
   it('90 MIN y SAME DAY toman sus sub-flujos por defecto; la configuración manda, y "*" es un prefijo', () => {
-    const filas = () => ({ ...comp(), filas: [fila('90 MIN', '2026-11-14', 90), fila('SAME DAY', '2026-11-14', 300), fila('Courrier Lima Periferia', '2026-11-14', 100)] });
+    const filas = () => ({
+      ...comp(),
+      filas: [
+        fila('90 MIN', '2026-11-14', 90),
+        fila('SAME DAY', '2026-11-14', 300),
+        fila('Courrier Lima Periferia', '2026-11-14', 100),
+      ],
+    });
     const unidades = [
       { fecha: '2026-11-14', zona: '0. EX_TIENDAS', subFlujo: 'Serv. 90min', unidades: 3 },
       { fecha: '2026-11-14', zona: '1. SAME DAY', subFlujo: 'SD_RM - 1er Turno', unidades: 53 },
@@ -276,21 +438,39 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
     ];
 
     const porDefecto = aplicarUnidadesOracle(filas(), [], unidades, 'x');
-    expect(porDefecto.filas.map((f) => [f.nombre, f.unidades])).toEqual([['90 MIN', 3], ['SAME DAY', 60], ['Courrier Lima Periferia', 24]]);
+    expect(porDefecto.filas.map((f) => [f.nombre, f.unidades])).toEqual([
+      ['90 MIN', 3],
+      ['SAME DAY', 60],
+      ['Courrier Lima Periferia', 24],
+    ]);
     expect(porDefecto.filas[1].subFlujosOracle).toEqual(['SD_RM - 1er Turno', 'SD_RM - 2do Turno']);
 
     // Lo configurado reemplaza al valor por defecto (aquí, solo el 1er turno)
-    const configurado = aplicarUnidadesOracle(filas(), [{ nombre: 'SAME DAY', oracle: ['sd_rm - 1ER turno'] }], unidades, 'x');
+    const configurado = aplicarUnidadesOracle(
+      filas(),
+      [{ nombre: 'SAME DAY', oracle: ['sd_rm - 1ER turno'] }],
+      unidades,
+      'x',
+    );
     expect(configurado.filas[1].unidades).toBe(53);
     expect(configurado.filas[1].detalle.avisos.at(-1)).toBe('Unidades del Oracle (x): suma «SD_RM - 1er Turno».');
   });
 
   it('los sub-flujos de la carga que no suma ninguna fila (un Excel con la consulta de antes del 15/11)', () => {
     const filas = [
-      { nombre: 'Paquetería Lima Total', esTotal: true }, { nombre: 'Centralizado MailAmericas' }, { nombre: 'Centralizado SHARF' },
-      { nombre: 'Courrier Lima Periferia' }, { nombre: 'SAME DAY' }, { nombre: '90 MIN' },
+      { nombre: 'Paquetería Lima Total', esTotal: true },
+      { nombre: 'Centralizado MailAmericas' },
+      { nombre: 'Centralizado SHARF' },
+      { nombre: 'Courrier Lima Periferia' },
+      { nombre: 'SAME DAY' },
+      { nombre: '90 MIN' },
     ];
-    const config = [{ nombre: 'Paquetería Lima Total', suma: ['Centralizado MailAmericas', 'Centralizado SHARF', 'Courrier Lima Periferia'] }];
+    const config = [
+      {
+        nombre: 'Paquetería Lima Total',
+        suma: ['Centralizado MailAmericas', 'Centralizado SHARF', 'Courrier Lima Periferia'],
+      },
+    ];
     const sueltos = subFlujosSinFila(filas, config, [
       { fecha: '2026-11-16', subFlujo: 'Centralizado MailAmericas', unidades: 204 },
       { fecha: '2026-11-16', subFlujo: 'Centralizado URBANO', unidades: 50 },
@@ -301,7 +481,10 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
       // El ELSE de la consulta (solo la jornada) no es un flujo: no se avisa
       { fecha: '2026-11-16', subFlujo: 'S', unidades: 7 },
     ]);
-    expect(sueltos).toEqual([{ subFlujo: 'Centralizado URBANO', unidades: 59 }, { subFlujo: 'Centralizado FLOTA Ñ', unidades: 12 }]);
+    expect(sueltos).toEqual([
+      { subFlujo: 'Centralizado URBANO', unidades: 59 },
+      { subFlujo: 'Centralizado FLOTA Ñ', unidades: 12 },
+    ]);
   });
 
   it('una fila cuyo sub-flujo no está en la carga lo dice', () => {

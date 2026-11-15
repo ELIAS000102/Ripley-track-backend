@@ -1,7 +1,4 @@
-export type {
-  OfficeRow,
-  RipleyListResponse,
-} from '../../common/ripley/interfaces/ripley.interface.js';
+export type { OfficeRow, RipleyListResponse } from '../../common/ripley/interfaces/ripley.interface.js';
 
 // ---------- Geografía ----------
 

@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Post, Put } from '@nestjs/common';
 import { Auditar } from '../auditoria/decorators/auditar.decorator.js';
 import { AuthService } from './auth.service.js';
 import { Publico } from './decorators/publico.decorator.js';
@@ -76,10 +67,7 @@ export class AuthController {
    */
   @Auditar('perfil.actualizar')
   @Put('me')
-  async actualizarPerfil(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: ActualizarPerfilDto,
-  ) {
+  async actualizarPerfil(@Usuario() usuario: UsuarioAutenticado, @Body() body: ActualizarPerfilDto) {
     return this.perfiles.actualizar(usuario.id, usuario.email, body);
   }
 }

@@ -4,7 +4,12 @@ import type { UsuarioAutenticado } from '../../auth/interfaces/auth.interface.js
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { hoyEnPais, sumarDias } from '../../common/ripley/utils/date.util.js';
 import { definicionDe } from './g12.componentes.js';
-import type { AgendaLeidaG12, ClaveComponente, PeticionG12, RespuestaSimulacionG12 } from './interfaces/g12.interface.js';
+import type {
+  AgendaLeidaG12,
+  ClaveComponente,
+  PeticionG12,
+  RespuestaSimulacionG12,
+} from './interfaces/g12.interface.js';
 
 const TABLA = 'g12_actualizaciones';
 const TABLA_PETICIONES = 'g12_peticiones';
@@ -28,7 +33,8 @@ export type TipoActualizacionG12 = 'completa' | 'refrescar' | 'tabla' | 'reinten
 export type ClaveActualizacionG12 = ClaveComponente | 'solicitudes';
 
 /** El título de lo que se genera, para el registro y los avisos */
-export const tituloDeClave = (clave: ClaveActualizacionG12) => (clave === 'solicitudes' ? 'Solicitudes' : definicionDe(clave).titulo);
+export const tituloDeClave = (clave: ClaveActualizacionG12) =>
+  clave === 'solicitudes' ? 'Solicitudes' : definicionDe(clave).titulo;
 export type EstadoActualizacionG12 = 'en_curso' | 'terminada' | 'cancelada' | 'abandonada' | 'fallida';
 
 export interface CuadroActualizacionG12 {
@@ -145,8 +151,16 @@ function horaLocal(iso: string | null | undefined, pais: string): string {
   if (!iso) return '';
   return new Intl.DateTimeFormat('es-PE', {
     timeZone: ZONAS[pais]?.zona ?? ZONAS.PE.zona,
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).format(new Date(iso)).replace(',', '');
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+    .format(new Date(iso))
+    .replace(',', '');
 }
 
 /** Si una en curso ya no da señales: entonces no bloquea */
@@ -176,20 +190,37 @@ export class HistorialG12Service {
    * señales en 3 min se cierra como abandonada y deja paso. De paso borra las
    * de hace más de 60 días.
    */
-  async crear(pais: string, tipo: TipoActualizacionG12, usuario: UsuarioAutenticado, claves: ClaveActualizacionG12[]): Promise<ActualizacionG12> {
+  async crear(
+    pais: string,
+    tipo: TipoActualizacionG12,
+    usuario: UsuarioAutenticado,
+    claves: ClaveActualizacionG12[],
+  ): Promise<ActualizacionG12> {
     const enCurso = await this.enCurso(pais);
     if (enCurso) throw this.ocupado(enCurso);
 
     const ahora = new Date().toISOString();
     const { data, error } = await this.supabase.admin
       .from(TABLA)
-      .insert({ pais, tipo, estado: 'en_curso', usuario_id: usuario.id, usuario_email: usuario.email ?? null, inicio: ahora, latido: ahora, claves, cuadros: [] })
+      .insert({
+        pais,
+        tipo,
+        estado: 'en_curso',
+        usuario_id: usuario.id,
+        usuario_email: usuario.email ?? null,
+        inicio: ahora,
+        latido: ahora,
+        claves,
+        cuadros: [],
+      })
       .select('*')
       .single();
     // Otro empezó en el mismo instante: el índice único de la base lo para
     if (error?.code === '23505') {
       const otra = await this.enCurso(pais);
-      throw otra ? this.ocupado(otra) : new ConflictException('Alguien acaba de empezar a actualizar el G12. Espera a que termine.');
+      throw otra
+        ? this.ocupado(otra)
+        : new ConflictException('Alguien acaba de empezar a actualizar el G12. Espera a que termine.');
     }
     if (error || !data) this.fallo(error, 'empezar la actualización');
 
@@ -209,7 +240,11 @@ export class HistorialG12Service {
     let viva: ActualizacionG12 | null = null;
     for (const a of ((data ?? []) as FilaActualizacion[]).map(aActualizacion)) {
       if (sinSenales(a)) {
-        await this.cerrar(a.id, 'abandonada', 'Dejó de dar señales (el backend se reinició o la conexión con Supabase falló): se liberó el turno.');
+        await this.cerrar(
+          a.id,
+          'abandonada',
+          'Dejó de dar señales (el backend se reinició o la conexión con Supabase falló): se liberó el turno.',
+        );
       } else {
         viva = a;
       }
@@ -240,7 +275,10 @@ export class HistorialG12Service {
   ): Promise<void> {
     const actual = await this.leer(id);
 
-    const { count } = await this.supabase.admin.from(TABLA_PETICIONES).select('id', { count: 'exact', head: true }).eq('actualizacion_id', id);
+    const { count } = await this.supabase.admin
+      .from(TABLA_PETICIONES)
+      .select('id', { count: 'exact', head: true })
+      .eq('actualizacion_id', id);
     const desde = count ?? 0;
     const peticiones = cuadro.peticiones;
 
@@ -268,8 +306,12 @@ export class HistorialG12Service {
       let { error } = await this.supabase.admin.from(TABLA_PETICIONES).insert(filas);
       // Sin las columnas nuevas (falta el ALTER del SQL) se guarda igual, sin ellas
       if (error && SIN_COLUMNA.includes(error.code ?? '')) {
-        this.logger.warn('g12_peticiones no tiene las columnas "llamadas" y "espera_ms": ejecuta los ALTER de docs/supabase-setup.sql');
-        ({ error } = await this.supabase.admin.from(TABLA_PETICIONES).insert(filas.map(({ llamadas: _l, espera_ms: _e, ...resto }) => resto)));
+        this.logger.warn(
+          'g12_peticiones no tiene las columnas "llamadas" y "espera_ms": ejecuta los ALTER de docs/supabase-setup.sql',
+        );
+        ({ error } = await this.supabase.admin
+          .from(TABLA_PETICIONES)
+          .insert(filas.map(({ llamadas: _l, espera_ms: _e, ...resto }) => resto)));
       }
       if (error) this.fallo(error, 'guardar las peticiones');
     }
@@ -283,20 +325,31 @@ export class HistorialG12Service {
       errores: peticiones.filter((p) => p.estado === 'error').length,
       ...(fallo ? { fallo } : {}),
     };
-    const { error } = await this.supabase.admin.from(TABLA).update({ cuadros: [...actual.cuadros, resumen] }).eq('id', id);
+    const { error } = await this.supabase.admin
+      .from(TABLA)
+      .update({ cuadros: [...actual.cuadros, resumen] })
+      .eq('id', id);
     if (error) this.fallo(error, 'anotar el cuadro');
   }
 
   /** La cierra con su estado, su hora de fin y lo que salió; libera el turno */
-  async cerrar(id: string, estado: Exclude<EstadoActualizacionG12, 'en_curso'>, error?: string): Promise<ActualizacionG12> {
+  async cerrar(
+    id: string,
+    estado: Exclude<EstadoActualizacionG12, 'en_curso'>,
+    error?: string,
+  ): Promise<ActualizacionG12> {
     const actual = await this.leer(id);
     if (actual.estado !== 'en_curso') return actual;
 
     type Contada = { estado: string; intentos: number | null; llamadas?: number | null; espera_ms?: number | null };
-    const leidas = await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos, llamadas, espera_ms').eq('actualizacion_id', id);
+    const leidas = await this.supabase.admin
+      .from(TABLA_PETICIONES)
+      .select('estado, intentos, llamadas, espera_ms')
+      .eq('actualizacion_id', id);
     let data = leidas.data as Contada[] | null;
     if (leidas.error && SIN_COLUMNA.includes(leidas.error.code ?? '')) {
-      data = (await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos').eq('actualizacion_id', id)).data as Contada[] | null;
+      data = (await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos').eq('actualizacion_id', id))
+        .data as Contada[] | null;
     }
     const filas = data ?? [];
     const cuenta = (e: string) => filas.filter((f) => f.estado === e).length;
@@ -307,8 +360,12 @@ export class HistorialG12Service {
       omitida: cuenta('omitida'),
       error: cuenta('error'),
       reintentadas: filas.filter((f) => (f.intentos ?? 1) > 1).length,
-      ...(filas.some((f) => typeof f.llamadas === 'number') ? { llamadas: filas.reduce((n, f) => n + (f.llamadas ?? 0), 0) } : {}),
-      ...(filas.some((f) => typeof f.espera_ms === 'number') ? { esperaMs: filas.reduce((n, f) => n + (f.espera_ms ?? 0), 0) } : {}),
+      ...(filas.some((f) => typeof f.llamadas === 'number')
+        ? { llamadas: filas.reduce((n, f) => n + (f.llamadas ?? 0), 0) }
+        : {}),
+      ...(filas.some((f) => typeof f.espera_ms === 'number')
+        ? { esperaMs: filas.reduce((n, f) => n + (f.espera_ms ?? 0), 0) }
+        : {}),
     };
 
     const { data: fila, error: e2 } = await this.supabase.admin
@@ -326,7 +383,9 @@ export class HistorialG12Service {
     let consulta = this.supabase.admin.from(TABLA).select('*').eq('pais', pais);
     if (filtro.dia) {
       const desfase = ZONAS[pais]?.desfase ?? ZONAS.PE.desfase;
-      consulta = consulta.gte('inicio', `${filtro.dia}T00:00:00${desfase}`).lt('inicio', `${sumarDias(filtro.dia, 1)}T00:00:00${desfase}`);
+      consulta = consulta
+        .gte('inicio', `${filtro.dia}T00:00:00${desfase}`)
+        .lt('inicio', `${sumarDias(filtro.dia, 1)}T00:00:00${desfase}`);
     }
     const { data, error } = await consulta.order('inicio', { ascending: false }).limit(filtro.limite ?? 100);
     if (error) this.fallo(error, 'leer el historial');
@@ -334,10 +393,16 @@ export class HistorialG12Service {
   }
 
   /** Una actualización con todas sus peticiones, en orden */
-  async obtener(id: string): Promise<{ actualizacion: ActualizacionG12; peticiones: Array<PeticionG12 & { orden: number }> }> {
+  async obtener(
+    id: string,
+  ): Promise<{ actualizacion: ActualizacionG12; peticiones: Array<PeticionG12 & { orden: number }> }> {
     const actualizacion = await this.leer(id, 'Esa actualización no existe (se guardan 60 días).');
 
-    const { data: filas, error: e2 } = await this.supabase.admin.from(TABLA_PETICIONES).select('*').eq('actualizacion_id', id).order('orden');
+    const { data: filas, error: e2 } = await this.supabase.admin
+      .from(TABLA_PETICIONES)
+      .select('*')
+      .eq('actualizacion_id', id)
+      .order('orden');
     if (e2) this.fallo(e2, 'leer las peticiones');
 
     return {
@@ -352,7 +417,16 @@ export class HistorialG12Service {
         estado: f.estado,
         pedido: f.pedido ?? {},
         mensaje: f.mensaje,
-        meta: f.inicio ? { inicio: f.inicio, ms: f.ms ?? 0, intentos: f.intentos ?? 1, reintentos: f.reintentos ?? [], ...(typeof f.llamadas === 'number' ? { llamadas: f.llamadas } : {}), ...(typeof f.espera_ms === 'number' ? { esperaMs: f.espera_ms } : {}) } : null,
+        meta: f.inicio
+          ? {
+              inicio: f.inicio,
+              ms: f.ms ?? 0,
+              intentos: f.intentos ?? 1,
+              reintentos: f.reintentos ?? [],
+              ...(typeof f.llamadas === 'number' ? { llamadas: f.llamadas } : {}),
+              ...(typeof f.espera_ms === 'number' ? { esperaMs: f.espera_ms } : {}),
+            }
+          : null,
         datos: f.datos,
       })),
     };
@@ -375,12 +449,16 @@ export class HistorialG12Service {
   private ocupado(a: ActualizacionG12): ConflictException {
     const hora = horaLocal(a.inicio, a.pais).split(' ')[1]?.slice(0, 5) ?? '';
     const donde = a.cuadroActual ? ` (va por ${tituloDeClave(a.cuadroActual)})` : '';
-    return new ConflictException(`${a.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${a.pais} desde las ${hora}${donde}. Espera a que termine: lo verás actualizado aquí.`);
+    return new ConflictException(
+      `${a.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${a.pais} desde las ${hora}${donde}. Espera a que termine: lo verás actualizado aquí.`,
+    );
   }
 
   private fallo(error: { code?: string; message?: string } | null, accion: string): never {
     if (error && ['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code ?? '')) {
-      throw new BadGatewayException('Falta el G12 compartido en Supabase: ejecuta el SQL de g12_actualizaciones, g12_peticiones y g12_cuadros de docs/supabase-setup.sql.');
+      throw new BadGatewayException(
+        'Falta el G12 compartido en Supabase: ejecuta el SQL de g12_actualizaciones, g12_peticiones y g12_cuadros de docs/supabase-setup.sql.',
+      );
     }
     this.logger.error(`No se pudo ${accion}: ${error?.message ?? 'sin respuesta'}`);
     throw new BadGatewayException(`No se pudo ${accion}.`);
@@ -391,13 +469,38 @@ export class HistorialG12Service {
 function recortarDatos(p: PeticionG12, hoy: string): PeticionG12['datos'] {
   if (!Array.isArray(p.datos)) return p.datos;
   const hasta = sumarDias(hoy, DIAS_GUARDADOS - 1);
-  return (p.datos as AgendaLeidaG12[]).map((a) => ({ ...a, dias: a.dias.filter((d) => d.fecha >= hoy && d.fecha <= hasta) }));
+  return (p.datos as AgendaLeidaG12[]).map((a) => ({
+    ...a,
+    dias: a.dias.filter((d) => d.fecha >= hoy && d.fecha <= hasta),
+  }));
 }
 
-const NOMBRE_ESTADO_ACTUALIZACION: Record<string, string> = { en_curso: 'En curso', terminada: 'Terminada', cancelada: 'Cancelada', abandonada: 'Abandonada', fallida: 'Falló' };
-const NOMBRE_TIPO: Record<string, string> = { completa: 'Completa', refrescar: 'Actualizar todo', tabla: 'Una tabla', reintento: 'Reintento de errores' };
-const NOMBRE_ESTADO: Record<string, string> = { ok: 'Correcta', sin_fecha: 'Sin fecha', omitida: 'Omitida', error: 'Error' };
-const NOMBRE_BLOQUE: Record<string, string> = { simulacion: 'Simulación', picking: 'Picking', recepcion: 'Recepción', despacho: 'Despacho', capacidad: 'Cupo a mano' };
+const NOMBRE_ESTADO_ACTUALIZACION: Record<string, string> = {
+  en_curso: 'En curso',
+  terminada: 'Terminada',
+  cancelada: 'Cancelada',
+  abandonada: 'Abandonada',
+  fallida: 'Falló',
+};
+const NOMBRE_TIPO: Record<string, string> = {
+  completa: 'Completa',
+  refrescar: 'Actualizar todo',
+  tabla: 'Una tabla',
+  reintento: 'Reintento de errores',
+};
+const NOMBRE_ESTADO: Record<string, string> = {
+  ok: 'Correcta',
+  sin_fecha: 'Sin fecha',
+  omitida: 'Omitida',
+  error: 'Error',
+};
+const NOMBRE_BLOQUE: Record<string, string> = {
+  simulacion: 'Simulación',
+  picking: 'Picking',
+  recepcion: 'Recepción',
+  despacho: 'Despacho',
+  capacidad: 'Cupo a mano',
+};
 
 /** "G12-peticiones-PE-2026-11-10-1502.xlsx", con la hora de inicio en la del país */
 export function nombreArchivo(a: Pick<ActualizacionG12, 'pais' | 'inicio'>): string {
@@ -407,7 +510,10 @@ export function nombreArchivo(a: Pick<ActualizacionG12, 'pais' | 'inicio'>): str
 }
 
 /** El libro: "Resumen" (la actualización y sus cuadros) y "Peticiones" (una fila por petición) */
-export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Array<PeticionG12 & { orden?: number }>): Promise<Buffer> {
+export async function libroDeActualizacion(
+  a: ActualizacionG12,
+  peticiones: Array<PeticionG12 & { orden?: number }>,
+): Promise<Buffer> {
   const libro = new ExcelJS.Workbook();
   libro.creator = 'Ripley Track';
   const negrita = { bold: true };
@@ -441,23 +547,52 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
   }
   if (peticiones.some((p) => typeof p.meta?.esperaMs === 'number')) {
     // Varias esperan a la vez la misma ventana: la suma no es tiempo de reloj
-    datos.push(['Espera por cupo (suma, s)', Math.round(peticiones.reduce((n, p) => n + (p.meta?.esperaMs ?? 0), 0) / 100) / 10]);
+    datos.push([
+      'Espera por cupo (suma, s)',
+      Math.round(peticiones.reduce((n, p) => n + (p.meta?.esperaMs ?? 0), 0) / 100) / 10,
+    ]);
   }
   for (const [k, v] of datos) r.addRow([k, v]).getCell(1).font = negrita;
   r.addRow([]);
   cabecera(r.addRow(['Cuadro', 'Origen', 'Generado', 'Peticiones', 'Con error']));
   for (const c of a.cuadros) {
-    r.addRow([c.titulo, c.fallo ? `No se pudo generar: ${c.fallo}` : c.desdeCache ? 'Lo ya generado (sin peticiones)' : 'Pedido a Ripley', horaLocal(c.generado, a.pais), c.peticiones, c.errores]);
+    r.addRow([
+      c.titulo,
+      c.fallo ? `No se pudo generar: ${c.fallo}` : c.desdeCache ? 'Lo ya generado (sin peticiones)' : 'Pedido a Ripley',
+      horaLocal(c.generado, a.pais),
+      c.peticiones,
+      c.errores,
+    ]);
   }
   r.columns = [{ width: 28 }, { width: 34 }, { width: 22 }, { width: 12 }, { width: 12 }];
 
   // ── Peticiones ──
   const h = libro.addWorksheet('Peticiones', { views: [{ state: 'frozen', ySplit: 1 }] });
   const columnas: Array<[string, number]> = [
-    ['#', 6], ['Cuadro', 26], ['Fila', 26], ['Bloque', 8], ['Tipo', 12], ['Servicio', 9], ['Método', 8],
-    ['Operador / código', 16], ['Almacén', 10], ['Zona', 26], ['Agenda pedida', 26], ['Destino', 30],
-    ['Resultado', 11], ['Mensaje', 60], ['Intentos', 9], ['Llamadas a Ripley', 10], ['Reintentos', 60], ['Tiempo (s)', 10], ['Espera por cupo (s)', 12], ['Hora', 20],
-    ['Fecha de entrega', 15], ['Servicios devueltos', 22], ['Agenda encontrada', 34], ['Zona encontrada', 30],
+    ['#', 6],
+    ['Cuadro', 26],
+    ['Fila', 26],
+    ['Bloque', 8],
+    ['Tipo', 12],
+    ['Servicio', 9],
+    ['Método', 8],
+    ['Operador / código', 16],
+    ['Almacén', 10],
+    ['Zona', 26],
+    ['Agenda pedida', 26],
+    ['Destino', 30],
+    ['Resultado', 11],
+    ['Mensaje', 60],
+    ['Intentos', 9],
+    ['Llamadas a Ripley', 10],
+    ['Reintentos', 60],
+    ['Tiempo (s)', 10],
+    ['Espera por cupo (s)', 12],
+    ['Hora', 20],
+    ['Fecha de entrega', 15],
+    ['Servicios devueltos', 22],
+    ['Agenda encontrada', 34],
+    ['Zona encontrada', 30],
   ];
   cabecera(h.addRow(columnas.map(([t]) => t)));
   h.columns = columnas.map(([, width]) => ({ width }));
@@ -491,8 +626,13 @@ export async function libroDeActualizacion(a: ActualizacionG12, peticiones: Arra
       p.meta ? horaLocal(p.meta.inicio, a.pais) : '',
       delServicio?.opciones[0]?.fecha ?? '',
       sim ? sim.servicios.map((s) => s.servicio).join(', ') : '',
-      sim ? delServicio?.agenda ?? '' : agendas.map((g) => g.agenda).join(' | '),
-      sim ? delServicio?.zona ?? '' : agendas.map((g) => g.zona).filter(Boolean).join(' | '),
+      sim ? (delServicio?.agenda ?? '') : agendas.map((g) => g.agenda).join(' | '),
+      sim
+        ? (delServicio?.zona ?? '')
+        : agendas
+            .map((g) => g.zona)
+            .filter(Boolean)
+            .join(' | '),
     ]);
     if (p.estado === 'error') fila.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDECEA' } };
     else if (p.estado === 'sin_fecha') fila.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF8E1' } };

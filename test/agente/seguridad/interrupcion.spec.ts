@@ -1,12 +1,4 @@
-import {
-  CanActivate,
-  Controller,
-  ExecutionContext,
-  INestApplication,
-  Injectable,
-  Put,
-  Get,
-} from '@nestjs/common';
+import { CanActivate, Controller, ExecutionContext, INestApplication, Injectable, Put, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -18,10 +10,7 @@ import { AgenteGuard } from '../../../src/agente/seguridad/agente.guard.js';
 import { InterrupcionAgenteController } from '../../../src/agente/seguridad/interrupcion.controller.js';
 import { InterrupcionAgenteService } from '../../../src/agente/seguridad/interrupcion.service.js';
 import { ModoAgenteService } from '../../../src/agente/seguridad/modo.service.js';
-import {
-  PermitidoAgente,
-  PermitidoAgenteEditor,
-} from '../../../src/agente/seguridad/permitido-agente.decorator.js';
+import { PermitidoAgente, PermitidoAgenteEditor } from '../../../src/agente/seguridad/permitido-agente.decorator.js';
 
 /**
  * El botón "Detener" del chat.
@@ -157,7 +146,10 @@ describe('InterrupcionAgenteService', () => {
 describe('interpretar apunta la ejecución de la petición', () => {
   it('con peticion y ejecucion, las registra a nombre del usuario', () => {
     const registrar = vi.fn();
-    const ctrl = { interrupcion: { registrar }, configuracionCds: { todos: async () => ({}) } } as unknown as ConsultasAgenteController;
+    const ctrl = {
+      interrupcion: { registrar },
+      configuracionCds: { todos: async () => ({}) },
+    } as unknown as ConsultasAgenteController;
 
     ConsultasAgenteController.prototype.interpretar.call(
       ctrl,
@@ -170,9 +162,15 @@ describe('interpretar apunta la ejecución de la petición', () => {
 
   it('sin peticion no registra nada', () => {
     const registrar = vi.fn();
-    const ctrl = { interrupcion: { registrar }, configuracionCds: { todos: async () => ({}) } } as unknown as ConsultasAgenteController;
+    const ctrl = {
+      interrupcion: { registrar },
+      configuracionCds: { todos: async () => ({}) },
+    } as unknown as ConsultasAgenteController;
 
-    ConsultasAgenteController.prototype.interpretar.call(ctrl, { pregunta: 'hola' } as never, { id: 'ana', email: 'a' });
+    ConsultasAgenteController.prototype.interpretar.call(ctrl, { pregunta: 'hola' } as never, {
+      id: 'ana',
+      email: 'a',
+    });
     expect(registrar).not.toHaveBeenCalled();
   });
 });

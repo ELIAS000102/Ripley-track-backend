@@ -1,16 +1,9 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { Auditar } from '../../auditoria/decorators/auditar.decorator.js';
 import { DespachoService } from './despacho.service.js';
-import {
-  BuscarCapacidadesDto,
-  ListarAgendasDto,
-  ListarZonasDto,
-} from './dto/buscar-despacho.dto.js';
+import { BuscarCapacidadesDto, ListarAgendasDto, ListarZonasDto } from './dto/buscar-despacho.dto.js';
 import { PaisDto } from '../../common/dto/pais.dto.js';
-import {
-  ActualizarDespachoBodyDto,
-  ActualizarDespachoQueryDto,
-} from './dto/actualizar-despacho.dto.js';
+import { ActualizarDespachoBodyDto, ActualizarDespachoQueryDto } from './dto/actualizar-despacho.dto.js';
 
 /**
  * Endpoints de agendas de despacho: catálogos en cascada (operador → zona → agenda)
@@ -42,28 +35,14 @@ export class DespachoController {
   @Get('buscar')
   async buscar(@Query() query: BuscarCapacidadesDto) {
     const { mainScheduleId, date, pais, dias } = query;
-    return this.despachoService.buscarCapacidades(
-      mainScheduleId,
-      date,
-      pais,
-      dias,
-    );
+    return this.despachoService.buscarCapacidades(mainScheduleId, date, pais, dias);
   }
 
   /** PUT /agendas/despacho?officeCode=1130&zoneId=...&mainScheduleId=... */
   @Auditar('despacho.actualizar')
   @Put()
-  async actualizar(
-    @Query() query: ActualizarDespachoQueryDto,
-    @Body() body: ActualizarDespachoBodyDto,
-  ) {
+  async actualizar(@Query() query: ActualizarDespachoQueryDto, @Body() body: ActualizarDespachoBodyDto) {
     const { officeCode, zoneId, mainScheduleId, pais } = query;
-    return this.despachoService.actualizar(
-      officeCode,
-      zoneId,
-      mainScheduleId,
-      body,
-      pais,
-    );
+    return this.despachoService.actualizar(officeCode, zoneId, mainScheduleId, body, pais);
   }
 }

@@ -3,25 +3,12 @@ import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import type { Cd } from '../../../reportes/cds/interfaces/reporte-cds.interface.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-  soloFecha,
-  sumarDias,
-} from '../../../common/ripley/utils/date.util.js';
+import { hoyEnPais, isoToRipleyDate, soloFecha, sumarDias } from '../../../common/ripley/utils/date.util.js';
 import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds.service.js';
-import {
-  esTodoElPais,
-  listaDeCds,
-  paisDelCd,
-  resolverCd,
-} from '../../constantes/cds.constants.js';
+import { esTodoElPais, listaDeCds, paisDelCd, resolverCd } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarCdDto } from '../../dto/edicion.dto.js';
-import type {
-  CdEditado,
-  JornadaCerrada,
-} from '../../interfaces/edicion.interface.js';
+import type { CdEditado, JornadaCerrada } from '../../interfaces/edicion.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 
 /** Las agendas fuera de uso no se editan, igual que en el resto de escrituras */
@@ -54,10 +41,7 @@ export class EditarCdAgenteService {
     private readonly configuracionCds: ConfiguracionCdsService,
   ) {}
 
-  async editar(
-    usuario: UsuarioAutenticado,
-    dto: EditarCdDto,
-  ): Promise<CdEditado> {
+  async editar(usuario: UsuarioAutenticado, dto: EditarCdDto): Promise<CdEditado> {
     // El código del CD dice su país: el 10095 es de Chile aunque llegue pais="PE"
     // Los CDs y sus jornadas: los de la configuración del panel
     const todosLosCds = await this.configuracionCds.todos();
@@ -86,9 +70,7 @@ export class EditarCdAgenteService {
         resultado.length
           ? `Ninguna de las ${resultado.length} jornadas cambió. ` +
               `Motivos: ${[...new Set(resultado.map((j) => j.error))].join('; ')}`
-          : `No se encontró ninguna jornada de picking en ${cds
-              .map((c) => c.code)
-              .join(', ')}.`,
+          : `No se encontró ninguna jornada de picking en ${cds.map((c) => c.code).join(', ')}.`,
       );
     }
 
@@ -149,9 +131,7 @@ export class EditarCdAgenteService {
     const hasta = dto.hasta ?? desde;
 
     if (hasta < desde) {
-      throw new BadRequestException(
-        `El rango va al revés: "hasta" (${hasta}) es anterior a "fecha" (${desde}).`,
-      );
+      throw new BadRequestException(`El rango va al revés: "hasta" (${hasta}) es anterior a "fecha" (${desde}).`);
     }
 
     const fechas: string[] = [];
@@ -160,9 +140,7 @@ export class EditarCdAgenteService {
       fechas.push(f);
 
       if (fechas.length > 31) {
-        throw new BadRequestException(
-          'El rango no puede pasar de 31 días. Hazlo en tandas.',
-        );
+        throw new BadRequestException('El rango no puede pasar de 31 días. Hazlo en tandas.');
       }
     }
 
@@ -205,13 +183,7 @@ export class EditarCdAgenteService {
     for (let i = 0; i < propias.length; i += this.CONCURRENCIA) {
       const lote = propias.slice(i, i + this.CONCURRENCIA);
 
-      salida.push(
-        ...(
-          await Promise.all(
-            lote.map((a) => this.cerrarAgenda(cd, a, fechas, dto, pais)),
-          )
-        ).flat(),
-      );
+      salida.push(...(await Promise.all(lote.map((a) => this.cerrarAgenda(cd, a, fechas, dto, pais)))).flat());
     }
 
     return salida;
@@ -230,17 +202,10 @@ export class EditarCdAgenteService {
       agenda: agenda.nombre,
     };
 
-    let porFecha: Map<
-      string,
-      { day: string; active: boolean; assigned: number | string }
-    >;
+    let porFecha: Map<string, { day: string; active: boolean; assigned: number | string }>;
 
     try {
-      const capacidades = await this.picking.obtener(
-        agenda.scheduleId,
-        isoToRipleyDate(fechas[0]),
-        pais,
-      );
+      const capacidades = await this.picking.obtener(agenda.scheduleId, isoToRipleyDate(fechas[0]), pais);
 
       porFecha = new Map(
         (capacidades?.capacityByDayArray ?? []).map((d) => [

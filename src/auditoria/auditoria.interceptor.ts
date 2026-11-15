@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Response } from 'express';
 import { Observable, tap } from 'rxjs';
@@ -29,10 +24,7 @@ import type { RegistroUso } from './interfaces/auditoria.interface.js';
 const METODOS_DE_LECTURA = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** Lo que se sabe de la petición antes de que termine */
-type DatosPeticion = Pick<
-  RegistroUso,
-  'accion' | 'origen' | 'metodo' | 'endpoint' | 'datos' | 'ip' | 'user_agent'
->;
+type DatosPeticion = Pick<RegistroUso, 'accion' | 'origen' | 'metodo' | 'endpoint' | 'datos' | 'ip' | 'user_agent'>;
 
 /**
  * Guarda en Supabase **solo lo que cambia algo**: las operaciones marcadas con
@@ -70,10 +62,7 @@ export class AuditoriaInterceptor implements NestInterceptor {
     const base = {
       accion,
       // Lo declara el cliente: n8n manda "agente", el panel no manda nada
-      origen:
-        request.get('x-origen')?.toLowerCase() === 'agente'
-          ? 'agente'
-          : 'directo',
+      origen: request.get('x-origen')?.toLowerCase() === 'agente' ? 'agente' : 'directo',
       metodo: request.method,
       endpoint: request.path,
       datos: this.auditoria.censurar({
@@ -89,16 +78,9 @@ export class AuditoriaInterceptor implements NestInterceptor {
     // lo que el service haya reportado con registrarCambio().
     return next.handle().pipe(
       tap({
-        next: () =>
-          this.guardar(base, request, response.statusCode, null, inicio),
+        next: () => this.guardar(base, request, response.statusCode, null, inicio),
         error: (e: { status?: number; message?: string }) =>
-          this.guardar(
-            base,
-            request,
-            e?.status ?? 500,
-            e?.message ?? 'Error desconocido',
-            inicio,
-          ),
+          this.guardar(base, request, e?.status ?? 500, e?.message ?? 'Error desconocido', inicio),
       }),
     );
   }
@@ -111,16 +93,11 @@ export class AuditoriaInterceptor implements NestInterceptor {
    * es una decisión: ese endpoint consulta, así que no va al historial—.
    */
   private resolverAccion(context: ExecutionContext): string | undefined {
-    const metodo = context
-      .switchToHttp()
-      .getRequest<RequestConUsuario>().method;
+    const metodo = context.switchToHttp().getRequest<RequestConUsuario>().method;
 
     if (METODOS_DE_LECTURA.has(metodo?.toUpperCase())) return undefined;
 
-    return this.reflector.getAllAndOverride<string>(ACCION_AUDITADA, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    return this.reflector.getAllAndOverride<string>(ACCION_AUDITADA, [context.getHandler(), context.getClass()]);
   }
 
   private guardar(

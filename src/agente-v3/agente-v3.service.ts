@@ -17,14 +17,47 @@ import type { CrearTurnoDto, RespuestaPersonaDto, SalidaModeloDto } from './dto/
 import { EjecucionV3Service } from './ejecucion.service.js';
 import { ambiguas } from './entidades.js';
 import { filasDe, type Fila } from './filas.js';
-import type { Clasificacion, ContextoTurno, Ensenanza, IntentoModelo, Pais, PasoAplicado, PasoEjecutado, PasoPlan, PlanV3, Pregunta, Presentacion, RespuestaPanel, RolModelo, SalidaRuta, Turno } from './interfaces/agente-v3.interface.js';
+import type {
+  Clasificacion,
+  ContextoTurno,
+  Ensenanza,
+  IntentoModelo,
+  Pais,
+  PasoAplicado,
+  PasoEjecutado,
+  PasoPlan,
+  PlanV3,
+  Pregunta,
+  Presentacion,
+  RespuestaPanel,
+  RolModelo,
+  SalidaRuta,
+  Turno,
+} from './interfaces/agente-v3.interface.js';
 import { claseDeFallo, elegirModelo } from './modelos.js';
 import { planDe, serviciosNombrados, type QueSigue } from './plan.js';
-import { aplicarRespuesta, MAX_RONDAS, preguntaAbierta, preguntaDeAplicar, preguntaDeAprender, preguntaDeNombre, preguntaOtraForma, respuestaDeAplicar, respuestaDeAprender } from './preguntas.js';
+import {
+  aplicarRespuesta,
+  MAX_RONDAS,
+  preguntaAbierta,
+  preguntaDeAplicar,
+  preguntaDeAprender,
+  preguntaDeNombre,
+  preguntaOtraForma,
+  respuestaDeAplicar,
+  respuestaDeAprender,
+} from './preguntas.js';
 import { filasDelCambio, resumenAplicado, SIN_EDITOR } from './respuesta/cambio.js';
 import { inversoDe } from './deshacer.js';
 import { herramienta } from './herramientas.js';
-import { armarRespuesta, intermedios, respuestaCharla, respuestaPregunta, respuestaProgreso, respuestaSinPlan } from './respuesta/armar.js';
+import {
+  armarRespuesta,
+  intermedios,
+  respuestaCharla,
+  respuestaPregunta,
+  respuestaProgreso,
+  respuestaSinPlan,
+} from './respuesta/armar.js';
 import { atajoEsperado, atajosNombrados, motivoNoTrae, NO_TRAE, QUE_TRAE, sinTraer } from './atajos.js';
 import { leerPresentacion, nombresLargos, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
 import { TurnosService } from './turnos.service.js';
@@ -45,7 +78,13 @@ import { preguntaDeZonas, zonasDeLaRespuesta } from './zonas.js';
  * FINAL, con la respuesta ya hecha: la pregunta no interrumpe la petición.
  */
 
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const plano = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 const NOMBRE_PAIS: Record<Pais, string> = { PE: 'Perú', CL: 'Chile' };
 
 /** Sin modelo: un mensaje que nombra UN atajo y nada más se puede ejecutar igual */
@@ -58,11 +97,15 @@ export function atajoPorNombre(mensaje: string, atajos: string[]): string | null
 /** Las filas de lo que trajo el anterior (para calcular) y de dónde salen */
 function filasDelAnterior(contexto: ContextoTurno): { filas: Fila[]; deDonde: string } {
   const res = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
-  return { filas: res.flatMap((r) => filasDe(r.herramienta, r.datos, contexto.hoy)), deDonde: fuenteDe(res.map((r) => r.titulo)) };
+  return {
+    filas: res.flatMap((r) => filasDe(r.herramienta, r.datos, contexto.hoy)),
+    deDonde: fuenteDe(res.map((r) => r.titulo)),
+  };
 }
 
 /** Lo que se pide de verdad: el mensaje, o, al retomar uno que falló, aquel con lo que se aclara ahora */
-export const mensajeDe = (turno: Pick<Turno, 'mensaje' | 'contexto'>) => turno.contexto?.mensaje_efectivo ?? turno.mensaje;
+export const mensajeDe = (turno: Pick<Turno, 'mensaje' | 'contexto'>) =>
+  turno.contexto?.mensaje_efectivo ?? turno.mensaje;
 
 /**
  * Por qué no hubo modelo, con la causa real: la cuota gratis del día (429),
@@ -72,17 +115,24 @@ export function porQueSinModelo(intentos: IntentoModelo[], rol?: RolModelo): str
   const fallidos = intentos.filter((i) => !i.ok && (!rol || i.rol === rol));
   if (!fallidos.length) return 'no había ningún modelo disponible';
   const clases = new Set(fallidos.map((i) => i.clase ?? 'otro'));
-  if (clases.size === 1 && clases.has('cuota')) return 'se acabó la cuota gratis de los modelos por hoy (429): vuelve a intentarlo más tarde';
-  if (clases.size === 1 && clases.has('saturado')) return 'los modelos están saturados ahora mismo (503): vuelve a intentarlo en un momento';
-  if ([...clases].every((c) => c === 'cuota' || c === 'saturado')) return 'los modelos no tienen cupo ahora mismo (cuota o saturados): vuelve a intentarlo en un momento';
+  if (clases.size === 1 && clases.has('cuota'))
+    return 'se acabó la cuota gratis de los modelos por hoy (429): vuelve a intentarlo más tarde';
+  if (clases.size === 1 && clases.has('saturado'))
+    return 'los modelos están saturados ahora mismo (503): vuelve a intentarlo en un momento';
+  if ([...clases].every((c) => c === 'cuota' || c === 'saturado'))
+    return 'los modelos no tienen cupo ahora mismo (cuota o saturados): vuelve a intentarlo en un momento';
   const respuesta = fallidos.filter((i) => i.clase === 'respuesta').map((i) => i.motivo);
-  if (respuesta.length) return `los modelos respondieron, pero no algo que valiera (${[...new Set(respuesta)].slice(0, 2).join('; ')})`;
+  if (respuesta.length)
+    return `los modelos respondieron, pero no algo que valiera (${[...new Set(respuesta)].slice(0, 2).join('; ')})`;
   return `los modelos fallaron (${[...new Set(fallidos.map((i) => i.motivo))].slice(0, 2).join('; ')})`;
 }
 
 /** Los servicios que nombra el mensaje y no están en lo que trajo el anterior (con qué calcular) */
 export function serviciosSinDatos(mensaje: string, contexto: ContextoTurno): string[] {
-  const nombrados = serviciosNombrados(mensaje, contexto.servicios.map((s) => s.codigo));
+  const nombrados = serviciosNombrados(
+    mensaje,
+    contexto.servicios.map((s) => s.codigo),
+  );
   if (!nombrados.length) return [];
   const { filas } = filasDelAnterior(contexto);
   if (filas.length && !filas.some((f) => f.servicio)) return [];
@@ -98,11 +148,19 @@ export function otrosSinDatos(mensaje: string, contexto: ContextoTurno): string[
   const res = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
   // Por su nombre o su apodo ("el bt lima" = «Big Ticket Lima»)
   const nombrados = atajosNombrados(mensaje, contexto.atajos, contexto.pais);
-  const atajo = nombrados.length === 1 ? nombrados[0].nombre : atajoPorNombre(mensaje, contexto.atajos.map((a) => a.nombre));
+  const atajo =
+    nombrados.length === 1
+      ? nombrados[0].nombre
+      : atajoPorNombre(
+          mensaje,
+          contexto.atajos.map((a) => a.nombre),
+        );
   const usados = new Set(res.map((r) => /^Atajo «(.+)»$/.exec(r.titulo)?.[1]).filter(Boolean));
   const { filas } = filasDelAnterior(contexto);
   const codigos = new Set(filas.map((f) => f.codigo));
-  const sinCodigo = contexto.entidades.flatMap((e) => (e.porNombre ? (e.candidatos.length === 1 ? [e.candidatos[0].codigo] : []) : [e.texto])).filter((c) => !codigos.has(c));
+  const sinCodigo = contexto.entidades
+    .flatMap((e) => (e.porNombre ? (e.candidatos.length === 1 ? [e.candidatos[0].codigo] : []) : [e.texto]))
+    .filter((c) => !codigos.has(c));
   return [...(atajo && !usados.has(atajo) ? [`«${atajo}»`] : []), ...sinCodigo];
 }
 
@@ -110,12 +168,17 @@ export function otrosSinDatos(mensaje: string, contexto: ContextoTurno): string[
 export function repiteMotivo(intentos: IntentoModelo[], rol: RolModelo): boolean {
   const delRol = intentos.filter((i) => i.rol === rol);
   const [a, b] = delRol.slice(-2);
-  return Boolean(a && b && !a.ok && !b.ok && a.clase === 'respuesta' && b.clase === 'respuesta' && a.motivo === b.motivo);
+  return Boolean(
+    a && b && !a.ok && !b.ok && a.clase === 'respuesta' && b.clase === 'respuesta' && a.motivo === b.motivo,
+  );
 }
 
 const esFalloDeCupo = (intentos: IntentoModelo[], rol: RolModelo) => {
   const f = intentos.filter((i) => !i.ok && i.rol === rol);
-  return f.length > 0 && f.every((i) => i.clase === 'cuota' || i.clase === 'saturado' || /sin respuesta/i.test(i.motivo ?? ''));
+  return (
+    f.length > 0 &&
+    f.every((i) => i.clase === 'cuota' || i.clase === 'saturado' || /sin respuesta/i.test(i.motivo ?? ''))
+  );
 };
 
 /** Una vista previa vale para aplicar 10 minutos; después se rehace (Ripley pudo cambiar) */
@@ -123,7 +186,9 @@ export const VIGENCIA_PREVIA_MS = 10 * 60 * 1000;
 
 /** Los pasos de cambio que cambiarían algo y aún no se aplicaron (con sus cuerpos de la vista previa) */
 export function porAplicar(pasos: PasoEjecutado[]): PasoEjecutado[] {
-  return pasos.filter((p) => herramienta(p.herramienta)?.edicion && p.cuerpos?.length && p.estado === 'ok' && !p.aplicado);
+  return pasos.filter(
+    (p) => herramienta(p.herramienta)?.edicion && p.cuerpos?.length && p.estado === 'ok' && !p.aplicado,
+  );
 }
 
 @Injectable()
@@ -146,7 +211,16 @@ export class AgenteV3Service {
   }
 
   private salida(turno: Pick<Turno, 'id'>, camino: SalidaRuta['camino'], extra: Partial<SalidaRuta> = {}): SalidaRuta {
-    return { turno_id: turno.id, camino, modelo: null, prompt: null, progreso: null, pregunta: null, respuesta: null, ...extra };
+    return {
+      turno_id: turno.id,
+      camino,
+      modelo: null,
+      prompt: null,
+      progreso: null,
+      pregunta: null,
+      respuesta: null,
+      ...extra,
+    };
   }
 
   /** Los intentos de esta ronda (después de una respuesta de la persona, cada rol vuelve a tener los suyos) */
@@ -158,9 +232,17 @@ export class AgenteV3Service {
   /** Lo que dijo un modelo: su intento anotado (bien o con el motivo) */
   private anotar(turno: Turno, rol: RolModelo, dto: SalidaModeloDto, motivo: string | null): IntentoModelo {
     const base = { rol, cuenta: dto.modelo.cuenta, nombre: dto.modelo.nombre, ronda: turno.contexto?.rondas ?? 0 };
-    const intento: IntentoModelo = dto.error || dto.salida === undefined
-      ? { ...base, ok: false, motivo: (dto.error ?? 'sin respuesta').slice(0, 300), clase: claseDeFallo(dto.error ?? '') }
-      : motivo ? { ...base, ok: false, motivo, clase: 'respuesta' } : { ...base, ok: true };
+    const intento: IntentoModelo =
+      dto.error || dto.salida === undefined
+        ? {
+            ...base,
+            ok: false,
+            motivo: (dto.error ?? 'sin respuesta').slice(0, 300),
+            clase: claseDeFallo(dto.error ?? ''),
+          }
+        : motivo
+          ? { ...base, ok: false, motivo, clase: 'respuesta' }
+          : { ...base, ok: true };
     turno.modelos = [...(turno.modelos ?? []), intento];
     return intento;
   }
@@ -199,11 +281,23 @@ export class AgenteV3Service {
     // Si lo único que no vale es el atajo de otro país: la misma lectura, como consulta sin atajo
     let leidaSinAtajo: Clasificacion | null = null;
     if (!dto.error && dto.salida !== undefined) {
-      const leida = leerClasificacion(dto.salida, contexto.atajos.map((a) => a.nombre));
+      const leida = leerClasificacion(
+        dto.salida,
+        contexto.atajos.map((a) => a.nombre),
+      );
       if (!leida.ok) motivo = leida.motivo;
-      else motivo = leida.valor.atajo ? (this.atajoDeOtroPais(turno, leida.valor.atajo) ?? atajoQueNoTrae(leida.valor, contexto)) : null;
+      else
+        motivo = leida.valor.atajo
+          ? (this.atajoDeOtroPais(turno, leida.valor.atajo) ?? atajoQueNoTrae(leida.valor, contexto))
+          : null;
       if (leida.ok && !motivo) clasificacion = leida.valor;
-      if (leida.ok && motivo) leidaSinAtajo = { ...leida.valor, tipo: leida.valor.tipo === 'atajo' ? 'consulta' : leida.valor.tipo, atajo: null, motivo: `${leida.valor.motivo} (sin el atajo: ${motivo})`.slice(0, 300) };
+      if (leida.ok && motivo)
+        leidaSinAtajo = {
+          ...leida.valor,
+          tipo: leida.valor.tipo === 'atajo' ? 'consulta' : leida.valor.tipo,
+          atajo: null,
+          motivo: `${leida.valor.motivo} (sin el atajo: ${motivo})`.slice(0, 300),
+        };
     }
     this.anotar(turno, 'clasificar', dto, motivo);
 
@@ -211,7 +305,11 @@ export class AgenteV3Service {
       await this.turnos.actualizar(turno.id, { modelos: turno.modelos });
       const otro = elegirModelo('clasificar', turno.id, this.intentos(turno));
       // El modelo nuevo ve por qué no valió lo anterior (como en Armar)
-      if (otro) return this.salida(turno, 'clasificar', { modelo: otro, prompt: promptClasificar(mensajeDe(turno), contexto, motivo ?? undefined) });
+      if (otro)
+        return this.salida(turno, 'clasificar', {
+          modelo: otro,
+          prompt: promptClasificar(mensajeDe(turno), contexto, motivo ?? undefined),
+        });
       // Agotados, y lo único que fallaba era el atajo de otro país: es una consulta en el país del chat
       if (leidaSinAtajo) {
         turno.clasificacion = leidaSinAtajo;
@@ -246,7 +344,12 @@ export class AgenteV3Service {
   private async alPaisDelAtajo(turno: Turno, atajo: string): Promise<void> {
     const a = turno.contexto!.atajos.find((x) => x.nombre === atajo);
     if (!a || a.pais === turno.contexto!.pais) return;
-    turno.contexto = await this.contexto.cambiarPais(turno.contexto!, mensajeDe(turno), a.pais, `el atajo «${atajo}» es de ${NOMBRE_PAIS[a.pais]}`);
+    turno.contexto = await this.contexto.cambiarPais(
+      turno.contexto!,
+      mensajeDe(turno),
+      a.pais,
+      `el atajo «${atajo}» es de ${NOMBRE_PAIS[a.pais]}`,
+    );
   }
 
   /**
@@ -260,20 +363,32 @@ export class AgenteV3Service {
     const efectivo = `${ant.persona} (${turno.mensaje})`;
     const dicho = paisDelMensaje(turno.mensaje);
     let nuevo: ContextoTurno = { ...contexto, mensaje_efectivo: efectivo };
-    if (dicho && dicho !== contexto.pais) nuevo = await this.contexto.cambiarPais(nuevo, efectivo, dicho, `lo aclaraste («${turno.mensaje}»)`);
+    if (dicho && dicho !== contexto.pais)
+      nuevo = await this.contexto.cambiarPais(nuevo, efectivo, dicho, `lo aclaraste («${turno.mensaje}»)`);
     else nuevo = { ...nuevo, entidades: await this.contexto.rebuscar(efectivo, nuevo.pais) };
     turno.contexto = nuevo;
   }
 
   /** Ningún modelo respondió bien: un atajo nombrado tal cual se ejecuta igual; si no, se dice por qué */
   private async sinModelo(usuario: UsuarioAutenticado, turno: Turno): Promise<SalidaRuta> {
-    const atajo = atajoPorNombre(mensajeDe(turno), (turno.contexto?.atajos ?? []).map((a) => a.nombre));
+    const atajo = atajoPorNombre(
+      mensajeDe(turno),
+      (turno.contexto?.atajos ?? []).map((a) => a.nombre),
+    );
     if (atajo) {
       turno.clasificacion = { tipo: 'atajo', dep: false, atajo, motivo: 'sin modelo: el mensaje nombra el atajo' };
       await this.alPaisDelAtajo(turno, atajo);
-      return this.seguir(usuario, turno, { ok: true, plan: { origen: 'atajo', pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: atajo } }] } });
+      return this.seguir(usuario, turno, {
+        ok: true,
+        plan: { origen: 'atajo', pasos: [{ herramienta: 'ejecutar_atajo', param: { nombre: atajo } }] },
+      });
     }
-    return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude entender el mensaje: ${porQueSinModelo(turno.modelos ?? [], 'clasificar')}.`), 'error');
+    return this.terminar(
+      usuario,
+      turno,
+      respuestaSinPlan(turno, `No pude entender el mensaje: ${porQueSinModelo(turno.modelos ?? [], 'clasificar')}.`),
+      'error',
+    );
   }
 
   /** Lo que sigue después de clasificar (o de aclarar una duda) */
@@ -301,7 +416,12 @@ export class AgenteV3Service {
     if ('calcular' in r) {
       // Calcular sobre lo que el anterior NO trajo daría cifras de otra cosa: se consulta, y se avisa
       const sinDatos = [...serviciosSinDatos(mensajeDe(turno), contexto), ...otrosSinDatos(mensajeDe(turno), contexto)];
-      if (sinDatos.length) return this.aConsulta(usuario, turno, `${sinDatos.join(' y ')} no ${sinDatos.length === 1 ? 'estaba' : 'estaban'} en lo que traje antes: lo consulté.`);
+      if (sinDatos.length)
+        return this.aConsulta(
+          usuario,
+          turno,
+          `${sinDatos.join(' y ')} no ${sinDatos.length === 1 ? 'estaba' : 'estaban'} en lo que traje antes: lo consulté.`,
+        );
       return this.pedirModelo(usuario, turno, 'calcular');
     }
     return this.aEjecutar(turno, r.plan);
@@ -310,12 +430,24 @@ export class AgenteV3Service {
   private async aEjecutar(turno: Turno, plan: PlanV3): Promise<SalidaRuta> {
     turno.plan = plan;
     turno.etapa = 'ejecutar';
-    await this.turnos.actualizar(turno.id, { estado: turno.estado, modelos: turno.modelos, clasificacion: turno.clasificacion, plan, etapa: 'ejecutar', contexto: turno.contexto });
+    await this.turnos.actualizar(turno.id, {
+      estado: turno.estado,
+      modelos: turno.modelos,
+      clasificacion: turno.clasificacion,
+      plan,
+      etapa: 'ejecutar',
+      contexto: turno.contexto,
+    });
     return this.salida(turno, 'ejecutar');
   }
 
   /** El prompt del rol con el modelo que toca; sin modelo, se pregunta o se dice por qué */
-  private async pedirModelo(usuario: UsuarioAutenticado, turno: Turno, rol: 'armar' | 'calcular' | 'aprender' | 'presentar', ultimoMotivo?: string): Promise<SalidaRuta> {
+  private async pedirModelo(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    rol: 'armar' | 'calcular' | 'aprender' | 'presentar',
+    ultimoMotivo?: string,
+  ): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
     // El mismo motivo dos veces seguidas: otro intento no lo va a arreglar (se pregunta o se dice)
     const modelo = repiteMotivo(this.intentos(turno), rol) ? null : elegirModelo(rol, turno.id, this.intentos(turno));
@@ -323,22 +455,52 @@ export class AgenteV3Service {
       if (rol === 'aprender') return this.sinAprender(usuario, turno);
       // Sin Presentar, la respuesta del código (sin más intentos)
       if (rol === 'presentar') return this.trasPresentar(usuario, turno, null);
-      const que = rol === 'armar' ? (turno.clasificacion?.tipo === 'cambio' ? 'preparar el cambio' : 'armar la consulta') : 'preparar el cálculo';
+      const que =
+        rol === 'armar'
+          ? turno.clasificacion?.tipo === 'cambio'
+            ? 'preparar el cambio'
+            : 'armar la consulta'
+          : 'preparar el cálculo';
       if (esFalloDeCupo(this.intentos(turno), rol)) {
-        return this.terminar(usuario, turno, respuestaSinPlan(turno, `No pude ${que}: ${porQueSinModelo(this.intentos(turno), rol)}.`), 'error');
+        return this.terminar(
+          usuario,
+          turno,
+          respuestaSinPlan(turno, `No pude ${que}: ${porQueSinModelo(this.intentos(turno), rol)}.`),
+          'error',
+        );
       }
       const motivo = ultimoMotivo ?? porQueSinModelo(this.intentos(turno), rol);
-      return this.preguntar(usuario, turno, preguntaOtraForma(rol, `No pude ${que} (${motivo}). ¿Me lo dices de otra forma?`));
+      return this.preguntar(
+        usuario,
+        turno,
+        preguntaOtraForma(rol, `No pude ${que} (${motivo}). ¿Me lo dices de otra forma?`),
+      );
     }
     turno.etapa = rol;
     // El estado también: tras contestar una pregunta vuelve a "en_curso", o la etapa siguiente no lo aceptaría
-    await this.turnos.actualizar(turno.id, { estado: turno.estado, modelos: turno.modelos, clasificacion: turno.clasificacion, etapa: rol, contexto, plan: turno.plan, pasos: turno.pasos });
+    await this.turnos.actualizar(turno.id, {
+      estado: turno.estado,
+      modelos: turno.modelos,
+      clasificacion: turno.clasificacion,
+      etapa: rol,
+      contexto,
+      plan: turno.plan,
+      pasos: turno.pasos,
+    });
     const mensaje = mensajeDe(turno);
     let prompt: { sistema: string; mensaje: string };
     // Al reintentar, el modelo ve por qué no valió lo anterior ("«centralizado de San Luis» no es ninguna de…")
     if (rol === 'armar') prompt = promptArmar(mensaje, contexto, turno.clasificacion, ultimoMotivo);
-    else if (rol === 'calcular') { const { filas, deDonde } = filasDelAnterior(contexto); prompt = promptCalcular(mensaje, contexto, filas, deDonde); }
-    else if (rol === 'presentar') prompt = promptPresentar(mensaje, turno.pasos ?? [], intermedios(turno), armarRespuesta({ ...turno, contexto: { ...contexto, presentacion: null } }).frase);
+    else if (rol === 'calcular') {
+      const { filas, deDonde } = filasDelAnterior(contexto);
+      prompt = promptCalcular(mensaje, contexto, filas, deDonde);
+    } else if (rol === 'presentar')
+      prompt = promptPresentar(
+        mensaje,
+        turno.pasos ?? [],
+        intermedios(turno),
+        armarRespuesta({ ...turno, contexto: { ...contexto, presentacion: null } }).frase,
+      );
     else {
       const [sabido, fases] = await Promise.all([this.aprendizaje.sabido(contexto, mensaje), this.aprendizaje.fases()]);
       prompt = promptAprender(mensaje, contexto, sabido, fases);
@@ -356,18 +518,36 @@ export class AgenteV3Service {
     // Lo que pide (según Clasificar) se le exige una vez: si insiste en otra cosa, puede que Clasificar se equivocara
     const avisado = turno.modelos.some((m) => m.rol === 'armar' && m.motivo?.startsWith(NO_TRAE));
     const pide = cambio || avisado ? [] : (turno.clasificacion?.pide ?? []);
-    const leida = !dto.error && dto.salida !== undefined ? leerPlan(dto.salida, contexto, mensajeDe(turno), cambio, atajoEsperado(mensajeDe(turno), contexto.atajos, turno.clasificacion?.atajo, contexto.pais), pide) : null;
+    const leida =
+      !dto.error && dto.salida !== undefined
+        ? leerPlan(
+            dto.salida,
+            contexto,
+            mensajeDe(turno),
+            cambio,
+            atajoEsperado(mensajeDe(turno), contexto.atajos, turno.clasificacion?.atajo, contexto.pais),
+            pide,
+          )
+        : null;
     this.anotar(turno, 'armar', dto, leida && !leida.ok ? leida.motivo : null);
-    if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'armar', leida && !leida.ok ? leida.motivo : undefined);
+    if (!leida || !leida.ok)
+      return this.pedirModelo(usuario, turno, 'armar', leida && !leida.ok ? leida.motivo : undefined);
     const { plan, faltan, buscar, sinCambio } = leida.valor;
-    if (sinCambio && turno.clasificacion) turno.clasificacion = { ...turno.clasificacion, tipo: 'consulta', motivo: `${turno.clasificacion.motivo} (no era un cambio: Armar armó una consulta)`.slice(0, 300) };
+    if (sinCambio && turno.clasificacion)
+      turno.clasificacion = {
+        ...turno.clasificacion,
+        tipo: 'consulta',
+        motivo: `${turno.clasificacion.motivo} (no era un cambio: Armar armó una consulta)`.slice(0, 300),
+      };
     // Nombra una agenda de unas oficinas de las que no se conoce ninguna: se buscan (solo leer) y Armar vuelve a elegir, viéndolas
-    const porBuscar = (buscar ?? []).filter((b) => b.codigos.some((c) => !(contexto.buscadas ?? []).includes(`${b.tipo}:${c}`)));
+    const porBuscar = (buscar ?? []).filter((b) =>
+      b.codigos.some((c) => !(contexto.buscadas ?? []).includes(`${b.tipo}:${c}`)),
+    );
     if (plan && porBuscar.length) {
       const encontradas = [];
       for (const b of porBuscar) {
         try {
-          encontradas.push(...await this.ejecucion.buscarAgendas(usuario, contexto, b));
+          encontradas.push(...(await this.ejecucion.buscarAgendas(usuario, contexto, b)));
         } catch (e) {
           this.logger.warn(`No se pudieron buscar las agendas de ${b.codigos.join(', ')}: ${(e as Error).message}`);
         }
@@ -393,22 +573,43 @@ export class AgenteV3Service {
     const leida = !dto.error && dto.salida !== undefined ? leerCalculo(dto.salida, contexto, filas) : null;
     this.anotar(turno, 'calcular', dto, leida && !leida.ok ? leida.motivo : null);
     // Lo que pide no está en lo que trajo el anterior ("no tiene «ocupado»"): no es un cálculo, se consulta
-    if (leida && !leida.ok && /no tiene|no están en los datos/.test(leida.motivo)) return this.aConsulta(usuario, turno, 'Eso no estaba en lo que traje antes: lo consulté.');
-    if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'calcular', leida && !leida.ok ? leida.motivo : undefined);
+    if (leida && !leida.ok && /no tiene|no están en los datos/.test(leida.motivo))
+      return this.aConsulta(usuario, turno, 'Eso no estaba en lo que traje antes: lo consulté.');
+    if (!leida || !leida.ok)
+      return this.pedirModelo(usuario, turno, 'calcular', leida && !leida.ok ? leida.motivo : undefined);
     // Varios servicios en los datos y no pidió "todo junto": por servicio, con el total
     if ('calculo' in leida.valor) {
       const servicios = new Set(filas.map((f) => f.servicio).filter(Boolean));
       const k = leida.valor.calculo;
-      if (servicios.size > 1 && !k.agrupar.includes('servicio') && ['contar', 'suma', 'porcentaje'].includes(k.operacion) && !/\b(en total|todo junto|tod[oa]s? juntos?|sumad[oa]s?)\b/i.test(mensajeDe(turno))) {
-        leida.valor.calculo = { ...k, agrupar: ['servicio', ...k.agrupar.filter((a) => a !== 'total')], conTotal: true };
+      if (
+        servicios.size > 1 &&
+        !k.agrupar.includes('servicio') &&
+        ['contar', 'suma', 'porcentaje'].includes(k.operacion) &&
+        !/\b(en total|todo junto|tod[oa]s? juntos?|sumad[oa]s?)\b/i.test(mensajeDe(turno))
+      ) {
+        leida.valor.calculo = {
+          ...k,
+          agrupar: ['servicio', ...k.agrupar.filter((a) => a !== 'total')],
+          conTotal: true,
+        };
       }
     }
     if ('falta' in leida.valor) {
       const { deDonde } = filasDelAnterior(contexto);
       turno.plan = { origen: 'calcular', pasos: [] };
-      return this.terminar(usuario, turno, respuestaSinPlan(turno, `No tengo ${leida.valor.falta}: no es un dato que guarde ni que traiga «${deDonde}».`), 'terminado');
+      return this.terminar(
+        usuario,
+        turno,
+        respuestaSinPlan(turno, `No tengo ${leida.valor.falta}: no es un dato que guarde ni que traiga «${deDonde}».`),
+        'terminado',
+      );
     }
-    return this.aEjecutar(turno, { origen: 'calcular', pasos: [{ herramienta: 'calcular', param: {} }], calculo: leida.valor.calculo, ver: leida.valor.ver });
+    return this.aEjecutar(turno, {
+      origen: 'calcular',
+      pasos: [{ herramienta: 'calcular', param: {} }],
+      calculo: leida.valor.calculo,
+      ver: leida.valor.ver,
+    });
   }
 
   // ───────────── 4'' · Aprender ─────────────
@@ -421,12 +622,16 @@ export class AgenteV3Service {
     const texto = mensajeDe(turno);
     // Tras una aclaración puede no haber nada que aprender ("la 20048"): entonces se responde sin preguntar
     const deLaAclaracion = this.soloPorLaAclaracion(turno);
-    const leida = !dto.error && dto.salida !== undefined ? leerAprendido(dto.salida, contexto, texto, deLaAclaracion) : null;
+    const leida =
+      !dto.error && dto.salida !== undefined ? leerAprendido(dto.salida, contexto, texto, deLaAclaracion) : null;
     this.anotar(turno, 'aprender', dto, leida && !leida.ok ? leida.motivo : null);
     if (!leida || !leida.ok) return this.pedirModelo(usuario, turno, 'aprender');
     const { hechos, dudas } = leida.valor;
     if (deLaAclaracion && !hechos.length) {
-      turno.contexto = { ...contexto, ensenanza: { texto, hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' } };
+      turno.contexto = {
+        ...contexto,
+        ensenanza: { texto, hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' },
+      };
       return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
     }
     const { choques, intocables } = await this.aprendizaje.revisar(hechos);
@@ -440,7 +645,10 @@ export class AgenteV3Service {
     const texto = `No pude entender lo que me enseñas (${porQueSinModelo(this.intentos(turno), 'aprender')}): no guardé nada.`;
     const contexto = turno.contexto!;
     const callar = this.soloPorLaAclaracion(turno);
-    turno.contexto = { ...contexto, ensenanza: { texto: mensajeDe(turno), hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' } };
+    turno.contexto = {
+      ...contexto,
+      ensenanza: { texto: mensajeDe(turno), hechos: [], dudas: [], choques: [], intocables: [], final: 'sin_entender' },
+    };
     if ((turno.pasos ?? []).length) {
       const r = armarRespuesta(turno);
       // Si nadie pidió enseñar nada (solo se ofrecía por la aclaración), no hace falta decirlo
@@ -478,7 +686,11 @@ export class AgenteV3Service {
   }
 
   /** Después de Presentar (o sin él): "¿lo guardo?" si se enseñó algo; si no, la respuesta */
-  private trasPresentar(usuario: UsuarioAutenticado, turno: Turno, presentacion: Presentacion | null): Promise<SalidaRuta> {
+  private trasPresentar(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    presentacion: Presentacion | null,
+  ): Promise<SalidaRuta> {
     turno.contexto = { ...turno.contexto!, presentacion, presentado: true };
     return this.alFinal(usuario, turno);
   }
@@ -494,7 +706,11 @@ export class AgenteV3Service {
   }
 
   /** "¿Lo guardo?": sí → al directorio común; «No ahora» → nada; escribir → se vuelve a entender con la corrección */
-  private async contestarAprender(usuario: UsuarioAutenticado, turno: Turno, dto: RespuestaPersonaDto): Promise<SalidaRuta> {
+  private async contestarAprender(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    dto: RespuestaPersonaDto,
+  ): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
     const p = contexto.pregunta!;
     const e = contexto.ensenanza;
@@ -504,7 +720,13 @@ export class AgenteV3Service {
       return this.preguntar(usuario, turno, p);
     }
     if ('corrige' in r) {
-      turno.contexto = { ...contexto, pregunta: null, ensenanza: null, aclaraciones: [...contexto.aclaraciones, r.corrige], rondas: contexto.rondas + 1 };
+      turno.contexto = {
+        ...contexto,
+        pregunta: null,
+        ensenanza: null,
+        aclaraciones: [...contexto.aclaraciones, r.corrige],
+        rondas: contexto.rondas + 1,
+      };
       turno.estado = 'en_curso';
       return this.pedirModelo(usuario, turno, 'aprender');
     }
@@ -514,9 +736,13 @@ export class AgenteV3Service {
       // Lo aprendido (un alias, un nombre) vale ya en el mensaje siguiente
       if (guardados.length) this.contexto.olvidarDirectorio();
       nota = [
-        guardados.length ? `Guardado para todos: ${guardados.join(', ')}. Ya lo uso desde el próximo mensaje.` : 'No guardé nada.',
+        guardados.length
+          ? `Guardado para todos: ${guardados.join(', ')}. Ya lo uso desde el próximo mensaje.`
+          : 'No guardé nada.',
         omitidos.length ? `No guardé: ${omitidos.join('; ')}.` : '',
-      ].filter(Boolean).join(' ');
+      ]
+        .filter(Boolean)
+        .join(' ');
       e.final = 'guardado';
     } else {
       nota = 'De acuerdo: no guardé lo que me enseñaste.';
@@ -542,16 +768,41 @@ export class AgenteV3Service {
     const contexto = turno.contexto!;
     if (contexto.rondas >= MAX_RONDAS && p.etapa !== 'aplicar') {
       if (p.etapa === 'aprender') {
-        turno.contexto = { ...contexto, ensenanza: contexto.ensenanza ? { ...contexto.ensenanza, final: 'sin_entender' } : null };
-        return this.terminar(usuario, turno, this.respuestaFinal(turno, `Lo dejo aquí: después de ${MAX_RONDAS} preguntas no guardé lo que me enseñaste.`), 'terminado');
+        turno.contexto = {
+          ...contexto,
+          ensenanza: contexto.ensenanza ? { ...contexto.ensenanza, final: 'sin_entender' } : null,
+        };
+        return this.terminar(
+          usuario,
+          turno,
+          this.respuestaFinal(turno, `Lo dejo aquí: después de ${MAX_RONDAS} preguntas no guardé lo que me enseñaste.`),
+          'terminado',
+        );
       }
-      return this.terminar(usuario, turno, respuestaSinPlan(turno, `Lo dejo aquí: después de ${MAX_RONDAS} preguntas sigo sin tenerlo claro (${p.texto}). Pídemelo de nuevo con todos los datos.`), 'terminado');
+      return this.terminar(
+        usuario,
+        turno,
+        respuestaSinPlan(
+          turno,
+          `Lo dejo aquí: después de ${MAX_RONDAS} preguntas sigo sin tenerlo claro (${p.texto}). Pídemelo de nuevo con todos los datos.`,
+        ),
+        'terminado',
+      );
     }
     turno.contexto = { ...contexto, pregunta: p };
     turno.estado = 'pregunta';
     turno.etapa = 'pregunta';
     const pregunta = this.conAvisos(turno, respuestaPregunta(turno, p));
-    await this.turnos.actualizar(turno.id, { contexto: turno.contexto, estado: 'pregunta', etapa: 'pregunta', modelos: turno.modelos, clasificacion: turno.clasificacion, respuesta: pregunta, plan: turno.plan, pasos: turno.pasos });
+    await this.turnos.actualizar(turno.id, {
+      contexto: turno.contexto,
+      estado: 'pregunta',
+      etapa: 'pregunta',
+      modelos: turno.modelos,
+      clasificacion: turno.clasificacion,
+      respuesta: pregunta,
+      plan: turno.plan,
+      pasos: turno.pasos,
+    });
     return this.salida(turno, 'preguntar', { pregunta });
   }
 
@@ -563,8 +814,17 @@ export class AgenteV3Service {
     // respuesta (solo faltaba "¿lo guardo?"), se guarda en el chat sin aprender
     if (dto.caducada) {
       if (etapa === 'aprender' && (turno.pasos ?? []).length) {
-        turno.contexto = { ...turno.contexto!, pregunta: null, ensenanza: turno.contexto!.ensenanza ? { ...turno.contexto!.ensenanza, final: 'rechazado' } : null };
-        await this.terminar(usuario, turno, this.respuestaFinal(turno, 'Nadie contestó: no guardé lo que me enseñaste.'), 'terminado');
+        turno.contexto = {
+          ...turno.contexto!,
+          pregunta: null,
+          ensenanza: turno.contexto!.ensenanza ? { ...turno.contexto!.ensenanza, final: 'rechazado' } : null,
+        };
+        await this.terminar(
+          usuario,
+          turno,
+          this.respuestaFinal(turno, 'Nadie contestó: no guardé lo que me enseñaste.'),
+          'terminado',
+        );
         return this.salida(turno, 'fin');
       }
       await this.turnos.actualizar(turno.id, { estado: 'cancelado', etapa: 'caducada' });
@@ -577,23 +837,41 @@ export class AgenteV3Service {
     const preguntada = turno.contexto!.pregunta;
     // "¿Me lo dices de otra forma?": lo escrito es la petición nueva, desde Clasificar
     const otraForma = String(dto.texto ?? '').trim();
-    if (preguntada?.id.endsWith(':otra-forma') && otraForma && !dto.cancelar) return this.empezarDeNuevo(usuario, turno, otraForma.slice(0, 2000));
+    if (preguntada?.id.endsWith(':otra-forma') && otraForma && !dto.cancelar)
+      return this.empezarDeNuevo(usuario, turno, otraForma.slice(0, 2000));
     const r = aplicarRespuesta(turno.contexto!, dto);
     turno.estado = 'en_curso';
-    if ('cancelar' in r) return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Cancelado: no hice nada.'), tipo: 'cancelada' }, 'cancelado');
+    if ('cancelar' in r)
+      return this.terminar(
+        usuario,
+        turno,
+        { ...respuestaSinPlan(turno, 'Cancelado: no hice nada.'), tipo: 'cancelada' },
+        'cancelado',
+      );
     if ('nada' in r) {
       turno.contexto = { ...turno.contexto!, rondas: turno.contexto!.rondas + 1 };
-      return this.preguntar(usuario, turno, turno.contexto.pregunta ?? preguntaAbierta('armar', '¿Me lo dices de otra forma?'));
+      return this.preguntar(
+        usuario,
+        turno,
+        turno.contexto.pregunta ?? preguntaAbierta('armar', '¿Me lo dices de otra forma?'),
+      );
     }
     turno.contexto = { ...r.contexto, rondas: turno.contexto!.rondas + 1 };
     // Armar preguntó qué faltaba ("¿qué es un flujo de picking?") y la persona lo EXPLICÓ con sus palabras:
     // al final, con la respuesta hecha, se le ofrece guardarlo ("un flujo de picking es una jornada")
     const explicado = String(dto.texto ?? '').trim();
-    if (preguntada?.id === 'armar:abierta' && explicado.split(/\s+/).length >= 3) turno.contexto = { ...turno.contexto, aprender_aclaracion: true };
+    if (preguntada?.id === 'armar:abierta' && explicado.split(/\s+/).length >= 3)
+      turno.contexto = { ...turno.contexto, aprender_aclaracion: true };
     // La aclaración dice el país ("es de Chile"): el turno pasa a ese país
     const ultima = turno.contexto.aclaraciones.at(-1) ?? '';
     const dicho = paisDelMensaje(ultima);
-    if (dicho && dicho !== turno.contexto.pais) turno.contexto = await this.contexto.cambiarPais(turno.contexto, `${mensajeDe(turno)} ${ultima}`, dicho, `lo aclaraste («${ultima}»)`);
+    if (dicho && dicho !== turno.contexto.pais)
+      turno.contexto = await this.contexto.cambiarPais(
+        turno.contexto,
+        `${mensajeDe(turno)} ${ultima}`,
+        dicho,
+        `lo aclaraste («${ultima}»)`,
+      );
     if (etapa === 'calcular') return this.pedirModelo(usuario, turno, 'calcular');
     // Otra duda de nombres, o ya a armar
     const duda = ambiguas(turno.contexto.entidades)[0];
@@ -604,7 +882,11 @@ export class AgenteV3Service {
   /** No era un cálculo (lo anterior no tiene con qué): pasa a Armar como consulta, y se avisa */
   private aConsulta(usuario: UsuarioAutenticado, turno: Turno, aviso: string): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
-    turno.clasificacion = { ...turno.clasificacion!, tipo: 'consulta', motivo: `${turno.clasificacion?.motivo ?? ''} (lo anterior no tenía con qué calcularlo)`.slice(0, 300) };
+    turno.clasificacion = {
+      ...turno.clasificacion!,
+      tipo: 'consulta',
+      motivo: `${turno.clasificacion?.motivo ?? ''} (lo anterior no tenía con qué calcularlo)`.slice(0, 300),
+    };
     turno.contexto = { ...contexto, avisos: [...(contexto.avisos ?? []), aviso] };
     return this.seguir(usuario, turno, { ok: true, armar: true });
   }
@@ -613,31 +895,70 @@ export class AgenteV3Service {
   private async empezarDeNuevo(usuario: UsuarioAutenticado, turno: Turno, nuevo: string): Promise<SalidaRuta> {
     const antes = turno.contexto!;
     let contexto: ContextoTurno = {
-      ...antes, mensaje_efectivo: nuevo, pregunta: null, aclaraciones: [], rondas: antes.rondas + 1,
-      ensenanza: null, aprender_aclaracion: false, anunciado: false, zonas_elegidas: {}, agendas: [], buscadas: [],
+      ...antes,
+      mensaje_efectivo: nuevo,
+      pregunta: null,
+      aclaraciones: [],
+      rondas: antes.rondas + 1,
+      ensenanza: null,
+      aprender_aclaracion: false,
+      anunciado: false,
+      zonas_elegidas: {},
+      agendas: [],
+      buscadas: [],
       entidades: await this.contexto.rebuscar(nuevo, antes.pais),
     };
     const dicho = paisDelMensaje(nuevo);
-    if (dicho && dicho !== contexto.pais) contexto = await this.contexto.cambiarPais(contexto, nuevo, dicho, `lo dijiste («${nuevo.slice(0, 60)}»)`);
-    Object.assign(turno, { contexto, clasificacion: null, plan: null, pasos: [], estado: 'en_curso', etapa: 'clasificar' });
-    await this.turnos.actualizar(turno.id, { contexto, clasificacion: null, plan: null, pasos: [], estado: 'en_curso', etapa: 'clasificar', modelos: turno.modelos });
+    if (dicho && dicho !== contexto.pais)
+      contexto = await this.contexto.cambiarPais(contexto, nuevo, dicho, `lo dijiste («${nuevo.slice(0, 60)}»)`);
+    Object.assign(turno, {
+      contexto,
+      clasificacion: null,
+      plan: null,
+      pasos: [],
+      estado: 'en_curso',
+      etapa: 'clasificar',
+    });
+    await this.turnos.actualizar(turno.id, {
+      contexto,
+      clasificacion: null,
+      plan: null,
+      pasos: [],
+      estado: 'en_curso',
+      etapa: 'clasificar',
+      modelos: turno.modelos,
+    });
     const modelo = elegirModelo('clasificar', turno.id, this.intentos(turno));
     if (!modelo) return this.sinModelo(usuario, turno);
     return this.salida(turno, 'clasificar', { modelo, prompt: promptClasificar(nuevo, contexto) });
   }
 
   /** La zona elegida (o "todas"): se anota para ese paso y la ejecución sigue en él */
-  private async contestarZona(usuario: UsuarioAutenticado, turno: Turno, dto: RespuestaPersonaDto): Promise<SalidaRuta> {
+  private async contestarZona(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    dto: RespuestaPersonaDto,
+  ): Promise<SalidaRuta> {
     const contexto = turno.contexto!;
     const p = contexto.pregunta!;
-    if (dto.cancelar) return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Cancelado: no hice nada más.'), tipo: 'cancelada' }, 'cancelado');
+    if (dto.cancelar)
+      return this.terminar(
+        usuario,
+        turno,
+        { ...respuestaSinPlan(turno, 'Cancelado: no hice nada más.'), tipo: 'cancelada' },
+        'cancelado',
+      );
     const elegidas = zonasDeLaRespuesta(p, dto);
     if (!elegidas) {
       turno.contexto = { ...contexto, rondas: contexto.rondas + 1 };
       return this.preguntar(usuario, turno, p);
     }
     const n = String(p.paso ?? (turno.pasos ?? []).length + 1);
-    turno.contexto = { ...contexto, pregunta: null, zonas_elegidas: { ...contexto.zonas_elegidas, [n]: { ...contexto.zonas_elegidas?.[n], ...elegidas } } };
+    turno.contexto = {
+      ...contexto,
+      pregunta: null,
+      zonas_elegidas: { ...contexto.zonas_elegidas, [n]: { ...contexto.zonas_elegidas?.[n], ...elegidas } },
+    };
     turno.estado = 'en_curso';
     return this.aEjecutar(turno, turno.plan as PlanV3);
   }
@@ -649,7 +970,12 @@ export class AgenteV3Service {
     if (turno.etapa !== 'ejecutar' || turno.estado !== 'en_curso') return this.comoEsta(turno);
 
     if (this.interrupcion.estaInterrumpida(turno.peticion_id ?? undefined)) {
-      return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Detenido: no seguí con lo que faltaba.'), tipo: 'cancelada' }, 'cancelado');
+      return this.terminar(
+        usuario,
+        turno,
+        { ...respuestaSinPlan(turno, 'Detenido: no seguí con lo que faltaba.'), tipo: 'cancelada' },
+        'cancelado',
+      );
     }
 
     const plan = turno.plan as PlanV3;
@@ -666,7 +992,17 @@ export class AgenteV3Service {
       const porElegir = await this.ejecucion.zonasPorElegir(usuario, plan, k, hechos, turno.contexto!);
       if (porElegir.length) {
         turno.etapa = 'ejecutar';
-        return this.preguntar(usuario, turno, preguntaDeZonas(k + 1, queEs(plan.pasos[k], turno.contexto!.pais).replace(/^Vista previa: /, '').replace(/ de lo del mensaje anterior$/, ''), porElegir));
+        return this.preguntar(
+          usuario,
+          turno,
+          preguntaDeZonas(
+            k + 1,
+            queEs(plan.pasos[k], turno.contexto!.pais)
+              .replace(/^Vista previa: /, '')
+              .replace(/ de lo del mensaje anterior$/, ''),
+            porElegir,
+          ),
+        );
       }
     }
     if (k < plan.pasos.length) {
@@ -674,8 +1010,10 @@ export class AgenteV3Service {
       turno.pasos = [...hechos, paso];
       await this.turnos.actualizar(turno.id, { pasos: turno.pasos });
     }
-    if (turno.pasos.length < plan.pasos.length) return this.salida(turno, 'avisar', { progreso: this.conAvisos(turno, respuestaProgreso(turno)) });
-    if (porAplicar(turno.pasos).length) turno.contexto = { ...turno.contexto!, vista_previa_en: new Date().toISOString() };
+    if (turno.pasos.length < plan.pasos.length)
+      return this.salida(turno, 'avisar', { progreso: this.conAvisos(turno, respuestaProgreso(turno)) });
+    if (porAplicar(turno.pasos).length)
+      turno.contexto = { ...turno.contexto!, vista_previa_en: new Date().toISOString() };
     return this.alFinal(usuario, turno);
   }
 
@@ -710,7 +1048,11 @@ export class AgenteV3Service {
    * el servidor) y, si la vista previa tiene más de 10 minutos, se rehace y se
    * vuelve a preguntar (Ripley pudo cambiar); si no, a aplicar.
    */
-  private async contestarAplicar(usuario: UsuarioAutenticado, turno: Turno, dto: RespuestaPersonaDto): Promise<SalidaRuta> {
+  private async contestarAplicar(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    dto: RespuestaPersonaDto,
+  ): Promise<SalidaRuta> {
     const c = turno.contexto!;
     const p = c.pregunta!;
     const r = respuestaDeAplicar(p, dto);
@@ -718,19 +1060,37 @@ export class AgenteV3Service {
     turno.contexto = { ...c, pregunta: null };
     turno.estado = 'en_curso';
     if ('no' in r) {
-      turno.contexto = { ...turno.contexto, aplicacion: { ...(c.aplicacion ?? { preguntado: true, cambios: [] }), respuesta: 'no' } };
+      turno.contexto = {
+        ...turno.contexto,
+        aplicacion: { ...(c.aplicacion ?? { preguntado: true, cambios: [] }), respuesta: 'no' },
+      };
       // Corta: "De acuerdo: no apliqué nada." y la vista previa plegada (armarRespuesta)
       return this.terminar(usuario, turno, armarRespuesta(turno), 'terminado');
     }
     if (!this.esEditor(usuario)) {
-      return this.terminar(usuario, turno, this.respuestaFinal(turno, 'El modo editor ya no está activo: no apliqué nada. Actívalo y pídemelo otra vez.'), 'terminado');
+      return this.terminar(
+        usuario,
+        turno,
+        this.respuestaFinal(turno, 'El modo editor ya no está activo: no apliqué nada. Actívalo y pídemelo otra vez.'),
+        'terminado',
+      );
     }
     const desde = Date.parse(c.vista_previa_en ?? '');
     if (!Number.isFinite(desde) || Date.now() - desde > VIGENCIA_PREVIA_MS) {
       turno.pasos = [];
       turno.contexto = {
-        ...turno.contexto, aplicacion: null, vista_previa_en: null, presentacion: null, presentado: true, anunciado: false,
-        avisos: [...new Set([...(c.avisos ?? []), 'La vista previa tenía más de 10 minutos: la rehice con cómo está ahora. Mírala antes de decir que sí.'])],
+        ...turno.contexto,
+        aplicacion: null,
+        vista_previa_en: null,
+        presentacion: null,
+        presentado: true,
+        anunciado: false,
+        avisos: [
+          ...new Set([
+            ...(c.avisos ?? []),
+            'La vista previa tenía más de 10 minutos: la rehice con cómo está ahora. Mírala antes de decir que sí.',
+          ]),
+        ],
       };
       await this.turnos.actualizar(turno.id, { pasos: [] });
       return this.aEjecutar(turno, turno.plan as PlanV3);
@@ -754,18 +1114,29 @@ export class AgenteV3Service {
     if (pendiente) {
       const parar = this.interrupcion.estaInterrumpida(peticionId ?? turno.peticion_id ?? undefined)
         ? 'Detenido: no apliqué lo que faltaba.'
-        : !this.esEditor(usuario) ? 'El modo editor se apagó: no apliqué lo que faltaba.' : null;
+        : !this.esEditor(usuario)
+          ? 'El modo editor se apagó: no apliqué lo que faltaba.'
+          : null;
       if (parar) return this.terminarAplicado(usuario, turno, parar);
       let aplicado: PasoAplicado;
       try {
         aplicado = await this.ejecucion.aplicar(usuario, pendiente);
       } catch (e) {
         const error = (e as Error).message || 'falló';
-        aplicado = { n: pendiente.n, herramienta: pendiente.herramienta, cuerpos: (pendiente.cuerpos ?? []).map((cuerpo) => ({ cuerpo, ok: false, error })), datos: null };
+        aplicado = {
+          n: pendiente.n,
+          herramienta: pendiente.herramienta,
+          cuerpos: (pendiente.cuerpos ?? []).map((cuerpo) => ({ cuerpo, ok: false, error })),
+          datos: null,
+        };
       }
-      turno.contexto = { ...c, aplicacion: { ...(c.aplicacion ?? { preguntado: true, respuesta: 'si' }), cambios: [...hechos, aplicado] } };
+      turno.contexto = {
+        ...c,
+        aplicacion: { ...(c.aplicacion ?? { preguntado: true, respuesta: 'si' }), cambios: [...hechos, aplicado] },
+      };
       await this.turnos.actualizar(turno.id, { contexto: turno.contexto });
-      if (porAplicar(turno.pasos ?? []).some((p) => !turno.contexto!.aplicacion!.cambios.some((h) => h.n === p.n))) return this.salida(turno, 'aplicar');
+      if (porAplicar(turno.pasos ?? []).some((p) => !turno.contexto!.aplicacion!.cambios.some((h) => h.n === p.n)))
+        return this.salida(turno, 'aplicar');
     }
     return this.terminarAplicado(usuario, turno);
   }
@@ -777,12 +1148,18 @@ export class AgenteV3Service {
       const a = ap.cambios.find((x) => x.n === p.n);
       if (!a) return p;
       const r = resumenAplicado(p.herramienta, a);
-      const datos = a.datos ? { ...(a.datos as object), vista: filasDelCambio(p.herramienta, a.datos), aplicado: true } : p.datos;
+      const datos = a.datos
+        ? { ...(a.datos as object), vista: filasDelCambio(p.herramienta, a.datos), aplicado: true }
+        : p.datos;
       return { ...p, datos, aplicado: true, estado: r.estado, resumen: r.resumen };
     });
     const pres = turno.contexto!.presentacion;
     // La frase de Presentar hablaba de la vista previa ("quedaría"): ahora manda la del código
-    turno.contexto = { ...turno.contexto!, aplicacion: { ...ap, en: new Date().toISOString() }, presentacion: pres ? { ...pres, frase: null } : null };
+    turno.contexto = {
+      ...turno.contexto!,
+      aplicacion: { ...ap, en: new Date().toISOString() },
+      presentacion: pres ? { ...pres, frase: null } : null,
+    };
     turno.etapa = 'responder';
     return this.terminar(usuario, turno, nota ? this.respuestaFinal(turno, nota) : armarRespuesta(turno), 'terminado');
   }
@@ -795,7 +1172,8 @@ export class AgenteV3Service {
   async deshacer(usuario: UsuarioAutenticado, id: string, peticionId?: string): Promise<SalidaRuta> {
     const original = await this.turnos.obtener(id, usuario.id);
     const ap = original.contexto?.aplicacion;
-    if (!ap?.en || !ap.cambios.some((x) => x.cuerpos.some((c) => c.ok))) throw new Error('Ese mensaje no aplicó ningún cambio: no hay nada que deshacer.');
+    if (!ap?.en || !ap.cambios.some((x) => x.cuerpos.some((c) => c.ok)))
+      throw new Error('Ese mensaje no aplicó ningún cambio: no hay nada que deshacer.');
     const pais = original.contexto!.pais;
     const pasos: PasoPlan[] = [];
     const sin: string[] = [];
@@ -803,17 +1181,40 @@ export class AgenteV3Service {
       const inv = inversoDe(a, pais);
       sin.push(...inv.sin);
       const que = original.pasos?.find((p) => p.n === a.n)?.que.replace(/^Vista previa: /, '') ?? a.herramienta;
-      if (inv.cuerpos.length) pasos.push({ herramienta: inv.herramienta, param: {}, cuerpos: inv.cuerpos, titulo: `Deshacer: ${que}` });
+      if (inv.cuerpos.length)
+        pasos.push({ herramienta: inv.herramienta, param: {}, cuerpos: inv.cuerpos, titulo: `Deshacer: ${que}` });
     }
-    if (!pasos.length) throw new Error(`No hay nada que volver atrás${sin.length ? `: ${sin.join('; ')}` : ' (no cambió nada)'}.`);
+    if (!pasos.length)
+      throw new Error(`No hay nada que volver atrás${sin.length ? `: ${sin.join('; ')}` : ' (no cambió nada)'}.`);
     if (peticionId) this.interrupcion.registrar(peticionId, usuario.id);
-    const turno = await this.turnos.crear({ chat_id: original.chat_id, usuario_id: usuario.id, peticion_id: peticionId ?? null, mensaje: `Deshacer «${original.mensaje}»`.slice(0, 2000), responde_a: original.mensaje_id });
+    const turno = await this.turnos.crear({
+      chat_id: original.chat_id,
+      usuario_id: usuario.id,
+      peticion_id: peticionId ?? null,
+      mensaje: `Deshacer «${original.mensaje}»`.slice(0, 2000),
+      responde_a: original.mensaje_id,
+    });
     turno.contexto = {
-      ...original.contexto!, pregunta: null, aclaraciones: [], rondas: 0, aplicacion: null, vista_previa_en: null, deshace: original.id,
-      presentacion: null, presentado: true, anunciado: false, ensenanza: null, aprender_aclaracion: false,
+      ...original.contexto!,
+      pregunta: null,
+      aclaraciones: [],
+      rondas: 0,
+      aplicacion: null,
+      vista_previa_en: null,
+      deshace: original.id,
+      presentacion: null,
+      presentado: true,
+      anunciado: false,
+      ensenanza: null,
+      aprender_aclaracion: false,
       avisos: sin.length ? [`No puedo volver atrás ${sin.join('; ')}.`] : [],
     };
-    turno.clasificacion = { tipo: 'cambio', dep: false, atajo: null, motivo: `deshacer lo aplicado en «${original.mensaje.slice(0, 120)}»` };
+    turno.clasificacion = {
+      tipo: 'cambio',
+      dep: false,
+      atajo: null,
+      motivo: `deshacer lo aplicado en «${original.mensaje.slice(0, 120)}»`,
+    };
     return this.aEjecutar(turno, { origen: 'deshacer', pasos, ver: null });
   }
 
@@ -827,7 +1228,8 @@ export class AgenteV3Service {
     const turno = await this.turnos.obtener(id, usuario.id);
     const plan = turno.plan as PlanV3 | null;
     if (turno.estado !== 'en_curso' || !plan || !turno.contexto?.anunciado) return null;
-    if (turno.etapa === 'ejecutar' && (turno.pasos ?? []).length < plan.pasos.length) return this.conAvisos(turno, respuestaProgreso(turno));
+    if (turno.etapa === 'ejecutar' && (turno.pasos ?? []).length < plan.pasos.length)
+      return this.conAvisos(turno, respuestaProgreso(turno));
     return null;
   }
 
@@ -855,7 +1257,12 @@ export class AgenteV3Service {
   async detener(usuario: UsuarioAutenticado, id: string): Promise<SalidaRuta> {
     const turno = await this.turnos.obtener(id, usuario.id);
     if (turno.estado !== 'en_curso' && turno.estado !== 'pregunta') return this.comoEsta(turno);
-    return this.terminar(usuario, turno, { ...respuestaSinPlan(turno, 'Detenido: no seguí con lo que faltaba.'), tipo: 'cancelada' }, 'cancelado');
+    return this.terminar(
+      usuario,
+      turno,
+      { ...respuestaSinPlan(turno, 'Detenido: no seguí con lo que faltaba.'), tipo: 'cancelada' },
+      'cancelado',
+    );
   }
 
   /** El estado de un turno (para depurar y para la medición) */
@@ -871,17 +1278,38 @@ export class AgenteV3Service {
     return { ...r, avisos };
   }
 
-  private async terminar(usuario: UsuarioAutenticado, turno: Turno, respuesta: RespuestaPanel, estado: Turno['estado']): Promise<SalidaRuta> {
+  private async terminar(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    respuesta: RespuestaPanel,
+    estado: Turno['estado'],
+  ): Promise<SalidaRuta> {
     const conAvisos = this.conAvisos(turno, respuesta);
     const mensajeId = await this.guardarMensaje(usuario, turno, conAvisos);
     const final = { ...conAvisos, mensaje_id: mensajeId };
-    await this.turnos.actualizar(turno.id, { estado, etapa: 'responder', respuesta: final, mensaje_id: mensajeId, modelos: turno.modelos, clasificacion: turno.clasificacion, contexto: turno.contexto, plan: turno.plan, pasos: turno.pasos });
+    await this.turnos.actualizar(turno.id, {
+      estado,
+      etapa: 'responder',
+      respuesta: final,
+      mensaje_id: mensajeId,
+      modelos: turno.modelos,
+      clasificacion: turno.clasificacion,
+      contexto: turno.contexto,
+      plan: turno.plan,
+      pasos: turno.pasos,
+    });
     return this.salida(turno, 'responder', { respuesta: final });
   }
 
   /** La memoria del chat (agente_mensajes, la de la v2): para "Responder", repetir, calcular y seguir la conversación */
   private async guardarMensaje(usuario: UsuarioAutenticado, turno: Turno, r: RespuestaPanel): Promise<string | null> {
-    const plan = { v: 3, origen: turno.plan?.origen ?? null, pasos: turno.plan?.pasos ?? [], calculo: turno.plan?.calculo ?? null, clasificacion: turno.clasificacion };
+    const plan = {
+      v: 3,
+      origen: turno.plan?.origen ?? null,
+      pasos: turno.plan?.pasos ?? [],
+      calculo: turno.plan?.calculo ?? null,
+      clasificacion: turno.clasificacion,
+    };
     const cumplen = new Map((turno.pasos ?? []).map((p) => [p.n, p.cumplen]));
     const efectivo = turno.contexto?.mensaje_efectivo;
     const aclaraciones = turno.contexto?.aclaraciones ?? [];
@@ -890,11 +1318,24 @@ export class AgenteV3Service {
         chat_id: turno.chat_id,
         usuario_id: usuario.id,
         persona: turno.mensaje,
-        entendido: efectivo || aclaraciones.length ? `${efectivo ?? turno.mensaje}${aclaraciones.length ? ` (${aclaraciones.join('; ')})` : ''}` : null,
+        entendido:
+          efectivo || aclaraciones.length
+            ? `${efectivo ?? turno.mensaje}${aclaraciones.length ? ` (${aclaraciones.join('; ')})` : ''}`
+            : null,
         frase: r.frase,
         plan,
-        resultados: r.resultados.map((x) => ({ n: x.n, herramienta: x.herramienta, atajo: x.atajo, descripcion: x.titulo, principal: x.principal, datos: x.datos, ...(cumplen.get(x.n) ? { cumplen: cumplen.get(x.n) } : {}) })),
-        entidades: (turno.contexto?.entidades ?? []).flatMap((e) => (e.candidatos.length === 1 ? [e.candidatos[0]] : [])),
+        resultados: r.resultados.map((x) => ({
+          n: x.n,
+          herramienta: x.herramienta,
+          atajo: x.atajo,
+          descripcion: x.titulo,
+          principal: x.principal,
+          datos: x.datos,
+          ...(cumplen.get(x.n) ? { cumplen: cumplen.get(x.n) } : {}),
+        })),
+        entidades: (turno.contexto?.entidades ?? []).flatMap((e) =>
+          e.candidatos.length === 1 ? [e.candidatos[0]] : [],
+        ),
         con_contenido: r.resultados.length > 0,
         pais: turno.contexto?.pais ?? 'PE',
         motivo_pais: turno.contexto?.motivo_pais ?? null,
@@ -910,8 +1351,10 @@ export class AgenteV3Service {
 
   /** Una llamada que llega tarde o repetida: se contesta con lo que hay, sin rehacer nada */
   private comoEsta(turno: Turno): SalidaRuta {
-    if (turno.estado === 'pregunta' && turno.respuesta) return this.salida(turno, 'preguntar', { pregunta: turno.respuesta });
-    if (turno.respuesta && turno.estado !== 'en_curso') return this.salida(turno, 'responder', { respuesta: turno.respuesta });
+    if (turno.estado === 'pregunta' && turno.respuesta)
+      return this.salida(turno, 'preguntar', { pregunta: turno.respuesta });
+    if (turno.respuesta && turno.estado !== 'en_curso')
+      return this.salida(turno, 'responder', { respuesta: turno.respuesta });
     if (turno.etapa === 'ejecutar') return this.salida(turno, 'ejecutar');
     if (turno.etapa === 'aplicar' && turno.estado === 'en_curso') return this.salida(turno, 'aplicar');
     return this.salida(turno, 'responder', { respuesta: respuestaSinPlan(turno, 'Este turno ya no está en curso.') });
@@ -923,5 +1366,7 @@ export function atajoQueNoTrae(c: Clasificacion, contexto: ContextoTurno): strin
   if (c.tipo !== 'atajo' || !c.atajo || !c.pide?.length) return null;
   const a = contexto.atajos.find((x) => x.nombre === c.atajo);
   const faltan = sinTraer(c.pide, a?.tipos ?? []);
-  return a && faltan.length ? `${motivoNoTrae(faltan, `el atajo «${a.nombre}» (trae ${a.tipos.map((t) => QUE_TRAE[t] ?? t).join('; ') || 'nada'})`)}: si ningún atajo lo trae, es "consulta"` : null;
+  return a && faltan.length
+    ? `${motivoNoTrae(faltan, `el atajo «${a.nombre}» (trae ${a.tipos.map((t) => QUE_TRAE[t] ?? t).join('; ') || 'nada'})`)}: si ningún atajo lo trae, es "consulta"`
+    : null;
 }

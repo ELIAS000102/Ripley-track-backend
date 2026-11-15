@@ -1,9 +1,4 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CifradoService } from '../../common/cifrado/cifrado.service.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { EstadoToken } from './interfaces/token-ripley.interface.js';
@@ -44,11 +39,7 @@ export class TokenRipleyService {
   ) {}
 
   /** Guarda (o reemplaza) el token de un país para un usuario */
-  async guardar(
-    usuarioId: string,
-    pais: string,
-    token: string,
-  ): Promise<EstadoToken> {
+  async guardar(usuarioId: string, pais: string, token: string): Promise<EstadoToken> {
     const { data, error } = await this.supabase.admin
       .from(TABLA)
       .upsert(
@@ -101,15 +92,8 @@ export class TokenRipleyService {
     });
   }
 
-  async eliminar(
-    usuarioId: string,
-    pais: string,
-  ): Promise<{ mensaje: string }> {
-    const { error } = await this.supabase.admin
-      .from(TABLA)
-      .delete()
-      .eq('usuario_id', usuarioId)
-      .eq('pais', pais);
+  async eliminar(usuarioId: string, pais: string): Promise<{ mensaje: string }> {
+    const { error } = await this.supabase.admin.from(TABLA).delete().eq('usuario_id', usuarioId).eq('pais', pais);
 
     if (error) {
       this.logger.error(`No se pudo eliminar el token: ${error.message}`);
@@ -143,8 +127,7 @@ export class TokenRipleyService {
 
     if (!data?.token_cifrado) {
       throw new NotFoundException(
-        `No tienes configurado el token de Ripley para ${pais}. ` +
-          'Guárdalo en el panel antes de consultar.',
+        `No tienes configurado el token de Ripley para ${pais}. ` + 'Guárdalo en el panel antes de consultar.',
       );
     }
 
@@ -155,9 +138,7 @@ export class TokenRipleyService {
     } catch {
       // Pasa si cambió TOKENS_CLAVE_CIFRADO: lo guardado ya no se puede leer
       this.logger.error(`Token de ${pais} ilegible para ${usuarioId}`);
-      throw new BadGatewayException(
-        `El token de ${pais} no se pudo descifrar. Vuelve a guardarlo.`,
-      );
+      throw new BadGatewayException(`El token de ${pais} no se pudo descifrar. Vuelve a guardarlo.`);
     }
 
     this.cache.set(this.clave(usuarioId, pais), {

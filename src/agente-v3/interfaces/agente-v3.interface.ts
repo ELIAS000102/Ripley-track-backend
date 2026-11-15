@@ -13,7 +13,16 @@ export type Pais = 'PE' | 'CL';
 
 /** El tipo de petición que dice el clasificador */
 export type TipoPeticion = 'atajo' | 'consulta' | 'calculo' | 'saber' | 'repetir' | 'charla' | 'cambio' | 'enseñar';
-export const TIPOS_PETICION: TipoPeticion[] = ['atajo', 'consulta', 'calculo', 'saber', 'repetir', 'charla', 'cambio', 'enseñar'];
+export const TIPOS_PETICION: TipoPeticion[] = [
+  'atajo',
+  'consulta',
+  'calculo',
+  'saber',
+  'repetir',
+  'charla',
+  'cambio',
+  'enseñar',
+];
 
 /** Lo que le dice cada ruta a n8n que haga después ("fin": nada, nadie espera respuesta) */
 export type Camino =
@@ -173,7 +182,15 @@ export interface ContextoTurno {
   /** Los códigos y nombres del mensaje, buscados en el directorio */
   entidades: EntidadMencion[];
   /** Los servicios del país, con su método, su fase y lo aprendido (agente_servicios) */
-  servicios: Array<{ codigo: string; nombre: string | null; metodo_entrega: string | null; fase: string | null; fuente?: string | null; origen?: string | null; descripcion?: string | null }>;
+  servicios: Array<{
+    codigo: string;
+    nombre: string | null;
+    metodo_entrega: string | null;
+    fase: string | null;
+    fuente?: string | null;
+    origen?: string | null;
+    descripcion?: string | null;
+  }>;
   /** Lo que la persona contestó a las preguntas de este turno */
   aclaraciones: string[];
   /** La pregunta que espera respuesta */
@@ -268,7 +285,16 @@ export interface Aplicacion {
 export interface Calculo {
   operacion: 'suma' | 'maximo' | 'minimo' | 'contar' | 'porcentaje' | 'filtrar' | 'ordenar' | 'explicar';
   campo: string | null;
-  filtro: { agenda?: string; codigo?: string[]; fecha?: string; servicio?: string[]; activa?: boolean; nombre?: string; fase?: string; tipo?: string };
+  filtro: {
+    agenda?: string;
+    codigo?: string[];
+    fecha?: string;
+    servicio?: string[];
+    activa?: boolean;
+    nombre?: string;
+    fase?: string;
+    tipo?: string;
+  };
   agrupar: string[];
   orden?: 'asc' | 'desc';
   distintos?: boolean;
@@ -364,7 +390,12 @@ export interface RespuestaPanel {
   notas: string[];
   avisos: string[];
   /** En el progreso también los que van (`en_curso`) y los que faltan (`pendiente`), con `descripcion` para el panel */
-  pasos: Array<Pick<PasoEjecutado, 'n' | 'que' | 'resumen' | 'ms'> & { estado: PasoEjecutado['estado'] | 'en_curso' | 'pendiente'; descripcion?: string }>;
+  pasos: Array<
+    Pick<PasoEjecutado, 'n' | 'que' | 'resumen' | 'ms'> & {
+      estado: PasoEjecutado['estado'] | 'en_curso' | 'pendiente';
+      descripcion?: string;
+    }
+  >;
   /** En el progreso: el país, para el chip del "Pensando…" */
   contexto?: { pais: Pais; motivo_pais: string | null };
   detalles: {

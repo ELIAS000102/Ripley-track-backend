@@ -25,8 +25,27 @@ import { ReporteG12Service } from './reporte-g12.service.js';
  * y nombres.
  */
 @Module({
-  imports: [AuthModule, RipleyModule, ReportesComunModule, SimulacionModule, AgenteModule, PickingModule, RecepcionModule, DespachoModule],
+  imports: [
+    AuthModule,
+    RipleyModule,
+    ReportesComunModule,
+    SimulacionModule,
+    AgenteModule,
+    PickingModule,
+    RecepcionModule,
+    DespachoModule,
+  ],
   controllers: [G12Controller],
-  providers: [ReporteG12Service, ConfiguracionG12Service, EjecutorG12Service, CuadrosG12Service, HistorialG12Service, ActualizadorG12Service, OracleG12Service, IdsG12Service, SolicitudesG12Service],
+  providers: [
+    ReporteG12Service,
+    ConfiguracionG12Service,
+    EjecutorG12Service,
+    CuadrosG12Service,
+    HistorialG12Service,
+    ActualizadorG12Service,
+    OracleG12Service,
+    IdsG12Service,
+    SolicitudesG12Service,
+  ],
 })
 export class G12Module {}

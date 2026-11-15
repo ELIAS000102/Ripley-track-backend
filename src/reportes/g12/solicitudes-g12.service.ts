@@ -2,7 +2,12 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { EjecutorG12Service } from './ejecutor-g12.service.js';
 import { firmaIdsG12, IdsG12Service } from './ids-g12.service.js';
-import type { ConfiguracionSolicitudesG12, FilaSolicitudG12, PeticionG12, SolicitudesG12 } from './interfaces/g12.interface.js';
+import type {
+  ConfiguracionSolicitudesG12,
+  FilaSolicitudG12,
+  PeticionG12,
+  SolicitudesG12,
+} from './interfaces/g12.interface.js';
 import { filasDeSolicitud, TIPOS_SOLICITUD } from './solicitudes-g12.js';
 
 const TABLA = 'g12_solicitudes';
@@ -30,12 +35,28 @@ export class SolicitudesG12Service {
   async leer(pais: string): Promise<SolicitudesG12 | null> {
     const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('pais', pais).maybeSingle();
     if (error) {
-      if (!SIN_TABLA.includes(error.code ?? '')) this.logger.warn(`No se pudieron leer las Solicitudes de ${pais}: ${error.message}`);
+      if (!SIN_TABLA.includes(error.code ?? ''))
+        this.logger.warn(`No se pudieron leer las Solicitudes de ${pais}: ${error.message}`);
       return null;
     }
-    const f = data as { pais: string; hoy: string; generado: string; usuario_email: string | null; actualizacion_id: string | null; datos: { umbrales: SolicitudesG12['umbrales']; filas: FilaSolicitudG12[] } } | null;
+    const f = data as {
+      pais: string;
+      hoy: string;
+      generado: string;
+      usuario_email: string | null;
+      actualizacion_id: string | null;
+      datos: { umbrales: SolicitudesG12['umbrales']; filas: FilaSolicitudG12[] };
+    } | null;
     return f
-      ? { pais: f.pais, hoy: f.hoy, generado: f.generado, usuarioEmail: f.usuario_email, actualizacionId: f.actualizacion_id, umbrales: f.datos?.umbrales, filas: f.datos?.filas ?? [] }
+      ? {
+          pais: f.pais,
+          hoy: f.hoy,
+          generado: f.generado,
+          usuarioEmail: f.usuario_email,
+          actualizacionId: f.actualizacion_id,
+          umbrales: f.datos?.umbrales,
+          filas: f.datos?.filas ?? [],
+        }
       : null;
   }
 
@@ -46,18 +67,23 @@ export class SolicitudesG12Service {
   }
 
   async guardar(s: SolicitudesG12): Promise<void> {
-    const { error } = await this.supabase.admin.from(TABLA).upsert({
-      pais: s.pais,
-      hoy: s.hoy,
-      generado: s.generado,
-      usuario_email: s.usuarioEmail,
-      actualizacion_id: s.actualizacionId,
-      datos: { umbrales: s.umbrales, filas: s.filas },
-    }, { onConflict: 'pais' });
+    const { error } = await this.supabase.admin.from(TABLA).upsert(
+      {
+        pais: s.pais,
+        hoy: s.hoy,
+        generado: s.generado,
+        usuario_email: s.usuarioEmail,
+        actualizacion_id: s.actualizacionId,
+        datos: { umbrales: s.umbrales, filas: s.filas },
+      },
+      { onConflict: 'pais' },
+    );
     if (error) {
-      throw new Error(SIN_TABLA.includes(error.code ?? '')
-        ? 'Falta la tabla g12_solicitudes en Supabase: ejecuta el bloque "Solicitudes del G12" de docs/supabase-setup.sql.'
-        : `No se pudieron guardar las Solicitudes: ${error.message}`);
+      throw new Error(
+        SIN_TABLA.includes(error.code ?? '')
+          ? 'Falta la tabla g12_solicitudes en Supabase: ejecuta el bloque "Solicitudes del G12" de docs/supabase-setup.sql.'
+          : `No se pudieron guardar las Solicitudes: ${error.message}`,
+      );
     }
   }
 
@@ -65,7 +91,10 @@ export class SolicitudesG12Service {
    * Lee las agendas de la lista y marca cada día. Devuelve las filas y las
    * peticiones, para el registro de la actualización.
    */
-  async generar(pais: string, config: ConfiguracionSolicitudesG12): Promise<{ hoy: string; filas: FilaSolicitudG12[]; peticiones: PeticionG12[] }> {
+  async generar(
+    pais: string,
+    config: ConfiguracionSolicitudesG12,
+  ): Promise<{ hoy: string; filas: FilaSolicitudG12[]; peticiones: PeticionG12[] }> {
     const lista = config.agendas.map((a) => ({ tipo: a.tipo, item: { fila: a.nombre, campos: a.campos } }));
     const { hoy, resultados } = await this.ejecutor.leerAgendas(lista, pais);
 
@@ -77,7 +106,9 @@ export class SolicitudesG12Service {
       return (nombre: string) => agendas.find((x: { nombre: string; id: string }) => x.nombre === nombre)?.id ?? null;
     };
 
-    const filas = config.agendas.flatMap((a, i) => filasDeSolicitud(a, resultados[i], config, hoy, idDe(a.tipo, a.campos)));
+    const filas = config.agendas.flatMap((a, i) =>
+      filasDeSolicitud(a, resultados[i], config, hoy, idDe(a.tipo, a.campos)),
+    );
     const peticiones: PeticionG12[] = config.agendas.map((a, i) => {
       const r = resultados[i];
       return {

@@ -32,7 +32,9 @@ import { MAXIMO_AGENDAS_SOLICITUD } from '../solicitudes-g12.js';
  * - tabla / reintento: las de `claves` (una tabla con ↻, o las que tienen errores).
  */
 export class CrearActualizacionG12Dto {
-  @IsIn(['completa', 'refrescar', 'tabla', 'reintento', 'solicitudes'], { message: 'tipo debe ser completa, refrescar, tabla, reintento o solicitudes' })
+  @IsIn(['completa', 'refrescar', 'tabla', 'reintento', 'solicitudes'], {
+    message: 'tipo debe ser completa, refrescar, tabla, reintento o solicitudes',
+  })
   tipo: 'completa' | 'refrescar' | 'tabla' | 'reintento' | 'solicitudes';
 
   @IsOptional()

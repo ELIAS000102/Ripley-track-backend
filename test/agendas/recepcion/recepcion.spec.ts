@@ -3,10 +3,7 @@ import type { CatalogosRipleyService } from '../../../src/common/ripley/catalogo
 import type { RipleyHttpService } from '../../../src/common/ripley/ripley-http.service.js';
 import type { ContextoAuditoria } from '../../../src/auditoria/contexto-auditoria.service.js';
 import { RipleyApiError } from '../../../src/common/ripley/ripley.errors.js';
-import {
-  hoyEnPais,
-  isoToRipleyDate,
-} from '../../../src/common/ripley/utils/date.util.js';
+import { hoyEnPais, isoToRipleyDate } from '../../../src/common/ripley/utils/date.util.js';
 import { RecepcionService } from '../../../src/agendas/recepcion/recepcion.service.js';
 
 /**
@@ -63,9 +60,7 @@ function armar(filas: Array<Record<string, unknown>>, dias = DIAS) {
     oficinaPorCodigo: vi.fn().mockResolvedValue(OFICINA),
     agendasDeRecepcion: vi.fn().mockResolvedValue(filas),
     mapaServicios: vi.fn().mockResolvedValue(SERVICIOS),
-    capacidadesDeRecepcion: vi
-      .fn()
-      .mockResolvedValue({ id: 'a-se-cap', capacityByDayArray: dias }),
+    capacidadesDeRecepcion: vi.fn().mockResolvedValue({ id: 'a-se-cap', capacityByDayArray: dias }),
     servicios: vi.fn(),
     oficinasConTotal: vi.fn(),
   } as unknown as CatalogosRipleyService;
@@ -93,10 +88,7 @@ function armar(filas: Array<Record<string, unknown>>, dias = DIAS) {
 
 describe('Las agendas son de la oficina que se pidió', () => {
   it('descarta la que pertenece a otra oficina', async () => {
-    const { servicio } = armar([
-      agenda(),
-      agenda({ id: 'a-otra', services: ['s-rc'], oplOffices: [OTRA] }),
-    ]);
+    const { servicio } = armar([agenda(), agenda({ id: 'a-otra', services: ['s-rc'], oplOffices: [OTRA] })]);
 
     const agendas = await servicio.listarAgendasPorOficina('20021');
 
@@ -104,9 +96,7 @@ describe('Las agendas son de la oficina que se pidió', () => {
   });
 
   it('la reconoce por código aunque el id no coincida', async () => {
-    const { servicio } = armar([
-      agenda({ oplOffices: [{ id: 'otro-id', code: '20021' }] }),
-    ]);
+    const { servicio } = armar([agenda({ oplOffices: [{ id: 'otro-id', code: '20021' }] })]);
 
     expect(await servicio.listarAgendasPorOficina('20021')).toHaveLength(1);
   });
@@ -165,22 +155,12 @@ describe('El listado no arrastra los días', () => {
 });
 
 describe('Elegir una agenda entre varias', () => {
-  const DOS_SE = [
-    agenda(),
-    agenda({ id: 'a-se-2', name: 'Agenda de Recepción 20021 SE bis' }),
-  ];
+  const DOS_SE = [agenda(), agenda({ id: 'a-se-2', name: 'Agenda de Recepción 20021 SE bis' })];
 
   it('el identificador elige la agenda, no la primera del servicio', async () => {
     const { servicio } = armar(DOS_SE);
 
-    const { agenda: elegida } = await servicio.buscarCapacidades(
-      '20021',
-      'SE',
-      undefined,
-      'PE',
-      undefined,
-      'a-se-2',
-    );
+    const { agenda: elegida } = await servicio.buscarCapacidades('20021', 'SE', undefined, 'PE', undefined, 'a-se-2');
 
     expect(elegida.scheduleId).toBe('a-se-2');
   });
@@ -188,9 +168,7 @@ describe('Elegir una agenda entre varias', () => {
   it('con solo el servicio, y dos agendas SE, no elige ninguna', async () => {
     const { servicio } = armar(DOS_SE);
 
-    await expect(servicio.buscarCapacidades('20021', 'SE')).rejects.toThrow(
-      /2 agendas con servicio SE/,
-    );
+    await expect(servicio.buscarCapacidades('20021', 'SE')).rejects.toThrow(/2 agendas con servicio SE/);
   });
 
   it('con el servicio basta cuando solo hay una', async () => {
@@ -205,23 +183,16 @@ describe('Elegir una agenda entre varias', () => {
     const { servicio } = armar([agenda()]);
 
     await expect(
-      servicio.buscarCapacidades(
-        '20021',
-        undefined,
-        undefined,
-        'PE',
-        undefined,
-        'a-de-otra',
-      ),
+      servicio.buscarCapacidades('20021', undefined, undefined, 'PE', undefined, 'a-de-otra'),
     ).rejects.toThrow(/no tiene ninguna agenda de recepción/);
   });
 
   it('sin servicio ni identificador, lo dice en vez de adivinar', async () => {
     const { servicio } = armar([agenda()]);
 
-    await expect(
-      servicio.buscarCapacidades('20021', undefined),
-    ).rejects.toThrow(/Indica el tipo de servicio o el identificador/);
+    await expect(servicio.buscarCapacidades('20021', undefined)).rejects.toThrow(
+      /Indica el tipo de servicio o el identificador/,
+    );
   });
 });
 
@@ -231,11 +202,7 @@ describe('Los días se leen del endpoint de capacidades', () => {
 
     await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
 
-    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith(
-      'a-se-cap',
-      'PE',
-      '29-09-2026',
-    );
+    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith('a-se-cap', 'PE', '29-09-2026');
   });
 
   it('sin "from" arranca en hoy, no en el principio de la agenda', async () => {
@@ -243,11 +210,7 @@ describe('Los días se leen del endpoint de capacidades', () => {
 
     await servicio.buscarCapacidades('20021', 'SE');
 
-    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith(
-      'a-se-cap',
-      'PE',
-      isoToRipleyDate(hoyEnPais('PE')),
-    );
+    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith('a-se-cap', 'PE', isoToRipleyDate(hoyEnPais('PE')));
   });
 
   it('no usa la copia incrustada en la agenda', async () => {
@@ -262,18 +225,9 @@ describe('Los días se leen del endpoint de capacidades', () => {
   it('con "dias" se recorta desde la fecha pedida', async () => {
     const { servicio } = armar([agenda()]);
 
-    const { dias } = await servicio.buscarCapacidades(
-      '20021',
-      'SE',
-      '29-09-2026',
-      'PE',
-      2,
-    );
+    const { dias } = await servicio.buscarCapacidades('20021', 'SE', '29-09-2026', 'PE', 2);
 
-    expect(dias.map((d) => d.day.slice(0, 10))).toEqual([
-      '2026-09-29',
-      '2026-09-30',
-    ]);
+    expect(dias.map((d) => d.day.slice(0, 10))).toEqual(['2026-09-29', '2026-09-30']);
   });
 
   it('una agenda sin capacidad creada no revienta: lo avisa', async () => {
@@ -288,9 +242,7 @@ describe('Los días se leen del endpoint de capacidades', () => {
 
   it('un 404 de Ripley es una agenda vacía, no un fallo', async () => {
     const { servicio, catalogos } = armar([agenda()]);
-    vi.mocked(catalogos.capacidadesDeRecepcion).mockRejectedValue(
-      new RipleyApiError('No hay datos para ese recurso'),
-    );
+    vi.mocked(catalogos.capacidadesDeRecepcion).mockRejectedValue(new RipleyApiError('No hay datos para ese recurso'));
 
     const { dias, aviso } = await servicio.buscarCapacidades('20021', 'SE');
 
@@ -300,13 +252,9 @@ describe('Los días se leen del endpoint de capacidades', () => {
 
   it('otro fallo sí sube', async () => {
     const { servicio, catalogos } = armar([agenda()]);
-    vi.mocked(catalogos.capacidadesDeRecepcion).mockRejectedValue(
-      new Error('se cayó la red'),
-    );
+    vi.mocked(catalogos.capacidadesDeRecepcion).mockRejectedValue(new Error('se cayó la red'));
 
-    await expect(servicio.buscarCapacidades('20021', 'SE')).rejects.toThrow(
-      'se cayó la red',
-    );
+    await expect(servicio.buscarCapacidades('20021', 'SE')).rejects.toThrow('se cayó la red');
   });
 
   it('con días, no hay aviso', async () => {
@@ -558,9 +506,7 @@ describe('El id de la capacidad, venga como venga', () => {
   const EXPANDIDO = {
     _id: 'a-se-cap',
     schedule: 'a-se',
-    capacityByDayArray: Array.from({ length: 2132 }, (_, i) =>
-      dia(`2026-01-${(i % 28) + 1}`),
-    ),
+    capacityByDayArray: Array.from({ length: 2132 }, (_, i) => dia(`2026-01-${(i % 28) + 1}`)),
   };
 
   it('una cadena se usa tal cual', async () => {
@@ -568,17 +514,11 @@ describe('El id de la capacidad, venga como venga', () => {
 
     await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
 
-    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith(
-      'a-se-cap',
-      'PE',
-      '29-09-2026',
-    );
+    expect(catalogos.capacidadesDeRecepcion).toHaveBeenCalledWith('a-se-cap', 'PE', '29-09-2026');
   });
 
   it('un documento expandido viaja como su _id, no entero', async () => {
-    const { servicio, catalogos } = armar([
-      agenda({ capacities: [{ capacityId: EXPANDIDO }] }),
-    ]);
+    const { servicio, catalogos } = armar([agenda({ capacities: [{ capacityId: EXPANDIDO }] })]);
 
     await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
 
@@ -589,21 +529,15 @@ describe('El id de la capacidad, venga como venga', () => {
   });
 
   it('y también cuando el campo se llama "id"', async () => {
-    const { servicio, catalogos } = armar([
-      agenda({ capacities: [{ capacityId: { id: 'a-se-cap' } }] }),
-    ]);
+    const { servicio, catalogos } = armar([agenda({ capacities: [{ capacityId: { id: 'a-se-cap' } }] })]);
 
     await servicio.buscarCapacidades('20021', 'SE', '29-09-2026');
 
-    expect(vi.mocked(catalogos.capacidadesDeRecepcion).mock.calls[0][0]).toBe(
-      'a-se-cap',
-    );
+    expect(vi.mocked(catalogos.capacidadesDeRecepcion).mock.calls[0][0]).toBe('a-se-cap');
   });
 
   it('el listado tampoco devuelve el documento entero', async () => {
-    const { servicio } = armar([
-      agenda({ capacities: [{ capacityId: EXPANDIDO }] }),
-    ]);
+    const { servicio } = armar([agenda({ capacities: [{ capacityId: EXPANDIDO }] })]);
 
     const [primera] = await servicio.listarAgendasPorOficina('20021');
 
@@ -611,9 +545,7 @@ describe('El id de la capacidad, venga como venga', () => {
   });
 
   it('guardar escribe sobre el id, no sobre el documento', async () => {
-    const { servicio, ripley } = armar([
-      agenda({ capacities: [{ capacityId: EXPANDIDO }] }),
-    ]);
+    const { servicio, ripley } = armar([agenda({ capacities: [{ capacityId: EXPANDIDO }] })]);
 
     await servicio.actualizar('20021', 'a-se', {
       day: '2026-10-02T00:00:00.000Z',
@@ -632,9 +564,7 @@ describe('El id de la capacidad, venga como venga', () => {
   });
 
   it('un objeto sin id es lo mismo que no tener capacidad', async () => {
-    const { servicio, catalogos } = armar([
-      agenda({ capacities: [{ capacityId: { capacityByDayArray: [] } }] }),
-    ]);
+    const { servicio, catalogos } = armar([agenda({ capacities: [{ capacityId: { capacityByDayArray: [] } }] })]);
 
     const { dias, aviso } = await servicio.buscarCapacidades('20021', 'SE');
 
@@ -644,9 +574,7 @@ describe('El id de la capacidad, venga como venga', () => {
   });
 
   it('una cadena vacía tampoco vale: no se pide con un id en blanco', async () => {
-    const { servicio, catalogos } = armar([
-      agenda({ capacities: [{ capacityId: '   ' }] }),
-    ]);
+    const { servicio, catalogos } = armar([agenda({ capacities: [{ capacityId: '   ' }] })]);
 
     await servicio.buscarCapacidades('20021', 'SE');
 

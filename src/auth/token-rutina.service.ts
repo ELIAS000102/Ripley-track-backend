@@ -42,7 +42,10 @@ export class TokenRutinaService {
     return token.startsWith(PREFIJO);
   }
 
-  emitir(datos: Omit<PermisoRutina, 'id' | 'exp'>, vigenciaMs = VIGENCIA_MS): { token: string; permiso: PermisoRutina } {
+  emitir(
+    datos: Omit<PermisoRutina, 'id' | 'exp'>,
+    vigenciaMs = VIGENCIA_MS,
+  ): { token: string; permiso: PermisoRutina } {
     const permiso: PermisoRutina = { ...datos, id: randomUUID(), exp: Date.now() + vigenciaMs };
     const carga = Buffer.from(JSON.stringify(permiso)).toString('base64url');
     return { token: `${PREFIJO}${carga}.${this.cifrado.firmar(carga)}`, permiso };

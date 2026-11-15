@@ -375,9 +375,7 @@ export interface BusquedaMasivaRespuesta {
  */
 export interface BusquedaMasivaVarias {
   contexto: ContextoAgente;
-  busquedas: Array<
-    Omit<BusquedaMasivaRespuesta, 'contexto'> | { servicio: string; error: string }
-  >;
+  busquedas: Array<Omit<BusquedaMasivaRespuesta, 'contexto'> | { servicio: string; error: string }>;
 }
 
 // ───────────────────────── Edición ─────────────────────────

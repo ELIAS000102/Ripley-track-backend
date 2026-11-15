@@ -63,7 +63,12 @@ export interface FilaIdsG12 {
 }
 
 const comparable = (s: unknown) =>
-  String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** Los campos con los que se buscan los ids de cada tipo: si cambia uno, cambia la firma */
 const CAMPOS_FIRMA: Record<Exclude<TipoBloqueG12, 'capacidad'>, string[]> = {
@@ -108,13 +113,20 @@ export class IdsG12Service {
 
   /** Todos los ids guardados del país, por firma. Sin la tabla, vacío */
   async cargar(pais: string): Promise<Map<string, FilaIdsG12>> {
-    const { data, error } = await this.supabase.admin.from('g12_ids').select('firma, tipo, ids, consultado_en').eq('pais', pais);
+    const { data, error } = await this.supabase.admin
+      .from('g12_ids')
+      .select('firma, tipo, ids, consultado_en')
+      .eq('pais', pais);
     if (error) {
       this.avisar(error, 'leer');
       return new Map();
     }
-    return new Map(((data ?? []) as Array<{ firma: string; tipo: IdsG12['tipo']; ids: IdsG12; consultado_en: string }>)
-      .map((f) => [f.firma, { firma: f.firma, tipo: f.tipo, ids: f.ids, consultadoEn: f.consultado_en }]));
+    return new Map(
+      ((data ?? []) as Array<{ firma: string; tipo: IdsG12['tipo']; ids: IdsG12; consultado_en: string }>).map((f) => [
+        f.firma,
+        { firma: f.firma, tipo: f.tipo, ids: f.ids, consultadoEn: f.consultado_en },
+      ]),
+    );
   }
 
   /** Guarda (o reemplaza) los ids recién consultados */
@@ -160,8 +172,10 @@ export class IdsG12Service {
 
   private avisar(error: { code?: string; message?: string }, accion: string): void {
     const falta = ['42P01', 'PGRST205'].includes(error.code ?? '');
-    this.logger.warn(falta
-      ? 'Falta la tabla g12_ids en Supabase: los ids del G12 se consultan en cada actualización (ejecuta el bloque "ids guardados del G12" de docs/supabase-setup.sql).'
-      : `No se pudo ${accion} los ids del G12: ${error.message ?? 'sin respuesta'}`);
+    this.logger.warn(
+      falta
+        ? 'Falta la tabla g12_ids en Supabase: los ids del G12 se consultan en cada actualización (ejecuta el bloque "ids guardados del G12" de docs/supabase-setup.sql).'
+        : `No se pudo ${accion} los ids del G12: ${error.message ?? 'sin respuesta'}`,
+    );
   }
 }

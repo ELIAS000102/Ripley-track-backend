@@ -131,14 +131,7 @@ export interface MainScheduleRow {
 }
 
 /** Los siete días, tal como los nombra Ripley en la configuración semanal */
-export type DiaSemana =
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
-  | 'sunday';
+export type DiaSemana = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 /** Unidades por defecto de cada día: `{ monday: 50, ... }` */
 export type CapacidadSemanal = Partial<Record<DiaSemana, number>>;

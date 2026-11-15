@@ -22,10 +22,7 @@ export class InterrupcionAgenteController {
    */
   @Post('interrumpir')
   @HttpCode(200)
-  interrumpir(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: InterrumpirDto,
-  ) {
+  interrumpir(@Usuario() usuario: UsuarioAutenticado, @Body() body: InterrumpirDto) {
     return this.interrupcion.interrumpir(body.peticion, usuario.id);
   }
 }

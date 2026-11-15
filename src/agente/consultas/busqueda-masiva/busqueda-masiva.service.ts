@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OplMasivoService } from '../../../configuracion/tipo-servicio/opl-masivo/opl-masivo.service.js';
 import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
@@ -24,9 +19,7 @@ import { enLotes } from '../../../common/utils/lotes.util.js';
 const SERVICIOS_A_LA_VEZ = 3;
 
 /** Se deriva del service para no repetir aquí la forma del catálogo */
-type MetodoConServicios = Awaited<
-  ReturnType<OplMasivoService['listarMetodosEntrega']>
->[number];
+type MetodoConServicios = Awaited<ReturnType<OplMasivoService['listarMetodosEntrega']>>[number];
 
 /**
  * Búsqueda masiva de agendas por tipo de servicio.
@@ -75,9 +68,7 @@ export class BusquedaMasivaAgenteService {
     }
 
     if (servicios.length > POR_VEZ) {
-      throw new BadRequestException(
-        `Son ${servicios.length} servicios y el máximo por vez es ${POR_VEZ}.`,
-      );
+      throw new BadRequestException(`Son ${servicios.length} servicios y el máximo por vez es ${POR_VEZ}.`);
     }
 
     /*
@@ -111,15 +102,9 @@ export class BusquedaMasivaAgenteService {
   ): Promise<BusquedaMasivaRespuesta> {
     const pais = contexto.pais;
 
-    this.logger.log(
-      `Agente buscando agendas del servicio ${servicioPedido} en ${pais}`,
-    );
+    this.logger.log(`Agente buscando agendas del servicio ${servicioPedido} en ${pais}`);
 
-    const { metodo, servicio } = await this.resolverCodigos(
-      dto.metodo,
-      servicioPedido,
-      pais,
-    );
+    const { metodo, servicio } = await this.resolverCodigos(dto.metodo, servicioPedido, pais);
     const origenes = await this.resolverOrigenes(dto.origenes, pais);
 
     const { total, agendas } = await this.masivo.consultar({
@@ -129,9 +114,7 @@ export class BusquedaMasivaAgenteService {
       pais,
     });
 
-    const filtradas = dto.soloActivas
-      ? agendas.filter((a) => a.isActive === true)
-      : agendas;
+    const filtradas = dto.soloActivas ? agendas.filter((a) => a.isActive === true) : agendas;
 
     const compactas: AgendaMasiva[] = filtradas.map((a) => {
       const agenda = a.agenda ?? '';
@@ -197,10 +180,7 @@ export class BusquedaMasivaAgenteService {
   }
 
   /** Admite el código ("RT") o la descripción ("retiro en tienda") */
-  private buscarMetodo(
-    metodos: MetodoConServicios[],
-    pedido: string,
-  ): MetodoConServicios {
+  private buscarMetodo(metodos: MetodoConServicios[], pedido: string): MetodoConServicios {
     const buscado = pedido.trim().toLowerCase();
 
     const metodo =
@@ -232,10 +212,7 @@ export class BusquedaMasivaAgenteService {
    * y devuelva el método equivocado, que es un fallo silencioso: la búsqueda
    * responde, con las agendas de otro método.
    */
-  private deducirMetodo(
-    metodos: MetodoConServicios[],
-    servicioPedido: string,
-  ): MetodoConServicios {
+  private deducirMetodo(metodos: MetodoConServicios[], servicioPedido: string): MetodoConServicios {
     const buscado = servicioPedido.trim().toLowerCase();
     const codigo = metodoDeServicio(servicioPedido);
 
@@ -244,14 +221,10 @@ export class BusquedaMasivaAgenteService {
       return porTabla;
     }
 
-    const porCodigo = metodos.find((m) =>
-      m.servicios.some((s) => s.code.toLowerCase() === buscado),
-    );
+    const porCodigo = metodos.find((m) => m.servicios.some((s) => s.code.toLowerCase() === buscado));
     if (porCodigo) return porCodigo;
 
-    const porNombre = metodos.find((m) =>
-      m.servicios.some((s) => s.nombre?.toLowerCase().includes(buscado)),
-    );
+    const porNombre = metodos.find((m) => m.servicios.some((s) => s.nombre?.toLowerCase().includes(buscado)));
     if (porNombre) return porNombre;
 
     throw new NotFoundException(
@@ -271,19 +244,14 @@ export class BusquedaMasivaAgenteService {
   }
 
   /** Sin orígenes indicados se buscan todos: el agente no conoce el catálogo */
-  private async resolverOrigenes(
-    pedidos: string | undefined,
-    pais: string,
-  ): Promise<string[]> {
+  private async resolverOrigenes(pedidos: string | undefined, pais: string): Promise<string[]> {
     const disponibles = await this.masivo.listarOrigenes(pais);
 
     if (!pedidos?.trim()) {
       return disponibles.map((o) => o.code);
     }
 
-    const pedidosLimpios = partirLista(pedidos).map((x) =>
-      x.trim().toLowerCase(),
-    );
+    const pedidosLimpios = partirLista(pedidos).map((x) => x.trim().toLowerCase());
 
     const elegidos = disponibles
       .filter(

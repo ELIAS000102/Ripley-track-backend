@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TransfService } from '../../../configuracion/transf-suc/transf.service.js';
 import type { DiasDisponibles } from '../../../configuracion/transf-suc/interfaces/transf.interface.js';
 import { ContextoAuditoria } from '../../../auditoria/contexto-auditoria.service.js';
@@ -11,10 +6,7 @@ import type { UsuarioAutenticado } from '../../../auth/interfaces/auth.interface
 import { AlmacenesAgenteService } from '../../almacenes.service.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarTransferenciaDto } from '../../dto/edicion.dto.js';
-import type {
-  DestinoEditado,
-  TransferenciaEditada,
-} from '../../interfaces/edicion.interface.js';
+import type { DestinoEditado, TransferenciaEditada } from '../../interfaces/edicion.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { DIAS } from '../../constantes/dias.constants.js';
@@ -54,21 +46,13 @@ export class EditarTransferenciaAgenteService {
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
-  async editar(
-    usuario: UsuarioAutenticado,
-    dto: EditarTransferenciaDto,
-  ): Promise<TransferenciaEditada> {
+  async editar(usuario: UsuarioAutenticado, dto: EditarTransferenciaDto): Promise<TransferenciaEditada> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
     const dias = this.resolverDias(dto.dias);
 
-    if (
-      dto.habilitada === undefined &&
-      dto.preparacion === undefined &&
-      dto.transito === undefined &&
-      !dias
-    ) {
+    if (dto.habilitada === undefined && dto.preparacion === undefined && dto.transito === undefined && !dias) {
       throw new BadRequestException(
         'No hay nada que cambiar: indica "habilitada", "preparacion", "transito" o "dias".',
       );
@@ -82,8 +66,7 @@ export class EditarTransferenciaAgenteService {
     const { relaciones } = await this.transf.listarRelaciones(origen.id, pais);
 
     this.logger.warn(
-      `EDICIÓN del agente — ${usuario.email} cambia ${pedidos.length} ` +
-        `transferencia(s) desde ${origen.code}`,
+      `EDICIÓN del agente — ${usuario.email} cambia ${pedidos.length} ` + `transferencia(s) desde ${origen.code}`,
     );
 
     // Se resuelven todos antes de escribir ninguno: si un destino está mal
@@ -148,18 +131,14 @@ export class EditarTransferenciaAgenteService {
         };
       }
 
-      const nueva = despues.find(
-        (x) => x.relacionId === r.relacion!.relacionId,
-      );
+      const nueva = despues.find((x) => x.relacionId === r.relacion!.relacionId);
       const etiqueta = r.relacion.destino ?? 'sin nombre';
 
       return {
         destino: etiqueta,
         antes: r.antes!,
         despues: nueva ? this.estado(nueva) : r.antes!,
-        ...(r.cambia
-          ? {}
-          : { error: 'Ya estaba así. No he cambiado nada aquí.' }),
+        ...(r.cambia ? {} : { error: 'Ya estaba así. No he cambiado nada aquí.' }),
       };
     });
 
@@ -208,10 +187,7 @@ export class EditarTransferenciaAgenteService {
       );
     }
 
-    return lista.filter(
-      (d, i) =>
-        lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i,
-    );
+    return lista.filter((d, i) => lista.findIndex((x) => x.toLowerCase() === d.toLowerCase()) === i);
   }
 
   // ---------- Quién es quién ----------
@@ -221,9 +197,7 @@ export class EditarTransferenciaAgenteService {
     const { almacenes } = await this.transf.buscarAlmacen(termino, pais);
 
     if (!almacenes.length) {
-      throw new NotFoundException(
-        `No se encontró ningún almacén de origen que coincida con "${termino}"`,
-      );
+      throw new NotFoundException(`No se encontró ningún almacén de origen que coincida con "${termino}"`);
     }
 
     return almacenes.find((a) => a.code === termino.trim()) ?? almacenes[0];
@@ -237,21 +211,14 @@ export class EditarTransferenciaAgenteService {
    * "1121 - Suc. Chorrillos" son sitios distintos— y elegir por parecido sería
    * cambiar la relación de otro almacén.
    */
-  private unicoDestino<T extends { destino?: string }>(
-    relaciones: T[],
-    termino: string,
-    origen: { code: string },
-  ): T {
+  private unicoDestino<T extends { destino?: string }>(relaciones: T[], termino: string, origen: { code: string }): T {
     const buscado = termino.trim().toLowerCase();
-    const codigoDe = (d?: string) =>
-      (d ?? '').split(' - ')[0].trim().toLowerCase();
+    const codigoDe = (d?: string) => (d ?? '').split(' - ')[0].trim().toLowerCase();
 
     const porCodigo = relaciones.filter((r) => codigoDe(r.destino) === buscado);
     if (porCodigo.length === 1) return porCodigo[0];
 
-    const porNombre = relaciones.filter((r) =>
-      (r.destino ?? '').toLowerCase().includes(buscado),
-    );
+    const porNombre = relaciones.filter((r) => (r.destino ?? '').toLowerCase().includes(buscado));
 
     if (porNombre.length === 1) return porNombre[0];
 
@@ -264,9 +231,7 @@ export class EditarTransferenciaAgenteService {
 
     throw new BadRequestException(
       `"${termino}" coincide con ${porNombre.length} destinos del origen ${origen.code} y no voy a elegir por ti. ` +
-        `Indica el código exacto. Los que coinciden: ${porNombre
-          .map((r) => r.destino)
-          .join(', ')}`,
+        `Indica el código exacto. Los que coinciden: ${porNombre.map((r) => r.destino).join(', ')}`,
     );
   }
 
@@ -348,9 +313,7 @@ export class EditarTransferenciaAgenteService {
   private diasEnEspanol(disponibles?: DiasDisponibles): string {
     if (!disponibles) return 'sin días configurados';
 
-    const activos = DIAS.filter(([clave]) => disponibles[clave]).map(
-      ([, nombres]) => nombres[0],
-    );
+    const activos = DIAS.filter(([clave]) => disponibles[clave]).map(([, nombres]) => nombres[0]);
 
     if (!activos.length) return 'ningún día';
     if (activos.length === DIAS.length) return 'todos los días';
@@ -366,11 +329,9 @@ export class EditarTransferenciaAgenteService {
   ): boolean {
     return (
       (dto.habilitada !== undefined && dto.habilitada !== antes.habilitada) ||
-      (dto.preparacion !== undefined &&
-        dto.preparacion !== antes.preparacion) ||
+      (dto.preparacion !== undefined && dto.preparacion !== antes.preparacion) ||
       (dto.transito !== undefined && dto.transito !== antes.transito) ||
-      (!!dias &&
-        DIAS.some(([clave]) => !!dias[clave] !== !!diasActuales?.[clave]))
+      (!!dias && DIAS.some(([clave]) => !!dias[clave] !== !!diasActuales?.[clave]))
     );
   }
 

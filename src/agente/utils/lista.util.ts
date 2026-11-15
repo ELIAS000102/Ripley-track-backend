@@ -48,7 +48,5 @@ export function partirLista(valor: string | undefined): string[] {
 export function partirListaUnica(valor: string | undefined): string[] {
   const lista = partirLista(valor);
 
-  return lista.filter(
-    (x, i) => lista.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i,
-  );
+  return lista.filter((x, i) => lista.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
 }

@@ -1,22 +1,8 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  PayloadTooLargeException,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, PayloadTooLargeException, Post, Put } from '@nestjs/common';
 import { Usuario } from '../auth/decorators/usuario.decorator.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { ChatsService } from './chats.service.js';
-import {
-  AgregarMensajeDto,
-  CrearChatDto,
-  ReemplazarMensajeDto,
-  RenombrarChatDto,
-} from './dto/chats.dto.js';
+import { AgregarMensajeDto, CrearChatDto, ReemplazarMensajeDto, RenombrarChatDto } from './dto/chats.dto.js';
 
 /**
  * Conversaciones con el agente.
@@ -41,19 +27,13 @@ export class ChatsController {
 
   /** POST /chats — abre una conversación nueva */
   @Post()
-  async crear(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Body() body: CrearChatDto,
-  ) {
+  async crear(@Usuario() usuario: UsuarioAutenticado, @Body() body: CrearChatDto) {
     return this.chats.crear(usuario.id, body.titulo);
   }
 
   /** GET /chats/:id/mensajes — el historial de una conversación */
   @Get(':id/mensajes')
-  async mensajes(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Param('id') id: string,
-  ) {
+  async mensajes(@Usuario() usuario: UsuarioAutenticado, @Param('id') id: string) {
     return this.chats.mensajes(usuario.id, id);
   }
 
@@ -65,11 +45,7 @@ export class ChatsController {
    * para no acoplar el guardado a que n8n esté bien configurado.
    */
   @Post(':id/mensajes')
-  async agregar(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Param('id') id: string,
-    @Body() body: AgregarMensajeDto,
-  ) {
+  async agregar(@Usuario() usuario: UsuarioAutenticado, @Param('id') id: string, @Body() body: AgregarMensajeDto) {
     return this.chats.agregarMensaje(usuario.id, id, body.rol, body.texto, this.datosAcotados(body.datos));
   }
 
@@ -93,11 +69,7 @@ export class ChatsController {
 
   /** PUT /chats/:id — cambia el título */
   @Put(':id')
-  async renombrar(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Param('id') id: string,
-    @Body() body: RenombrarChatDto,
-  ) {
+  async renombrar(@Usuario() usuario: UsuarioAutenticado, @Param('id') id: string, @Body() body: RenombrarChatDto) {
     return this.chats.renombrar(usuario.id, id, body.titulo);
   }
 
@@ -108,10 +80,7 @@ export class ChatsController {
    * un dato del propio usuario sobre sí mismo.
    */
   @Delete(':id')
-  async eliminar(
-    @Usuario() usuario: UsuarioAutenticado,
-    @Param('id') id: string,
-  ) {
+  async eliminar(@Usuario() usuario: UsuarioAutenticado, @Param('id') id: string) {
     return this.chats.eliminar(usuario.id, id);
   }
 

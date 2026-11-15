@@ -67,10 +67,16 @@ export class MotorV3Service {
     }
     if (pendiente?.contexto?.pregunta) {
       if (esRespuesta(pendiente.contexto.pregunta, { texto: dto.mensaje })) {
-        yield* this.recorrer(usuario, () => this.agente.respuesta(usuario, pendiente.id, { texto: dto.mensaje }), dto.peticion_id);
+        yield* this.recorrer(
+          usuario,
+          () => this.agente.respuesta(usuario, pendiente.id, { texto: dto.mensaje }),
+          dto.peticion_id,
+        );
         return;
       }
-      await this.agente.cerrarPendiente(usuario, pendiente.id).catch((e: Error) => this.logger.warn(`No se pudo cerrar el turno ${pendiente.id}: ${e.message}`));
+      await this.agente
+        .cerrarPendiente(usuario, pendiente.id)
+        .catch((e: Error) => this.logger.warn(`No se pudo cerrar el turno ${pendiente.id}: ${e.message}`));
     }
     yield* this.recorrer(usuario, () => this.agente.crear(usuario, dto), dto.peticion_id);
   }
@@ -79,7 +85,12 @@ export class MotorV3Service {
    * Lo que contestó la persona a la pregunta de un turno: sigue donde estaba.
    * Si lo que escribió no es una respuesta a esa pregunta, es un mensaje nuevo.
    */
-  async *contestar(usuario: UsuarioAutenticado, turnoId: string, dto: RespuestaPersonaDto, peticionId?: string): AsyncGenerator<EventoV3> {
+  async *contestar(
+    usuario: UsuarioAutenticado,
+    turnoId: string,
+    dto: RespuestaPersonaDto,
+    peticionId?: string,
+  ): AsyncGenerator<EventoV3> {
     let turno: Awaited<ReturnType<AgenteV3Service['obtener']>> | null = null;
     try {
       turno = await this.agente.obtener(usuario, turnoId);
@@ -89,7 +100,11 @@ export class MotorV3Service {
     const p = turno?.estado === 'pregunta' ? turno.contexto?.pregunta : null;
     if (turno && p && dto.texto && !esRespuesta(p, dto)) {
       await this.agente.cerrarPendiente(usuario, turnoId);
-      yield* this.recorrer(usuario, () => this.agente.crear(usuario, { mensaje: dto.texto!, chat_id: turno.chat_id, peticion_id: peticionId }), peticionId);
+      yield* this.recorrer(
+        usuario,
+        () => this.agente.crear(usuario, { mensaje: dto.texto!, chat_id: turno.chat_id, peticion_id: peticionId }),
+        peticionId,
+      );
       return;
     }
     yield* this.recorrer(usuario, () => this.agente.respuesta(usuario, turnoId, dto), peticionId);
@@ -107,7 +122,11 @@ export class MotorV3Service {
     return lista;
   }
 
-  private async *recorrer(usuario: UsuarioAutenticado, primero: () => Promise<SalidaRuta>, peticionId?: string): AsyncGenerator<EventoV3> {
+  private async *recorrer(
+    usuario: UsuarioAutenticado,
+    primero: () => Promise<SalidaRuta>,
+    peticionId?: string,
+  ): AsyncGenerator<EventoV3> {
     let s: SalidaRuta;
     try {
       s = await primero();
@@ -121,7 +140,11 @@ export class MotorV3Service {
       try {
         // "Detener": el turno se cierra donde esté (también mientras piensa un modelo)
         // Aplicando, lo corta `aplicar` mismo (para responder con lo que ya se aplicó)
-        if (peticionId && this.interrupcion.estaInterrumpida(peticionId) && !['responder', 'preguntar', 'fin', 'aplicar'].includes(s.camino)) {
+        if (
+          peticionId &&
+          this.interrupcion.estaInterrumpida(peticionId) &&
+          !['responder', 'preguntar', 'fin', 'aplicar'].includes(s.camino)
+        ) {
           s = await this.agente.detener(usuario, s.turno_id);
         }
         switch (s.camino) {
@@ -133,7 +156,10 @@ export class MotorV3Service {
             const modelo = s.modelo!;
             yield { tipo: 'etapa', etapa: s.camino, modelo: modelo.nombre };
             const dicho = await this.gemini.generar(modelo, s.prompt!);
-            const dto: SalidaModeloDto = { ...dicho, modelo: { cuenta: modelo.cuenta, nombre: modelo.nombre } } as SalidaModeloDto;
+            const dto: SalidaModeloDto = {
+              ...dicho,
+              modelo: { cuenta: modelo.cuenta, nombre: modelo.nombre },
+            } as SalidaModeloDto;
             s = await this.agente[LEER[s.camino]](usuario, s.turno_id, dto);
             break;
           }

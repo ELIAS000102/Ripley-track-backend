@@ -1,9 +1,4 @@
-import {
-  BadGatewayException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
 import { CatalogosRipleyService } from '../../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../../common/ripley/ripley-http.service.js';
@@ -15,10 +10,7 @@ import {
   recortarDesde,
   soloFecha,
 } from '../../common/ripley/utils/date.util.js';
-import {
-  resolverTipoDeAgenda,
-  unicaPorServicio,
-} from '../../common/ripley/utils/agenda.util.js';
+import { resolverTipoDeAgenda, unicaPorServicio } from '../../common/ripley/utils/agenda.util.js';
 import { ActualizarRecepcionBodyDto } from './dto/actualizar-recepcion.dto.js';
 import type {
   CapacityByDay,
@@ -164,24 +156,16 @@ export class RecepcionService {
     officeCode: string,
     pais: string,
   ): Promise<{ oficina: OfficeRow; filas: ReceptionScheduleRow[] }> {
-    const oficina = await this.catalogos.oficinaPorCodigo(
-      officeCode,
-      pais,
-      'opl',
-    );
+    const oficina = await this.catalogos.oficinaPorCodigo(officeCode, pais, 'opl');
 
     const filas = await this.catalogos.agendasDeRecepcion(oficina.id, pais);
 
     const suyas = filas.filter((fila) =>
-      (fila.oplOffices ?? []).some(
-        (o) => o.id === oficina.id || o.code === oficina.code,
-      ),
+      (fila.oplOffices ?? []).some((o) => o.id === oficina.id || o.code === oficina.code),
     );
 
     if (filas.length !== suyas.length) {
-      this.logger.warn(
-        `Recepción ${officeCode}: ${filas.length - suyas.length} agendas de otra oficina descartadas`,
-      );
+      this.logger.warn(`Recepción ${officeCode}: ${filas.length - suyas.length} agendas de otra oficina descartadas`);
     }
 
     return { oficina, filas: suyas };
@@ -248,12 +232,7 @@ export class RecepcionService {
    * Una agenda que falla se anota y no arrastra a las demás: que la tercera no
    * tenga capacidades no puede dejar sin respuesta a las otras.
    */
-  async capacidadesDeLaOficina(
-    officeCode: string,
-    pais: string,
-    desde: string,
-    servicio?: string,
-  ) {
+  async capacidadesDeLaOficina(officeCode: string, pais: string, desde: string, servicio?: string) {
     const [{ filas }, servicios] = await Promise.all([
       this.traerFilas(officeCode, pais),
       this.catalogos.mapaServicios(pais),
@@ -355,20 +334,12 @@ export class RecepcionService {
    * Sin capacidad creada no hay días. Ripley responde `404` para las agendas
    * apartadas, y eso no es un fallo: es una agenda vacía.
    */
-  private async diasDeLaAgenda(
-    fila: ReceptionScheduleRow,
-    desde: string,
-    pais: string,
-  ): Promise<CapacityByDay[]> {
+  private async diasDeLaAgenda(fila: ReceptionScheduleRow, desde: string, pais: string): Promise<CapacityByDay[]> {
     const capacityId = idDeCapacidad(fila);
     if (!capacityId) return [];
 
     try {
-      const capacidades = await this.catalogos.capacidadesDeRecepcion(
-        capacityId,
-        pais,
-        desde,
-      );
+      const capacidades = await this.catalogos.capacidadesDeRecepcion(capacityId, pais, desde);
       return capacidades?.capacityByDayArray ?? [];
     } catch (e) {
       if (e instanceof RipleyApiError && e.esNoEncontrado) return [];
@@ -391,30 +362,19 @@ export class RecepcionService {
     dias?: number,
     scheduleId?: string,
   ) {
-    const { fila, typeOfService: servicio } = await this.elegirAgenda(
-      officeCode,
-      typeOfService,
-      scheduleId,
-      pais,
-    );
+    const { fila, typeOfService: servicio } = await this.elegirAgenda(officeCode, typeOfService, scheduleId, pais);
 
     const desde = from ?? isoToRipleyDate(hoyEnPais(pais));
     const todos = await this.diasDeLaAgenda(fila, desde, pais);
 
-    this.logger.log(
-      `Recepción ${officeCode} — agenda "${fila.name}" con ${todos.length} días desde ${desde}`,
-    );
+    this.logger.log(`Recepción ${officeCode} — agenda "${fila.name}" con ${todos.length} días desde ${desde}`);
 
     return {
       agenda: this.datosDeLaAgenda(fila, servicio),
       // El endpoint ya filtra por fecha, pero sigue devolviendo hasta 2030:
       // "dias" es lo que corta
-      dias: dias
-        ? recortarDesde(todos, desde, pais, dias, (d) => soloFecha(d.day))
-        : todos,
-      aviso: todos.length
-        ? undefined
-        : 'Esta agenda no tiene capacidades configuradas.',
+      dias: dias ? recortarDesde(todos, desde, pais, dias, (d) => soloFecha(d.day)) : todos,
+      aviso: todos.length ? undefined : 'Esta agenda no tiene capacidades configuradas.',
     };
   }
 
@@ -432,12 +392,7 @@ export class RecepcionService {
    * Se pide el `scheduleId` de la agenda y no el de su capacidad: quien edita
    * ya tiene el primero de haberla listado, y el segundo se resuelve aquí.
    */
-  async actualizar(
-    officeCode: string,
-    scheduleId: string,
-    body: ActualizarRecepcionBodyDto,
-    pais = 'PE',
-  ) {
+  async actualizar(officeCode: string, scheduleId: string, body: ActualizarRecepcionBodyDto, pais = 'PE') {
     const agenda = await this.prepararAgenda(officeCode, scheduleId, pais);
     return this.guardarDia(agenda, body, pais);
   }
@@ -450,17 +405,8 @@ export class RecepcionService {
    * eran treinta y una relecturas de una respuesta que trae dos mil días por
    * agenda.
    */
-  async prepararAgenda(
-    officeCode: string,
-    scheduleId: string,
-    pais = 'PE',
-  ): Promise<AgendaPreparada> {
-    const { oficina, fila, typeOfService } = await this.elegirAgenda(
-      officeCode,
-      undefined,
-      scheduleId,
-      pais,
-    );
+  async prepararAgenda(officeCode: string, scheduleId: string, pais = 'PE'): Promise<AgendaPreparada> {
+    const { oficina, fila, typeOfService } = await this.elegirAgenda(officeCode, undefined, scheduleId, pais);
 
     const capacityId = idDeCapacidad(fila);
 
@@ -482,11 +428,7 @@ export class RecepcionService {
    * servicio, unidad de medida y el código de la oficina. Nada de eso viaja en
    * la petición del cliente, porque escribirlo mal es escribir en otra agenda.
    */
-  async guardarDia(
-    agenda: AgendaPreparada,
-    body: ActualizarRecepcionBodyDto,
-    pais = 'PE',
-  ) {
+  async guardarDia(agenda: AgendaPreparada, body: ActualizarRecepcionBodyDto, pais = 'PE') {
     const { day, assigned, active } = body;
     const { fila, oficina, capacityId, typeOfService } = agenda;
 
@@ -497,9 +439,7 @@ export class RecepcionService {
     const diaActual = dias.find((d) => soloFecha(d.day) === soloFecha(day));
 
     if (!diaActual) {
-      throw new NotFoundException(
-        `No se encontró el día ${soloFecha(day)} en la agenda "${fila.name}"`,
-      );
+      throw new NotFoundException(`No se encontró el día ${soloFecha(day)} en la agenda "${fila.name}"`);
     }
 
     // 2. Payload. `parsedDate` y `parsedDay` salen de `day` y son redundantes,
@@ -541,9 +481,7 @@ export class RecepcionService {
       { scheduleId: fila.id, day: diaActual.day, assigned, active },
     );
 
-    this.logger.log(
-      `Actualizando recepción de ${oficina.code} — "${fila.name}", día ${diaActual.day}`,
-    );
+    this.logger.log(`Actualizando recepción de ${oficina.code} — "${fila.name}", día ${diaActual.day}`);
 
     const resultado = await this.ripley.put<ResultadoEscritura>(
       `${this.ripley.endpoint('capacitiesReception')}/${capacityId}`,

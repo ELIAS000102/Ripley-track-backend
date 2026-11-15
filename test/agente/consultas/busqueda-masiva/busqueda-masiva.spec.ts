@@ -70,9 +70,7 @@ function armar() {
 
   const masivo = {
     listarMetodosEntrega: vi.fn().mockResolvedValue(CATALOGO),
-    listarOrigenes: vi
-      .fn()
-      .mockResolvedValue([{ code: '20026', nombre: 'CD VES' }]),
+    listarOrigenes: vi.fn().mockResolvedValue([{ code: '20026', nombre: 'CD VES' }]),
     consultar,
   } as unknown as OplMasivoService;
 
@@ -134,13 +132,9 @@ describe('Búsqueda masiva: el método se deduce del servicio', () => {
   it('explica qué servicios hay cuando ninguno coincide', async () => {
     const { servicio } = armar();
 
-    await expect(
-      servicio.buscar(USUARIO, { servicio: 'ZZ' } as never),
-    ).rejects.toThrow(NotFoundException);
+    await expect(servicio.buscar(USUARIO, { servicio: 'ZZ' } as never)).rejects.toThrow(NotFoundException);
 
-    await expect(
-      servicio.buscar(USUARIO, { servicio: 'ZZ' } as never),
-    ).rejects.toThrow(/SE\/ST/);
+    await expect(servicio.buscar(USUARIO, { servicio: 'ZZ' } as never)).rejects.toThrow(/SE\/ST/);
   });
 });
 
@@ -215,7 +209,10 @@ describe('Búsqueda masiva: lista entera y varios servicios', () => {
 describe('Búsqueda masiva: varios servicios sin cruce', () => {
   it('devuelve una búsqueda por servicio y nada más', async () => {
     const { servicio, consultar } = armar();
-    consultar.mockResolvedValue({ total: 1, agendas: [{ opl: '1130', agenda: 'A', zona: 'A', isActive: true, enabledForCheckout: true }] });
+    consultar.mockResolvedValue({
+      total: 1,
+      agendas: [{ opl: '1130', agenda: 'A', zona: 'A', isActive: true, enabledForCheckout: true }],
+    });
 
     const r = (await servicio.buscar(USUARIO, { servicio: 'SE, SD' } as never)) as BusquedaMasivaVarias;
 

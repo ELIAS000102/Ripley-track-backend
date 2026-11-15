@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
@@ -58,7 +53,8 @@ export interface FechasDeCodigo {
 
 const dentroDe = (fecha: string, v: VigenciaTienda) => v.desde <= fecha && fecha <= v.hasta;
 
-const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+const diasEntre = (a: string, b: string) =>
+  Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 
 /**
  * Los grupos de lead time de cada país. Un grupo tiene nombre, una breve
@@ -88,7 +84,9 @@ export class GruposLeadtimeService {
     return {
       pais,
       base: nombreBase(pais),
-      grupos: await Promise.all(filas.map(async (f) => ({ ...this.aGrupo(f), ...(await this.resumen(this.aGrupo(f))) }))),
+      grupos: await Promise.all(
+        filas.map(async (f) => ({ ...this.aGrupo(f), ...(await this.resumen(this.aGrupo(f))) })),
+      ),
     };
   }
 
@@ -117,7 +115,9 @@ export class GruposLeadtimeService {
     if (limpio.tipo !== anterior.tipo) {
       const { base, eventos } = await this.resumen(anterior);
       if (base || eventos.length) {
-        throw new BadRequestException(`El grupo "${anterior.nombre}" ya tiene ${anterior.tipo === 'matriz' ? 'matrices' : 'mallas'} cargadas: no puede cambiar de tipo. Crea otro grupo.`);
+        throw new BadRequestException(
+          `El grupo "${anterior.nombre}" ya tiene ${anterior.tipo === 'matriz' ? 'matrices' : 'mallas'} cargadas: no puede cambiar de tipo. Crea otro grupo.`,
+        );
       }
     }
     const { data, error } = await this.supabase.admin
@@ -127,7 +127,10 @@ export class GruposLeadtimeService {
       .select('*')
       .single();
     if (error) this.fallo(error, 'guardar el grupo');
-    this.auditoria.registrarCambio({ nombre: anterior.nombre, descripcion: anterior.descripcion, tipo: anterior.tipo }, limpio);
+    this.auditoria.registrarCambio(
+      { nombre: anterior.nombre, descripcion: anterior.descripcion, tipo: anterior.tipo },
+      limpio,
+    );
     return this.aGrupo(data as FilaGrupo);
   }
 
@@ -159,13 +162,18 @@ export class GruposLeadtimeService {
       }
       return grupo;
     }
-    const deMatrices = (await this.leer(pais)).filter((f) => f.tipo === 'matriz').sort((a, b) => a.creado_en.localeCompare(b.creado_en));
+    const deMatrices = (await this.leer(pais))
+      .filter((f) => f.tipo === 'matriz')
+      .sort((a, b) => a.creado_en.localeCompare(b.creado_en));
     return deMatrices[0] ? this.aGrupo(deMatrices[0]) : null;
   }
 
   /** Los grupos de matrices del país, para elegir con cuál sale el reporte ST */
   async gruposDeMatrices(pais: string) {
-    return (await this.leer(pais)).filter((f) => f.tipo === 'matriz').sort((a, b) => a.creado_en.localeCompare(b.creado_en)).map((f) => this.aGrupo(f));
+    return (await this.leer(pais))
+      .filter((f) => f.tipo === 'matriz')
+      .sort((a, b) => a.creado_en.localeCompare(b.creado_en))
+      .map((f) => this.aGrupo(f));
   }
 
   // ---------- El lead time de todo el grupo ----------
@@ -196,33 +204,66 @@ export class GruposLeadtimeService {
   }
 
   private async conMatrices(grupo: GrupoLeadtime, fecha: string): Promise<FechasDeCodigo[]> {
-    const [base, eventos] = await Promise.all([this.matrices.baseVigente(grupo), this.matrices.eventosConVigencia(grupo)]);
-    const codigos = [...new Set([...(base?.porCodigo.keys() ?? []), ...eventos.flatMap((e) => [...e.porCodigo.keys()])])].sort();
+    const [base, eventos] = await Promise.all([
+      this.matrices.baseVigente(grupo),
+      this.matrices.eventosConVigencia(grupo),
+    ]);
+    const codigos = [
+      ...new Set([...(base?.porCodigo.keys() ?? []), ...eventos.flatMap((e) => [...e.porCodigo.keys()])]),
+    ].sort();
     return codigos.map((codigo) => {
       for (const e of eventos) {
         const tienda = e.porCodigo.get(codigo);
         const v = e.vigencias.get(codigo);
         if (!tienda || !v) continue;
         const f = fechasDeVenta(tienda, fecha);
-        if (f && dentroDe(f.recepcion, v)) return { codigo, nombre: tienda.tienda, usada: e.nombre, ...f, diasHastaDespacho: diasEntre(fecha, f.despacho) };
+        if (f && dentroDe(f.recepcion, v))
+          return {
+            codigo,
+            nombre: tienda.tienda,
+            usada: e.nombre,
+            ...f,
+            diasHastaDespacho: diasEntre(fecha, f.despacho),
+          };
       }
       const tienda = base?.porCodigo.get(codigo);
-      if (!tienda) return { codigo, nombre: null, error: `Solo está en un evento, y ese día no le toca: no hay matriz ${nombreBase(grupo.pais)} para ella.` };
+      if (!tienda)
+        return {
+          codigo,
+          nombre: null,
+          error: `Solo está en un evento, y ese día no le toca: no hay matriz ${nombreBase(grupo.pais)} para ella.`,
+        };
       const f = fechasDeVenta(tienda, fecha);
       if (!f) return { codigo, nombre: tienda.tienda, error: 'No tiene ningún día de transferencia con recepción.' };
-      return { codigo, nombre: tienda.tienda, usada: nombreBase(grupo.pais), ...f, diasHastaDespacho: diasEntre(fecha, f.despacho) };
+      return {
+        codigo,
+        nombre: tienda.tienda,
+        usada: nombreBase(grupo.pais),
+        ...f,
+        diasHastaDespacho: diasEntre(fecha, f.despacho),
+      };
     });
   }
 
   private async conMallas(grupo: GrupoLeadtime, fecha: string): Promise<FechasDeCodigo[]> {
     const [base, eventos] = await Promise.all([this.mallas.baseVigente(grupo), this.mallas.eventosConVigencia(grupo)]);
-    const codigos = [...new Set([...(base?.porCodigo.keys() ?? []), ...eventos.flatMap((e) => [...e.porCodigo.keys()])])]
-      .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+    const codigos = [
+      ...new Set([...(base?.porCodigo.keys() ?? []), ...eventos.flatMap((e) => [...e.porCodigo.keys()])]),
+    ].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
     return codigos.map((codigo) => {
       const [deOpl, flujo] = codigo.split('/');
-      const evento = eventos.find((e) => e.porCodigo.has(codigo) && e.vigencias.has(codigo) && dentroDe(fecha, e.vigencias.get(codigo)!));
+      const evento = eventos.find(
+        (e) => e.porCodigo.has(codigo) && e.vigencias.has(codigo) && dentroDe(fecha, e.vigencias.get(codigo)!),
+      );
       const opl = evento ? evento.porCodigo.get(codigo)! : base?.porCodigo.get(codigo);
-      if (!opl) return { codigo, opl: deOpl, servicio: flujo, nombre: null, error: `Solo está en un evento, y ese día no le toca: no hay malla ${nombreBase(grupo.pais)} para ella.` };
+      if (!opl)
+        return {
+          codigo,
+          opl: deOpl,
+          servicio: flujo,
+          nombre: null,
+          error: `Solo está en un evento, y ese día no le toca: no hay malla ${nombreBase(grupo.pais)} para ella.`,
+        };
       const f = fechasDeVentaOpl(opl, fecha);
       const datos = { codigo, opl: opl.opl, servicio: opl.servicio, nombre: opl.nombre || null };
       if (!f) return { ...datos, error: 'No tiene ningún día de venta en la malla.' };
@@ -238,10 +279,20 @@ export class GruposLeadtimeService {
     const plural = grupo.tipo === 'matriz' ? 'tiendas' : 'opls';
     try {
       const [base, eventos] = await Promise.all([servicio.cabeceraBase(grupo), servicio.eventos(grupo)]);
-      const datos = (c: CabeceraVersion) => ({ cargadoEn: c.cargadoEn, archivo: c.archivo, codigos: (c as unknown as Record<string, number>)[plural] });
+      const datos = (c: CabeceraVersion) => ({
+        cargadoEn: c.cargadoEn,
+        archivo: c.archivo,
+        codigos: (c as unknown as Record<string, number>)[plural],
+      });
       return {
         base: base ? { nombre: nombreBase(grupo.pais), ...datos(base) } : null,
-        eventos: eventos.map((e) => ({ nombre: e.nombre, ...datos(e), conVigencia: e.conVigencia, desde: e.desde, hasta: e.hasta })),
+        eventos: eventos.map((e) => ({
+          nombre: e.nombre,
+          ...datos(e),
+          conVigencia: e.conVigencia,
+          desde: e.desde,
+          hasta: e.hasta,
+        })),
       };
     } catch (e) {
       this.logger.warn(`Grupo ${grupo.id} sin resumen: ${(e as Error).message}`);
@@ -259,13 +310,24 @@ export class GruposLeadtimeService {
   }
 
   private async leer(pais: string): Promise<FilaGrupo[]> {
-    const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('pais', pais).order('nombre', { ascending: true });
+    const { data, error } = await this.supabase.admin
+      .from(TABLA)
+      .select('*')
+      .eq('pais', pais)
+      .order('nombre', { ascending: true });
     if (error) this.fallo(error, 'leer los grupos');
     return (data ?? []) as FilaGrupo[];
   }
 
   private aGrupo(f: FilaGrupo): GrupoLeadtime {
-    return { id: f.id, pais: f.pais, nombre: f.nombre, descripcion: f.descripcion ?? '', tipo: f.tipo, creadoEn: f.creado_en };
+    return {
+      id: f.id,
+      pais: f.pais,
+      nombre: f.nombre,
+      descripcion: f.descripcion ?? '',
+      tipo: f.tipo,
+      creadoEn: f.creado_en,
+    };
   }
 
   private fallo(error: { code?: string; message?: string }, accion: string): never {

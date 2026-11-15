@@ -21,7 +21,10 @@ export function preguntaDeNombre(m: EntidadMencion): Pregunta {
     etapa: 'entidades',
     nombre: m.texto,
     texto: `«${m.texto}» es más de un código: ¿cuál?`,
-    opciones: m.candidatos.map((c) => ({ id: c.codigo, texto: `${c.codigo} · ${String(c.nombre ?? '').replace(/^ripley\s+/i, '')} (${c.es_cd ? 'CD' : TIPO[c.tipo] ?? c.tipo})` })),
+    opciones: m.candidatos.map((c) => ({
+      id: c.codigo,
+      texto: `${c.codigo} · ${String(c.nombre ?? '').replace(/^ripley\s+/i, '')} (${c.es_cd ? 'CD' : (TIPO[c.tipo] ?? c.tipo)})`,
+    })),
     libre: 'O escribe el código',
   };
 }
@@ -47,7 +50,11 @@ export function preguntaOtraForma(etapa: Pregunta['etapa'], texto: string): Preg
 export function preguntaDeAprender(e: Ensenanza): Pregunta {
   const guardables = e.hechos.length > 0 && e.intocables.length < e.hechos.length;
   const lineas = [
-    guardables ? 'Me enseñaste esto. ¿Lo guardo para todos?' : e.hechos.length ? 'Entendí esto, pero no lo puedo guardar desde el chat:' : 'No me quedó claro lo que me enseñas.',
+    guardables
+      ? 'Me enseñaste esto. ¿Lo guardo para todos?'
+      : e.hechos.length
+        ? 'Entendí esto, pero no lo puedo guardar desde el chat:'
+        : 'No me quedó claro lo que me enseñas.',
     ...e.hechos.map((h) => `• ${hechoEnPalabras(h)}`),
     ...(e.choques.length ? [`Ojo: ${e.choques.join(' ')}`] : []),
     ...e.intocables,
@@ -62,22 +69,44 @@ export function preguntaDeAprender(e: Ensenanza): Pregunta {
   };
 }
 
-const plano = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const plano = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** Lo que contestó a "¿lo guardo?": sí, no, o una corrección (lo que escribió) */
-export function respuestaDeAprender(p: Pregunta, r: Contestacion): { si: true } | { no: true } | { corrige: string } | { nada: true } {
+export function respuestaDeAprender(
+  p: Pregunta,
+  r: Contestacion,
+): { si: true } | { no: true } | { corrige: string } | { nada: true } {
   if (r.cancelar) return { no: true };
   const elegida = r.respuestas ? String(r.respuestas[p.id] ?? '').trim() : '';
-  const texto = String(r.texto ?? '').trim().slice(0, 500);
+  const texto = String(r.texto ?? '')
+    .trim()
+    .slice(0, 500);
   if (elegida === 'si' && p.opciones.some((o) => o.id === 'si')) return { si: true };
   if (elegida === 'no') return { no: true };
   const t = plano(texto);
   if (/^(no|no ahora|ahora no|no gracias|no lo guardes|dejalo|mejor no)$/.test(t)) return { no: true };
-  if (/^(si|si guardalo|guardalo|dale|ok|vale|correcto|esta bien|si esta bien)$/.test(t) && p.opciones.some((o) => o.id === 'si')) return { si: true };
+  if (
+    /^(si|si guardalo|guardalo|dale|ok|vale|correcto|esta bien|si esta bien)$/.test(t) &&
+    p.opciones.some((o) => o.id === 'si')
+  )
+    return { si: true };
   return texto ? { corrige: texto } : { nada: true };
 }
 
-const planoTexto = (s: unknown) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+const planoTexto = (s: unknown) =>
+  String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /**
  * ¿Lo escrito contesta la pregunta pendiente, o es un mensaje nuevo?
@@ -107,21 +136,43 @@ export interface Contestacion {
  * Aplica lo que contestó la persona. Devuelve el contexto nuevo, o null si la
  * respuesta no contesta nada (se vuelve a preguntar) o si canceló.
  */
-export function aplicarRespuesta(contexto: ContextoTurno, r: Contestacion): { contexto: ContextoTurno } | { cancelar: true } | { nada: true } {
+export function aplicarRespuesta(
+  contexto: ContextoTurno,
+  r: Contestacion,
+): { contexto: ContextoTurno } | { cancelar: true } | { nada: true } {
   const p = contexto.pregunta;
   if (r.cancelar) return { cancelar: true };
   if (!p) return { nada: true };
   const elegida = r.respuestas ? String(r.respuestas[p.id] ?? '').trim() : '';
-  const texto = String(r.texto ?? '').trim().slice(0, 500);
+  const texto = String(r.texto ?? '')
+    .trim()
+    .slice(0, 500);
 
   if (p.etapa === 'entidades') {
     // Una opción, o un código escrito que sea una de ellas (o cualquiera, si lo escribe)
     const codigo = elegida || /\b(\d{3,6})\b/.exec(texto)?.[1] || '';
-    if (!codigo) return texto ? { contexto: { ...contexto, pregunta: null, aclaraciones: [...contexto.aclaraciones, texto] } } : { nada: true };
-    const entidades = contexto.entidades.map((e) => (e.porNombre && e.texto === p.nombre
-      ? { ...e, candidatos: e.candidatos.filter((c) => c.codigo === codigo).length ? e.candidatos.filter((c) => c.codigo === codigo) : [{ codigo, tipo: 'tienda' as const, es_cd: false, nombre: null, pais: contexto.pais }] }
-      : e));
-    return { contexto: { ...contexto, entidades, pregunta: null, aclaraciones: [...contexto.aclaraciones, `«${p.nombre}» es la ${codigo}`] } };
+    if (!codigo)
+      return texto
+        ? { contexto: { ...contexto, pregunta: null, aclaraciones: [...contexto.aclaraciones, texto] } }
+        : { nada: true };
+    const entidades = contexto.entidades.map((e) =>
+      e.porNombre && e.texto === p.nombre
+        ? {
+            ...e,
+            candidatos: e.candidatos.filter((c) => c.codigo === codigo).length
+              ? e.candidatos.filter((c) => c.codigo === codigo)
+              : [{ codigo, tipo: 'tienda' as const, es_cd: false, nombre: null, pais: contexto.pais }],
+          }
+        : e,
+    );
+    return {
+      contexto: {
+        ...contexto,
+        entidades,
+        pregunta: null,
+        aclaraciones: [...contexto.aclaraciones, `«${p.nombre}» es la ${codigo}`],
+      },
+    };
   }
 
   const dicho = elegida || texto;
@@ -131,9 +182,22 @@ export function aplicarRespuesta(contexto: ContextoTurno, r: Contestacion): { co
 
 /** "sí", "dale", "no", "mejor no"… → true / false; otra cosa, null */
 function siONo(t: string): boolean | null {
-  const x = t.replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (/^(si|si aplica(lo)?|si aplicar|si procede|procede|aplica(lo)?|dale|ok|vale|si deshacer|deshaz(lo)?|si deshazlo)$/.test(x)) return true;
-  if (/^(no|no ahora|ahora no|mejor no|no gracias|no aplicar|no lo apliques|dejalo|dejalo asi|dejarlo como esta|no dejarlo como esta|no dejarlo asi)$/.test(x)) return false;
+  const x = t
+    .replace(/[^a-z ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (
+    /^(si|si aplica(lo)?|si aplicar|si procede|procede|aplica(lo)?|dale|ok|vale|si deshacer|deshaz(lo)?|si deshazlo)$/.test(
+      x,
+    )
+  )
+    return true;
+  if (
+    /^(no|no ahora|ahora no|mejor no|no gracias|no aplicar|no lo apliques|dejalo|dejalo asi|dejarlo como esta|no dejarlo como esta|no dejarlo asi)$/.test(
+      x,
+    )
+  )
+    return false;
   return null;
 }
 
@@ -152,7 +216,10 @@ export function preguntaDeAplicar(cambios: PasoEjecutado[], deshace: boolean): P
     id: 'aplicar',
     etapa: 'aplicar',
     texto,
-    opciones: [{ id: 'si', texto: deshace ? 'Sí, deshacer' : 'Sí, aplicar' }, { id: 'no', texto: deshace ? 'No, dejarlo así' : 'No, dejarlo como está' }],
+    opciones: [
+      { id: 'si', texto: deshace ? 'Sí, deshacer' : 'Sí, aplicar' },
+      { id: 'no', texto: deshace ? 'No, dejarlo así' : 'No, dejarlo como está' },
+    ],
     libre: null,
   };
 }

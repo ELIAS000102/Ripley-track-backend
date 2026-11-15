@@ -11,10 +11,7 @@ import {
   tipoParaRipley,
   type OplPorDefecto,
 } from '../../constantes/simulacion.constants.js';
-import type {
-  ResultadoSimulacion,
-  SimulacionRespuesta,
-} from '../../interfaces/agente.interface.js';
+import type { ResultadoSimulacion, SimulacionRespuesta } from '../../interfaces/agente.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 import { resumirCalculo, type OpcionCalculada } from '../../utils/calculo-simulacion.util.js';
 import { enLotes } from '../../../common/utils/lotes.util.js';
@@ -83,10 +80,7 @@ export class SimulacionAgenteService {
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
-  async simular(
-    usuario: UsuarioAutenticado,
-    dto: SimularAgenteDto,
-  ): Promise<SimulacionRespuesta> {
+  async simular(usuario: UsuarioAutenticado, dto: SimularAgenteDto): Promise<SimulacionRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
@@ -114,17 +108,11 @@ export class SimulacionAgenteService {
     const fuente = await this.almacenes.fuente(dto.almacen, pais, 'la simulación').catch(() => null);
     const codigoAlmacen = fuente?.codigo;
 
-    this.logger.log(
-      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s) — ${pais}`,
-    );
+    this.logger.log(`Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s) — ${pais}`);
 
     const [almacen, producto] = await Promise.all([
       codigoAlmacen
-        ? this.unico(
-            this.simulacion.buscarAlmacenes(codigoAlmacen, pais),
-            codigoAlmacen,
-            'almacén',
-          )
+        ? this.unico(this.simulacion.buscarAlmacenes(codigoAlmacen, pais), codigoAlmacen, 'almacén')
         : Promise.resolve(null),
       this.sku(sku, pais),
     ]);
@@ -158,9 +146,7 @@ export class SimulacionAgenteService {
         metodo,
         almacen: almacen ? `${almacen.code} - ${almacen.nombre}` : null,
         ...(fuente?.porDefecto ? { almacenPorDefecto: true } : {}),
-        sku: producto.nombre
-          ? `${producto.sku} - ${producto.nombre}`
-          : String(producto.sku),
+        sku: producto.nombre ? `${producto.sku} - ${producto.nombre}` : String(producto.sku),
         cantidad,
       },
       resultados,
@@ -175,9 +161,7 @@ export class SimulacionAgenteService {
    * Ripley hubiera explicado exactamente qué pasaba.
    */
   private porQueNoHayFechas(resultados: ResultadoSimulacion[]): string {
-    const motivos = [
-      ...new Set(resultados.map((r) => r.error).filter(Boolean)),
-    ];
+    const motivos = [...new Set(resultados.map((r) => r.error).filter(Boolean))];
 
     if (motivos.length === 1) {
       return `Ninguna combinación devolvió fecha. Motivo: ${motivos[0]}`;
@@ -276,11 +260,7 @@ export class SimulacionAgenteService {
         destino.code,
         'operador logístico',
       );
-      const { regionId, communeId } = await this.geografia(
-        destino,
-        ctx.pais,
-        ctx.cache,
-      );
+      const { regionId, communeId } = await this.geografia(destino, ctx.pais, ctx.cache);
 
       const cruda = await this.simulacion.simular({
         deliveryMethod: ctx.metodo,
@@ -297,11 +277,7 @@ export class SimulacionAgenteService {
         pais: ctx.pais,
       });
 
-      return this.aplanar(
-        cruda,
-        `${destino.code} - ${operador.nombre}`,
-        destino.distrito,
-      );
+      return this.aplanar(cruda, `${destino.code} - ${operador.nombre}`, destino.distrito);
     } catch (e) {
       return [
         {
@@ -320,11 +296,7 @@ export class SimulacionAgenteService {
    * opción con fecha. El resto —agendas alternativas y el log de cómo se
    * calculó cada paso— no aporta nada a la respuesta.
    */
-  private aplanar(
-    cruda: unknown,
-    opl: string,
-    destino: string,
-  ): ResultadoSimulacion[] {
+  private aplanar(cruda: unknown, opl: string, destino: string): ResultadoSimulacion[] {
     const respuesta = cruda as {
       resultados?: Array<{
         typeOfService?: string;
@@ -377,11 +349,7 @@ export class SimulacionAgenteService {
    * caché dura lo que dura la petición: es un Map local, no estado compartido
    * entre usuarios.
    */
-  private async regionDe(
-    nombre: string,
-    pais: string,
-    cache: Map<string, { id: string; nombre: string }>,
-  ) {
+  private async regionDe(nombre: string, pais: string, cache: Map<string, { id: string; nombre: string }>) {
     const clave = `${pais}:${nombre.toLowerCase()}`;
     const guardada = cache.get(clave);
     if (guardada) return guardada;
@@ -408,18 +376,11 @@ export class SimulacionAgenteService {
    * esto se pedía el mismo documento de región once veces para buscar en él
    * once nombres diferentes. Es la llamada más pesada de las cuatro.
    */
-  private async distritosDe(
-    regionId: string,
-    pais: string,
-    cache: Map<string, Distrito[]>,
-  ): Promise<Distrito[]> {
+  private async distritosDe(regionId: string, pais: string, cache: Map<string, Distrito[]>): Promise<Distrito[]> {
     const guardados = cache.get(regionId);
     if (guardados) return guardados;
 
-    const distritos = await this.simulacion.listarDistritosDeRegion(
-      regionId,
-      pais,
-    );
+    const distritos = await this.simulacion.listarDistritosDeRegion(regionId, pais);
     cache.set(regionId, distritos);
     return distritos;
   }
@@ -429,9 +390,7 @@ export class SimulacionAgenteService {
     const buscado = destino.distrito.trim().toLowerCase();
 
     const todos = await this.distritosDe(region.id, pais, cache.distritos);
-    const distritos = todos.filter((c) =>
-      c.nombre?.toLowerCase().includes(buscado),
-    );
+    const distritos = todos.filter((c) => c.nombre?.toLowerCase().includes(buscado));
 
     if (!distritos.length) {
       // El nombre de la tienda no siempre es el de su distrito —"Atocongo" o
@@ -450,9 +409,7 @@ export class SimulacionAgenteService {
     // Si el nombre coincide en varias provincias se toma el de la del OPL, y
     // en su defecto el primero: son distritos homónimos, no ambigüedad real.
     const elegido =
-      distritos.find(
-        (d) => d.provincia?.toLowerCase() === destino.provincia.toLowerCase(),
-      ) ?? distritos[0];
+      distritos.find((d) => d.provincia?.toLowerCase() === destino.provincia.toLowerCase()) ?? distritos[0];
 
     return { regionId: region.id, communeId: elegido.id };
   }
@@ -479,17 +436,11 @@ export class SimulacionAgenteService {
   }
 
   /** Un código exacto gana a cualquier coincidencia parcial por nombre */
-  private async unico<T extends { code: string }>(
-    promesa: Promise<T[]>,
-    termino: string,
-    que: string,
-  ): Promise<T> {
+  private async unico<T extends { code: string }>(promesa: Promise<T[]>, termino: string, que: string): Promise<T> {
     const encontrados = await promesa;
 
     if (!encontrados.length) {
-      throw new NotFoundException(
-        `No se encontró ningún ${que} que coincida con "${termino}"`,
-      );
+      throw new NotFoundException(`No se encontró ningún ${que} que coincida con "${termino}"`);
     }
     return encontrados.find((x) => x.code === termino.trim()) ?? encontrados[0];
   }
@@ -518,5 +469,4 @@ export class SimulacionAgenteService {
         : `No existe el SKU ${buscado}`,
     );
   }
-
 }

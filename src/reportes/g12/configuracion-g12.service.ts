@@ -34,13 +34,20 @@ export class ConfiguracionG12Service {
    * Cuántos ítems de la configuración guardada tienen sus ids de Ripley
    * guardados, y cuántos se consultarán en la próxima actualización.
    */
-  async resumenIds(pais: string): Promise<{ items: number; conIds: number; sinIds: number; consultadosEn: string | null }> {
+  async resumenIds(
+    pais: string,
+  ): Promise<{ items: number; conIds: number; sinIds: number; consultadosEn: string | null }> {
     const config = await this.configuracion(pais);
     const firmas = firmasDeConfiguracion(config);
     const guardados = (await this.ids?.cargar(pais)) ?? new Map();
     const con = [...firmas].filter((f) => guardados.has(f));
     const fechas = con.map((f) => guardados.get(f)!.consultadoEn).sort();
-    return { items: firmas.size, conIds: con.length, sinIds: firmas.size - con.length, consultadosEn: fechas.at(-1) ?? null };
+    return {
+      items: firmas.size,
+      conIds: con.length,
+      sinIds: firmas.size - con.length,
+      consultadosEn: fechas.at(-1) ?? null,
+    };
   }
 
   /**
@@ -53,7 +60,10 @@ export class ConfiguracionG12Service {
     if (!this.ids) return { olvidados: 0 };
     if (!claves?.length) return { olvidados: await this.ids.olvidar(pais) };
     const config = await this.configuracion(pais);
-    const firmas = firmasDeConfiguracion({ ...config, componentes: config.componentes.filter((c) => claves.includes(c.clave)) });
+    const firmas = firmasDeConfiguracion({
+      ...config,
+      componentes: config.componentes.filter((c) => claves.includes(c.clave)),
+    });
     return { olvidados: await this.ids.olvidar(pais, [...firmas]) };
   }
 
@@ -99,12 +109,15 @@ export class ConfiguracionG12Service {
     // Con una actualización en curso, sus tablas saldrían de dos configuraciones distintas
     const enCurso = await this.historial.enCurso(pais);
     if (enCurso) {
-      throw new ConflictException(`${enCurso.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${pais}: guarda la configuración cuando termine (tus cambios siguen en el editor).`);
+      throw new ConflictException(
+        `${enCurso.usuarioEmail ?? 'Otra persona'} está actualizando el G12 de ${pais}: guarda la configuración cuando termine (tus cambios siguen en el editor).`,
+      );
     }
 
     const anterior = await this.configuraciones.leer<ConfiguracionG12>('g12', pais);
     // Sin Solicitudes en lo que llega, se conservan las guardadas: no se borran por omisión
-    if (!configuracion.solicitudes && anterior.configuracion?.solicitudes) configuracion.solicitudes = anterior.configuracion.solicitudes;
+    if (!configuracion.solicitudes && anterior.configuracion?.solicitudes)
+      configuracion.solicitudes = anterior.configuracion.solicitudes;
     const actualizadoEn = await this.configuraciones.guardar<ConfiguracionG12>('g12', pais, configuracion, usuario);
 
     // Lo generado de un cuadro que cambió ya no vale; el de los demás, sí. Antes

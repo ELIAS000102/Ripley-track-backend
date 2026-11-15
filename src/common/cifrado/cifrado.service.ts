@@ -1,13 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHmac,
-  randomBytes,
-  scryptSync,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 /**
  * AES-256-GCM: además de cifrar, autentica. Si alguien altera un token en la
@@ -74,21 +67,14 @@ export class CifradoService {
     const iv = randomBytes(BYTES_IV);
     const cifrador = createCipheriv(ALGORITMO, this.clave, iv);
 
-    const cifrado = Buffer.concat([
-      cifrador.update(texto, 'utf8'),
-      cifrador.final(),
-    ]);
+    const cifrado = Buffer.concat([cifrador.update(texto, 'utf8'), cifrador.final()]);
 
-    return [iv, cifrador.getAuthTag(), cifrado]
-      .map((parte) => parte.toString('base64'))
-      .join('.');
+    return [iv, cifrador.getAuthTag(), cifrado].map((parte) => parte.toString('base64')).join('.');
   }
 
   /** Lanza si el texto fue alterado o si la clave no es la que lo cifró */
   descifrar(guardado: string): string {
-    const [iv, tag, cifrado] = guardado
-      .split('.')
-      .map((parte) => Buffer.from(parte, 'base64'));
+    const [iv, tag, cifrado] = guardado.split('.').map((parte) => Buffer.from(parte, 'base64'));
 
     if (!iv || !tag || !cifrado) {
       throw new Error('El token guardado no tiene el formato esperado');
@@ -97,9 +83,6 @@ export class CifradoService {
     const descifrador = createDecipheriv(ALGORITMO, this.clave, iv);
     descifrador.setAuthTag(tag);
 
-    return Buffer.concat([
-      descifrador.update(cifrado),
-      descifrador.final(),
-    ]).toString('utf8');
+    return Buffer.concat([descifrador.update(cifrado), descifrador.final()]).toString('utf8');
   }
 }

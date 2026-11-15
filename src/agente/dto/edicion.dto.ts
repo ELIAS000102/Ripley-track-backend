@@ -321,7 +321,6 @@ export class InterrumpirDto {
 const DIAS_HOLGURA_MAXIMOS = 90;
 const OCURRENCIAS_MAXIMAS = 999;
 
-
 /**
  * Cambiar un servicio dentro de la agenda de un operador logístico.
  *

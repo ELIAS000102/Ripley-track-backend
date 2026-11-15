@@ -22,8 +22,10 @@ import type {
   Tarea,
 } from './interfaces/rutinas.interface.js';
 
-const CAMPOS = 'id, nombre, descripcion, pais, activa, version, probada_version, probada_en, creado_por, creado_por_id, creado_en, actualizado_en';
-const CAMPOS_EJECUCION = 'id, rutina_id, modo, origen, estado, version, programada_para, tarea_detenida, motivo, inicio, fin, creado_en';
+const CAMPOS =
+  'id, nombre, descripcion, pais, activa, version, probada_version, probada_en, creado_por, creado_por_id, creado_en, actualizado_en';
+const CAMPOS_EJECUCION =
+  'id, rutina_id, modo, origen, estado, version, programada_para, tarea_detenida, motivo, inicio, fin, creado_en';
 
 /** Lo de más que trae una ejecución entera: qué tareas hace y lo que hizo cada una */
 export const CAMPOS_DETALLE = `${CAMPOS_EJECUCION}, tareas, resultado, disparada_por`;
@@ -37,13 +39,15 @@ const ascendente = (lista: number[] = []) => [...lista].sort((a, b) => a - b);
 
 /** Las mismas tareas, con los mismos pasos, en el mismo orden */
 function mismasTareas(a: TareaDto[], b: TareaDto[]): boolean {
-  const huella = (t: TareaDto[]) => JSON.stringify(t.map((x) => [x.nombre, x.pasos.map((p) => [p.instruccion, p.atajos ?? [], p.guias ?? []])]));
+  const huella = (t: TareaDto[]) =>
+    JSON.stringify(t.map((x) => [x.nombre, x.pasos.map((p) => [p.instruccion, p.atajos ?? [], p.guias ?? []])]));
   return huella(a) === huella(b);
 }
 
 /** Los mismos horarios: el orden de los días no cuenta, se guardan ordenados */
 function mismosHorarios(a: HorarioDto[], b: HorarioDto[]): boolean {
-  const huella = (h: HorarioDto[]) => JSON.stringify(h.map((x) => [ascendente(x.dias), horaCorta(x.hora), ascendente(x.tareas)]));
+  const huella = (h: HorarioDto[]) =>
+    JSON.stringify(h.map((x) => [ascendente(x.dias), horaCorta(x.hora), ascendente(x.tareas)]));
   return huella(a) === huella(b);
 }
 
@@ -85,7 +89,10 @@ export class RutinasService {
 
   /** Todas, con sus horarios, sus tareas (sin los pasos) y cómo están */
   async listar(usuario: UsuarioAutenticado): Promise<RutinaVista[]> {
-    const { data, error } = await this.supabase.admin.from('rutinas').select(CAMPOS).order('nombre', { ascending: true });
+    const { data, error } = await this.supabase.admin
+      .from('rutinas')
+      .select(CAMPOS)
+      .order('nombre', { ascending: true });
     if (error) this.reventar('listar las rutinas', error.message);
 
     const rutinas = (data ?? []) as Rutina[];
@@ -98,24 +105,41 @@ export class RutinasService {
       this.ejecucionesDe(ids),
     ]);
 
-    return rutinas.map((r) => this.vista(
-      { ...r, horarios: horarios.filter((h) => h.rutina_id === r.id), tareas: tareas.filter((t) => t.rutina_id === r.id) },
-      ejecuciones.filter((e) => e.rutina_id === r.id),
-      usuario,
-    ));
+    return rutinas.map((r) =>
+      this.vista(
+        {
+          ...r,
+          horarios: horarios.filter((h) => h.rutina_id === r.id),
+          tareas: tareas.filter((t) => t.rutina_id === r.id),
+        },
+        ejecuciones.filter((e) => e.rutina_id === r.id),
+        usuario,
+      ),
+    );
   }
 
   /** Una entera: tareas con sus pasos (atajos y guías con su nombre) y horarios */
   async obtener(id: string, usuario: UsuarioAutenticado): Promise<RutinaVista> {
     const rutina = await this.fila(id);
-    const [horarios, tareas, ejecuciones] = await Promise.all([this.horariosDe([id]), this.tareasDe([id]), this.ejecucionesDe([id])]);
+    const [horarios, tareas, ejecuciones] = await Promise.all([
+      this.horariosDe([id]),
+      this.tareasDe([id]),
+      this.ejecucionesDe([id]),
+    ]);
     const pasos = await this.pasosDe(tareas.map((t) => t.id));
 
-    return this.vista({
-      ...rutina,
-      horarios,
-      tareas: tareas.map((t) => ({ ...t, pasos: pasos.filter((p) => p.tarea_id === t.id).map((p) => sinCampo(p, 'tarea_id')) })),
-    }, ejecuciones, usuario);
+    return this.vista(
+      {
+        ...rutina,
+        horarios,
+        tareas: tareas.map((t) => ({
+          ...t,
+          pasos: pasos.filter((p) => p.tarea_id === t.id).map((p) => sinCampo(p, 'tarea_id')),
+        })),
+      },
+      ejecuciones,
+      usuario,
+    );
   }
 
   /**
@@ -152,7 +176,11 @@ export class RutinasService {
     if (!data) throw new NotFoundException('No existe esa ejecución de la rutina');
 
     const fila = data as EjecucionDetalle;
-    return { ...fila, tareas: [...(fila.tareas ?? [])].map(Number), resultado: Array.isArray(fila.resultado) ? fila.resultado : [] };
+    return {
+      ...fila,
+      tareas: [...(fila.tareas ?? [])].map(Number),
+      resultado: Array.isArray(fila.resultado) ? fila.resultado : [],
+    };
   }
 
   /**
@@ -220,7 +248,11 @@ export class RutinasService {
    * Una ejecución detenida se cancela: se iba a reanudar con lo de antes, y lo
    * de antes ya no existe.
    */
-  async editar(id: string, usuario: UsuarioAutenticado, dto: EditarRutinaDto): Promise<RutinaVista & { desactivada: boolean }> {
+  async editar(
+    id: string,
+    usuario: UsuarioAutenticado,
+    dto: EditarRutinaDto,
+  ): Promise<RutinaVista & { desactivada: boolean }> {
     const antes = await this.obtener(id, usuario);
     this.exigirPropia(antes);
     await this.exigirQuieta(id, 'cambiarla');
@@ -229,7 +261,8 @@ export class RutinasService {
     // guardar, y cambiar solo el nombre no puede apagarla hasta volver a probarla
     const pais = dto.pais ?? antes.pais;
     const horariosAntes = (antes.horarios ?? []).map(({ dias, hora, tareas: t }) => ({ dias, hora, tareas: t }));
-    const tareasNuevas = dto.tareas && !mismasTareas(dto.tareas, this.comoDto(antes.tareas ?? [])) ? dto.tareas : undefined;
+    const tareasNuevas =
+      dto.tareas && !mismasTareas(dto.tareas, this.comoDto(antes.tareas ?? [])) ? dto.tareas : undefined;
     const horariosNuevos = dto.horarios && !mismosHorarios(dto.horarios, horariosAntes) ? dto.horarios : undefined;
     const cambiaLoQueHace = pais !== antes.pais || tareasNuevas !== undefined || horariosNuevos !== undefined;
 
@@ -263,13 +296,16 @@ export class RutinasService {
       await this.borrarDe('rutina_horarios', id);
       await this.guardarHorarios(id, horariosNuevos);
     }
-    if (cambiaLoQueHace) await this.cancelarDetenidas(id, 'Se cambió la rutina: lo que iba a reanudarse ya no existe. Pruébala y actívala de nuevo.');
+    if (cambiaLoQueHace)
+      await this.cancelarDetenidas(
+        id,
+        'Se cambió la rutina: lo que iba a reanudarse ya no existe. Pruébala y actívala de nuevo.',
+      );
 
-    this.contexto.registrarCambio(
-      this.resumen(antes),
-      this.resumen({ ...antes, ...cambios, tareas, horarios }),
+    this.contexto.registrarCambio(this.resumen(antes), this.resumen({ ...antes, ...cambios, tareas, horarios }));
+    this.logger.log(
+      `Rutina "${antes.nombre}" cambiada${cambiaLoQueHace ? ` (versión ${antes.version + 1})` : ''}${desactivada ? ': queda desactivada hasta probarla' : ''}`,
     );
-    this.logger.log(`Rutina "${antes.nombre}" cambiada${cambiaLoQueHace ? ` (versión ${antes.version + 1})` : ''}${desactivada ? ': queda desactivada hasta probarla' : ''}`);
 
     return { ...(await this.obtener(id, usuario)), desactivada };
   }
@@ -318,14 +354,19 @@ export class RutinasService {
     horarios.forEach((h, i) => {
       if (new Set(h.dias).size !== h.dias.length) fallos.push(`el horario ${i + 1} repite un día`);
       const fuera = (h.tareas ?? []).filter((t) => t > tareas.length);
-      if (fuera.length) fallos.push(`el horario ${i + 1} nombra la tarea ${fuera.join(', ')}, y la rutina tiene ${tareas.length}`);
+      if (fuera.length)
+        fallos.push(`el horario ${i + 1} nombra la tarea ${fuera.join(', ')}, y la rutina tiene ${tareas.length}`);
       if (new Set(h.tareas ?? []).size !== (h.tareas ?? []).length) fallos.push(`el horario ${i + 1} repite una tarea`);
     });
     fallos.push(...choques(horarios));
 
     const idsAtajos = [...new Set(tareas.flatMap((t) => t.pasos.flatMap((p) => p.atajos ?? [])))];
     if (idsAtajos.length) {
-      const atajos = await this.leer<{ id: string; nombre: string; activa: boolean }>('atajos', 'id, nombre, activa', idsAtajos);
+      const atajos = await this.leer<{ id: string; nombre: string; activa: boolean }>(
+        'atajos',
+        'id, nombre, activa',
+        idsAtajos,
+      );
       for (const id of idsAtajos) {
         const a = atajos.find((x) => x.id === id);
         if (!a) fallos.push(`no existe el atajo ${id}`);
@@ -335,7 +376,11 @@ export class RutinasService {
 
     const idsGuias = [...new Set(tareas.flatMap((t) => t.pasos.flatMap((p) => p.guias ?? [])))];
     if (idsGuias.length) {
-      const guias = await this.leer<{ id: string; nombre: string; pais: string }>('grupos_leadtime', 'id, nombre, tipo, pais', idsGuias);
+      const guias = await this.leer<{ id: string; nombre: string; pais: string }>(
+        'grupos_leadtime',
+        'id, nombre, tipo, pais',
+        idsGuias,
+      );
       for (const id of idsGuias) {
         const g = guias.find((x) => x.id === id);
         if (!g) fallos.push(`no existe la malla o matriz ${id}`);
@@ -353,11 +398,13 @@ export class RutinasService {
     const probada = rutina.probada_version != null && rutina.probada_version === rutina.version;
     const resumen = (e?: FilaEjecucion) => (e ? sinCampo(e, 'rutina_id') : null);
     const detenida = resumen(ejecuciones.find((e) => e.estado === 'detenida'));
-    const noActivable = !horarios.length ? 'Para activarla necesita al menos un horario.'
-      : !probada ? (rutina.probada_version == null
-        ? 'Pruébala antes de activarla: todavía no tiene ninguna prueba correcta.'
-        : `Pruébala antes de activarla: cambió después de la última prueba correcta (versión ${rutina.probada_version}, ahora ${rutina.version}).`)
-      : null;
+    const noActivable = !horarios.length
+      ? 'Para activarla necesita al menos un horario.'
+      : !probada
+        ? rutina.probada_version == null
+          ? 'Pruébala antes de activarla: todavía no tiene ninguna prueba correcta.'
+          : `Pruébala antes de activarla: cambió después de la última prueba correcta (versión ${rutina.probada_version}, ahora ${rutina.version}).`
+        : null;
     const { creado_por_id: dueno, ...publica } = rutina;
 
     return {
@@ -373,14 +420,23 @@ export class RutinasService {
   }
 
   /** Para el registro de uso: lo que hace, sin ids */
-  private resumen(r: { nombre: string; pais: string; activa?: boolean; version?: number; tareas?: { nombre: string; pasos: unknown[] }[]; horarios?: { dias: number[]; hora: string; tareas?: number[] }[] }) {
+  private resumen(r: {
+    nombre: string;
+    pais: string;
+    activa?: boolean;
+    version?: number;
+    tareas?: { nombre: string; pasos: unknown[] }[];
+    horarios?: { dias: number[]; hora: string; tareas?: number[] }[];
+  }) {
     return {
       nombre: r.nombre,
       pais: r.pais,
       activa: r.activa ?? false,
       version: r.version ?? 1,
       tareas: (r.tareas ?? []).map((t) => `${t.nombre} (${t.pasos.length} paso(s))`),
-      horarios: (r.horarios ?? []).map((h) => `${h.dias.join(',')} ${horaCorta(h.hora)}${h.tareas?.length ? ` · tareas ${h.tareas.join(',')}` : ''}`),
+      horarios: (r.horarios ?? []).map(
+        (h) => `${h.dias.join(',')} ${horaCorta(h.hora)}${h.tareas?.length ? ` · tareas ${h.tareas.join(',')}` : ''}`,
+      ),
     };
   }
 
@@ -388,7 +444,11 @@ export class RutinasService {
   private comoDto(tareas: Tarea[]): TareaDto[] {
     return tareas.map((t) => ({
       nombre: t.nombre,
-      pasos: t.pasos.map((p) => ({ instruccion: p.instruccion, atajos: p.atajos.map((a) => a.id), guias: p.guias.map((g) => g.id) })),
+      pasos: t.pasos.map((p) => ({
+        instruccion: p.instruccion,
+        atajos: p.atajos.map((a) => a.id),
+        guias: p.guias.map((g) => g.id),
+      })),
     }));
   }
 
@@ -411,7 +471,10 @@ export class RutinasService {
 
   private async ponerActiva(rutina: RutinaVista, activa: boolean) {
     if (rutina.activa === activa) return { id: rutina.id, nombre: rutina.nombre, activa };
-    const { error } = await this.supabase.admin.from('rutinas').update({ activa, actualizado_en: new Date().toISOString() }).eq('id', rutina.id);
+    const { error } = await this.supabase.admin
+      .from('rutinas')
+      .update({ activa, actualizado_en: new Date().toISOString() })
+      .eq('id', rutina.id);
     if (error) this.reventar(activa ? 'activar la rutina' : 'desactivar la rutina', error.message);
     this.contexto.registrarCambio({ nombre: rutina.nombre, activa: !activa }, { nombre: rutina.nombre, activa });
     this.logger.log(`Rutina "${rutina.nombre}" ${activa ? 'activada' : 'desactivada'}`);
@@ -442,15 +505,26 @@ export class RutinasService {
   }
 
   private async horariosDe(ids: string[]): Promise<(Horario & { rutina_id: string })[]> {
-    const { data, error } = await this.supabase.admin.from('rutina_horarios').select('id, rutina_id, orden, dias, hora, tareas').in('rutina_id', ids);
+    const { data, error } = await this.supabase.admin
+      .from('rutina_horarios')
+      .select('id, rutina_id, orden, dias, hora, tareas')
+      .in('rutina_id', ids);
     if (error) this.reventar('leer los horarios', error.message);
     return ((data ?? []) as (Horario & { rutina_id: string })[])
-      .map((h) => ({ ...h, hora: horaCorta(h.hora), dias: [...(h.dias ?? [])].map(Number), tareas: [...(h.tareas ?? [])].map(Number) }))
+      .map((h) => ({
+        ...h,
+        hora: horaCorta(h.hora),
+        dias: [...(h.dias ?? [])].map(Number),
+        tareas: [...(h.tareas ?? [])].map(Number),
+      }))
       .sort((a, b) => a.orden - b.orden);
   }
 
   private async tareasDe(ids: string[]): Promise<(Omit<Tarea, 'pasos'> & { rutina_id: string; pasos: Paso[] })[]> {
-    const { data, error } = await this.supabase.admin.from('rutina_tareas').select('id, rutina_id, orden, nombre').in('rutina_id', ids);
+    const { data, error } = await this.supabase.admin
+      .from('rutina_tareas')
+      .select('id, rutina_id, orden, nombre')
+      .in('rutina_id', ids);
     if (error) this.reventar('leer las tareas', error.message);
     return ((data ?? []) as (Omit<Tarea, 'pasos'> & { rutina_id: string })[])
       .map((t) => ({ ...t, pasos: [] as Paso[] }))
@@ -460,16 +534,34 @@ export class RutinasService {
   /** Los pasos, con el nombre de sus atajos y de sus guías */
   private async pasosDe(tareas: string[]): Promise<(Paso & { tarea_id: string })[]> {
     if (!tareas.length) return [];
-    const { data, error } = await this.supabase.admin.from('rutina_pasos').select('tarea_id, orden, instruccion, atajos, guias').in('tarea_id', tareas);
+    const { data, error } = await this.supabase.admin
+      .from('rutina_pasos')
+      .select('tarea_id, orden, instruccion, atajos, guias')
+      .in('tarea_id', tareas);
     if (error) this.reventar('leer los pasos', error.message);
-    const filas = ((data ?? []) as { tarea_id: string; orden: number; instruccion: string; atajos: string[] | null; guias: string[] | null }[])
-      .sort((a, b) => a.orden - b.orden);
+    const filas = (
+      (data ?? []) as {
+        tarea_id: string;
+        orden: number;
+        instruccion: string;
+        atajos: string[] | null;
+        guias: string[] | null;
+      }[]
+    ).sort((a, b) => a.orden - b.orden);
 
     const idsAtajos = [...new Set(filas.flatMap((p) => p.atajos ?? []))];
     const idsGuias = [...new Set(filas.flatMap((p) => p.guias ?? []))];
     const [atajos, guias] = await Promise.all([
-      idsAtajos.length ? this.leer<{ id: string; nombre: string; activa: boolean }>('atajos', 'id, nombre, activa', idsAtajos) : [],
-      idsGuias.length ? this.leer<{ id: string; nombre: string; tipo: 'matriz' | 'malla' }>('grupos_leadtime', 'id, nombre, tipo', idsGuias) : [],
+      idsAtajos.length
+        ? this.leer<{ id: string; nombre: string; activa: boolean }>('atajos', 'id, nombre, activa', idsAtajos)
+        : [],
+      idsGuias.length
+        ? this.leer<{ id: string; nombre: string; tipo: 'matriz' | 'malla' }>(
+            'grupos_leadtime',
+            'id, nombre, tipo',
+            idsGuias,
+          )
+        : [],
     ]);
 
     // Un atajo o una guía que ya no existen se enseñan igual: la rutina los
@@ -478,13 +570,21 @@ export class RutinasService {
       tarea_id: p.tarea_id,
       orden: p.orden,
       instruccion: p.instruccion,
-      atajos: (p.atajos ?? []).map((id) => atajos.find((a) => a.id === id) ?? { id, nombre: '(atajo que ya no existe)', activa: false }),
-      guias: (p.guias ?? []).map((id) => guias.find((g) => g.id === id) ?? { id, nombre: '(malla o matriz que ya no existe)', tipo: 'malla' as const }),
+      atajos: (p.atajos ?? []).map(
+        (id) => atajos.find((a) => a.id === id) ?? { id, nombre: '(atajo que ya no existe)', activa: false },
+      ),
+      guias: (p.guias ?? []).map(
+        (id) =>
+          guias.find((g) => g.id === id) ?? { id, nombre: '(malla o matriz que ya no existe)', tipo: 'malla' as const },
+      ),
     }));
   }
 
   private async ejecucionesDe(ids: string[]): Promise<FilaEjecucion[]> {
-    const { data, error } = await this.supabase.admin.from('rutina_ejecuciones').select(CAMPOS_EJECUCION).in('rutina_id', ids);
+    const { data, error } = await this.supabase.admin
+      .from('rutina_ejecuciones')
+      .select(CAMPOS_EJECUCION)
+      .in('rutina_id', ids);
     if (error) this.reventar('leer las ejecuciones', error.message);
     return ((data ?? []) as FilaEjecucion[]).sort((a, b) => String(b.creado_en).localeCompare(String(a.creado_en)));
   }
@@ -513,7 +613,8 @@ export class RutinasService {
           guias: p.guias ?? [],
         })),
       );
-      if (fallo) throw new BadRequestException(`La tarea ${i + 1} tiene pasos que la base de datos rechaza: ${fallo.message}`);
+      if (fallo)
+        throw new BadRequestException(`La tarea ${i + 1} tiene pasos que la base de datos rechaza: ${fallo.message}`);
     }
   }
 
@@ -541,7 +642,9 @@ export class RutinasService {
 
   private fallarAlGuardar(que: string, nombre: string, error: { message: string; code?: string }): never {
     if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
-      throw new ConflictException(`Ya hay una rutina llamada "${nombre}". El nombre es como se la reconoce en el historial y en los avisos.`);
+      throw new ConflictException(
+        `Ya hay una rutina llamada "${nombre}". El nombre es como se la reconoce en el historial y en los avisos.`,
+      );
     }
     this.reventar(`${que} la rutina`, error.message);
   }

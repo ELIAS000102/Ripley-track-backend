@@ -17,10 +17,16 @@ import type { Clasificacion, ContextoTurno } from '../interfaces/agente-v3.inter
 
 const NOMBRE_PAIS = { PE: 'Perú', CL: 'Chile' } as const;
 
-const cabecera = (conCambios: boolean) => `Armas el PLAN de ${conCambios ? 'un CAMBIO' : 'consultas'} para un mensaje del chat de la operación logística de Ripley (Perú y Chile). No contestas a la persona y no ejecutas nada: dices qué ${conCambios ? 'pasos' : 'consultas'} hacen falta, con qué herramienta y con qué parámetros.
-${conCambios ? `
+const cabecera = (
+  conCambios: boolean,
+) => `Armas el PLAN de ${conCambios ? 'un CAMBIO' : 'consultas'} para un mensaje del chat de la operación logística de Ripley (Perú y Chile). No contestas a la persona y no ejecutas nada: dices qué ${conCambios ? 'pasos' : 'consultas'} hacen falta, con qué herramienta y con qué parámetros.
+${
+  conCambios
+    ? `
 ES UN CAMBIO: cada cambio que pide la persona es un paso con la herramienta de CAMBIO que corresponde (editar_capacidad, cortar_reabrir_cd, reasignar_capacidad, editar_servicio_opl, editar_masivo, editar_transferencia, editar_capacidad_transferencia; hasta 4 en un mensaje), con los campos que IDENTIFICAN qué se cambia y SOLO los que CAMBIAN que pidió la persona ("cierra" / "desactiva" → false; "abre" / "activa" → true). Antes, una consulta solo si hace falta para saber a qué se aplica ("de esos", "las sucursales de la SE", "el resto"). NO RECORTES: si pide varios cambios, están TODOS en el plan; si una parte no la sabes hacer, ponla en "faltan", nunca la quites. El sistema enseñará cómo quedaría, sin aplicar nada.
-` : ''}`;
+`
+    : ''
+}`;
 
 const REGLAS = `REGLAS
 - Solo herramientas y parámetros del CATÁLOGO. Lo que la persona no dijo NO se pone (ni fechas, ni días, ni "soloActivas"): se queda como está por defecto.
@@ -52,20 +58,36 @@ CATÁLOGO DE HERRAMIENTAS (* = obligatorio)`;
 export const SISTEMA_ARMAR = `${cabecera(false)}\n${REGLAS}\n${catalogoParaPrompt(false)}`;
 export const SISTEMA_ARMAR_CAMBIO = `${cabecera(true)}\n${REGLAS}\n${catalogoParaPrompt(true)}`;
 
-export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificacion: Clasificacion | null, noValio?: string): { sistema: string; mensaje: string } {
+export function promptArmar(
+  mensaje: string,
+  contexto: ContextoTurno,
+  clasificacion: Clasificacion | null,
+  noValio?: string,
+): { sistema: string; mensaje: string } {
   const codigos = contexto.entidades
-    .map((e) => (e.porNombre
-      ? `- "${e.texto}" → ${e.candidatos.map((c) => `${c.codigo} · ${c.nombre ?? ''} (${c.es_cd ? 'CD' : c.tipo})`).join(' o ')}`
-      : `- ${e.texto}${e.candidatos[0] ? ` · ${e.candidatos[0].nombre ?? ''} (${e.candidatos[0].es_cd ? 'CD' : e.candidatos[0].tipo})` : ` (no está en el directorio: ${e.texto.length === 4 ? 'OPL' : 'tienda o almacén'})`}`))
+    .map((e) =>
+      e.porNombre
+        ? `- "${e.texto}" → ${e.candidatos.map((c) => `${c.codigo} · ${c.nombre ?? ''} (${c.es_cd ? 'CD' : c.tipo})`).join(' o ')}`
+        : `- ${e.texto}${e.candidatos[0] ? ` · ${e.candidatos[0].nombre ?? ''} (${e.candidatos[0].es_cd ? 'CD' : e.candidatos[0].tipo})` : ` (no está en el directorio: ${e.texto.length === 4 ? 'OPL' : 'tienda o almacén'})`}`,
+    )
     .join('\n');
-  const servicios = contexto.servicios.map((s) => [
-    `- ${s.codigo}${s.nombre ? ` · ${s.nombre}` : ''}`,
-    s.metodo_entrega ? (s.metodo_entrega === 'RT' ? 'retiro en tienda' : 'despacho') : null,
-    s.fase ? `fase ${s.fase}` : null,
-    s.origen ? `ORIGEN DE STOCK ${s.origen}` : null,
-    s.descripcion ? s.descripcion : null,
-  ].filter(Boolean).join(' · ')).join('\n');
-  const atajos = contexto.atajos.filter((a) => a.pais === contexto.pais).map((a) => atajoEnLinea(a)).join('\n');
+  const servicios = contexto.servicios
+    .map((s) =>
+      [
+        `- ${s.codigo}${s.nombre ? ` · ${s.nombre}` : ''}`,
+        s.metodo_entrega ? (s.metodo_entrega === 'RT' ? 'retiro en tienda' : 'despacho') : null,
+        s.fase ? `fase ${s.fase}` : null,
+        s.origen ? `ORIGEN DE STOCK ${s.origen}` : null,
+        s.descripcion ? s.descripcion : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    )
+    .join('\n');
+  const atajos = contexto.atajos
+    .filter((a) => a.pais === contexto.pais)
+    .map((a) => atajoEnLinea(a))
+    .join('\n');
   const parecidos = parecidosParaPrompt(contexto.parecidos);
   const agendas = agendasParaPrompt(contexto);
   const nombrado = atajoEsperado(mensaje, contexto.atajos, clasificacion?.atajo, contexto.pais);
@@ -73,14 +95,18 @@ export function promptArmar(mensaje: string, contexto: ContextoTurno, clasificac
   const ant = contexto.anterior;
   const anterior = ant
     ? [
-      `Lo que pidió: «${ant.persona ?? ''}»`,
-      `Lo que se le contestó: «${ant.frase ?? ''}»`,
-      ant.plan ? `Su plan: ${JSON.stringify(ant.plan.pasos)}` : null,
-      ...ant.resultados.map((r, i) => {
-        const n = r.datos ? (r.cumplen ?? codigosQueCumplen(filasDe(r.herramienta, r.datos, contexto.hoy))).length : 0;
-        return `Resultado ${i + 1}: ${r.titulo} (${r.herramienta})${n ? `, con ${n} códigos: {"ref": "anterior"}` : ' (sin datos guardados)'}`;
-      }),
-    ].filter(Boolean).join('\n')
+        `Lo que pidió: «${ant.persona ?? ''}»`,
+        `Lo que se le contestó: «${ant.frase ?? ''}»`,
+        ant.plan ? `Su plan: ${JSON.stringify(ant.plan.pasos)}` : null,
+        ...ant.resultados.map((r, i) => {
+          const n = r.datos
+            ? (r.cumplen ?? codigosQueCumplen(filasDe(r.herramienta, r.datos, contexto.hoy))).length
+            : 0;
+          return `Resultado ${i + 1}: ${r.titulo} (${r.herramienta})${n ? `, con ${n} códigos: {"ref": "anterior"}` : ' (sin datos guardados)'}`;
+        }),
+      ]
+        .filter(Boolean)
+        .join('\n')
     : '(no hay)';
   return {
     sistema: clasificacion?.tipo === 'cambio' ? SISTEMA_ARMAR_CAMBIO : SISTEMA_ARMAR,

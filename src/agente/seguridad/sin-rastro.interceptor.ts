@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable, catchError, map, throwError } from 'rxjs';
 
@@ -43,10 +38,7 @@ const DIRECCIONES = [
  */
 @Injectable()
 export class SinRastroInterceptor implements NestInterceptor {
-  intercept(
-    contexto: ExecutionContext,
-    siguiente: CallHandler,
-  ): Observable<unknown> {
+  intercept(contexto: ExecutionContext, siguiente: CallHandler): Observable<unknown> {
     const peticion = contexto.switchToHttp().getRequest<Request>();
 
     if (peticion.get('x-origen')?.toLowerCase() !== 'agente') {
@@ -74,21 +66,13 @@ export class SinRastroInterceptor implements NestInterceptor {
     if (Array.isArray(valor)) return valor.map((v) => this.limpiar(v));
 
     if (valor && typeof valor === 'object') {
-      return Object.fromEntries(
-        Object.entries(valor as Record<string, unknown>).map(([k, v]) => [
-          k,
-          this.limpiar(v),
-        ]),
-      );
+      return Object.fromEntries(Object.entries(valor as Record<string, unknown>).map(([k, v]) => [k, this.limpiar(v)]));
     }
 
     return valor;
   }
 
   private texto(valor: string): string {
-    return DIRECCIONES.reduce(
-      (limpio, patron) => limpio.replace(patron, OCULTO),
-      valor,
-    );
+    return DIRECCIONES.reduce((limpio, patron) => limpio.replace(patron, OCULTO), valor);
   }
 }

@@ -44,10 +44,7 @@ describe('Partir una lista: por espacios, solo si todo son cifras', () => {
   });
 
   it('las comas mandan aunque haya nombres con espacios', () => {
-    expect(partirLista('Plaza Lima Norte, 1110')).toEqual([
-      'Plaza Lima Norte',
-      '1110',
-    ]);
+    expect(partirLista('Plaza Lima Norte, 1110')).toEqual(['Plaza Lima Norte', '1110']);
   });
 
   it('los días de la semana no se tocan', () => {

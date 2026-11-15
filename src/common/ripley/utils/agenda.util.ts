@@ -13,23 +13,17 @@ import type { ScheduleType } from '../interfaces/ripley.interface.js';
  * Lo usan picking y recepción. Vive aquí porque es la misma regla: en cuanto
  * estuvo escrita dos veces, arreglar una dejaba la otra como estaba.
  */
-export function unicaPorServicio<
-  T extends { typeOfService: string; nombre: string },
->(
+export function unicaPorServicio<T extends { typeOfService: string; nombre: string }>(
   agendas: T[],
   typeOfService: string | undefined,
   officeCode: string,
 ): T | undefined {
   if (!typeOfService?.trim()) {
-    throw new BadRequestException(
-      'Indica el tipo de servicio o el identificador de la agenda',
-    );
+    throw new BadRequestException('Indica el tipo de servicio o el identificador de la agenda');
   }
 
   const buscado = typeOfService.trim().toUpperCase();
-  const candidatas = agendas.filter(
-    (a) => a.typeOfService.toUpperCase() === buscado,
-  );
+  const candidatas = agendas.filter((a) => a.typeOfService.toUpperCase() === buscado);
 
   if (candidatas.length > 1) {
     throw new BadRequestException(
@@ -60,9 +54,7 @@ const TIPOS_DE_AGENDA: Record<keyof ScheduleType, string> = {
  * en vez de guardarse como si lo fuera.
  */
 export function resolverTipoDeAgenda(type: ScheduleType): string {
-  const activa = (Object.keys(TIPOS_DE_AGENDA) as (keyof ScheduleType)[]).find(
-    (flag) => type?.[flag] === true,
-  );
+  const activa = (Object.keys(TIPOS_DE_AGENDA) as (keyof ScheduleType)[]).find((flag) => type?.[flag] === true);
 
   if (!activa) {
     throw new BadGatewayException('La agenda no tiene un tipo definido');

@@ -67,10 +67,7 @@ export class ContextoAuditoria {
    * antes de que corra ningún guard ni ningún service.
    */
   ejecutar<T>(fn: () => T, opciones: { simulacro?: boolean } = {}): T {
-    return this.almacen.run(
-      opciones.simulacro ? { simulacro: { escrituras: [] } } : {},
-      fn,
-    );
+    return this.almacen.run(opciones.simulacro ? { simulacro: { escrituras: [] } } : {}, fn);
   }
 
   /**

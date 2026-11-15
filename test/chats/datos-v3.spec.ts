@@ -19,19 +19,35 @@ function armar({ hayColumna = true } = {}) {
   const from = vi.fn((tabla: string) => {
     if (tabla === 'chats') {
       return {
-        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 'c1', titulo: 'Un chat', tipo: null, usuario_id: 'ana' }, error: null }) }) }),
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({
+              data: { id: 'c1', titulo: 'Un chat', tipo: null, usuario_id: 'ana' },
+              error: null,
+            }),
+          }),
+        }),
         update: () => ({ eq: async () => ({ error: null }) }),
       };
     }
     const respuesta = (campos: string) => {
       seleccionado.push(campos);
       const falla = !hayColumna && campos.includes('datos');
-      return falla ? { data: null, error: SIN_COLUMNA } : { data: [{ id: 1, rol: 'agente', texto: 'F', creado_en: 'x' }], error: null };
+      return falla
+        ? { data: null, error: SIN_COLUMNA }
+        : { data: [{ id: 1, rol: 'agente', texto: 'F', creado_en: 'x' }], error: null };
     };
     return {
       insert: (fila: Record<string, unknown>) => {
         insertado.push(fila);
-        return { select: (campos: string) => ({ single: async () => { const r = respuesta(campos); return { ...r, data: r.data?.[0] ?? null }; } }) };
+        return {
+          select: (campos: string) => ({
+            single: async () => {
+              const r = respuesta(campos);
+              return { ...r, data: r.data?.[0] ?? null };
+            },
+          }),
+        };
       },
       select: (campos: string) => ({ eq: () => ({ order: async () => respuesta(campos) }) }),
     };
@@ -47,7 +63,10 @@ describe('chat_mensajes.datos (la v3 del agente)', () => {
     const { servicio, insertado } = armar();
     await servicio.agregarMensaje('ana', 'c1', 'agente', 'F', DATOS);
     await servicio.agregarMensaje('ana', 'c1', 'agente', 'otra');
-    expect(insertado).toEqual([{ chat_id: 'c1', rol: 'agente', texto: 'F', datos: DATOS }, { chat_id: 'c1', rol: 'agente', texto: 'otra' }]);
+    expect(insertado).toEqual([
+      { chat_id: 'c1', rol: 'agente', texto: 'F', datos: DATOS },
+      { chat_id: 'c1', rol: 'agente', texto: 'otra' },
+    ]);
   });
 
   it('lo que escribe la persona nunca lleva datos', async () => {

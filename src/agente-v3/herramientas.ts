@@ -25,7 +25,8 @@ import {
  * validación de aquí pasa también la del backend.
  */
 
-export type TipoParam = 'codigos' | 'codigo' | 'servicios' | 'servicio' | 'texto' | 'fecha' | 'numero' | 'booleano' | 'opcion';
+export type TipoParam =
+  'codigos' | 'codigo' | 'servicios' | 'servicio' | 'texto' | 'fecha' | 'numero' | 'booleano' | 'opcion';
 
 export interface ParamDef {
   nombre: string;
@@ -55,12 +56,26 @@ export interface Herramienta {
 export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'consultar_capacidad',
-    descripcion: 'Capacidad por día de agendas de picking (tiendas, almacenes, CDs), recepción (tiendas) o despacho (OPL): asignado, ocupado, disponible, si está abierta. También el consumo o la ocupación de tiendas y almacenes concretos.',
+    descripcion:
+      'Capacidad por día de agendas de picking (tiendas, almacenes, CDs), recepción (tiendas) o despacho (OPL): asignado, ocupado, disponible, si está abierta. También el consumo o la ocupación de tiendas y almacenes concretos.',
     dto: ConsultarCapacidadDto,
     lista: 'codigo',
     params: [
-      { nombre: 'tipo', tipo: 'opcion', requerido: true, opciones: ['picking', 'despacho', 'recepcion'], descripcion: '"picking" (tiendas, almacenes, CDs), "recepcion" (tiendas) o "despacho" (OPL)' },
-      { nombre: 'codigo', tipo: 'codigos', requerido: true, ref: true, entidades: ['tienda', 'almacen', 'opl'], descripcion: 'las oficinas' },
+      {
+        nombre: 'tipo',
+        tipo: 'opcion',
+        requerido: true,
+        opciones: ['picking', 'despacho', 'recepcion'],
+        descripcion: '"picking" (tiendas, almacenes, CDs), "recepcion" (tiendas) o "despacho" (OPL)',
+      },
+      {
+        nombre: 'codigo',
+        tipo: 'codigos',
+        requerido: true,
+        ref: true,
+        entidades: ['tienda', 'almacen', 'opl'],
+        descripcion: 'las oficinas',
+      },
       { nombre: 'servicio', tipo: 'servicios', descripcion: 'tipo(s) de servicio o jornada' },
       { nombre: 'zona', tipo: 'texto', descripcion: 'en despacho, el nombre de la zona' },
       { nombre: 'agenda', tipo: 'texto', descripcion: 'el nombre (o parte) de la agenda: "centralizado"' },
@@ -70,7 +85,8 @@ export const HERRAMIENTAS: Herramienta[] = [
   },
   {
     id: 'consultar_reporte_cds',
-    descripcion: 'Ocupación de los CDs por jornada y día. SOLO para CDs ("cómo va el CD Villa"); para tiendas o almacenes concretos es consultar_capacidad.',
+    descripcion:
+      'Ocupación de los CDs por jornada y día. SOLO para CDs ("cómo va el CD Villa"); para tiendas o almacenes concretos es consultar_capacidad.',
     dto: ConsultarReporteDto,
     params: [
       { nombre: 'cd', tipo: 'codigo', entidades: ['almacen'], descripcion: 'un CD; sin él, todos los del país' },
@@ -80,17 +96,30 @@ export const HERRAMIENTAS: Herramienta[] = [
   },
   {
     id: 'consultar_transferencia',
-    descripcion: 'Desfase, preparación, tránsito, días y si está habilitada la transferencia de un origen (la fuente de stock) a sucursales destino.',
+    descripcion:
+      'Desfase, preparación, tránsito, días y si está habilitada la transferencia de un origen (la fuente de stock) a sucursales destino.',
     dto: ConsultarTransferenciaDto,
     lista: 'destino',
     params: [
-      { nombre: 'origen', tipo: 'codigo', entidades: ['almacen', 'tienda'], descripcion: 'de dónde sale el stock; en Perú, por defecto el 20026' },
-      { nombre: 'destino', tipo: 'codigos', ref: true, entidades: ['tienda', 'almacen'], descripcion: 'las tiendas que reciben' },
+      {
+        nombre: 'origen',
+        tipo: 'codigo',
+        entidades: ['almacen', 'tienda'],
+        descripcion: 'de dónde sale el stock; en Perú, por defecto el 20026',
+      },
+      {
+        nombre: 'destino',
+        tipo: 'codigos',
+        ref: true,
+        entidades: ['tienda', 'almacen'],
+        descripcion: 'las tiendas que reciben',
+      },
     ],
   },
   {
     id: 'consultar_servicios_opl',
-    descripcion: 'Los tipos de servicio configurados en las agendas de un OPL: activo, en checkout, hora de corte, holgura, ocurrencias.',
+    descripcion:
+      'Los tipos de servicio configurados en las agendas de un OPL: activo, en checkout, hora de corte, holgura, ocurrencias.',
     dto: ConsultarTipoServicioDto,
     lista: 'opl',
     params: [
@@ -101,12 +130,19 @@ export const HERRAMIENTAS: Herramienta[] = [
   },
   {
     id: 'busqueda_masiva',
-    descripcion: 'Qué tiendas u OPL tienen configurado un tipo de servicio, de forma masiva, y si su agenda está activa y en checkout. Para ver o contar activos e inactivos basta con ella.',
+    descripcion:
+      'Qué tiendas u OPL tienen configurado un tipo de servicio, de forma masiva, y si su agenda está activa y en checkout. Para ver o contar activos e inactivos basta con ella.',
     dto: BuscarMasivoDto,
     lista: 'origenes',
     params: [
       { nombre: 'servicio', tipo: 'servicios', requerido: true, descripcion: 'el o los tipos de servicio' },
-      { nombre: 'origenes', tipo: 'codigos', ref: true, entidades: ['tienda', 'almacen'], descripcion: 'limitar a estas tiendas o almacenes' },
+      {
+        nombre: 'origenes',
+        tipo: 'codigos',
+        ref: true,
+        entidades: ['tienda', 'almacen'],
+        descripcion: 'limitar a estas tiendas o almacenes',
+      },
       { nombre: 'soloActivas', tipo: 'booleano', descripcion: 'solo las activas (solo si se dice)' },
     ],
   },
@@ -117,8 +153,21 @@ export const HERRAMIENTAS: Herramienta[] = [
     lista: 'operador',
     params: [
       { nombre: 'servicio', tipo: 'servicio', descripcion: 'el tipo de servicio' },
-      { nombre: 'operador', tipo: 'codigos', requerido: true, ref: true, entidades: ['opl', 'tienda'], descripcion: 'QUIÉN ENTREGA: en despacho a domicilio (SD, DT, S…) el OPL; en retiro en tienda (ST, SE, RT…) la TIENDA donde se recoge' },
-      { nombre: 'almacen', tipo: 'codigo', entidades: ['almacen', 'tienda'], descripcion: 'DE DÓNDE SALE EL STOCK; en Perú, por defecto el 20026. No es la tienda donde se recoge' },
+      {
+        nombre: 'operador',
+        tipo: 'codigos',
+        requerido: true,
+        ref: true,
+        entidades: ['opl', 'tienda'],
+        descripcion:
+          'QUIÉN ENTREGA: en despacho a domicilio (SD, DT, S…) el OPL; en retiro en tienda (ST, SE, RT…) la TIENDA donde se recoge',
+      },
+      {
+        nombre: 'almacen',
+        tipo: 'codigo',
+        entidades: ['almacen', 'tienda'],
+        descripcion: 'DE DÓNDE SALE EL STOCK; en Perú, por defecto el 20026. No es la tienda donde se recoge',
+      },
       { nombre: 'region', tipo: 'texto', descripcion: 'región de destino' },
       { nombre: 'provincia', tipo: 'texto', descripcion: 'provincia de destino' },
       { nombre: 'distrito', tipo: 'texto', descripcion: 'distrito de destino' },
@@ -130,9 +179,18 @@ export const HERRAMIENTAS: Herramienta[] = [
   },
   {
     id: 'listar_oficinas',
-    descripcion: 'Las oficinas del país que tiene el directorio: "todas las tiendas", "los almacenes", "los CDs", "los OPL". Para encadenar ("las tiendas con un solo flujo de picking" = listar_oficinas tienda + consultar_capacidad picking con codigo {"ref": "paso", "n": 1} y condición jornadas = 1).',
+    descripcion:
+      'Las oficinas del país que tiene el directorio: "todas las tiendas", "los almacenes", "los CDs", "los OPL". Para encadenar ("las tiendas con un solo flujo de picking" = listar_oficinas tienda + consultar_capacidad picking con codigo {"ref": "paso", "n": 1} y condición jornadas = 1).',
     dto: Object as unknown as new () => object,
-    params: [{ nombre: 'tipo', tipo: 'opcion', requerido: true, opciones: ['tienda', 'almacen', 'cd', 'opl'], descripcion: '"tienda", "almacen", "cd" u "opl"' }],
+    params: [
+      {
+        nombre: 'tipo',
+        tipo: 'opcion',
+        requerido: true,
+        opciones: ['tienda', 'almacen', 'cd', 'opl'],
+        descripcion: '"tienda", "almacen", "cd" u "opl"',
+      },
+    ],
   },
   {
     id: 'ejecutar_atajo',
@@ -145,12 +203,26 @@ export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'editar_capacidad',
     edicion: true,
-    descripcion: 'CAMBIO: cierra o abre días, o cambia el asignado o el disponible, de agendas de picking, despacho o recepción.',
+    descripcion:
+      'CAMBIO: cierra o abre días, o cambia el asignado o el disponible, de agendas de picking, despacho o recepción.',
     dto: EditarCapacidadDto,
     lista: 'codigo',
     params: [
-      { nombre: 'tipo', tipo: 'opcion', requerido: true, opciones: ['picking', 'despacho', 'recepcion'], descripcion: '"picking", "despacho" o "recepcion"' },
-      { nombre: 'codigo', tipo: 'codigos', requerido: true, ref: true, entidades: ['tienda', 'almacen', 'opl'], descripcion: 'las oficinas' },
+      {
+        nombre: 'tipo',
+        tipo: 'opcion',
+        requerido: true,
+        opciones: ['picking', 'despacho', 'recepcion'],
+        descripcion: '"picking", "despacho" o "recepcion"',
+      },
+      {
+        nombre: 'codigo',
+        tipo: 'codigos',
+        requerido: true,
+        ref: true,
+        entidades: ['tienda', 'almacen', 'opl'],
+        descripcion: 'las oficinas',
+      },
       { nombre: 'servicio', tipo: 'servicio', descripcion: 'el servicio o jornada' },
       { nombre: 'zona', tipo: 'texto', descripcion: 'en despacho, la zona' },
       { nombre: 'agenda', tipo: 'texto', descripcion: 'la agenda (o parte de su nombre): "centralizado de San Luis"' },
@@ -165,7 +237,8 @@ export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'editar_capacidad_transferencia',
     edicion: true,
-    descripcion: 'CAMBIO: la capacidad de transferencia de un origen hacia un clúster de destino (asignado o abrir/cerrar).',
+    descripcion:
+      'CAMBIO: la capacidad de transferencia de un origen hacia un clúster de destino (asignado o abrir/cerrar).',
     dto: EditarCapacidadTransferenciaDto,
     params: [
       { nombre: 'origen', tipo: 'codigo', entidades: ['almacen'], descripcion: 'el origen' },
@@ -181,7 +254,8 @@ export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'cortar_reabrir_cd',
     edicion: true,
-    descripcion: 'CAMBIO: corta (cierra) o reabre jornadas de un CD en unos días ("cierra la ST del CD Villa de hoy", "corta todas las jornadas del 20026").',
+    descripcion:
+      'CAMBIO: corta (cierra) o reabre jornadas de un CD en unos días ("cierra la ST del CD Villa de hoy", "corta todas las jornadas del 20026").',
     dto: EditarCdDto,
     params: [
       { nombre: 'cd', tipo: 'codigo', entidades: ['almacen'], descripcion: 'el CD' },
@@ -207,7 +281,8 @@ export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'editar_servicio_opl',
     edicion: true,
-    descripcion: 'CAMBIO: activa o desactiva un servicio en las agendas de unos OPL, lo saca o mete en checkout, o cambia su hora de corte, holgura u ocurrencias.',
+    descripcion:
+      'CAMBIO: activa o desactiva un servicio en las agendas de unos OPL, lo saca o mete en checkout, o cambia su hora de corte, holgura u ocurrencias.',
     dto: EditarTipoServicioDto,
     lista: 'opl',
     params: [
@@ -225,11 +300,18 @@ export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'editar_masivo',
     edicion: true,
-    descripcion: 'CAMBIO: activa o desactiva un tipo de servicio en bloque en todas las tiendas u OPL que lo tienen (o en unas).',
+    descripcion:
+      'CAMBIO: activa o desactiva un tipo de servicio en bloque en todas las tiendas u OPL que lo tienen (o en unas).',
     dto: EditarMasivoDto,
     params: [
       { nombre: 'servicio', tipo: 'servicio', requerido: true, descripcion: 'el servicio' },
-      { nombre: 'opls', tipo: 'codigos', ref: true, entidades: ['opl', 'tienda'], descripcion: 'solo estas tiendas u OPL' },
+      {
+        nombre: 'opls',
+        tipo: 'codigos',
+        ref: true,
+        entidades: ['opl', 'tienda'],
+        descripcion: 'solo estas tiendas u OPL',
+      },
       { nombre: 'origenes', tipo: 'codigos', entidades: ['tienda', 'almacen'], descripcion: 'solo estos orígenes' },
       { nombre: 'activo', tipo: 'booleano', descripcion: 'activar o desactivar' },
       { nombre: 'enCheckout', tipo: 'booleano', descripcion: 'en checkout o fuera' },
@@ -238,12 +320,25 @@ export const HERRAMIENTAS: Herramienta[] = [
   {
     id: 'editar_transferencia',
     edicion: true,
-    descripcion: 'CAMBIO: la transferencia de un origen a unas tiendas: habilitarla, o cambiar la preparación, el tránsito (el desfase es preparación + tránsito) o los días.',
+    descripcion:
+      'CAMBIO: la transferencia de un origen a unas tiendas: habilitarla, o cambiar la preparación, el tránsito (el desfase es preparación + tránsito) o los días.',
     dto: EditarTransferenciaDto,
     lista: 'destino',
     params: [
-      { nombre: 'origen', tipo: 'codigo', entidades: ['almacen', 'tienda'], descripcion: 'de dónde sale; en Perú, por defecto el 20026' },
-      { nombre: 'destino', tipo: 'codigos', requerido: true, ref: true, entidades: ['tienda', 'almacen'], descripcion: 'las tiendas' },
+      {
+        nombre: 'origen',
+        tipo: 'codigo',
+        entidades: ['almacen', 'tienda'],
+        descripcion: 'de dónde sale; en Perú, por defecto el 20026',
+      },
+      {
+        nombre: 'destino',
+        tipo: 'codigos',
+        requerido: true,
+        ref: true,
+        entidades: ['tienda', 'almacen'],
+        descripcion: 'las tiendas',
+      },
       { nombre: 'habilitada', tipo: 'booleano', descripcion: 'habilitar o no' },
       { nombre: 'preparacion', tipo: 'numero', min: 0, max: 30, descripcion: 'días de preparación' },
       { nombre: 'transito', tipo: 'numero', min: 0, max: 30, descripcion: 'días de tránsito' },
@@ -259,11 +354,13 @@ export const FUENTE_POR_DEFECTO: Record<string, string> = { PE: '20026' };
 
 /** El catálogo para el prompt de Armar: las ediciones solo cuando se pide un cambio */
 export function catalogoParaPrompt(conCambios = false): string {
-  return HERRAMIENTAS.filter((h) => conCambios || !h.edicion).map((h) => {
-    const ps = h.params.map((p) => {
-      const tipo = p.tipo === 'opcion' ? p.opciones!.map((o) => `"${o}"`).join(' | ') : p.tipo;
-      return `    - ${p.nombre}${p.requerido ? '*' : ''} (${tipo}${p.ref ? ', o {"ref": …}' : ''}): ${p.descripcion}`;
-    });
-    return `- ${h.id}: ${h.descripcion}\n${ps.join('\n')}`;
-  }).join('\n');
+  return HERRAMIENTAS.filter((h) => conCambios || !h.edicion)
+    .map((h) => {
+      const ps = h.params.map((p) => {
+        const tipo = p.tipo === 'opcion' ? p.opciones!.map((o) => `"${o}"`).join(' | ') : p.tipo;
+        return `    - ${p.nombre}${p.requerido ? '*' : ''} (${tipo}${p.ref ? ', o {"ref": …}' : ''}): ${p.descripcion}`;
+      });
+      return `- ${h.id}: ${h.descripcion}\n${ps.join('\n')}`;
+    })
+    .join('\n');
 }

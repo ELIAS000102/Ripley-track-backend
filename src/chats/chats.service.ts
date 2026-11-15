@@ -1,10 +1,4 @@
-import {
-  BadGatewayException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service.js';
 import type { Chat, Mensaje } from './interfaces/chats.interface.js';
 
@@ -23,7 +17,8 @@ const CAMPOS_MENSAJE = 'id, rol, texto, creado_en, ejecucion_id';
 /** Con la respuesta de la v3 del agente (agente-v3/sql/01-agente-v3.sql añade la columna) */
 const CAMPOS_MENSAJE_CON_DATOS = `${CAMPOS_MENSAJE}, datos`;
 /** "column … does not exist": el SQL de la v3 todavía no se corrió */
-const SIN_COLUMNA = (e: { code?: string; message?: string } | null) => e?.code === '42703' || /column .*datos.* does not exist/i.test(e?.message ?? '');
+const SIN_COLUMNA = (e: { code?: string; message?: string } | null) =>
+  e?.code === '42703' || /column .*datos.* does not exist/i.test(e?.message ?? '');
 
 /** Lo que cabe en un mensaje de «Notificaciones»: una tarea con sus tablas */
 const LARGO_NOTIFICACION = 60000;
@@ -90,11 +85,7 @@ export class ChatsService {
     this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
     // Los mensajes caen solos: la clave foránea va con on delete cascade
-    const { error } = await this.supabase.admin
-      .from(TABLA_CHATS)
-      .delete()
-      .eq('id', chatId)
-      .eq('usuario_id', usuarioId);
+    const { error } = await this.supabase.admin.from(TABLA_CHATS).delete().eq('id', chatId).eq('usuario_id', usuarioId);
 
     if (error) this.reventar('eliminar el chat', error.message);
 
@@ -102,11 +93,7 @@ export class ChatsService {
     return { id: chatId };
   }
 
-  async renombrar(
-    usuarioId: string,
-    chatId: string,
-    titulo: string,
-  ): Promise<Chat> {
+  async renombrar(usuarioId: string, chatId: string, titulo: string): Promise<Chat> {
     this.exigirEscribible(await this.exigirPropiedad(usuarioId, chatId));
 
     const { data, error } = await this.supabase.admin
@@ -126,7 +113,11 @@ export class ChatsService {
     await this.exigirPropiedad(usuarioId, chatId);
 
     const leer = (campos: string) =>
-      this.supabase.admin.from(TABLA_MENSAJES).select(campos).eq('chat_id', chatId).order('creado_en', { ascending: true });
+      this.supabase.admin
+        .from(TABLA_MENSAJES)
+        .select(campos)
+        .eq('chat_id', chatId)
+        .order('creado_en', { ascending: true });
     let { data, error } = await leer(this.hayDatos === false ? CAMPOS_MENSAJE : CAMPOS_MENSAJE_CON_DATOS);
     // Sin la columna de la v3 (el SQL aún no se corrió), el chat se sigue leyendo
     if (SIN_COLUMNA(error)) {
@@ -159,7 +150,10 @@ export class ChatsService {
     const conDatos = Boolean(datos) && rol === 'agente' && this.hayDatos !== false;
     const insertar = (fila: Record<string, unknown>, campos: string) =>
       this.supabase.admin.from(TABLA_MENSAJES).insert(fila).select(campos).single();
-    let { data, error } = await insertar({ chat_id: chatId, rol, texto, ...(conDatos ? { datos } : {}) }, conDatos ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE);
+    let { data, error } = await insertar(
+      { chat_id: chatId, rol, texto, ...(conDatos ? { datos } : {}) },
+      conDatos ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE,
+    );
     if (conDatos && SIN_COLUMNA(error)) {
       this.hayDatos = false;
       ({ data, error } = await insertar({ chat_id: chatId, rol, texto }, CAMPOS_MENSAJE));
@@ -199,8 +193,18 @@ export class ChatsService {
     // Una respuesta reintentada cambia también sus datos: los de la v3, o ninguno si la nueva es de la v2
     const conColumna = this.hayDatos !== false;
     const cambiar = (cambios: Record<string, unknown>, campos: string) =>
-      this.supabase.admin.from(TABLA_MENSAJES).update(cambios).eq('id', mensajeId).eq('chat_id', chatId).eq('rol', 'agente').select(campos).maybeSingle();
-    let { data, error } = await cambiar(conColumna ? { texto, datos: datos ?? null } : { texto }, conColumna ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE);
+      this.supabase.admin
+        .from(TABLA_MENSAJES)
+        .update(cambios)
+        .eq('id', mensajeId)
+        .eq('chat_id', chatId)
+        .eq('rol', 'agente')
+        .select(campos)
+        .maybeSingle();
+    let { data, error } = await cambiar(
+      conColumna ? { texto, datos: datos ?? null } : { texto },
+      conColumna ? CAMPOS_MENSAJE_CON_DATOS : CAMPOS_MENSAJE,
+    );
     if (conColumna && SIN_COLUMNA(error)) {
       this.hayDatos = false;
       ({ data, error } = await cambiar({ texto }, CAMPOS_MENSAJE));
@@ -209,10 +213,7 @@ export class ChatsService {
     if (error) this.reventar('reemplazar el mensaje', error.message);
     if (!data) throw new NotFoundException('No existe esa respuesta en este chat');
 
-    await this.supabase.admin
-      .from(TABLA_CHATS)
-      .update({ actualizado_en: new Date().toISOString() })
-      .eq('id', chatId);
+    await this.supabase.admin.from(TABLA_CHATS).update({ actualizado_en: new Date().toISOString() }).eq('id', chatId);
 
     return data as unknown as Mensaje;
   }
@@ -289,10 +290,7 @@ export class ChatsService {
    * Un chat que no es tuyo se trata como inexistente en la respuesta al
    * cliente, pero se distingue en el log: así no se filtra qué ids existen.
    */
-  private async exigirPropiedad(
-    usuarioId: string,
-    chatId: string,
-  ): Promise<Chat> {
+  private async exigirPropiedad(usuarioId: string, chatId: string): Promise<Chat> {
     const { data, error } = await this.supabase.admin
       .from(TABLA_CHATS)
       .select(`${CAMPOS_CHAT}, usuario_id`)
@@ -303,9 +301,7 @@ export class ChatsService {
     if (!data) throw new NotFoundException('No existe ese chat');
 
     if (data.usuario_id !== usuarioId) {
-      this.logger.warn(
-        `${usuarioId} intentó acceder al chat ${chatId}, que es de otro usuario`,
-      );
+      this.logger.warn(`${usuarioId} intentó acceder al chat ${chatId}, que es de otro usuario`);
       throw new ForbiddenException('Ese chat no es tuyo');
     }
 
@@ -314,9 +310,7 @@ export class ChatsService {
 
   private recortar(texto: string): string {
     const limpio = texto.trim().replace(/\s+/g, ' ');
-    return limpio.length > LARGO_TITULO
-      ? `${limpio.slice(0, LARGO_TITULO - 1)}…`
-      : limpio;
+    return limpio.length > LARGO_TITULO ? `${limpio.slice(0, LARGO_TITULO - 1)}…` : limpio;
   }
 
   private reventar(que: string, detalle: string): never {

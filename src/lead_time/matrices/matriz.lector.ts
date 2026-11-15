@@ -41,7 +41,11 @@ export function textoDeCelda(valor: ExcelJS.CellValue): string {
   if (typeof valor === 'string') return valor.replace(/ /g, ' ').trim();
   if (valor instanceof Date) return valor.toISOString().slice(0, 10);
   if (typeof valor === 'object') {
-    if ('richText' in valor) return valor.richText.map((t) => t.text).join('').trim();
+    if ('richText' in valor)
+      return valor.richText
+        .map((t) => t.text)
+        .join('')
+        .trim();
     if ('result' in valor) return textoDeCelda(valor.result as ExcelJS.CellValue);
     if ('text' in valor) return String(valor.text).trim();
   }
@@ -71,22 +75,30 @@ export async function leerMatriz(contenido: Buffer): Promise<LecturaMatriz> {
   const encontrado = buscarEncabezado(libro);
   if (!encontrado) {
     return {
-      hoja: '', tiendas: [], avisos: [],
-      errores: ['No encontré la fila de encabezado: la columna A tiene que empezar por "Código", como en la plantilla.'],
+      hoja: '',
+      tiendas: [],
+      avisos: [],
+      errores: [
+        'No encontré la fila de encabezado: la columna A tiene que empezar por "Código", como en la plantilla.',
+      ],
     };
   }
 
   const { hoja, fila: filaEncabezado } = encontrado;
   const errores: string[] = [];
   const avisos: string[] = [];
-  const anotar = (texto: string) => { if (errores.length < ERRORES_MAXIMOS) errores.push(texto); };
+  const anotar = (texto: string) => {
+    if (errores.length < ERRORES_MAXIMOS) errores.push(texto);
+  };
 
   // Las 24 columnas, en su sitio: si una se movió, todo lo demás se leería corrido
   const encabezado = hoja.getRow(filaEncabezado);
   ENCABEZADO.forEach((esperado, i) => {
     const visto = normalizar(textoDeCelda(encabezado.getCell(i + 1).value));
     if (visto !== esperado) {
-      anotar(`El encabezado de la columna ${LETRA_COLUMNA(i + 1)} dice "${visto || '(vacío)'}" y debería decir "${esperado.toUpperCase()}". No muevas ni borres columnas de la plantilla.`);
+      anotar(
+        `El encabezado de la columna ${LETRA_COLUMNA(i + 1)} dice "${visto || '(vacío)'}" y debería decir "${esperado.toUpperCase()}". No muevas ni borres columnas de la plantilla.`,
+      );
     }
   });
   if (errores.length) return { hoja: hoja.name, tiendas: [], avisos, errores };
@@ -126,10 +138,15 @@ export async function leerMatriz(contenido: Buffer): Promise<LecturaMatriz> {
     const recepcion = bloque(17);
 
     // "+N" solo en la recepción
-    for (const [nombre, celdasBloque, desde] of [['transferencia', transferencia, 4], ['intermedio', intermedio, 11]] as const) {
+    for (const [nombre, celdasBloque, desde] of [
+      ['transferencia', transferencia, 4],
+      ['intermedio', intermedio, 11],
+    ] as const) {
       celdasBloque.forEach((c, i) => {
         if (c && /\+/.test(c)) {
-          anotar(`${donde}: "${c}" en la columna ${LETRA_COLUMNA(desde + i)} (${nombre}): el "+N" solo va en la recepción.`);
+          anotar(
+            `${donde}: "${c}" en la columna ${LETRA_COLUMNA(desde + i)} (${nombre}): el "+N" solo va en la recepción.`,
+          );
           bien = false;
         }
       });
@@ -146,7 +163,9 @@ export async function leerMatriz(contenido: Buffer): Promise<LecturaMatriz> {
       }
       const clave = claveEtiqueta(leerCeldaRecepcion(c)!.etiqueta);
       if (enRecepcion.has(clave)) {
-        anotar(`${donde}: la etiqueta "${clave}" está dos veces en la recepción (${NOMBRE_DIA[DIAS[enRecepcion.get(clave)!]]} y ${NOMBRE_DIA[DIAS[i]]}): no se sabe cuál toca.`);
+        anotar(
+          `${donde}: la etiqueta "${clave}" está dos veces en la recepción (${NOMBRE_DIA[DIAS[enRecepcion.get(clave)!]]} y ${NOMBRE_DIA[DIAS[i]]}): no se sabe cuál toca.`,
+        );
         bien = false;
       }
       enRecepcion.set(clave, i);

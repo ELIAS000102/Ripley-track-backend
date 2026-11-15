@@ -25,15 +25,24 @@ export interface DeQueTarea {
 const cabecera = (r: DeQueRutina) => (r.modo === 'prueba' ? `Prueba de «${r.nombre}»` : `«${r.nombre}»`);
 
 const AVISO_PRUEBA = '*Es una prueba: no se cambió ninguna agenda. Lo que dice "después" es lo que quedaría.*';
-const COMO_SEGUIR = 'La rutina se detuvo aquí. Cuando esté resuelto, reanúdala desde **Rutinas**: se reintenta esta tarea y sigue con las demás.';
+const COMO_SEGUIR =
+  'La rutina se detuvo aquí. Cuando esté resuelto, reanúdala desde **Rutinas**: se reintenta esta tarea y sigue con las demás.';
 
 /** Una instrucción de varias líneas ("- busca…\n- desactiva…"), en una */
 const enUnaLinea = (s: string) =>
-  s.split('\n').map((l) => l.replace(/^\s*[-*+]\s+/, '').trim()).filter(Boolean).join(' · ');
+  s
+    .split('\n')
+    .map((l) => l.replace(/^\s*[-*+]\s+/, '').trim())
+    .filter(Boolean)
+    .join(' · ');
 
 /** Lo que falló de una simulación: en una prueba no cuenta, pero se cuenta */
 const fallosDeSimulacion = (l: LlamadaHerramienta) => [
-  ...(l.simulacion && ((l.estado >= 400 && !l.yaEstaba) || l.problemas.length) ? (l.problemas.length ? l.problemas : [`respondió ${l.estado}`]) : []),
+  ...(l.simulacion && ((l.estado >= 400 && !l.yaEstaba) || l.problemas.length)
+    ? l.problemas.length
+      ? l.problemas
+      : [`respondió ${l.estado}`]
+    : []),
   ...(l.deSimulacion ?? []),
 ];
 
@@ -45,13 +54,15 @@ const esMala = (l: LlamadaHerramienta, prueba = false) => {
 /** "Ejecutar un atajo «OPLS de la SE» · Activar o desactivar agendas en bloque (1 sin aplicar)" */
 function loQueLlamo(llamadas: LlamadaHerramienta[], prueba = false): string {
   return llamadas
-    .map((l) => [
-      l.herramienta,
-      l.atajo ? ` «${l.atajo}»` : '',
-      l.yaEstaba ? ' (ya estaba así)' : '',
-      l.escriturasEvitadas ? ` (${l.escriturasEvitadas} sin aplicar)` : '',
-      prueba && fallosDeSimulacion(l).length ? ' (su simulación falló: no cuenta en una prueba)' : '',
-    ].join(''))
+    .map((l) =>
+      [
+        l.herramienta,
+        l.atajo ? ` «${l.atajo}»` : '',
+        l.yaEstaba ? ' (ya estaba así)' : '',
+        l.escriturasEvitadas ? ` (${l.escriturasEvitadas} sin aplicar)` : '',
+        prueba && fallosDeSimulacion(l).length ? ' (su simulación falló: no cuenta en una prueba)' : '',
+      ].join(''),
+    )
     .join(' · ');
 }
 
@@ -75,7 +86,9 @@ export function relatoDePaso(rutina: DeQueRutina, tarea: DeQueTarea, p: PasoEjec
       // La que ya nombra el error no se repite debajo
       const quien = `"${m.herramienta}" respondió ${m.estado}`;
       if (m.estado >= 400 && p.motivo?.includes(quien)) continue;
-      l.push(`- ${m.estado >= 400 ? quien : `"${m.herramienta}"`}${m.problemas.length ? `: ${m.problemas.join(' · ')}` : ''}`);
+      l.push(
+        `- ${m.estado >= 400 ? quien : `"${m.herramienta}"`}${m.problemas.length ? `: ${m.problemas.join(' · ')}` : ''}`,
+      );
     }
   }
   if (p.llamadas.length) l.push(`- Llamó a: ${loQueLlamo(p.llamadas, prueba)}`);
@@ -84,7 +97,9 @@ export function relatoDePaso(rutina: DeQueRutina, tarea: DeQueTarea, p: PasoEjec
   // En una prueba, lo que falló al simular se dice, y por qué no cuenta
   const deSimular = prueba ? p.llamadas.flatMap(fallosDeSimulacion) : [];
   if (deSimular.length) {
-    l.push(`- La simulación tuvo ${deSimular.length === 1 ? 'un error' : `${deSimular.length} errores`} (${deSimular[0]}${deSimular.length > 1 ? '…' : ''}), pero en una prueba no cuenta: simula sin las activaciones, que la prueba no hace.`);
+    l.push(
+      `- La simulación tuvo ${deSimular.length === 1 ? 'un error' : `${deSimular.length} errores`} (${deSimular[0]}${deSimular.length > 1 ? '…' : ''}), pero en una prueba no cuenta: simula sin las activaciones, que la prueba no hace.`,
+    );
   }
 
   if (p.respuesta?.trim()) l.push('', p.respuesta.trim());
@@ -106,7 +121,11 @@ export function relatoDelFinal(rutina: DeQueRutina, tareas: number, probada: boo
  * respondió, el servidor se reinició— o antes de empezar. Lo que sí hicieron
  * sus pasos ya se contó, cada uno en su mensaje.
  */
-export function relatoDetenida(rutina: DeQueRutina, tarea: Pick<DeQueTarea, 'orden' | 'nombre'> | null, motivo: string): string {
+export function relatoDetenida(
+  rutina: DeQueRutina,
+  tarea: Pick<DeQueTarea, 'orden' | 'nombre'> | null,
+  motivo: string,
+): string {
   return [
     `**${cabecera(rutina)} se detuvo ${tarea ? `en la tarea ${tarea.orden} «${tarea.nombre}»` : 'antes de empezar'}**`,
     `- **Error:** ${motivo}`,

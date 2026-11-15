@@ -25,11 +25,12 @@ describe('Un carril', () => {
     const carril = new Carril({ paralelas: 2, intervaloMs: 0 });
     let ahora = 0;
     let maximo = 0;
-    const tarea = () => carril.turno(async () => {
-      maximo = Math.max(maximo, ++ahora);
-      await espera(15);
-      ahora--;
-    });
+    const tarea = () =>
+      carril.turno(async () => {
+        maximo = Math.max(maximo, ++ahora);
+        await espera(15);
+        ahora--;
+      });
 
     await Promise.all(Array.from({ length: 7 }, tarea));
     expect(maximo).toBe(2);
@@ -40,10 +41,14 @@ describe('Un carril', () => {
     const arranques: number[] = [];
     const orden: number[] = [];
 
-    await Promise.all([0, 1, 2, 3].map((i) => carril.turno(async () => {
-      arranques.push(Date.now());
-      orden.push(i);
-    })));
+    await Promise.all(
+      [0, 1, 2, 3].map((i) =>
+        carril.turno(async () => {
+          arranques.push(Date.now());
+          orden.push(i);
+        }),
+      ),
+    );
 
     expect(orden).toEqual([0, 1, 2, 3]);
     for (let i = 1; i < arranques.length; i++) expect(arranques[i] - arranques[i - 1]).toBeGreaterThanOrEqual(20);
@@ -51,7 +56,11 @@ describe('Un carril', () => {
 
   it('un fallo libera su sitio igual', async () => {
     const carril = new Carril({ paralelas: 1, intervaloMs: 0 });
-    await expect(carril.turno(async () => { throw new Error('mal'); })).rejects.toThrow('mal');
+    await expect(
+      carril.turno(async () => {
+        throw new Error('mal');
+      }),
+    ).rejects.toThrow('mal');
     await expect(carril.turno(async () => 'bien')).resolves.toBe('bien');
   });
 
@@ -65,8 +74,13 @@ describe('Un carril', () => {
 
   it('una configuración rota cae en la de por defecto', () => {
     expect(ritmoDe('/api/x', RITMO_POR_DEFECTO.general)).toEqual(RITMO_POR_DEFECTO.general);
-    expect(ritmoDe({ paralelas: '0', intervaloMs: '-5' }, RITMO_POR_DEFECTO.general)).toEqual(RITMO_POR_DEFECTO.general);
-    expect(ritmoDe({ paralelas: '3', intervaloMs: '200' }, RITMO_POR_DEFECTO.general)).toEqual({ paralelas: 3, intervaloMs: 200 });
+    expect(ritmoDe({ paralelas: '0', intervaloMs: '-5' }, RITMO_POR_DEFECTO.general)).toEqual(
+      RITMO_POR_DEFECTO.general,
+    );
+    expect(ritmoDe({ paralelas: '3', intervaloMs: '200' }, RITMO_POR_DEFECTO.general)).toEqual({
+      paralelas: 3,
+      intervaloMs: 200,
+    });
   });
 });
 
@@ -79,17 +93,25 @@ function montar(opciones: { get?: () => unknown; token?: () => string } = {}) {
     put: vi.fn(() => lento({ data: { ok: true } })),
   };
   const config = {
-    get: (clave: string) => ({
-      'ripley.urls': { PE: 'https://interno', CL: 'https://interno-cl' },
-      'ripley.endpoints.simulator': '/simulador',
-      'ripley.ritmo.general': { paralelas: '2', intervaloMs: '0' },
-      'ripley.ritmo.simulacion': { paralelas: '1', intervaloMs: '0' },
-      // Ventanas cortas: un 429 espera a que cierre la ventana del cupo
-      'ripley.cupo': { llamadas: '100', ventanaMs: '30', margenMs: '0' },
-    } as Record<string, unknown>)[clave],
+    get: (clave: string) =>
+      (
+        ({
+          'ripley.urls': { PE: 'https://interno', CL: 'https://interno-cl' },
+          'ripley.endpoints.simulator': '/simulador',
+          'ripley.ritmo.general': { paralelas: '2', intervaloMs: '0' },
+          'ripley.ritmo.simulacion': { paralelas: '1', intervaloMs: '0' },
+          // Ventanas cortas: un 429 espera a que cierre la ventana del cupo
+          'ripley.cupo': { llamadas: '100', ventanaMs: '30', margenMs: '0' },
+        }) as Record<string, unknown>
+      )[clave],
   } as unknown as ConfigService;
-  const contexto = { usuarioActual: () => ({ id: 'u1', email: 'ana@ejemplo.com' }), enSimulacro: () => false } as unknown as ContextoAuditoria;
-  const tokens = { obtenerParaUso: vi.fn(async () => (opciones.token ?? (() => 'token-1'))()) } as unknown as TokenRipleyService;
+  const contexto = {
+    usuarioActual: () => ({ id: 'u1', email: 'ana@ejemplo.com' }),
+    enSimulacro: () => false,
+  } as unknown as ContextoAuditoria;
+  const tokens = {
+    obtenerParaUso: vi.fn(async () => (opciones.token ?? (() => 'token-1'))()),
+  } as unknown as TokenRipleyService;
   const cache = { olvidar: vi.fn() } as unknown as CacheCatalogosService;
   const servicio = new RipleyHttpService(http as unknown as HttpService, config, contexto, tokens, cache);
   (servicio as unknown as { logger: Record<string, unknown> }).logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
@@ -114,12 +136,13 @@ describe('El cliente de Ripley, con ritmo', () => {
     let ahora = 0;
     let maximo = 0;
     const { servicio, http } = montar({
-      get: () => defer(async () => {
-        maximo = Math.max(maximo, ++ahora);
-        await espera(15);
-        ahora--;
-        return { data: {} };
-      }),
+      get: () =>
+        defer(async () => {
+          maximo = Math.max(maximo, ++ahora);
+          await espera(15);
+          ahora--;
+          return { data: {} };
+        }),
     });
 
     await Promise.all([1, 2, 3, 4, 5].map((id) => servicio.get('/agendas', 'PE', { id: String(id) })));
@@ -145,9 +168,10 @@ describe('El cliente de Ripley, con ritmo', () => {
     let token = 'token-viejo';
     const { servicio, http } = montar({
       token: () => token,
-      get: () => (token === 'token-viejo'
-        ? throwError(() => ({ message: '401', response: { status: 401, data: '' } }))
-        : from(Promise.resolve({ data: { ok: true } }))),
+      get: () =>
+        token === 'token-viejo'
+          ? throwError(() => ({ message: '401', response: { status: 401, data: '' } }))
+          : from(Promise.resolve({ data: { ok: true } })),
     });
 
     await expect(servicio.get('/agendas', 'PE')).rejects.toThrow('respondió 401');
@@ -161,9 +185,10 @@ describe('El cliente de Ripley, con ritmo', () => {
 
   it('el 401 de un país no frena al otro', async () => {
     const { servicio, http } = montar({
-      get: () => (http.get.mock.calls.length === 1
-        ? throwError(() => ({ message: '401', response: { status: 401, data: '' } }))
-        : from(Promise.resolve({ data: { ok: true } }))),
+      get: () =>
+        http.get.mock.calls.length === 1
+          ? throwError(() => ({ message: '401', response: { status: 401, data: '' } }))
+          : from(Promise.resolve({ data: { ok: true } })),
     });
 
     await expect(servicio.get('/agendas', 'PE')).rejects.toThrow('401');
@@ -172,9 +197,13 @@ describe('El cliente de Ripley, con ritmo', () => {
 
   it('si Ripley pide ir más despacio (429), espera lo que dice (o a que cierre la ventana) y reintenta', async () => {
     const { servicio, http } = montar({
-      get: () => (http.get.mock.calls.length === 1
-        ? throwError(() => ({ message: '429', response: { status: 429, data: '', headers: { 'retry-after': '0.05' } } }))
-        : from(Promise.resolve({ data: { ok: true } }))),
+      get: () =>
+        http.get.mock.calls.length === 1
+          ? throwError(() => ({
+              message: '429',
+              response: { status: 429, data: '', headers: { 'retry-after': '0.05' } },
+            }))
+          : from(Promise.resolve({ data: { ok: true } })),
     });
 
     const antes = Date.now();
@@ -185,10 +214,13 @@ describe('El cliente de Ripley, con ritmo', () => {
 
   it('y si vuelve a pedirlo, lo dice como lo que es, sin la dirección', async () => {
     const { servicio } = montar({
-      get: () => throwError(() => ({ message: '429', response: { status: 429, data: '', headers: { 'retry-after': '0' } } })),
+      get: () =>
+        throwError(() => ({ message: '429', response: { status: 429, data: '', headers: { 'retry-after': '0' } } })),
     });
 
     const error = await servicio.get('/agendas', 'PE').catch((e: Error) => e);
-    expect((error as Error).message).toBe('La API corporativa de PE pidió ir más despacio (429) al consultar, también después de esperar. Vuelve a intentarlo en un minuto.');
+    expect((error as Error).message).toBe(
+      'La API corporativa de PE pidió ir más despacio (429) al consultar, también después de esperar. Vuelve a intentarlo en un minuto.',
+    );
   });
 });

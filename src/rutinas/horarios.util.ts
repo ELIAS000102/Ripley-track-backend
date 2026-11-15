@@ -19,9 +19,16 @@ export function momentoLocal(instante: Date, pais: string): { fecha: string; dia
   const partes = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
       timeZone: ZONA_DEL_PAIS[pais] ?? ZONA_DEL_PAIS.PE,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
-    }).formatToParts(instante).map((p) => [p.type, p.value]),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      weekday: 'short',
+      hour12: false,
+    })
+      .formatToParts(instante)
+      .map((p) => [p.type, p.value]),
   );
   const DIAS: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
   // "24:00" es como algunos motores escriben la medianoche
@@ -42,7 +49,8 @@ export function choques(horarios: Pick<Horario, 'dias' | 'hora'>[]): string[] {
     for (const d of h.dias) {
       const clave = `${d} ${h.hora}`;
       const otro = vistos.get(clave);
-      if (otro !== undefined && otro !== i) salida.push(`el ${NOMBRE_DIA[d]} a las ${h.hora} está en los horarios ${otro + 1} y ${i + 1}`);
+      if (otro !== undefined && otro !== i)
+        salida.push(`el ${NOMBRE_DIA[d]} a las ${h.hora} está en los horarios ${otro + 1} y ${i + 1}`);
       else vistos.set(clave, i);
     }
   });
@@ -61,7 +69,11 @@ function diaSiguiente(fecha: string): string {
  * y hora llegan después, en la hora del país. Un turno a la hora exacta de
  * ahora ya no cuenta: es el que está corriendo.
  */
-export function proximoTurno(horarios: Pick<Horario, 'orden' | 'dias' | 'hora'>[], pais: string, desde: Date = new Date()): Turno | null {
+export function proximoTurno(
+  horarios: Pick<Horario, 'orden' | 'dias' | 'hora'>[],
+  pais: string,
+  desde: Date = new Date(),
+): Turno | null {
   if (!horarios.length) return null;
   const ahora = momentoLocal(desde, pais);
   let fecha = ahora.fecha;

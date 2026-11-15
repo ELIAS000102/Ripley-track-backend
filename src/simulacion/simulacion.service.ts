@@ -1,8 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import {
-  CatalogosRipleyService,
-  type TipoOficina,
-} from '../common/ripley/catalogos.service.js';
+import { CatalogosRipleyService, type TipoOficina } from '../common/ripley/catalogos.service.js';
 import { RipleyHttpService } from '../common/ripley/ripley-http.service.js';
 import { hoyEnPais } from '../common/ripley/utils/date.util.js';
 import { SimularDto } from './dto/simular.dto.js';
@@ -38,10 +35,7 @@ export class SimulacionService {
 
   /** Métodos de entrega con sus tipos de servicio */
   async listarMetodosEntrega(pais = 'PE') {
-    const data = await this.ripley.get<any[]>(
-      this.ripley.endpoint('delivery'),
-      pais,
-    );
+    const data = await this.ripley.get<any[]>(this.ripley.endpoint('delivery'), pais);
 
     return (Array.isArray(data) ? data : []).map((m) => ({
       code: m.code,
@@ -74,14 +68,10 @@ export class SimulacionService {
 
   /** Búsqueda incremental de productos */
   async buscarSku(q: string, pais = 'PE') {
-    const data = await this.ripley.get<SkuResponse>(
-      this.ripley.endpoint('sku'),
-      pais,
-      {
-        q,
-        isStoreProduct: true,
-      },
-    );
+    const data = await this.ripley.get<SkuResponse>(this.ripley.endpoint('sku'), pais, {
+      q,
+      isStoreProduct: true,
+    });
 
     return (data?.rows ?? []).map((s) => ({
       sku: s.code,
@@ -93,10 +83,7 @@ export class SimulacionService {
   // ---------- Geografía ----------
 
   async listarRegiones(pais = 'PE') {
-    const data = await this.ripley.get<RipleyListResponse<RegionRow>>(
-      this.ripley.endpoint('regions'),
-      pais,
-    );
+    const data = await this.ripley.get<RipleyListResponse<RegionRow>>(this.ripley.endpoint('regions'), pais);
 
     return (data?.rows ?? [])
       .map((r) => ({ id: r.id, nombre: r.name, code: r.code }))
@@ -107,14 +94,8 @@ export class SimulacionService {
    * El detalle de una región trae provincias y distritos anidados.
    * Es una respuesta grande, así que no se devuelve cruda al cliente.
    */
-  private async traerRegion(
-    regionId: string,
-    pais: string,
-  ): Promise<RegionDetalle> {
-    const region = await this.ripley.get<RegionDetalle>(
-      `${this.ripley.endpoint('regions')}/${regionId}`,
-      pais,
-    );
+  private async traerRegion(regionId: string, pais: string): Promise<RegionDetalle> {
+    const region = await this.ripley.get<RegionDetalle>(`${this.ripley.endpoint('regions')}/${regionId}`, pais);
 
     if (!region?.id) {
       throw new NotFoundException(`No se encontró la región ${regionId}`);
@@ -132,14 +113,10 @@ export class SimulacionService {
 
   async listarDistritos(regionId: string, provinciaId: string, pais = 'PE') {
     const region = await this.traerRegion(regionId, pais);
-    const provincia = (region.provinces ?? []).find(
-      (p) => p.id === provinciaId,
-    );
+    const provincia = (region.provinces ?? []).find((p) => p.id === provinciaId);
 
     if (!provincia) {
-      throw new NotFoundException(
-        `La provincia ${provinciaId} no pertenece a la región ${regionId}`,
-      );
+      throw new NotFoundException(`La provincia ${provinciaId} no pertenece a la región ${regionId}`);
     }
 
     return (provincia.communes ?? [])
@@ -174,11 +151,7 @@ export class SimulacionService {
    * Devuelve todas las coincidencias: hay nombres de distrito repetidos entre
    * provincias, y quien llama decide si desempata o pregunta.
    */
-  async buscarDistritosPorNombre(
-    regionId: string,
-    nombre: string,
-    pais = 'PE',
-  ) {
+  async buscarDistritosPorNombre(regionId: string, nombre: string, pais = 'PE') {
     const buscado = nombre.trim().toLowerCase();
 
     return (await this.listarDistritosDeRegion(regionId, pais)).filter((c) =>
@@ -193,19 +166,14 @@ export class SimulacionService {
       if (comuna) return comuna;
     }
 
-    throw new NotFoundException(
-      `El distrito ${communeId} no pertenece a la región ${region.name}`,
-    );
+    throw new NotFoundException(`El distrito ${communeId} no pertenece a la región ${region.name}`);
   }
 
   // ---------- Simulación ----------
 
   /** Detalle de una oficina por su id */
   private async traerOficina(id: string, pais: string): Promise<OfficeRow> {
-    const oficina = await this.ripley.get<OfficeRow>(
-      `${this.ripley.endpoint('offices')}/${id}`,
-      pais,
-    );
+    const oficina = await this.ripley.get<OfficeRow>(`${this.ripley.endpoint('offices')}/${id}`, pais);
 
     if (!oficina?.id) {
       throw new NotFoundException(`No se encontró la oficina ${id}`);
@@ -227,24 +195,15 @@ export class SimulacionService {
    * Cada producto necesita su bloque "type", que vive en el catálogo de SKU.
    * Público por lo mismo que `regionDetalle`.
    */
-  async resolverProductos(
-    productos: SimularDto['products'],
-    pais: string,
-  ): Promise<SimulacionPayload['products']> {
+  async resolverProductos(productos: SimularDto['products'], pais: string): Promise<SimulacionPayload['products']> {
     return Promise.all(
       productos.map(async (p) => {
-        const data = await this.ripley.get<SkuResponse>(
-          this.ripley.endpoint('sku'),
-          pais,
-          {
-            q: String(p.sku),
-            isStoreProduct: true,
-          },
-        );
+        const data = await this.ripley.get<SkuResponse>(this.ripley.endpoint('sku'), pais, {
+          q: String(p.sku),
+          isStoreProduct: true,
+        });
 
-        const encontrado: SkuRow | undefined = data?.rows?.find(
-          (s) => Number(s.code) === Number(p.sku),
-        );
+        const encontrado: SkuRow | undefined = data?.rows?.find((s) => Number(s.code) === Number(p.sku));
 
         if (!encontrado) {
           throw new NotFoundException(`No se encontró el SKU ${p.sku}`);
@@ -268,8 +227,7 @@ export class SimulacionService {
 
   /** Hora actual en la zona del país */
   private horaEnPais(pais: string): string {
-    const zona =
-      pais.toUpperCase().trim() === 'CL' ? 'America/Santiago' : 'America/Lima';
+    const zona = pais.toUpperCase().trim() === 'CL' ? 'America/Santiago' : 'America/Lima';
 
     return new Intl.DateTimeFormat('es', {
       timeZone: zona,
@@ -286,9 +244,7 @@ export class SimulacionService {
     // se resuelve si lo pidieron: sin él Ripley elige la fuente de stock.
     const [region, almacen, courier, productos] = await Promise.all([
       this.traerRegion(dto.regionId, pais),
-      dto.warehouseId?.trim()
-        ? this.traerOficina(dto.warehouseId, pais)
-        : Promise.resolve(null),
+      dto.warehouseId?.trim() ? this.traerOficina(dto.warehouseId, pais) : Promise.resolve(null),
       this.traerOficina(dto.courierId, pais),
       this.resolverProductos(dto.products, pais),
     ]);
@@ -391,37 +347,31 @@ export class SimulacionService {
   }
 
   /** La respuesta viene muy anidada; se aplana a algo que el frontend pueda pintar */
-  private normalizar(
-    respuesta: SimulacionResponse,
-    payload: SimulacionPayload,
-    distrito: string,
-  ) {
+  private normalizar(respuesta: SimulacionResponse, payload: SimulacionPayload, distrito: string) {
     const matriz = respuesta?.matrix?.[0];
 
-    const resultados = Object.entries(matriz?.typeOfServices ?? {}).map(
-      ([code, servicio]) => ({
-        typeOfService: code,
-        agenda: servicio.scheduleName?.trim() ?? null,
-        zona: servicio.zoneName?.trim() ?? null,
-        opciones: (servicio.simulator ?? []).map((o) => {
-          // Los pasos del cálculo, en orden, con la fecha que arrastra cada uno
-          // y los días que suma a la entrega (Ripley no los manda: se calculan)
-          const { pasos, diasTotales } = tiempoAgregado(o.saleDate, o.log);
-          return {
-            courier: o.courier,
-            almacen: o.warehouse,
-            horaCorte: o.cutTime,
-            fechaVenta: o.saleDate,
-            fechaEntrega: o.date,
-            tamano: o.sizeCargo,
-            bultos: o.countCargo,
-            diasTotales,
-            pasos,
-            recorrido: o.fulfillment ?? [],
-          };
-        }),
+    const resultados = Object.entries(matriz?.typeOfServices ?? {}).map(([code, servicio]) => ({
+      typeOfService: code,
+      agenda: servicio.scheduleName?.trim() ?? null,
+      zona: servicio.zoneName?.trim() ?? null,
+      opciones: (servicio.simulator ?? []).map((o) => {
+        // Los pasos del cálculo, en orden, con la fecha que arrastra cada uno
+        // y los días que suma a la entrega (Ripley no los manda: se calculan)
+        const { pasos, diasTotales } = tiempoAgregado(o.saleDate, o.log);
+        return {
+          courier: o.courier,
+          almacen: o.warehouse,
+          horaCorte: o.cutTime,
+          fechaVenta: o.saleDate,
+          fechaEntrega: o.date,
+          tamano: o.sizeCargo,
+          bultos: o.countCargo,
+          diasTotales,
+          pasos,
+          recorrido: o.fulfillment ?? [],
+        };
       }),
-    );
+    }));
 
     return {
       parametros: {

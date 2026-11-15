@@ -1,9 +1,4 @@
-import {
-  BadGatewayException,
-  BadRequestException,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import type { ContextoAuditoria } from '../auditoria/contexto-auditoria.service.js';
 import type { UsuarioAutenticado } from '../auth/interfaces/auth.interface.js';
 import type { SupabaseService } from '../common/supabase/supabase.service.js';
@@ -127,7 +122,9 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
 
   /** "la matriz Valle", "la malla del evento "Cyber"", para los mensajes */
   protected llamada(m: MallaElegida, pais: string) {
-    return m.tipo === 'regular' ? `la ${this.def.cosa} ${nombreBase(pais)}` : `la ${this.def.cosa} del evento "${m.nombre}"`;
+    return m.tipo === 'regular'
+      ? `la ${this.def.cosa} ${nombreBase(pais)}`
+      : `la ${this.def.cosa} del evento "${m.nombre}"`;
   }
 
   /** La plantilla vacía, o con la versión vigente dentro para corregirla */
@@ -192,10 +189,27 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
 
     const nombre = this.nombreParaVer(elegida, grupo.pais);
     this.auditoria.registrarCambio(
-      anterior ? { grupo: grupo.id, [this.def.cosa]: nombre, version: anterior.id, [plural]: anterior[plural], cargadaEn: anterior.cargado_en } : null,
-      { grupo: grupo.id, [this.def.cosa]: nombre, version: creada!.id, pais: grupo.pais, [plural]: filas.length, archivo },
+      anterior
+        ? {
+            grupo: grupo.id,
+            [this.def.cosa]: nombre,
+            version: anterior.id,
+            [plural]: anterior[plural],
+            cargadaEn: anterior.cargado_en,
+          }
+        : null,
+      {
+        grupo: grupo.id,
+        [this.def.cosa]: nombre,
+        version: creada!.id,
+        pais: grupo.pais,
+        [plural]: filas.length,
+        archivo,
+      },
     );
-    this.logger.log(`${this.def.cosa} "${nombre}" del grupo ${grupo.id} cargada por ${usuario.email}: ${filas.length} ${plural}`);
+    this.logger.log(
+      `${this.def.cosa} "${nombre}" del grupo ${grupo.id} cargada por ${usuario.email}: ${filas.length} ${plural}`,
+    );
 
     return {
       id: creada!.id,
@@ -213,20 +227,25 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
    * La versión vigente del grupo, interpretada. La de un evento trae además la
    * vigencia de cada código.
    */
-  async actual(grupo: GrupoRef, pedida: MallaElegida = { tipo: 'regular' }): Promise<{
+  async actual(
+    grupo: GrupoRef,
+    pedida: MallaElegida = { tipo: 'regular' },
+  ): Promise<{
     malla: (CabeceraVersion & Record<P, Array<Interpretado & { vigencia?: VigenciaTienda | null }>>) | null;
   }> {
     const malla = await this.conNombreGuardado(grupo, pedida);
     const vigente = await this.vigente(grupo, malla);
     if (!vigente) return { malla: null };
 
-    const vigencias = malla.tipo === 'evento' ? await this.leerVigencias(grupo, nombreDe(malla)) : new Map<string, VigenciaTienda>();
+    const vigencias =
+      malla.tipo === 'evento' ? await this.leerVigencias(grupo, nombreDe(malla)) : new Map<string, VigenciaTienda>();
     const items = vigente.items.map((t) => ({
       ...this.def.interpretar(t),
       ...(malla.tipo === 'evento' ? { vigencia: vigencias.get(t.codigo) ?? null } : {}),
     }));
     return {
-      malla: { ...this.datosDeCabecera(vigente.cabecera), [this.def.plural]: items } as CabeceraVersion & Record<P, typeof items>,
+      malla: { ...this.datosDeCabecera(vigente.cabecera), [this.def.plural]: items } as CabeceraVersion &
+        Record<P, typeof items>,
     };
   }
 
@@ -235,8 +254,11 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     const malla = await this.conNombreGuardado(grupo, pedida);
     const vigente = await this.vigente(grupo, malla);
     if (!vigente) throw new NotFoundException(`No hay ${this.llamada(malla, grupo.pais)} cargada en este grupo.`);
-    const item = this.def.buscar ? this.def.buscar(vigente.items, codigo.trim()) : vigente.items.find((t) => t.codigo === codigo.trim());
-    if (!item) throw new NotFoundException(`La ${this.def.unidad} ${codigo} no está en ${this.llamada(malla, grupo.pais)}.`);
+    const item = this.def.buscar
+      ? this.def.buscar(vigente.items, codigo.trim())
+      : vigente.items.find((t) => t.codigo === codigo.trim());
+    if (!item)
+      throw new NotFoundException(`La ${this.def.unidad} ${codigo} no está en ${this.llamada(malla, grupo.pais)}.`);
     return { item, malla, nombre: this.nombreParaVer(malla, grupo.pais) };
   }
 
@@ -274,7 +296,8 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     if (error) this.fallo(error, 'leer los eventos');
 
     const ultimas = new Map<string, FilaCabecera>();
-    for (const f of (data ?? []) as unknown as FilaCabecera[]) if (f.nombre && !ultimas.has(f.nombre)) ultimas.set(f.nombre, f);
+    for (const f of (data ?? []) as unknown as FilaCabecera[])
+      if (f.nombre && !ultimas.has(f.nombre)) ultimas.set(f.nombre, f);
 
     const vigencias = await this.todasLasVigencias(grupo);
     return [...ultimas.values()]
@@ -285,7 +308,11 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
           ...this.datosDeCabecera(f),
           conVigencia: suyas.length,
           desde: suyas.map((v) => v.desde).sort()[0] ?? null,
-          hasta: suyas.map((v) => v.hasta).sort().at(-1) ?? null,
+          hasta:
+            suyas
+              .map((v) => v.hasta)
+              .sort()
+              .at(-1) ?? null,
         };
       });
   }
@@ -308,7 +335,10 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     const elegida = await this.conNombreGuardado(grupo, { tipo: 'evento', nombre: evento });
     const nombre = nombreDe(elegida);
     const vigente = await this.vigente(grupo, elegida);
-    if (!vigente) throw new NotFoundException(`No hay ${this.llamada(elegida, grupo.pais)} cargada: cárgala antes de darle vigencia.`);
+    if (!vigente)
+      throw new NotFoundException(
+        `No hay ${this.llamada(elegida, grupo.pais)} cargada: cárgala antes de darle vigencia.`,
+      );
 
     const unidad = this.def.unidad;
     const enMalla = new Set(vigente.items.map((t) => t.codigo));
@@ -319,22 +349,37 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     for (const v of limpias) {
       if (vistas.has(v.codigo)) errores.push(`La ${unidad} ${v.codigo} está dos veces.`);
       vistas.add(v.codigo);
-      if (!enMalla.has(v.codigo)) errores.push(`La ${unidad} ${v.codigo} no está en ${this.llamada(elegida, grupo.pais)}.`);
-      if (v.desde > v.hasta) errores.push(`${v.codigo}: la vigencia empieza el ${v.desde}, después de acabar el ${v.hasta}.`);
+      if (!enMalla.has(v.codigo))
+        errores.push(`La ${unidad} ${v.codigo} no está en ${this.llamada(elegida, grupo.pais)}.`);
+      if (v.desde > v.hasta)
+        errores.push(`${v.codigo}: la vigencia empieza el ${v.desde}, después de acabar el ${v.hasta}.`);
       const pisa = otras.find((o) => o.codigo === v.codigo && o.desde <= v.hasta && v.desde <= o.hasta);
-      if (pisa) errores.push(`${v.codigo}: del ${v.desde} al ${v.hasta} se pisa con el evento "${pisa.evento}" (${pisa.desde} al ${pisa.hasta}).`);
+      if (pisa)
+        errores.push(
+          `${v.codigo}: del ${v.desde} al ${v.hasta} se pisa con el evento "${pisa.evento}" (${pisa.desde} al ${pisa.hasta}).`,
+        );
     }
     if (errores.length) throw new BadRequestException(errores.slice(0, 30).join(' '));
 
     const tabla = this.def.tablaVigencias;
     const anteriores = [...(await this.leerVigencias(grupo, nombre)).values()];
-    const { error: errorBorrar } = await this.supabase.admin.from(tabla).delete().eq('grupo_id', grupo.id).eq('evento', nombre);
+    const { error: errorBorrar } = await this.supabase.admin
+      .from(tabla)
+      .delete()
+      .eq('grupo_id', grupo.id)
+      .eq('evento', nombre);
     if (errorBorrar) this.fallo(errorBorrar, 'guardar la vigencia del evento');
     if (limpias.length) {
-      const filas = (vs: VigenciaTienda[]) => vs.map((v) => ({
-        grupo_id: grupo.id, evento: nombre, codigo: v.codigo, desde: v.desde, hasta: v.hasta,
-        actualizado_por: usuario.email ?? 'desconocido', actualizado_en: new Date().toISOString(),
-      }));
+      const filas = (vs: VigenciaTienda[]) =>
+        vs.map((v) => ({
+          grupo_id: grupo.id,
+          evento: nombre,
+          codigo: v.codigo,
+          desde: v.desde,
+          hasta: v.hasta,
+          actualizado_por: usuario.email ?? 'desconocido',
+          actualizado_en: new Date().toISOString(),
+        }));
       const { error } = await this.supabase.admin.from(tabla).insert(filas(limpias));
       if (error) {
         // Que un fallo no deje el evento sin la vigencia que tenía
@@ -344,7 +389,11 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     }
 
     this.auditoria.registrarCambio(
-      { grupo: grupo.id, evento: nombre, [this.def.plural]: anteriores.map((v) => `${v.codigo} ${v.desde}–${v.hasta}`) },
+      {
+        grupo: grupo.id,
+        evento: nombre,
+        [this.def.plural]: anteriores.map((v) => `${v.codigo} ${v.desde}–${v.hasta}`),
+      },
       { grupo: grupo.id, evento: nombre, [this.def.plural]: limpias.map((v) => `${v.codigo} ${v.desde}–${v.hasta}`) },
     );
     return { evento: nombre, [this.def.plural]: limpias.length };
@@ -354,10 +403,19 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
   async retirarEvento(grupo: GrupoRef, evento: string) {
     const elegida = await this.conNombreGuardado(grupo, { tipo: 'evento', nombre: evento });
     const nombre = nombreDe(elegida);
-    const { error: e1 } = await this.supabase.admin.from(this.def.tablaVigencias).delete().eq('grupo_id', grupo.id).eq('evento', nombre);
+    const { error: e1 } = await this.supabase.admin
+      .from(this.def.tablaVigencias)
+      .delete()
+      .eq('grupo_id', grupo.id)
+      .eq('evento', nombre);
     if (e1) this.fallo(e1, 'retirar el evento');
     // El detalle de cada carga se va con ella (on delete cascade)
-    const { error: e2 } = await this.supabase.admin.from(this.def.tabla).delete().eq('grupo_id', grupo.id).eq('tipo', 'evento').eq('nombre', nombre);
+    const { error: e2 } = await this.supabase.admin
+      .from(this.def.tabla)
+      .delete()
+      .eq('grupo_id', grupo.id)
+      .eq('tipo', 'evento')
+      .eq('nombre', nombre);
     if (e2) this.fallo(e2, 'retirar el evento');
     this.auditoria.registrarCambio({ grupo: grupo.id, evento: nombre }, null);
     return { evento: nombre, retirado: true };
@@ -376,23 +434,27 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
   }
 
   /** Los eventos del grupo con su versión vigente interpretada y la vigencia de cada código */
-  async eventosConVigencia(grupo: GrupoRef): Promise<Array<{
-    nombre: string;
-    cargadoEn: string;
-    porCodigo: Map<string, Interpretado>;
-    vigencias: Map<string, VigenciaTienda>;
-  }>> {
+  async eventosConVigencia(grupo: GrupoRef): Promise<
+    Array<{
+      nombre: string;
+      cargadoEn: string;
+      porCodigo: Map<string, Interpretado>;
+      vigencias: Map<string, VigenciaTienda>;
+    }>
+  > {
     const eventos = await this.eventos(grupo);
-    return Promise.all(eventos.map(async (e) => {
-      const nombre = e.nombre ?? '';
-      const vigente = await this.vigente(grupo, { tipo: 'evento', nombre });
-      return {
-        nombre,
-        cargadoEn: e.cargadoEn,
-        porCodigo: new Map((vigente?.items ?? []).map((t) => [t.codigo, this.def.interpretar(t)])),
-        vigencias: await this.leerVigencias(grupo, nombre),
-      };
-    }));
+    return Promise.all(
+      eventos.map(async (e) => {
+        const nombre = e.nombre ?? '';
+        const vigente = await this.vigente(grupo, { tipo: 'evento', nombre });
+        return {
+          nombre,
+          cargadoEn: e.cargadoEn,
+          porCodigo: new Map((vigente?.items ?? []).map((t) => [t.codigo, this.def.interpretar(t)])),
+          vigencias: await this.leerVigencias(grupo, nombre),
+        };
+      }),
+    );
   }
 
   // ---------- Lectura ----------
@@ -407,11 +469,19 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     if (!nombre) throw new BadRequestException('Falta el nombre del evento: "Cyber", "Navidad"…');
     if (nombre.length > 60) throw new BadRequestException('El nombre del evento puede tener como mucho 60 caracteres.');
     if (NOMBRES_DE_LA_BASE.includes(nombre.toLowerCase())) {
-      throw new BadRequestException(`"${nombre}" es la ${this.def.cosa} base (Valle en Chile, Regular en Perú): ponle otro nombre al evento.`);
+      throw new BadRequestException(
+        `"${nombre}" es la ${this.def.cosa} base (Valle en Chile, Regular en Perú): ponle otro nombre al evento.`,
+      );
     }
-    const { data, error } = await this.supabase.admin.from(this.def.tabla).select('nombre').eq('grupo_id', grupo.id).eq('tipo', 'evento');
+    const { data, error } = await this.supabase.admin
+      .from(this.def.tabla)
+      .select('nombre')
+      .eq('grupo_id', grupo.id)
+      .eq('tipo', 'evento');
     if (error) this.fallo(error, 'leer los eventos');
-    const existente = ((data ?? []) as Array<{ nombre: string | null }>).map((f) => f.nombre).find((n) => n?.toLowerCase() === nombre.toLowerCase());
+    const existente = ((data ?? []) as Array<{ nombre: string | null }>)
+      .map((f) => f.nombre)
+      .find((n) => n?.toLowerCase() === nombre.toLowerCase());
     return { tipo: 'evento', nombre: existente ?? nombre };
   }
 
@@ -433,7 +503,10 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
     return (data as unknown as FilaCabecera | null) ?? null;
   }
 
-  protected async vigente(grupo: GrupoRef, malla: MallaElegida): Promise<{ cabecera: FilaCabecera; items: Item[] } | null> {
+  protected async vigente(
+    grupo: GrupoRef,
+    malla: MallaElegida,
+  ): Promise<{ cabecera: FilaCabecera; items: Item[] } | null> {
     const cabecera = await this.cabecera(grupo, malla);
     if (!cabecera) return null;
 
@@ -454,7 +527,12 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
       .eq('evento', evento)
       .order('codigo', { ascending: true });
     if (error) this.fallo(error, 'leer la vigencia del evento');
-    return new Map(((data ?? []) as VigenciaTienda[]).map((v) => [v.codigo, { codigo: v.codigo, desde: v.desde.slice(0, 10), hasta: v.hasta.slice(0, 10) }]));
+    return new Map(
+      ((data ?? []) as VigenciaTienda[]).map((v) => [
+        v.codigo,
+        { codigo: v.codigo, desde: v.desde.slice(0, 10), hasta: v.hasta.slice(0, 10) },
+      ]),
+    );
   }
 
   private async todasLasVigencias(grupo: GrupoRef): Promise<Array<VigenciaTienda & { evento: string }>> {
@@ -463,7 +541,11 @@ export abstract class VersionadoLeadtime<Item extends { codigo: string }, Interp
       .select('evento, codigo, desde, hasta')
       .eq('grupo_id', grupo.id);
     if (error) this.fallo(error, 'leer la vigencia de los eventos');
-    return ((data ?? []) as Array<VigenciaTienda & { evento: string }>).map((v) => ({ ...v, desde: v.desde.slice(0, 10), hasta: v.hasta.slice(0, 10) }));
+    return ((data ?? []) as Array<VigenciaTienda & { evento: string }>).map((v) => ({
+      ...v,
+      desde: v.desde.slice(0, 10),
+      hasta: v.hasta.slice(0, 10),
+    }));
   }
 
   /** El nombre que se enseña: el del evento, o el de la base según el país */

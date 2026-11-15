@@ -94,9 +94,11 @@ export class LimpiezaN8nService implements OnApplicationBootstrap, OnApplication
   }
 
   private activa(): boolean {
-    return this.config.get<boolean>('agente.n8nLimpiezaDiaria') !== false
-      && Boolean(this.config.get<string>('agente.n8nApiUrl')?.trim())
-      && Boolean(this.config.get<string>('agente.n8nApiKey')?.trim());
+    return (
+      this.config.get<boolean>('agente.n8nLimpiezaDiaria') !== false &&
+      Boolean(this.config.get<string>('agente.n8nApiUrl')?.trim()) &&
+      Boolean(this.config.get<string>('agente.n8nApiKey')?.trim())
+    );
   }
 
   private programar(ms: number) {
@@ -117,8 +119,9 @@ export class LimpiezaN8nService implements OnApplicationBootstrap, OnApplication
     const detenidas = await this.ventanasDeDetenidas(ahora);
     const ejecuciones = await this.listar(base, clave);
 
-    const deAntes = ejecuciones.filter((e) =>
-      TERMINADAS.has(String(e.status)) && e.startedAt && new Date(e.startedAt).getTime() < corte);
+    const deAntes = ejecuciones.filter(
+      (e) => TERMINADAS.has(String(e.status)) && e.startedAt && new Date(e.startedAt).getTime() < corte,
+    );
     const deDetenidas = deAntes.filter((e) => {
       const t = new Date(e.startedAt!).getTime();
       return detenidas.some(([desde, hasta]) => t >= desde && t <= hasta);
@@ -130,9 +133,11 @@ export class LimpiezaN8nService implements OnApplicationBootstrap, OnApplication
     const limpieza = { borradas, deDetenidas: deDetenidas.length, fallidas: resultados.length - borradas };
 
     if (aBorrar.length || deDetenidas.length) {
-      this.logger.log(`n8n: ${borradas} ejecución(es) terminada(s) de días anteriores borrada(s)`
-        + `${limpieza.fallidas ? `, ${limpieza.fallidas} sin poder borrar` : ''}`
-        + `${deDetenidas.length ? `; ${deDetenidas.length} se quedan por ser de una rutina detenida` : ''}`);
+      this.logger.log(
+        `n8n: ${borradas} ejecución(es) terminada(s) de días anteriores borrada(s)` +
+          `${limpieza.fallidas ? `, ${limpieza.fallidas} sin poder borrar` : ''}` +
+          `${deDetenidas.length ? `; ${deDetenidas.length} se quedan por ser de una rutina detenida` : ''}`,
+      );
     }
     return limpieza;
   }
@@ -161,11 +166,16 @@ export class LimpiezaN8nService implements OnApplicationBootstrap, OnApplication
       url.searchParams.set('includeData', 'false');
       if (cursor) url.searchParams.set('cursor', cursor);
 
-      const res = await fetch(url, { headers: { 'X-N8N-API-KEY': clave, Accept: 'application/json' }, signal: AbortSignal.timeout(ESPERA_N8N_MS) });
+      const res = await fetch(url, {
+        headers: { 'X-N8N-API-KEY': clave, Accept: 'application/json' },
+        signal: AbortSignal.timeout(ESPERA_N8N_MS),
+      });
       if (!res.ok) {
-        throw new Error(res.status === 401 || res.status === 403
-          ? `la API key de n8n no puede listar ejecuciones (${res.status}): necesita permiso para listarlas y borrarlas`
-          : `n8n respondió ${res.status} al listar las ejecuciones`);
+        throw new Error(
+          res.status === 401 || res.status === 403
+            ? `la API key de n8n no puede listar ejecuciones (${res.status}): necesita permiso para listarlas y borrarlas`
+            : `n8n respondió ${res.status} al listar las ejecuciones`,
+        );
       }
       const cuerpo = (await res.json()) as { data?: EjecucionN8n[]; nextCursor?: string | null };
       todas.push(...(cuerpo.data ?? []));

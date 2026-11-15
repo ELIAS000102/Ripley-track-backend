@@ -10,7 +10,9 @@ import configuration from '../../src/config/configuration.js';
  */
 describe('Las rutas de los endpoints', () => {
   const guardadas = { ...process.env };
-  afterEach(() => { process.env = { ...guardadas }; });
+  afterEach(() => {
+    process.env = { ...guardadas };
+  });
 
   it('sin su variable, la ruta queda vacía (y endpoint() dice "Falta configurar")', () => {
     process.env.RIPLEY_PATH_PREFIX = '/prefijo';

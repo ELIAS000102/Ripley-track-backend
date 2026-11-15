@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Response } from 'express';
 import { Observable, tap } from 'rxjs';
 import { ContextoAuditoria } from '../../auditoria/contexto-auditoria.service.js';
@@ -38,7 +33,13 @@ export const HERRAMIENTA_DE: Record<string, string> = {
  * interpretar el mensaje, el contexto— y no es algo que el paso haga. No
  * cuenta como herramienta.
  */
-const DEL_FLUJO = new Set(['POST /agente/interpretar', 'GET /agente/contexto', 'GET /agente/configuracion', 'GET /configuracion/atajos', 'POST /agente/rutina/paso']);
+const DEL_FLUJO = new Set([
+  'POST /agente/interpretar',
+  'GET /agente/contexto',
+  'GET /agente/configuracion',
+  'GET /configuracion/atajos',
+  'POST /agente/rutina/paso',
+]);
 
 /**
  * Una fila que no cambió porque ya estaba como se pedía no es un fallo: el paso
@@ -97,7 +98,12 @@ export function problemasDe(cuerpo: unknown, tope = 5): string[] {
         for (const n of x) {
           const f = (n ?? {}) as Record<string, unknown>;
           const quien = f.destino ?? f.codigo ?? f.termino ?? '';
-          vistos.add(`No se encontró ${String(quien) || 'uno de los pedidos'}${f.motivo ? `: ${String(f.motivo)}` : ''}`.slice(0, 300));
+          vistos.add(
+            `No se encontró ${String(quien) || 'uno de los pedidos'}${f.motivo ? `: ${String(f.motivo)}` : ''}`.slice(
+              0,
+              300,
+            ),
+          );
         }
       } else {
         recorrer(x, prof + 1);
@@ -127,7 +133,10 @@ const SIMULAR = 'Simular una entrega';
  * simula sin ellas y puede fallar aunque la rutina esté bien: esos fallos van
  * aparte, y el que evalúa el paso decide si cuentan.
  */
-export function separarSimulacion(herramienta: string, cuerpo: unknown): { problemas: string[]; deSimulacion: string[]; simulacion: boolean } {
+export function separarSimulacion(
+  herramienta: string,
+  cuerpo: unknown,
+): { problemas: string[]; deSimulacion: string[]; simulacion: boolean } {
   if (herramienta === SIMULAR) return { problemas: [], deSimulacion: problemasDe(cuerpo), simulacion: true };
 
   const bloques = (cuerpo as { bloques?: unknown })?.bloques;

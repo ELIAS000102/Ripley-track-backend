@@ -14,7 +14,13 @@ const AHORA = new Date('2026-10-14T20:00:00Z');
 
 type Ej = { id: string; status: string; startedAt: string };
 
-function montar({ ejecuciones = [] as Ej[], detenidas = [] as Fila[], conApi = true, listar = 200, porPagina = 1000 } = {}) {
+function montar({
+  ejecuciones = [] as Ej[],
+  detenidas = [] as Fila[],
+  conApi = true,
+  listar = 200,
+  porPagina = 1000,
+} = {}) {
   const borradas: string[] = [];
   const fetch = vi.fn(async (url: URL | string, op: { method?: string } = {}) => {
     const u = new URL(String(url));
@@ -32,11 +38,14 @@ function montar({ ejecuciones = [] as Ej[], detenidas = [] as Fila[], conApi = t
   vi.stubGlobal('fetch', fetch);
 
   const config = {
-    get: (k: string) => ({
-      'agente.n8nApiUrl': conApi ? 'https://n8n.ejemplo/' : '',
-      'agente.n8nApiKey': conApi ? 'clave' : '',
-      'agente.n8nLimpiezaDiaria': true,
-    } as Record<string, unknown>)[k],
+    get: (k: string) =>
+      (
+        ({
+          'agente.n8nApiUrl': conApi ? 'https://n8n.ejemplo/' : '',
+          'agente.n8nApiKey': conApi ? 'clave' : '',
+          'agente.n8nLimpiezaDiaria': true,
+        }) as Record<string, unknown>
+      )[k],
   } as unknown as ConfigService;
   const servicio = new LimpiezaN8nService(config, supabaseEnMemoria({ rutina_ejecuciones: detenidas }));
   return { servicio, borradas, fetch };
@@ -46,16 +55,18 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('Qué se borra', () => {
   it('las terminadas de días anteriores sí; las de hoy y las que no terminaron, no', async () => {
-    const { servicio, borradas } = montar({ ejecuciones: [
-      { id: '10', status: 'success', startedAt: '2026-10-13T15:00:00Z' },
-      { id: '11', status: 'error', startedAt: '2026-10-12T15:00:00Z' },
-      { id: '12', status: 'crashed', startedAt: '2026-10-11T15:00:00Z' },
-      { id: '13', status: 'canceled', startedAt: '2026-10-10T15:00:00Z' },
-      { id: '20', status: 'running', startedAt: '2026-10-13T15:00:00Z' },
-      { id: '21', status: 'waiting', startedAt: '2026-10-12T15:00:00Z' },
-      // Hoy en Perú, aunque en UTC aún fuera "ayer" para alguien
-      { id: '30', status: 'success', startedAt: '2026-10-14T05:30:00Z' },
-    ] });
+    const { servicio, borradas } = montar({
+      ejecuciones: [
+        { id: '10', status: 'success', startedAt: '2026-10-13T15:00:00Z' },
+        { id: '11', status: 'error', startedAt: '2026-10-12T15:00:00Z' },
+        { id: '12', status: 'crashed', startedAt: '2026-10-11T15:00:00Z' },
+        { id: '13', status: 'canceled', startedAt: '2026-10-10T15:00:00Z' },
+        { id: '20', status: 'running', startedAt: '2026-10-13T15:00:00Z' },
+        { id: '21', status: 'waiting', startedAt: '2026-10-12T15:00:00Z' },
+        // Hoy en Perú, aunque en UTC aún fuera "ayer" para alguien
+        { id: '30', status: 'success', startedAt: '2026-10-14T05:30:00Z' },
+      ],
+    });
 
     expect(await servicio.limpiar(AHORA)).toEqual({ borradas: 4, deDetenidas: 0, fallidas: 0 });
     expect(borradas.sort()).toEqual(['10', '11', '12', '13']);
@@ -68,8 +79,18 @@ describe('Qué se borra', () => {
         { id: '41', status: 'success', startedAt: '2026-10-12T18:00:00Z' },
       ],
       detenidas: [
-        { estado: 'detenida', inicio: '2026-10-12T15:00:00Z', fin: '2026-10-12T15:03:00Z', creado_en: '2026-10-12T15:00:00Z' },
-        { estado: 'completada', inicio: '2026-10-12T18:00:00Z', fin: '2026-10-12T18:02:00Z', creado_en: '2026-10-12T18:00:00Z' },
+        {
+          estado: 'detenida',
+          inicio: '2026-10-12T15:00:00Z',
+          fin: '2026-10-12T15:03:00Z',
+          creado_en: '2026-10-12T15:00:00Z',
+        },
+        {
+          estado: 'completada',
+          inicio: '2026-10-12T18:00:00Z',
+          fin: '2026-10-12T18:02:00Z',
+          creado_en: '2026-10-12T18:00:00Z',
+        },
       ],
     });
 
@@ -78,7 +99,11 @@ describe('Qué se borra', () => {
   });
 
   it('recorre todas las páginas', async () => {
-    const ejecuciones = Array.from({ length: 7 }, (_, i) => ({ id: String(100 + i), status: 'success', startedAt: '2026-10-01T15:00:00Z' }));
+    const ejecuciones = Array.from({ length: 7 }, (_, i) => ({
+      id: String(100 + i),
+      status: 'success',
+      startedAt: '2026-10-01T15:00:00Z',
+    }));
     const { servicio, borradas, fetch } = montar({ ejecuciones, porPagina: 3 });
 
     expect((await servicio.limpiar(AHORA))?.borradas).toBe(7);

@@ -36,12 +36,27 @@ const SIMULACION_SE: Ejecucion = {
   atajo: 'Simulación SE',
   bloques: [
     {
-      orden: 1, tipo: 'simulacion', accion: 'consultar', nota: null,
+      orden: 1,
+      tipo: 'simulacion',
+      accion: 'consultar',
+      nota: null,
       items: [
-        { orden: 1, nota: null, resultado: { resultados: [
-          { opl: '20066 - Ripley Plaza Lima Norte', destino: 'Lima', servicio: 'SE', entrega: '08/11/2026 00:00', dias: 1 },
-          { opl: '20048 - Ripley Breña', destino: 'Lima', servicio: '-', entrega: null },
-        ] } },
+        {
+          orden: 1,
+          nota: null,
+          resultado: {
+            resultados: [
+              {
+                opl: '20066 - Ripley Plaza Lima Norte',
+                destino: 'Lima',
+                servicio: 'SE',
+                entrega: '08/11/2026 00:00',
+                dias: 1,
+              },
+              { opl: '20048 - Ripley Breña', destino: 'Lima', servicio: '-', entrega: null },
+            ],
+          },
+        },
         { orden: 2, nota: 'Atocongo', error: 'Ripley no respondió' },
       ],
     },
@@ -49,18 +64,53 @@ const SIMULACION_SE: Ejecucion = {
   resumen: { items: 2, correctas: 1, fallidas: 1 },
 };
 
-const dia = (fecha: string, activo: boolean, asignado: number, ocupado: number) => ({ fecha, activo, asignado, ocupado, disponible: asignado - ocupado, uso: asignado > 0 ? Math.round((100 * ocupado) / asignado) : 0 });
+const dia = (fecha: string, activo: boolean, asignado: number, ocupado: number) => ({
+  fecha,
+  activo,
+  asignado,
+  ocupado,
+  disponible: asignado - ocupado,
+  uso: asignado > 0 ? Math.round((100 * ocupado) / asignado) : 0,
+});
 const PQT: Ejecucion = {
   atajo: 'Paqueteria Lima',
   bloques: [
     {
-      orden: 1, tipo: 'despacho', accion: 'consultar', nota: null,
-      items: [{ orden: 1, nota: null, resultado: { tipo: 'despacho', pais: 'PE', desde: HOY, sinDatos: [], oficinas: [
-        { oficina: '1100 - Lima metropolitana', agendas: [
-          { agenda: 'Centralizado HUB Surquillo', servicio: 'S', unidad: null, dias: [dia(HOY, false, 100, 0), dia(MANANA, true, 100, 100)] },
-          { agenda: 'Centralizado HUB Cedros', servicio: 'S', unidad: null, dias: [dia(HOY, false, 100, 0), dia(MANANA, true, -1, 0)] },
-        ] },
-      ] } }],
+      orden: 1,
+      tipo: 'despacho',
+      accion: 'consultar',
+      nota: null,
+      items: [
+        {
+          orden: 1,
+          nota: null,
+          resultado: {
+            tipo: 'despacho',
+            pais: 'PE',
+            desde: HOY,
+            sinDatos: [],
+            oficinas: [
+              {
+                oficina: '1100 - Lima metropolitana',
+                agendas: [
+                  {
+                    agenda: 'Centralizado HUB Surquillo',
+                    servicio: 'S',
+                    unidad: null,
+                    dias: [dia(HOY, false, 100, 0), dia(MANANA, true, 100, 100)],
+                  },
+                  {
+                    agenda: 'Centralizado HUB Cedros',
+                    servicio: 'S',
+                    unidad: null,
+                    dias: [dia(HOY, false, 100, 0), dia(MANANA, true, -1, 0)],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
     },
   ],
   resumen: { items: 1, correctas: 1, fallidas: 0 },
@@ -71,64 +121,142 @@ function armar({ ejecucion = SIMULACION_SE, interrumpida = false } = {}) {
   let n = 0;
   const turnos = {
     crear: vi.fn(async (d: Partial<Turno>) => {
-      const t = { id: `00000000-0000-4000-8000-00000000000${++n}`, etapa: 'clasificar', estado: 'en_curso', contexto: null, clasificacion: null, plan: null, pasos: [], modelos: [], respuesta: null, mensaje_id: null, creado_en: new Date().toISOString(), ...d } as Turno;
+      const t = {
+        id: `00000000-0000-4000-8000-00000000000${++n}`,
+        etapa: 'clasificar',
+        estado: 'en_curso',
+        contexto: null,
+        clasificacion: null,
+        plan: null,
+        pasos: [],
+        modelos: [],
+        respuesta: null,
+        mensaje_id: null,
+        creado_en: new Date().toISOString(),
+        ...d,
+      } as Turno;
       filas.set(t.id, t);
       return { ...t };
     }),
     obtener: vi.fn(async (id: string) => structuredClone(filas.get(id)!)),
-    actualizar: vi.fn(async (id: string, c: Partial<Turno>) => { filas.set(id, { ...filas.get(id)!, ...structuredClone(c) }); }),
+    actualizar: vi.fn(async (id: string, c: Partial<Turno>) => {
+      filas.set(id, { ...filas.get(id)!, ...structuredClone(c) });
+    }),
   };
   // Pasar a otro país: el doble cambia el país y avisa (el de verdad, además, vuelve a mirar sus servicios y nombres)
-  const cambiarPais = vi.fn(async (c: ContextoTurno, _m: string, pais: 'PE' | 'CL', motivo: string) => ({ ...c, pais, motivo_pais: motivo, avisos: [...(c.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`] }));
-  const contexto = { comprobarChat: vi.fn(async () => undefined), armar: vi.fn(async () => structuredClone(CTX)), cambiarPais };
-  const rpc = vi.fn(async (_funcion: string, _args: { p: Record<string, unknown> }) => ({ data: 'mensaje-1', error: null }));
+  const cambiarPais = vi.fn(async (c: ContextoTurno, _m: string, pais: 'PE' | 'CL', motivo: string) => ({
+    ...c,
+    pais,
+    motivo_pais: motivo,
+    avisos: [...(c.avisos ?? []), `Paso a ${pais === 'CL' ? 'Chile' : 'Perú'}: ${motivo}.`],
+  }));
+  const contexto = {
+    comprobarChat: vi.fn(async () => undefined),
+    armar: vi.fn(async () => structuredClone(CTX)),
+    cambiarPais,
+  };
+  const rpc = vi.fn(async (_funcion: string, _args: { p: Record<string, unknown> }) => ({
+    data: 'mensaje-1',
+    error: null,
+  }));
   const supabase = { admin: { rpc } };
   const porNombre = vi.fn(async (nombre: string) => ({ id: 'a1', nombre }));
   const ejecutar = vi.fn(async () => structuredClone(ejecucion));
-  const ejec = new EjecucionV3Service(supabase as never, { porNombre } as never, { ejecutar } as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const ejec = new EjecucionV3Service(
+    supabase as never,
+    { porNombre } as never,
+    { ejecutar } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
   const interrupcion = { registrar: vi.fn(), estaInterrumpida: vi.fn(() => interrumpida) };
-  const servicio = new AgenteV3Service(turnos as never, contexto as never, ejec, interrupcion as never, supabase as never, {} as never);
+  const servicio = new AgenteV3Service(
+    turnos as never,
+    contexto as never,
+    ejec,
+    interrupcion as never,
+    supabase as never,
+    {} as never,
+  );
   return { servicio, filas, turnos, rpc, porNombre, ejecutar, interrupcion, cambiarPais };
 }
 
-const clasif = (o: Record<string, unknown>) => JSON.stringify({ depende_del_anterior: false, atajo: '(ninguno)', motivo: '', ...o });
+const clasif = (o: Record<string, unknown>) =>
+  JSON.stringify({ depende_del_anterior: false, atajo: '(ninguno)', motivo: '', ...o });
 
 describe('Un turno de un atajo, de punta a punta', () => {
   it('turnos → clasificar (con su modelo y su prompt) → ejecutar → responder, y se guarda en la memoria del chat', async () => {
     const { servicio, rpc, porNombre, interrupcion } = armar();
-    const t = await servicio.crear(USUARIO, { mensaje: 'simula la se', chat_id: 'chat-1', peticion_id: 'p1', ejecucion: '123' });
+    const t = await servicio.crear(USUARIO, {
+      mensaje: 'simula la se',
+      chat_id: 'chat-1',
+      peticion_id: 'p1',
+      ejecucion: '123',
+    });
     expect(t.camino).toBe('clasificar');
     expect(t.modelo?.nombre).toBe('gemini-3.5-flash-lite');
     expect(t.prompt?.mensaje).toContain('«simula la se»');
     expect(interrupcion.registrar).toHaveBeenCalledWith('p1', 'u1', '123');
 
-    const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }), modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre } });
+    const c = await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }),
+      modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre },
+    });
     expect(c.camino).toBe('ejecutar');
 
     // Antes del primer paso, el plan a la vista: lo que pinta el "Pensando…" del panel
     const aviso = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(aviso.camino).toBe('avisar');
-    expect(aviso.progreso).toMatchObject({ tipo: 'progreso', contexto: { pais: 'PE' }, pasos: [{ n: 1, descripcion: 'Atajo «Simulación SE»', estado: 'en_curso' }] });
+    expect(aviso.progreso).toMatchObject({
+      tipo: 'progreso',
+      contexto: { pais: 'PE' },
+      pasos: [{ n: 1, descripcion: 'Atajo «Simulación SE»', estado: 'en_curso' }],
+    });
     expect(porNombre).not.toHaveBeenCalled();
 
     const r = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(porNombre).toHaveBeenCalledWith('Simulación SE');
     expect(r.camino).toBe('responder');
     expect(r.respuesta).toMatchObject({ v: 3, tipo: 'resultado', mensaje_id: 'mensaje-1', pais: 'PE' });
-    expect(r.respuesta!.frase).toBe('«Simulación SE»: entrega más temprana el 08/11 con SE (1 día), en 1 de 2 simulados (1 sin respuesta).');
-    expect(r.respuesta!.resultados).toEqual([expect.objectContaining({ herramienta: 'ejecutar_atajo', atajo: 'Simulación SE', principal: true })]);
+    expect(r.respuesta!.frase).toBe(
+      '«Simulación SE»: entrega más temprana el 08/11 con SE (1 día), en 1 de 2 simulados (1 sin respuesta).',
+    );
+    expect(r.respuesta!.resultados).toEqual([
+      expect.objectContaining({ herramienta: 'ejecutar_atajo', atajo: 'Simulación SE', principal: true }),
+    ]);
     expect(r.respuesta!.markdown).toContain('| 20066 · Plaza Lima Norte | Lima | SE | 08/11 | 1 |');
     expect(r.respuesta!.markdown).toContain('- Atocongo: Ripley no respondió');
 
     const [funcion, guardado] = rpc.mock.calls[0];
     expect(funcion).toBe('agente_v3_guardar_mensaje');
-    expect(guardado.p).toMatchObject({ chat_id: 'chat-1', usuario_id: 'u1', persona: 'simula la se', pais: 'PE', con_contenido: true, plan: { v: 3, origen: 'atajo' } });
+    expect(guardado.p).toMatchObject({
+      chat_id: 'chat-1',
+      usuario_id: 'u1',
+      persona: 'simula la se',
+      pais: 'PE',
+      con_contenido: true,
+      plan: { v: 3, origen: 'atajo' },
+    });
   });
 
   it('una llamada repetida o tardía no rehace nada: contesta lo que ya hay', async () => {
     const { servicio, ejecutar } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'simula la se', chat_id: 'chat-1' });
-    await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }),
+      modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' },
+    });
     await servicio.ejecutar(USUARIO, t.turno_id);
     const a = await servicio.ejecutar(USUARIO, t.turno_id);
     const b = await servicio.ejecutar(USUARIO, t.turno_id);
@@ -141,26 +269,40 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
   it('un JSON roto: se anota por qué y se prueba otro modelo, que ve por qué no valió', async () => {
     const { servicio, filas } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'simula la se', chat_id: 'c' });
-    const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: 'Es el atajo de la SE', modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre } });
+    const c = await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: 'Es el atajo de la SE',
+      modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre },
+    });
     expect(c.camino).toBe('clasificar');
     expect(c.modelo).not.toEqual(t.modelo);
     expect(c.prompt!.sistema).toBe(t.prompt!.sistema);
-    expect(c.prompt!.mensaje).toBe(`${t.prompt!.mensaje}\n\nTU CLASIFICACIÓN ANTERIOR NO VALIÓ: no devolvió un JSON. Corrígela.`);
-    expect(filas.get(t.turno_id)!.modelos).toEqual([expect.objectContaining({ ok: false, motivo: 'no devolvió un JSON' })]);
+    expect(c.prompt!.mensaje).toBe(
+      `${t.prompt!.mensaje}\n\nTU CLASIFICACIÓN ANTERIOR NO VALIÓ: no devolvió un JSON. Corrígela.`,
+    );
+    expect(filas.get(t.turno_id)!.modelos).toEqual([
+      expect.objectContaining({ ok: false, motivo: 'no devolvió un JSON' }),
+    ]);
   });
 
   it('"dame el picking RT de las tiendas del fase 1" en Perú: el atajo de Chile, por parecido, no vale; agotados, es una consulta en Perú', async () => {
     const m = 'dame el picking RT de las tiendas del fase 1';
     const { servicio, filas, cambiarPais } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
-    let r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre } });
-    const motivo = '«Tiendas RT chile» es de Chile, el chat está en Perú y el mensaje no lo nombra ni dice Chile: usa un atajo de Perú o ninguno';
+    let r = await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }),
+      modelo: { cuenta: t.modelo!.cuenta, nombre: t.modelo!.nombre },
+    });
+    const motivo =
+      '«Tiendas RT chile» es de Chile, el chat está en Perú y el mensaje no lo nombra ni dice Chile: usa un atajo de Perú o ninguno';
     expect(r.camino).toBe('clasificar');
     expect(filas.get(t.turno_id)!.modelos[0]).toMatchObject({ ok: false, clase: 'respuesta', motivo });
     expect(r.prompt!.mensaje).toContain(`TU CLASIFICACIÓN ANTERIOR NO VALIÓ: ${motivo}.`);
     // Aunque todos los modelos insistan: nunca pasa a Chile, y sigue como consulta (Armar) en Perú
     for (let i = 0; i < 6 && r.camino === 'clasificar'; i++) {
-      r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre } });
+      r = await servicio.clasificacion(USUARIO, t.turno_id, {
+        salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }),
+        modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre },
+      });
     }
     expect(r.camino).toBe('armar');
     expect(cambiarPais).not.toHaveBeenCalled();
@@ -173,7 +315,10 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
     const m = 'dame la tiendas rt chile';
     const { servicio, filas, cambiarPais } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: m, chat_id: 'c' });
-    const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    const c = await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }),
+      modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' },
+    });
     expect(c.camino).toBe('ejecutar');
     expect(cambiarPais).toHaveBeenCalledWith(expect.anything(), m, 'CL', 'el atajo «Tiendas RT chile» es de Chile');
     expect(filas.get(t.turno_id)!.contexto!.pais).toBe('CL');
@@ -186,9 +331,15 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
   it('…pero si el mensaje DICE Perú, el atajo de Chile no vale: otro modelo', async () => {
     const { servicio, filas } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'dame el picking de las tiendas RT de peru', chat_id: 'c' });
-    const c = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    const c = await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'atajo', atajo: 'Tiendas RT chile' }),
+      modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' },
+    });
     expect(c.camino).toBe('clasificar');
-    expect(filas.get(t.turno_id)!.modelos[0]).toMatchObject({ motivo: '«Tiendas RT chile» es de Chile y el mensaje dice Perú', clase: 'respuesta' });
+    expect(filas.get(t.turno_id)!.modelos[0]).toMatchObject({
+      motivo: '«Tiendas RT chile» es de Chile y el mensaje dice Perú',
+      clase: 'respuesta',
+    });
   });
 
   it('sin ningún modelo que responda: un mensaje que nombra UN atajo se ejecuta igual', async () => {
@@ -196,7 +347,10 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
     const t = await servicio.crear(USUARIO, { mensaje: 'dame la Paqueteria Lima', chat_id: 'c' });
     let r = t;
     for (let i = 0; i < 6 && r.camino === 'clasificar'; i++) {
-      r = await servicio.clasificacion(USUARIO, t.turno_id, { error: '503 Service Unavailable: overloaded', modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre } });
+      r = await servicio.clasificacion(USUARIO, t.turno_id, {
+        error: '503 Service Unavailable: overloaded',
+        modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre },
+      });
     }
     expect(r.camino).toBe('ejecutar');
   });
@@ -206,11 +360,16 @@ describe('Lo que dice el modelo se valida; si no vale, otro modelo', () => {
     const t = await servicio.crear(USUARIO, { mensaje: 'cómo va lo de hoy', chat_id: 'c' });
     let r = t;
     for (let i = 0; i < 6 && r.camino === 'clasificar'; i++) {
-      r = await servicio.clasificacion(USUARIO, t.turno_id, { error: '429 RESOURCE_EXHAUSTED', modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre } });
+      r = await servicio.clasificacion(USUARIO, t.turno_id, {
+        error: '429 RESOURCE_EXHAUSTED',
+        modelo: { cuenta: r.modelo!.cuenta, nombre: r.modelo!.nombre },
+      });
     }
     expect(r.camino).toBe('responder');
     // La causa real: la cuota gratis del día
-    expect(r.respuesta!.frase).toBe('No pude entender el mensaje: se acabó la cuota gratis de los modelos por hoy (429): vuelve a intentarlo más tarde.');
+    expect(r.respuesta!.frase).toBe(
+      'No pude entender el mensaje: se acabó la cuota gratis de los modelos por hoy (429): vuelve a intentarlo más tarde.',
+    );
   });
 });
 
@@ -218,7 +377,10 @@ describe('Las consultas van a Armar, y Detener', () => {
   it('una consulta a mano: va a Armar, con su prompt y su modelo', async () => {
     const { servicio, ejecutar } = armar();
     const t = await servicio.crear(USUARIO, { mensaje: 'dame el despacho de la 1401', chat_id: 'c' });
-    const r = await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'consulta' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    const r = await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'consulta' }),
+      modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' },
+    });
     expect(r.camino).toBe('armar');
     expect(r.modelo?.rol).toBe('armar');
     expect(r.prompt?.sistema).toContain('CATÁLOGO DE HERRAMIENTAS');
@@ -228,7 +390,10 @@ describe('Las consultas van a Armar, y Detener', () => {
   it('con "Detener" pulsado, no se ejecuta el paso y la respuesta es "cancelada"', async () => {
     const { servicio, ejecutar } = armar({ interrumpida: true });
     const t = await servicio.crear(USUARIO, { mensaje: 'simula la se', chat_id: 'c', peticion_id: 'p1' });
-    await servicio.clasificacion(USUARIO, t.turno_id, { salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }), modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' } });
+    await servicio.clasificacion(USUARIO, t.turno_id, {
+      salida: clasif({ tipo: 'atajo', atajo: 'Simulación SE' }),
+      modelo: { cuenta: 1, nombre: 'gemini-3.5-flash-lite' },
+    });
     const r = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(ejecutar).not.toHaveBeenCalled();
     expect(r.respuesta!.tipo).toBe('cancelada');
@@ -237,14 +402,32 @@ describe('Las consultas van a Armar, y Detener', () => {
 
 describe('La frase y el Markdown de un atajo salen de sus datos', () => {
   it('capacidad: hoy cerradas; mañana sin cupo la que está llena; "sin capacidad" (asignado -1) no es "sin cupo"', () => {
-    expect(fraseAtajo(PQT, HOY)).toBe('«Paqueteria Lima»: 1 oficina del 07/11 al 08/11; hoy (07/11) cerradas; sin cupo 1100 · Lima metropolitana (08/11).');
+    expect(fraseAtajo(PQT, HOY)).toBe(
+      '«Paqueteria Lima»: 1 oficina del 07/11 al 08/11; hoy (07/11) cerradas; sin cupo 1100 · Lima metropolitana (08/11).',
+    );
     const md = markdownAtajo(PQT);
-    expect(md).toContain('| 1100 · Lima metropolitana | Centralizado HUB Surquillo · S | 100 / 0 / 100 CERRADA | 100 / 100 / 0 |');
-    expect(md).toContain('| 1100 · Lima metropolitana | Centralizado HUB Cedros · S | 100 / 0 / 100 CERRADA | sin capacidad |');
+    expect(md).toContain(
+      '| 1100 · Lima metropolitana | Centralizado HUB Surquillo · S | 100 / 0 / 100 CERRADA | 100 / 100 / 0 |',
+    );
+    expect(md).toContain(
+      '| 1100 · Lima metropolitana | Centralizado HUB Cedros · S | 100 / 0 / 100 CERRADA | sin capacidad |',
+    );
   });
 
   it('un atajo que no trajo nada lo dice', () => {
-    const vacio: Ejecucion = { atajo: 'Paqueteria Lima', bloques: [{ ...PQT.bloques[0], items: [{ orden: 1, nota: null, error: 'sin token' }, { orden: 2, nota: null, error: 'sin token' }] }], resumen: { items: 2, correctas: 0, fallidas: 2 } };
+    const vacio: Ejecucion = {
+      atajo: 'Paqueteria Lima',
+      bloques: [
+        {
+          ...PQT.bloques[0],
+          items: [
+            { orden: 1, nota: null, error: 'sin token' },
+            { orden: 2, nota: null, error: 'sin token' },
+          ],
+        },
+      ],
+      resumen: { items: 2, correctas: 0, fallidas: 2 },
+    };
     expect(fraseAtajo(vacio, HOY)).toBe('«Paqueteria Lima»: sin datos (2 sin respuesta).');
   });
 
