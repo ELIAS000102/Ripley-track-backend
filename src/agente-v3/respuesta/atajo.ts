@@ -289,11 +289,6 @@ export function markdownAtajo(e: Ejecucion): string {
     .join('\n\n');
 }
 
-/** Si el atajo no trajo nada de nada */
-export function atajoVacio(e: Ejecucion): boolean {
-  return e.resumen.items === 0 || e.resumen.correctas === 0;
-}
-
 // ───────────── Una consulta suelta (1b): como un bloque de un atajo ─────────────
 
 const TIPO_DE: Record<string, string> = {

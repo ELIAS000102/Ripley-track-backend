@@ -29,7 +29,7 @@ export const SKU_POR_DEFECTO = '2013435160001';
  * Esto no es un atajo: es cómo hay que hablarle a Ripley, y se
  * cumple igual la pida quien la pida.
  */
-export const SIN_FILTRAR = ['SD'];
+const SIN_FILTRAR = ['SD'];
 
 /** Qué tipo mandarle a Ripley para un servicio dado */
 export function tipoParaRipley(servicio: string | null): string {

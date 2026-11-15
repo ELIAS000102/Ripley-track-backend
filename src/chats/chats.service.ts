@@ -4,7 +4,7 @@ import type { Chat, Mensaje } from './interfaces/chats.interface.js';
 import { faltaColumna, falloSupabase } from '../nucleo/supabase/errores.js';
 
 /** El nombre del chat donde Silvana cuenta lo que hicieron las rutinas */
-export const TITULO_NOTIFICACIONES = 'Notificaciones';
+const TITULO_NOTIFICACIONES = 'Notificaciones';
 
 const TABLA_CHATS = 'chats';
 const TABLA_MENSAJES = 'chat_mensajes';

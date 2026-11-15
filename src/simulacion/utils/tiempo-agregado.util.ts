@@ -14,7 +14,7 @@ export interface PasoConTiempo {
   fechaParcial: string;
 }
 
-export interface TiempoAgregado {
+interface TiempoAgregado {
   pasos: PasoConTiempo[];
   /** La suma de los días agregados: de la fecha de venta a la de entrega */
   diasTotales: number;

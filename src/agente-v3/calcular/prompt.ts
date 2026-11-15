@@ -25,7 +25,7 @@ const CAMPOS = [
   'activa',
 ];
 
-export const SISTEMA_CALCULAR = `Dices QUÉ CALCULAR con lo que ya trajo el mensaje anterior del chat de la operación logística de Ripley. No calculas nada tú: el número lo saca el sistema de los datos.
+const SISTEMA_CALCULAR = `Dices QUÉ CALCULAR con lo que ya trajo el mensaje anterior del chat de la operación logística de Ripley. No calculas nada tú: el número lo saca el sistema de los datos.
 
 Devuelve:
 - operacion: "suma", "maximo", "minimo", "contar", "porcentaje" (el uso: ocupado entre asignado), "filtrar" (quedarse con unas filas: "solo las inactivas", "y los activos"), "ordenar" ("las más cargadas", "la mayoría consumido" = las de uso más alto) o "explicar" ("explícame cómo es", "detállame la de Breña", "¿qué significa el desfase?").

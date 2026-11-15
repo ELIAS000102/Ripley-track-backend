@@ -13,7 +13,7 @@ import type { ContextoTurno, PasoPlan, PlanV3 } from '../interfaces/agente-v3.in
  * arregla**: se dice por qué y el turno prueba otro modelo (o pregunta).
  */
 
-export interface PlanLeido {
+interface PlanLeido {
   plan: PlanV3 | null;
   /** Lo que el modelo dice que falta (se le pregunta a la persona) */
   faltan: string[];
@@ -47,7 +47,7 @@ const CAMPOS = new Set([
 const OPS = new Set(['=', '!=', '>', '>=', '<', '<=']);
 const VER = new Set(['totales', 'cuadro', 'uso']);
 /** Cuántos cambios caben en un mensaje (todos en vista previa) */
-export const MAX_CAMBIOS = 4;
+const MAX_CAMBIOS = 4;
 
 /** "hoy", "mañana", "pasado mañana", "2026-11-08", "08-11", "08/11" → ISO */
 export function fechaIso(v: unknown, hoy: string): string | null {

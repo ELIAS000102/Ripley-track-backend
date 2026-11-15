@@ -53,7 +53,7 @@ export const NOMBRE_TIPO_SOLICITUD: Record<TipoSolicitudG12, string> = {
 };
 
 /** Los del Excel (CONFIGURACION N3:N6): picking de tienda 50 %, recepción 60 %, despacho 60 % */
-export const UMBRALES_POR_DEFECTO: Record<TipoSolicitudG12, number> = { picking: 0.5, recepcion: 0.6, despacho: 0.6 };
+const UMBRALES_POR_DEFECTO: Record<TipoSolicitudG12, number> = { picking: 0.5, recepcion: 0.6, despacho: 0.6 };
 
 /**
  * Los tramos de las consultas del Excel (API_PICKING, API_RECEPCION,
@@ -61,7 +61,7 @@ export const UMBRALES_POR_DEFECTO: Record<TipoSolicitudG12, number> = { picking:
  * hoy; recepción de Lima, 21 desde mañana (SE, 5 desde hoy); de provincia, 28
  * desde pasado mañana; Iquitos y Pucallpa (cronograma), 30; despacho, 10 desde mañana.
  */
-export const VENTANAS_POR_DEFECTO: Record<VentanaSolicitudG12, { desde: number; dias: number }> = {
+const VENTANAS_POR_DEFECTO: Record<VentanaSolicitudG12, { desde: number; dias: number }> = {
   picking: { desde: 0, dias: 10 },
   recepcion_lima: { desde: 1, dias: 21 },
   recepcion_lima_se: { desde: 0, dias: 5 },
@@ -71,7 +71,7 @@ export const VENTANAS_POR_DEFECTO: Record<VentanaSolicitudG12, { desde: number; 
 };
 
 /** Lo más lejos que se puede mirar: se leen 45 días desde ayer */
-export const HASTA_MAXIMO = DIAS_LECTURA_AGENDAS - 1;
+const HASTA_MAXIMO = DIAS_LECTURA_AGENDAS - 1;
 
 export const MAXIMO_AGENDAS_SOLICITUD = 400;
 

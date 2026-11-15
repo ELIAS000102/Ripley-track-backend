@@ -51,7 +51,7 @@ const UNIDAD: Record<string, string> = {
 };
 
 /** Lo que significa cada campo (para "explicar"): fijo, no lo escribe el modelo */
-export const GLOSARIO: Record<string, string> = {
+const GLOSARIO: Record<string, string> = {
   asignado: 'el asignado es la capacidad que tiene la agenda ese día',
   ocupado: 'el ocupado es lo que ya se vendió o reservó',
   disponible: 'el disponible es el asignado menos el ocupado',

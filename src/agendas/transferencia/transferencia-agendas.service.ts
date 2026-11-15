@@ -18,7 +18,7 @@ import type {
 import { ActualizarTransferenciaBodyDto } from './dto/actualizar-transferencia.dto.js';
 
 /** Por qué lado se buscan las agendas: el origen, el destino o los dos */
-export interface FiltroTransferencia {
+interface FiltroTransferencia {
   /** Código de la sucursal de stock: "20026" */
   origen?: string;
   /** Clústeres de destino por código de su almacén o por nombre: "20021", "PICKIT" */
@@ -52,7 +52,7 @@ export interface AgendaTransferencia {
 }
 
 /** Una agenda lista para escribir, resuelta una vez para todo un rango */
-export interface AgendaTransferenciaPreparada {
+interface AgendaTransferenciaPreparada {
   fila: TransferScheduleRow;
   agenda: AgendaTransferencia;
   capacityId: string;

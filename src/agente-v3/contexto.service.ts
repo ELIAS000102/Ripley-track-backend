@@ -44,14 +44,14 @@ interface FilaMensaje {
  * El país que dejan claro los códigos escritos: si todos los que están en el
  * directorio son de un solo país (y ninguno del otro), ese.
  */
-export function paisDeLosCodigos(mensaje: string, directorio: EntidadDirectorio[]): Pais | null {
+function paisDeLosCodigos(mensaje: string, directorio: EntidadDirectorio[]): Pais | null {
   const codigos = [...new Set([...mensaje.matchAll(/\b(\d{3,6})\b/g)].map((m) => m[1]))];
   const paises = new Set(codigos.flatMap((c) => directorio.filter((e) => e.codigo === c).map((e) => e.pais as Pais)));
   return paises.size === 1 ? [...paises][0] : null;
 }
 
 /** Lo que trajo un mensaje guardado (v3: `datos`; v2: `datos` por tandas), sin las filas si ya no se guardan */
-export function resultadosGuardados(resultados: Array<Record<string, unknown>> | null): ResultadoAnterior[] {
+function resultadosGuardados(resultados: Array<Record<string, unknown>> | null): ResultadoAnterior[] {
   return (resultados ?? [])
     .map((r) => ({
       herramienta: String(r.herramienta ?? ''),

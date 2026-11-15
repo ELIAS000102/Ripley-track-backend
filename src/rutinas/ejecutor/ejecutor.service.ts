@@ -32,7 +32,7 @@ const VIGENCIA_TOKEN_MS = 3 * 60 * 60 * 1000;
 const recorte = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
 /** Lo que cuenta el flujo al terminar cada paso */
-export interface PasoInformado {
+interface PasoInformado {
   tarea: number;
   paso: number;
   respuesta?: string;

@@ -74,7 +74,7 @@ export function planDe(c: Clasificacion, contexto: ContextoTurno, mensaje: strin
 }
 
 /** "fase 1", "F2", "fase tres", "despacho directo" → F1, F2, F3, DD */
-export function faseDe(mensaje: string): string | null {
+function faseDe(mensaje: string): string | null {
   const m = sinAcentos(mensaje);
   const n = /\bf\s?([123])\b|\bfase\s*(1|2|3|uno|dos|tres|i{1,3})\b|\b(primera|segunda|tercera) fase\b/.exec(m);
   if (n) {

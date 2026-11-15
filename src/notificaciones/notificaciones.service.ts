@@ -3,7 +3,7 @@ import type { UsuarioAutenticado } from '../nucleo/contexto/usuario.interface.js
 import { SupabaseService } from '../nucleo/supabase/supabase.service.js';
 import { falloSupabase } from '../nucleo/supabase/errores.js';
 
-export interface Aviso {
+interface Aviso {
   /** 'rutina_detenida', 'rutina_probada'… */
   tipo: string;
   titulo: string;

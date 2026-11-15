@@ -16,7 +16,7 @@ import type { ContextoTurno } from '../interfaces/agente-v3.interface.js';
 
 const NOMBRE_PAIS = { PE: 'Perú', CL: 'Chile' } as const;
 
-export const SISTEMA_CLASIFICAR = `Clasificas mensajes del chat de la operación logística de Ripley (Perú y Chile). No contestas a la persona.
+const SISTEMA_CLASIFICAR = `Clasificas mensajes del chat de la operación logística de Ripley (Perú y Chile). No contestas a la persona.
 
 Devuelve:
 - tipo:

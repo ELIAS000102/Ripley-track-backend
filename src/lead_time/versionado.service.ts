@@ -9,16 +9,13 @@ import { falloSupabase } from '../nucleo/supabase/errores.js';
  * por grupo y no cambia de nombre al actualizarse; lo que se enseña depende del
  * país —ver `nombreBase`—, pero en la base de datos es siempre este.
  */
-export const NOMBRE_VALLE = 'Valle';
+const NOMBRE_VALLE = 'Valle';
 
 /** Cómo llama cada país a la versión base: en Perú es "Regular"; en Chile, "Valle" */
 export const nombreBase = (pais: string) => (pais === 'PE' ? 'Regular' : 'Valle');
 
 /** Los nombres que no puede llevar un evento: son los de la versión base */
 const NOMBRES_DE_LA_BASE = ['valle', 'regular'];
-
-/** La sección del SQL de configuración que crea las tablas de lead time */
-export const SECCION_SQL = 'Lead time';
 
 /** El grupo al que pertenece todo lo que se carga: su id y su país */
 export interface GrupoRef {
@@ -39,7 +36,7 @@ export interface VigenciaTienda {
   hasta: string;
 }
 
-export interface FilaCabecera {
+interface FilaCabecera {
   id: string;
   pais: string;
   tipo: string;
@@ -62,7 +59,7 @@ export interface Lectura<Item> {
  * Lo que distingue a una matriz de una malla: sus tablas, cómo se lee y
  * escribe su Excel, cómo se guarda cada fila y cómo se interpreta.
  */
-export interface DefinicionVersionado<Item extends { codigo: string }, Interpretado, P extends string> {
+interface DefinicionVersionado<Item extends { codigo: string }, Interpretado, P extends string> {
   tabla: string;
   tablaDetalle: string;
   tablaVigencias: string;

@@ -61,10 +61,10 @@ export interface MiExcelG12 {
 export const DESCARGAS_EXCEL_POR_DIA = 3;
 
 /** Un pedido sin atender en este tiempo vence (ningún Excel estaba abierto) */
-export const VENCE_PEDIDO_MS = 15 * 60_000;
+const VENCE_PEDIDO_MS = 15 * 60_000;
 
 /** Un Excel de carga que preguntó en este tiempo está conectado (pregunta cada minuto) */
-export const CONECTADO_MS = 3 * 60_000;
+const CONECTADO_MS = 3 * 60_000;
 
 const conectado = (vistoEn: string | null) => !!vistoEn && Date.now() - new Date(vistoEn).getTime() < CONECTADO_MS;
 

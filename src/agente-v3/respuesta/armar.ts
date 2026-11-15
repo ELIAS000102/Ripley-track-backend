@@ -21,7 +21,7 @@ import { queEs } from '../que.js';
  * dibuje, y el Markdown. Sin IA: cada cifra sale de los datos.
  */
 
-export interface FilaEntidad {
+interface FilaEntidad {
   codigo: string;
   nombre: string | null;
   tipo: string;
@@ -29,7 +29,7 @@ export interface FilaEntidad {
   pais: string;
   fuente: string;
 }
-export interface FilaServicio {
+interface FilaServicio {
   pais: string;
   codigo: string;
   nombre: string | null;
@@ -40,7 +40,7 @@ export interface FilaServicio {
   descripcion?: string | null;
   ensenado_por?: string | null;
 }
-export interface FilaFase {
+interface FilaFase {
   codigo: string;
   metodo_entrega: string;
   nombre: string | null;

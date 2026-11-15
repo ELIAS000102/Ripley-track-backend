@@ -38,7 +38,7 @@ function idDeCapacidad(fila: ReceptionScheduleRow): string | undefined {
  * escritura es lo que permite editar un rango sin repetir esas dos llamadas por
  * cada día del rango.
  */
-export interface AgendaPreparada {
+interface AgendaPreparada {
   fila: ReceptionScheduleRow;
   oficina: OfficeRow;
   capacityId: string;

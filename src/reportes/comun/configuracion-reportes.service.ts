@@ -6,10 +6,10 @@ import { faltaEsquema, falloSupabase } from '../../nucleo/supabase/errores.js';
 const TABLA = 'reportes';
 
 /** Los reportes que guardan su configuración aquí */
-export type TipoReporte = 'st' | 'cd' | 'g12';
+type TipoReporte = 'st' | 'cd' | 'g12';
 
 /** Una fila de la tabla: la configuración de un reporte en un país */
-export interface ConfiguracionGuardada<T> {
+interface ConfiguracionGuardada<T> {
   configuracion: T | null;
   actualizadoPor: string | null;
   actualizadoEn: string | null;

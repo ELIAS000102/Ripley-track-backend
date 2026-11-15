@@ -25,8 +25,7 @@ import {
  * validación de aquí pasa también la del backend.
  */
 
-export type TipoParam =
-  'codigos' | 'codigo' | 'servicios' | 'servicio' | 'texto' | 'fecha' | 'numero' | 'booleano' | 'opcion';
+type TipoParam = 'codigos' | 'codigo' | 'servicios' | 'servicio' | 'texto' | 'fecha' | 'numero' | 'booleano' | 'opcion';
 
 export interface ParamDef {
   nombre: string;
@@ -42,7 +41,7 @@ export interface ParamDef {
   descripcion: string;
 }
 
-export interface Herramienta {
+interface Herramienta {
   id: string;
   descripcion: string;
   params: ParamDef[];

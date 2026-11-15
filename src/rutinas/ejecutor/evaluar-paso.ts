@@ -1,7 +1,7 @@
 import { plano } from '../../nucleo/texto.js';
 import type { LlamadaHerramienta, RespuestaAgente } from '../interfaces/rutinas.interface.js';
 
-export interface Evaluacion {
+interface Evaluacion {
   estado: 'completado' | 'fallido';
   /** Por qué falló, en una frase que diga qué hacer */
   motivo?: string;

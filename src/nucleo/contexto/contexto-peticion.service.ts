@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Injectable } from '@nestjs/common';
 
 /** Una escritura a Ripley que no salió porque la petición iba en simulacro */
-export interface EscrituraEvitada {
+interface EscrituraEvitada {
   metodo: 'put' | 'post';
   /** El verbo del mensaje: "actualizar", "enviar". Nunca la ruta */
   accion: string;
@@ -35,7 +35,7 @@ interface FilaSecuencial {
 }
 
 /** Lo que gastó una parte de la petición: sus llamadas a Ripley y su espera por cupo */
-export interface Medicion {
+interface Medicion {
   llamadas: number;
   esperaMs: number;
 }

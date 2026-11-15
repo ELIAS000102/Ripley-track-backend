@@ -6,7 +6,7 @@ import { BadGatewayException, type Logger } from '@nestjs/common';
  */
 
 /** Lo que trae un error de Supabase: el código y el mensaje */
-export interface ErrorSupabase {
+interface ErrorSupabase {
   code?: string;
   message?: string;
 }

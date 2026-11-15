@@ -179,7 +179,7 @@ const esFalloDeCupo = (intentos: IntentoModelo[], rol: RolModelo) => {
 export const VIGENCIA_PREVIA_MS = 10 * 60 * 1000;
 
 /** Los pasos de cambio que cambiarían algo y aún no se aplicaron (con sus cuerpos de la vista previa) */
-export function porAplicar(pasos: PasoEjecutado[]): PasoEjecutado[] {
+function porAplicar(pasos: PasoEjecutado[]): PasoEjecutado[] {
   return pasos.filter(
     (p) => herramienta(p.herramienta)?.edicion && p.cuerpos?.length && p.estado === 'ok' && !p.aplicado,
   );

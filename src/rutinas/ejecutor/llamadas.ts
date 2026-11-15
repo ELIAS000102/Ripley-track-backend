@@ -10,7 +10,7 @@ import type { LlamadaHerramienta } from '../interfaces/rutinas.interface.js';
  * persona: "Editar capacidad de una agenda respondió 400" se entiende, "PUT
  * /agente/capacidad" no.
  */
-export const HERRAMIENTA_DE: Record<string, string> = {
+const HERRAMIENTA_DE: Record<string, string> = {
   'GET /agente/capacidad': 'Capacidad de agendas',
   'PUT /agente/capacidad': 'Editar capacidad de una agenda',
   'GET /agente/capacidad-transferencia': 'Capacidad de transferencia',

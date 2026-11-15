@@ -165,7 +165,7 @@ function memo<T>(mapa: Map<string, Promise<T>>, clave: string, traer: () => Prom
 }
 
 /** Lo que alimenta cada fila de cada cuadro, ya leído de Ripley */
-export type EntradasG12 = Map<ClaveComponente, Map<string, EntradasFilaG12>>;
+type EntradasG12 = Map<ClaveComponente, Map<string, EntradasFilaG12>>;
 
 /** Una petición hecha, con dónde iba: el registro que enseña el panel */
 export interface RegistroG12 {
@@ -868,7 +868,7 @@ export function fechaDelServicio(
  * De la venta a la entrega: los pasos del cálculo (con los días que suma cada
  * uno, ya calculados por `tiempoAgregado`) y el recorrido físico del pedido.
  */
-export function trazaDe(o: OpcionNormalizada): TrazaSimulacionG12 {
+function trazaDe(o: OpcionNormalizada): TrazaSimulacionG12 {
   const texto = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v));
   const numero = (v: unknown) =>
     v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
@@ -906,7 +906,7 @@ export function trazaDe(o: OpcionNormalizada): TrazaSimulacionG12 {
 }
 
 /** Todo lo que devolvió el simulador, por servicio, con las cinco primeras opciones de cada uno */
-export function respuestaCompleta(r: RespuestaNormalizada): RespuestaSimulacionG12 {
+function respuestaCompleta(r: RespuestaNormalizada): RespuestaSimulacionG12 {
   const texto = (v: unknown) => (v === undefined || v === null || v === '' ? null : String(v));
   return {
     servicios: (r.resultados ?? []).map((s) => ({

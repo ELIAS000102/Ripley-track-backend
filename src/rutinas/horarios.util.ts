@@ -1,7 +1,7 @@
 import type { Horario, Turno } from './interfaces/rutinas.interface.js';
 
 /** La hora en que corre una rutina es la de su país */
-export const ZONA_DEL_PAIS: Record<string, string> = {
+const ZONA_DEL_PAIS: Record<string, string> = {
   PE: 'America/Lima',
   CL: 'America/Santiago',
 };

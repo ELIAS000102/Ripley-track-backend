@@ -73,7 +73,7 @@ export function paresDeTienda(t: TiendaMalla): { pares: ParMalla[]; ignoradas: T
  *
  * Sin ningún día de transferencia válido no hay ventas que calcular.
  */
-export function ventasDeTienda(t: TiendaMalla, pares = paresDeTienda(t).pares): VentaMalla[] {
+function ventasDeTienda(t: TiendaMalla, pares = paresDeTienda(t).pares): VentaMalla[] {
   if (!pares.length) return [];
   const porDia = new Map<Dia, ParMalla>(pares.map((p) => [p.transfiere, p]));
 

@@ -14,11 +14,9 @@ import { fileURLToPath } from 'node:url';
  */
 
 /** Desde `src/reportes/g12/` y desde `dist/reportes/g12/`: la carpeta `assets` está en la raíz */
-export const RUTA_PLANTILLA_EXCEL_CARGA = fileURLToPath(
-  new URL('../../../assets/g12/G12-carga-oracle.xlsx', import.meta.url),
-);
+const RUTA_PLANTILLA_EXCEL_CARGA = fileURLToPath(new URL('../../../assets/g12/G12-carga-oracle.xlsx', import.meta.url));
 
-export interface DatosExcelCarga {
+interface DatosExcelCarga {
   url: string;
   anon: string;
   clave: string;

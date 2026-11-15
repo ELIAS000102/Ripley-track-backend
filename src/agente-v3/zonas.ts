@@ -30,11 +30,11 @@ export const TODAS = 'todas';
 /** Si hay más oficinas que esto por elegir, no se pregunta una por una */
 const MAX_DUDAS = 6;
 
-export const esDelAnterior = (v: unknown) =>
+const esDelAnterior = (v: unknown) =>
   Boolean(v && typeof v === 'object' && !Array.isArray(v) && (v as { ref?: string }).ref === 'anterior');
 
 /** Las agendas que ENSEÑÓ el mensaje anterior (no las buscadas en este turno) */
-export function agendasDelAnterior(contexto: ContextoTurno): AgendaConocida[] {
+function agendasDelAnterior(contexto: ContextoTurno): AgendaConocida[] {
   return (contexto.anterior?.resultados ?? [])
     .filter((r) => r.datos)
     .flatMap((r) => agendasDeDatos(r.herramienta, r.datos));

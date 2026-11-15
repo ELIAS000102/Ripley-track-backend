@@ -8,7 +8,7 @@ import type { Perfil } from './interfaces/auth.interface.js';
 const TABLA = 'profiles';
 
 /** Rol que recibe todo usuario recién registrado */
-export const ROL_POR_DEFECTO = 'user';
+const ROL_POR_DEFECTO = 'user';
 
 /**
  * Lee y escribe la tabla `profiles`, que complementa a Supabase Auth con los

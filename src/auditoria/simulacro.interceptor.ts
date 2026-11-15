@@ -14,7 +14,7 @@ const SIN_MARCA_SIMULACRO = 'sinMarcaSimulacro';
 export const SinMarcaSimulacro = () => SetMetadata(SIN_MARCA_SIMULACRO, true);
 
 /** Lo que se añade a la respuesta de una petición en simulacro */
-export interface MarcaSimulacro {
+interface MarcaSimulacro {
   escriturasEvitadas: number;
   aviso: string;
 }
@@ -26,7 +26,7 @@ export interface MarcaSimulacro {
  * tiene que decirlo la respuesta misma: un agente que lee "después: activo"
  * informa de un cambio hecho si nadie le dice que no se hizo.
  */
-export function marcaSimulacro(evitadas: number): MarcaSimulacro {
+function marcaSimulacro(evitadas: number): MarcaSimulacro {
   return {
     escriturasEvitadas: evitadas,
     aviso: evitadas

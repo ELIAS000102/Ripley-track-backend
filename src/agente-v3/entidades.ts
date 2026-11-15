@@ -56,7 +56,7 @@ function nombresDe(e: EntidadDirectorio): string[] {
 }
 
 /** Una entidad del directorio como la ve el modelo para elegirla por su nombre o apodo */
-export interface Parecido {
+interface Parecido {
   codigo: string;
   nombre: string | null;
   tipo: string;

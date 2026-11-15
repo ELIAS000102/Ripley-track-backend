@@ -135,7 +135,7 @@ export function enClaro(error: string): string {
  * grupo por agenda que encaja, con su nombre y su zona exactos, y solo con las
  * oficinas que la tienen. Sin agendas conocidas, el paso va tal cual.
  */
-export function porAgenda(
+function porAgenda(
   id: string,
   p: Record<string, unknown>,
   codigos: string[],

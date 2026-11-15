@@ -14,7 +14,7 @@
  * vez de caer de golpe. El simulador va más despacio porque cada simulación le
  * cuesta más a Ripley.
  */
-export interface RitmoCarril {
+interface RitmoCarril {
   /** Cuántas peticiones a la vez, como mucho */
   paralelas: number;
   /** Lo mínimo entre el arranque de una petición y el de la siguiente */
@@ -106,7 +106,7 @@ export class Carril {
  * cualquier ritmo—; lo que lo evita es no pasar del cupo. Se deja margen
  * (110) para lo que el panel o el agente pidan con el mismo token.
  */
-export interface CupoVentana {
+interface CupoVentana {
   /** Llamadas por ventana, como mucho */
   llamadas: number;
   /** Lo que dura una ventana desde su primera llamada */

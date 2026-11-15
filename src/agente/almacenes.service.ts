@@ -9,10 +9,10 @@ import { resolverCd } from './constantes/cds.constants.js';
  * transferencia" o "simula la 1111" sin decir de dónde sale el stock es desde
  * el 20026. En Chile no hay ninguna fijada, así que allí se pide.
  */
-export const ORIGEN_POR_DEFECTO: Readonly<Record<string, string>> = { PE: '20026' };
+const ORIGEN_POR_DEFECTO: Readonly<Record<string, string>> = { PE: '20026' };
 
 /** El almacén que se usará, y si fue porque no se dijo ninguno */
-export interface AlmacenElegido {
+interface AlmacenElegido {
   codigo: string;
   porDefecto: boolean;
 }

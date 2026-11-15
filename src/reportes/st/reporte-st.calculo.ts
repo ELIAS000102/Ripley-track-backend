@@ -49,7 +49,7 @@ export function mallaDeTienda(t: TiendaInterpretada): MallaDeTienda {
 }
 
 /** Un día de Ripley, como se enseña */
-export function leerDia(d: CapacityByDay): DiaSt {
+function leerDia(d: CapacityByDay): DiaSt {
   const asignado = Number(d.assigned ?? 0);
   const utilizado = Number(d.occupied ?? 0);
   return {

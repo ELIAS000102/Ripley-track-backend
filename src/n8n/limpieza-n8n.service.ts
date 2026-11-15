@@ -32,7 +32,7 @@ interface EjecucionN8n {
   stoppedAt?: string | null;
 }
 
-export interface Limpieza {
+interface Limpieza {
   borradas: number;
   /** Las terminadas de antes de hoy que se quedan: son de una rutina detenida */
   deDetenidas: number;

@@ -22,7 +22,7 @@ export interface Prompt {
 export type SalidaGemini = { salida: string } | { error: string };
 
 /** Lo que se le pide además del texto (la fase D: JSON nativo y esquema) */
-export interface OpcionesGemini {
+interface OpcionesGemini {
   json?: boolean;
   esquema?: Record<string, unknown>;
 }

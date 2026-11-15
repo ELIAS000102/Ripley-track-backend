@@ -9,7 +9,7 @@ import type { PasoAplicado, PasoEjecutado } from '../interfaces/agente-v3.interf
  * filas "dónde · día · antes · después" y a una frase.
  */
 
-export interface FilaCambio {
+interface FilaCambio {
   donde: string;
   dia: string;
   antes: string;

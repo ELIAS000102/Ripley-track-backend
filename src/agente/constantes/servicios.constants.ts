@@ -13,7 +13,7 @@
  * negocio, y por eso el agente no tiene que mandar el método nunca. Se retira
  * en tienda (RT) o se despacha a domicilio (DP), y el servicio decide cuál.
  */
-export const METODO_POR_SERVICIO: Record<string, string> = {
+const METODO_POR_SERVICIO: Record<string, string> = {
   // Retiro en tienda
   ST: 'RT',
   SS: 'RT',

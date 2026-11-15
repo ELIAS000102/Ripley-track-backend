@@ -26,7 +26,7 @@ const DIAS_GUARDADOS = 14;
  * abandonada y deja de bloquear (decisión del usuario, 2026-11-11). La que
  * corre de verdad da señal cada 30 s, también mientras espera el cupo de Ripley.
  */
-export const SIN_LATIDO_MS = 3 * 60_000;
+const SIN_LATIDO_MS = 3 * 60_000;
 
 export type TipoActualizacionG12 = 'completa' | 'refrescar' | 'tabla' | 'reintento' | 'solicitudes';
 
@@ -34,11 +34,11 @@ export type TipoActualizacionG12 = 'completa' | 'refrescar' | 'tabla' | 'reinten
 export type ClaveActualizacionG12 = ClaveComponente | 'solicitudes';
 
 /** El título de lo que se genera, para el registro y los avisos */
-export const tituloDeClave = (clave: ClaveActualizacionG12) =>
+const tituloDeClave = (clave: ClaveActualizacionG12) =>
   clave === 'solicitudes' ? 'Solicitudes' : definicionDe(clave).titulo;
-export type EstadoActualizacionG12 = 'en_curso' | 'terminada' | 'cancelada' | 'abandonada' | 'fallida';
+type EstadoActualizacionG12 = 'en_curso' | 'terminada' | 'cancelada' | 'abandonada' | 'fallida';
 
-export interface CuadroActualizacionG12 {
+interface CuadroActualizacionG12 {
   clave: ClaveActualizacionG12;
   titulo: string;
   /** Salió de lo ya generado: no hubo peticiones a Ripley (actualizaciones de antes del G12 compartido) */
@@ -50,7 +50,7 @@ export interface CuadroActualizacionG12 {
   fallo?: string;
 }
 
-export interface ResumenActualizacionG12 {
+interface ResumenActualizacionG12 {
   total: number;
   ok: number;
   sin_fecha: number;
@@ -162,7 +162,7 @@ function horaLocal(iso: string | null | undefined, pais: string): string {
 }
 
 /** Si una en curso ya no da señales: entonces no bloquea */
-export function sinSenales(a: Pick<ActualizacionG12, 'latido' | 'inicio'>, ahora = Date.now()): boolean {
+function sinSenales(a: Pick<ActualizacionG12, 'latido' | 'inicio'>, ahora = Date.now()): boolean {
   return ahora - new Date(a.latido ?? a.inicio).getTime() > SIN_LATIDO_MS;
 }
 

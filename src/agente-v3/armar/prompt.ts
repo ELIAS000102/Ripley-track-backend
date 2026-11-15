@@ -55,8 +55,8 @@ ${VOCABULARIO.map((v) => `- ${v}`).join('\n')}
 
 CATÁLOGO DE HERRAMIENTAS (* = obligatorio)`;
 
-export const SISTEMA_ARMAR = `${cabecera(false)}\n${REGLAS}\n${catalogoParaPrompt(false)}`;
-export const SISTEMA_ARMAR_CAMBIO = `${cabecera(true)}\n${REGLAS}\n${catalogoParaPrompt(true)}`;
+const SISTEMA_ARMAR = `${cabecera(false)}\n${REGLAS}\n${catalogoParaPrompt(false)}`;
+const SISTEMA_ARMAR_CAMBIO = `${cabecera(true)}\n${REGLAS}\n${catalogoParaPrompt(true)}`;
 
 export function promptArmar(
   mensaje: string,

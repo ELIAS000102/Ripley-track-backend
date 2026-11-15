@@ -24,7 +24,7 @@ const isoDe = (f: unknown) => {
 };
 const distinto = (a: unknown, b: unknown) => a !== undefined && a !== null && a !== b;
 
-export interface Inverso {
+interface Inverso {
   /** La herramienta del cambio inverso (la misma que se aplicó) */
   herramienta: string;
   cuerpos: R[];

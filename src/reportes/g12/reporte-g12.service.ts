@@ -276,7 +276,7 @@ export class ReporteG12Service {
 }
 
 /** Del registro del ejecutor a la fila que enseña "Peticiones" */
-export function aPeticion(r: RegistroG12, cuadro: string): PeticionG12 {
+function aPeticion(r: RegistroG12, cuadro: string): PeticionG12 {
   const base = { componente: r.componente, cuadro, fila: r.fila, bloque: r.bloque, tipo: r.tipo };
 
   if (r.tipo === 'simulacion') {

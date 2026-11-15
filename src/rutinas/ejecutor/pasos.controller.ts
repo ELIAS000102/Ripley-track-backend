@@ -7,7 +7,7 @@ import type { RequestConUsuario } from '../../nucleo/contexto/usuario.interface.
 import { EjecutorRutinasService } from './ejecutor.service.js';
 
 /** Lo que cuenta el flujo al terminar un paso de una rutina */
-export class PasoRutinaDto {
+class PasoRutinaDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)

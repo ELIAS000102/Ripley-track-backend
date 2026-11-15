@@ -8,7 +8,7 @@ import { sinAcentos } from '../nucleo/texto.js';
  * Lo que la v3 sabe hacer lo dice el código, no el modelo: es la lista de verdad.
  */
 
-export const AYUDA = [
+const AYUDA = [
   'Puedo ejecutar tus **atajos** ("simula la SE", "dame la PQT LIMA", "dame la recepción SE").',
   'Consultar **capacidad** de picking, recepción o despacho, el **reporte de los CDs**, **transferencias**, **servicios de un OPL**, **búsquedas masivas** por servicio y **simulaciones** de entrega ("dame el despacho de la 1401", "cómo va el CD Villa").',
   '**Calcular** con lo que te acabo de traer: sumas, máximos, porcentajes, filtros o explicarte una fila ("la suma de los centralizados", "solo las inactivas", "explícame la de Breña").',
@@ -17,7 +17,7 @@ export const AYUDA = [
   'Todavía no hago **cambios** (cerrar, activar, reasignar) ni **rutinas**: para eso, usa la v2.',
 ];
 
-export const esPedidoDeAyuda = (m: string) =>
+const esPedidoDeAyuda = (m: string) =>
   /\b(ayuda|ayudame|que (puedes|sabes) hacer|que haces|como (te uso|funcionas)|para que sirves)\b/.test(sinAcentos(m));
 
 export function respuestaDeCharla(

@@ -22,7 +22,7 @@ import type {
 /** Días de una fecha a otra, YYYY-MM-DD, sin horas de por medio */
 
 /** El día de la semana, de lunes (0) a domingo (6) */
-export function diaSemana(fecha: string): number {
+function diaSemana(fecha: string): number {
   return (new Date(`${fecha}T12:00:00Z`).getUTCDay() + 6) % 7;
 }
 
@@ -261,7 +261,7 @@ export function filaPrimerDia(
 }
 
 /** Una fila que suma otras: la fecha más repetida, unidades y capacidad sumadas */
-export function filaTotal(nombre: string, partes: FilaReporteG12[], hoy: string): FilaReporteG12 {
+function filaTotal(nombre: string, partes: FilaReporteG12[], hoy: string): FilaReporteG12 {
   const fila = filaVacia(nombre);
   fila.esTotal = true;
   fila.fecha = moda(partes.map((p) => p.fecha));
@@ -315,7 +315,7 @@ export interface UnidadOracleG12 {
  * Oracle, cuando la configuración no dice otros (2026-11-14). El Excel dejaba
  * estas dos filas en 0 porque su SUMIFS buscaba el nombre de la fila.
  */
-export const SUBFLUJOS_ORACLE_POR_DEFECTO: Record<string, string[]> = {
+const SUBFLUJOS_ORACLE_POR_DEFECTO: Record<string, string[]> = {
   '90 min': ['Serv. 90min'],
   // "SD_RM - 1er Turno", "SD_RM - 2do Turno"…: todos los turnos del Same Day de Lima
   'same day': ['SD_RM*'],
@@ -324,14 +324,14 @@ export const SUBFLUJOS_ORACLE_POR_DEFECTO: Record<string, string[]> = {
 const claveOracle = (s: string) => s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** Lo que suma una fila: su configuración, si la tiene; si no, el valor por defecto o su nombre */
-export function subFlujosDeFila(nombre: string, config?: FilaG12): string[] {
+function subFlujosDeFila(nombre: string, config?: FilaG12): string[] {
   const propios = (config?.oracle ?? []).map((s) => s.trim()).filter(Boolean);
   if (propios.length) return propios;
   return SUBFLUJOS_ORACLE_POR_DEFECTO[claveOracle(nombre)] ?? [nombre];
 }
 
 /** Si un SUB_FLUJO encaja con lo que suma la fila: igual (sin mayúsculas ni espacios de más) o, con `*`, por prefijo */
-export function encajaSubFlujo(subFlujo: string, patrones: string[]): boolean {
+function encajaSubFlujo(subFlujo: string, patrones: string[]): boolean {
   const s = claveOracle(subFlujo);
   return patrones.some((p) => {
     const c = claveOracle(p);

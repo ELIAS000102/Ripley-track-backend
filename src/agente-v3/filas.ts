@@ -7,7 +7,7 @@ import { sinAcentos } from '../nucleo/texto.js';
  * otro. Sin IA: las cifras salen de los datos y de nada más.
  */
 
-export type Clase =
+type Clase =
   'capacidad' | 'masiva' | 'servicio_opl' | 'transferencia' | 'simulacion' | 'reporte' | 'entidad' | 'servicio';
 
 export interface Fila {
@@ -421,7 +421,7 @@ const HERRAMIENTA_DEL_BLOQUE: Record<string, string> = {
 
 // ───────────── Comprobar ─────────────
 
-export interface ResultadoComprobacion {
+interface ResultadoComprobacion {
   si: boolean;
   /** Cuántos códigos se miraron */
   total: number;

@@ -125,7 +125,7 @@ export function esRespuesta(p: Pregunta, r: Contestacion): boolean {
   return opciones.some((o) => planoTexto(o.texto) === t || planoTexto(o.id) === t);
 }
 
-export interface Contestacion {
+interface Contestacion {
   respuestas?: Record<string, unknown>;
   texto?: string;
   cancelar?: boolean;

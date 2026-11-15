@@ -16,7 +16,7 @@ export interface DeQueRutina {
 }
 
 /** De qué tarea es un paso */
-export interface DeQueTarea {
+interface DeQueTarea {
   orden: number;
   nombre: string;
   intento: number;

@@ -28,7 +28,7 @@ const BLOQUE: Record<string, { herramienta: string; tipo: string | null }> = {
   opl: { herramienta: 'consultar_servicios_opl', tipo: 'opl' },
 };
 
-export const mismoNombre = (a: unknown, b: unknown) => Boolean(plano(a)) && plano(a) === plano(b);
+const mismoNombre = (a: unknown, b: unknown) => Boolean(plano(a)) && plano(a) === plano(b);
 
 function sinRepetir(l: AgendaConocida[]): AgendaConocida[] {
   const vistas = new Set<string>();
@@ -116,7 +116,7 @@ export function lasQueEncajan(agendas: AgendaConocida[], agenda: unknown, zona: 
 }
 
 /** "1100 · despacho · Centralizado HUB San Luis › Centralizado HUB San Luis · S" */
-export function agendaEnLinea(a: AgendaConocida): string {
+function agendaEnLinea(a: AgendaConocida): string {
   return [a.codigo, a.tipo, `${a.zona && !mismoNombre(a.zona, a.agenda) ? `${a.zona} › ` : ''}${a.agenda}`, a.servicio]
     .filter(Boolean)
     .join(' · ');

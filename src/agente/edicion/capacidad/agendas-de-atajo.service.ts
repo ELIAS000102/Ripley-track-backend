@@ -4,7 +4,7 @@ import { SupabaseService } from '../../../nucleo/supabase/supabase.service.js';
 import { falloSupabase } from '../../../nucleo/supabase/errores.js';
 
 /** Lo que un atajo dice de un código: con qué servicio, zona y agenda se consulta */
-export interface AgendaGuardada {
+interface AgendaGuardada {
   codigo: string;
   servicio: string | null;
   zona: string | null;

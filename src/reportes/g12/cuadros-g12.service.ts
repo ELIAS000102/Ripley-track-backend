@@ -6,7 +6,7 @@ import { faltaTabla, falloSupabase } from '../../nucleo/supabase/errores.js';
 const TABLA = 'g12_cuadros';
 
 /** Lo último generado de un cuadro del G12, el mismo para todos */
-export interface CuadroGuardadoG12 {
+interface CuadroGuardadoG12 {
   clave: ClaveComponente;
   /** El día (del país) en que se generó: con él se avisa si los datos no son de hoy */
   hoy: string;

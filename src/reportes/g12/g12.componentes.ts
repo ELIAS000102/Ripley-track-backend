@@ -144,7 +144,7 @@ export const RESUMEN_POR_DEFECTO: LineaResumenG12[] = [
 
 // ───────────────────────── Los campos de cada tipo de ítem ─────────────────────────
 
-export interface CampoG12 {
+interface CampoG12 {
   clave: string;
   tipo: 'texto' | 'entero';
   req?: boolean;

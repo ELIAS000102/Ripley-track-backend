@@ -26,7 +26,7 @@ import { resolverCd, type CdsPorPais } from '../constantes/cds.constants.js';
  *   candidatos, el flujo pregunta en vez de adivinar.
  */
 
-export type Caso =
+type Caso =
   | 'atajo'
   | 'atajos'
   | 'capacidad'
@@ -40,13 +40,13 @@ export type Caso =
   | 'simulacion'
   | 'general';
 
-export interface CdMencionado {
+interface CdMencionado {
   code: string;
   nombre: string;
   pais: string;
 }
 
-export interface RangoFechas {
+interface RangoFechas {
   desde: string;
   hasta: string;
   dias: number;
@@ -95,14 +95,14 @@ export interface Interpretacion {
   motivo: string;
 }
 
-export interface AtajoConocido {
+interface AtajoConocido {
   nombre: string;
   descripcion?: string | null;
   /** Los tipos de sus bloques (picking, despacho, opl, masivo, simulacion…), si se conocen */
   tipos?: string[];
 }
 
-export interface AtajoPosible {
+interface AtajoPosible {
   nombre: string;
   /** Por qué pasó el filtro: "nombrada", "servicio SE", "tema simulación", "código 1111"… */
   motivo: string;
@@ -254,23 +254,7 @@ export function fechasDichas(original: string, hoy: string): string[] {
 // ───────────────────────── Códigos ─────────────────────────
 
 /** Los códigos de servicio y de jornada que se usan en la operación */
-export const SERVICIOS_CONOCIDOS = [
-  'ST',
-  'SS',
-  'SG',
-  'SE',
-  'RT',
-  'RE',
-  'DT',
-  'SD',
-  'S',
-  'EX',
-  'AT',
-  'OP',
-  'ND',
-  'DX',
-  'RC',
-];
+const SERVICIOS_CONOCIDOS = ['ST', 'SS', 'SG', 'SE', 'RT', 'RE', 'DT', 'SD', 'S', 'EX', 'AT', 'OP', 'ND', 'DX', 'RC'];
 
 /**
  * Los códigos de servicio del mensaje.
@@ -503,13 +487,6 @@ function atajosPosibles(
 }
 
 // ───────────────────────── La interpretación ─────────────────────────
-
-const EDICION_DE: Partial<Record<Caso, Caso>> = {
-  capacidad: 'editar_capacidad',
-  tipo_servicio: 'editar_servicio',
-  busqueda_masiva: 'editar_servicio',
-  transferencia: 'editar_transferencia',
-};
 
 export function interpretar(
   pregunta: string,
@@ -829,9 +806,4 @@ export function interpretar(
     certeza,
     motivo: motivos.join(' · ') || 'ninguna regla reconoce el mensaje: decide la IA',
   };
-}
-
-/** El caso de edición de un tema de consulta, para cuando el mensaje pide un cambio */
-export function edicionDe(caso: Caso): Caso | undefined {
-  return EDICION_DE[caso];
 }
