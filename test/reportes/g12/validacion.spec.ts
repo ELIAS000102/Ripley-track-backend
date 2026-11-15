@@ -100,6 +100,11 @@ describe('Al guardar la configuración, qué tablas dejan de valer', () => {
     expect(cuadrosCambiados(antes, despues)).toEqual(['dd_lima']);
     expect(cuadrosCambiados(antes, structuredClone(antes))).toEqual([]);
 
+    // Resaltar una fila es solo presentación: tampoco
+    const resaltada = structuredClone(antes);
+    resaltada.componentes.find((c) => c.clave === 'dd_lima')!.filas[0].resaltada = true;
+    expect(cuadrosCambiados(antes, resaltada)).toEqual([]);
+
     // Los sub-flujos del Oracle se aplican al leer: cambiarlos no deja en blanco Despacho domicilio
     const conOracle = structuredClone(antes);
     conOracle.componentes.find((c) => c.clave === 'dd_lima')!.filas[0].oracle = ['Centralizado MailAmericas', 'Mail*'];

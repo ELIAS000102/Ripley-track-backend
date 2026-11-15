@@ -30,7 +30,7 @@ const clave = (s: string) => s.trim().toLowerCase();
 type Entrada = {
   componentes?: Array<{
     clave: string;
-    filas?: Array<{ nombre: string; suma?: string[]; oracle?: string[] }>;
+    filas?: Array<{ nombre: string; suma?: string[]; oracle?: string[]; resaltada?: boolean }>;
     bloques?: Array<{ tipo: string; nota?: string; muestra?: boolean; items?: Array<{ fila: string; nota?: string; campos?: Record<string, unknown> }> }>;
   }>;
   resumen?: Array<{ nombre: string; partes?: Array<{ componente: string; fila?: string }> }>;
@@ -123,6 +123,7 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
         nombre,
         ...(f.suma?.length ? { suma: f.suma.map((s) => String(s).trim()).filter(Boolean) } : {}),
         ...(oracle.length && def.clave === 'dd_lima' ? { oracle } : {}),
+        ...(f.resaltada === true ? { resaltada: true } : {}),
       });
     }
     if (componente.filas.length > LIMITES_G12.filasPorComponente) {

@@ -112,6 +112,11 @@ export class FilaG12Dto {
   @IsString({ each: true })
   @MaxLength(LIMITES_G12.texto, { each: true })
   oracle?: string[];
+
+  /** Sombreada en la plantilla, como una fila de total */
+  @IsOptional()
+  @IsBoolean({ message: 'resaltada debe ser true o false' })
+  resaltada?: boolean;
 }
 
 export class ComponenteG12Dto {

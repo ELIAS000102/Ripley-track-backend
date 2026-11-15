@@ -276,6 +276,7 @@ describe('El reporte G12', () => {
     expect(r.grupos.find((g) => g.clave === 'pickup')!.total).toMatchObject({ unidades: 66, capacidad: 230 });
     expect(r.resumen.lineas[0]).toMatchObject({ nombre: 'Retiro en tienda', unidades: 66, capacidad: 230 });
     expect(r.cobertura.simulaciones).toMatchObject({ total: 2, conFecha: 1 });
+    expect(r.resaltadas.pickup_lima).toEqual([]);
   });
 
   it('un cuadro se genera solo, con el registro de sus peticiones', async () => {

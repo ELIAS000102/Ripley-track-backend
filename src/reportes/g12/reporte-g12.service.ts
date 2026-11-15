@@ -138,6 +138,7 @@ export class ReporteG12Service {
       consumos: oracle.carga ? oracle.unidades : [],
       cuadros,
       filas: Object.fromEntries(config.componentes.map((c) => [c.clave, c.filas.map((f) => f.nombre)])),
+      resaltadas: Object.fromEntries(config.componentes.map((c) => [c.clave, c.filas.filter((f) => f.resaltada).map((f) => f.nombre)])),
       peticiones,
       grupos,
       componentes,

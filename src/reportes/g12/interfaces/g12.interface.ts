@@ -72,6 +72,11 @@ export interface FilaG12 {
    * es un prefijo: "SD_RM*" suma todos los turnos del Same Day.
    */
   oracle?: string[];
+  /**
+   * Se pinta sombreada en la plantilla, como una fila de total (Big Ticket Lima,
+   * 2026-11-15). Solo es presentación: no cambia ningún cálculo.
+   */
+  resaltada?: boolean;
 }
 
 export interface ComponenteG12 {
@@ -445,6 +450,8 @@ export interface ReporteG12 {
   consumos: Array<{ fecha: string; zona?: string; subFlujo: string; unidades: number }>;
   /** Las filas de cada cuadro según la configuración: las de los que faltan se pintan en espera */
   filas: Record<string, string[]>;
+  /** Las filas que la configuración pide resaltar, por cuadro (se leen al armar el reporte: no hace falta volver a Ripley) */
+  resaltadas: Record<string, string[]>;
   /** Cada petición a Ripley de este reporte */
   peticiones: PeticionG12[];
   grupos: GrupoReporteG12[];

@@ -199,6 +199,7 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
     ['Cuadro', `El título del cuadro, tal cual: ${COMPONENTES_G12.map((c) => c.titulo).join(', ')}.`],
     ['Filas', 'Las filas de cada cuadro, en orden. "Suma" solo en las filas de total: los nombres de las filas que suma, separados por " | ".'],
     ['Sub-flujos del Oracle', 'Solo en Despacho domicilio: los SUB_FLUJO del Oracle que suma la fila, separados por " | ". Uno que acaba en * es un prefijo ("SD_RM*"). Vacío: el nombre de la fila (90 MIN y SAME DAY tienen los suyos por defecto).'],
+    ['Resaltada', 'Sí: la fila sale sombreada en la plantilla, como una fila de total (Big Ticket Lima). Solo cambia cómo se ve.'],
     ['Bloque', 'Cada ítem dice a qué bloque de su cuadro pertenece (1, 2, 3… en el orden del editor). Un bloque es de un solo tipo: todos sus ítems van en la misma hoja.'],
     ['Muestra', 'Solo en Simulación: "Sí" en la primera fila del bloque para probar un ítem antes de pedir los demás.'],
     ['Nombres, no ids', 'Región, provincia, distrito, operador, almacén, zona y agenda van por su nombre o código, como en el editor.'],
@@ -233,13 +234,14 @@ export async function configuracionAXlsx(config: ConfiguracionG12, pais: string,
   const clavesFilas: ClaveComponente[] = [];
   for (const c of config.componentes) {
     for (const f of c.filas) {
-      filas.push([definicionDe(c.clave).titulo, f.nombre, (f.suma ?? []).join(' | '), (f.oracle ?? []).join(' | ')]);
+      filas.push([definicionDe(c.clave).titulo, f.nombre, (f.suma ?? []).join(' | '), (f.oracle ?? []).join(' | '), f.resaltada ? 'Sí' : '']);
       clavesFilas.push(c.clave);
     }
   }
   hojaConEstilo(libro, 'Filas', [
     { titulo: 'Cuadro', ancho: 30 }, { titulo: 'Fila', ancho: 34 },
     { titulo: 'Suma (filas de total)', ancho: 56, partir: true }, { titulo: 'Sub-flujos del Oracle', ancho: 40, partir: true },
+    { titulo: 'Resaltada', ancho: 11, centrar: true },
   ], filas, { fijas: 2, cuadroEn: 1, claves: clavesFilas });
 
   // ── Una hoja por tipo de bloque ──
@@ -381,7 +383,9 @@ export async function xlsxAConfiguracion(contenido: Buffer): Promise<{ configura
     const suma = f.valor('Suma (filas de total)').split('|').map((x) => x.trim()).filter(Boolean);
     // Falta en los Excel exportados antes del 2026-11-14: entonces, vacío
     const oracle = f.valor('Sub-flujos del Oracle').split('|').map((x) => x.trim()).filter(Boolean);
-    c.filas.push({ nombre, ...(suma.length ? { suma } : {}), ...(oracle.length ? { oracle } : {}) });
+    // Falta en los exportados antes del 2026-11-15: entonces, sin resaltar
+    const resaltada = /^(s[ií]|x|true|1)$/i.test(f.valor('Resaltada').trim());
+    c.filas.push({ nombre, ...(suma.length ? { suma } : {}), ...(oracle.length ? { oracle } : {}), ...(resaltada ? { resaltada: true } : {}) });
   }
 
   // ── Ítems, hoja por hoja ──
