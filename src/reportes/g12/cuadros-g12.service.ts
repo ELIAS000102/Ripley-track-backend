@@ -61,6 +61,13 @@ export class CuadrosG12Service {
     return new Map(((data ?? []) as FilaCuadro[]).map((f) => [f.clave, aCuadro(f)]));
   }
 
+  /** Un cuadro guardado con sus peticiones (lo que devolvió Ripley), o null si no está */
+  async uno(pais: string, clave: ClaveComponente): Promise<CuadroGuardadoG12 | null> {
+    const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('pais', pais).eq('clave', clave).maybeSingle();
+    if (error) this.fallo(error, 'leer el cuadro guardado');
+    return data ? aCuadro(data as FilaCuadro) : null;
+  }
+
   /** Cuándo se generó cada cuadro, sin sus datos: para saber, barato, si algo cambió */
   async versiones(pais: string): Promise<Array<{ clave: ClaveComponente; generado: string; hoy: string }>> {
     const { data, error } = await this.supabase.admin.from(TABLA).select('clave, generado, hoy').eq('pais', pais);

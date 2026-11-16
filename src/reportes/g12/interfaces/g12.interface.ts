@@ -437,10 +437,16 @@ export interface CuadroReporteG12 {
   usuarioEmail: string | null;
   actualizacionId: string | null;
   componente: ComponenteReporteG12;
+  /** Vacías en el reporte ligero: se piden aparte (GET cuadros/:clave), solo para "Datos" */
   peticiones: PeticionG12[];
+  /** Cuántas peticiones tuvo y cuántas con error (también en el ligero) */
+  totalPeticiones?: number;
+  errores?: number;
 }
 
 export interface ReporteG12 {
+  /** La de lo guardado (la misma que da /estado): si no cambia, no hace falta volver a pedirlo */
+  version: string;
   /** `generado`: el más reciente de sus cuadros (null si no hay ninguno) */
   parametros: { pais: string; hoy: string; generado: string | null };
   /** Los cuadros guardados, el mismo para todos; los que faltan no están */

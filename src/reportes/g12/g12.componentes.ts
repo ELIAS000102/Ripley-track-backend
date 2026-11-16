@@ -213,4 +213,13 @@ export const DIAS_LECTURA_AGENDAS = 45;
  * minutos y no cinco: en serie, una petición a la vez, las diez tablas tardan
  * varios minutos, y con cinco las primeras ya habrían caducado al terminar.
  */
+/**
+ * La versión de lo guardado del país: cambia cuando cambia algún cuadro o llega
+ * otra carga del Oracle (las unidades de DD Lima). El estado la da para saber
+ * si hay que volver a pedir el reporte, y el reporte la trae para compararla.
+ */
+export function versionG12(cuadros: Array<{ clave: string; generado: string }>, cargadoEn: string | null | undefined): string {
+  return [...cuadros.map((v) => `${v.clave}:${v.generado}`).sort(), `oracle:${cargadoEn ?? ''}`].join('|');
+}
+
 export const VIDA_REPORTE_MS = 15 * 60 * 1000;

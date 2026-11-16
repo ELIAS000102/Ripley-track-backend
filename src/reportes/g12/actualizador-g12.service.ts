@@ -5,7 +5,7 @@ import { PerfilService } from '../../seguridad/sesion/perfil.service.js';
 import { hoyEnPais } from '../../nucleo/fechas.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { CuadrosG12Service } from './cuadros-g12.service.js';
-import { CLAVES_COMPONENTES, definicionDe, VIDA_REPORTE_MS } from './g12.componentes.js';
+import { CLAVES_COMPONENTES, definicionDe, VIDA_REPORTE_MS, versionG12 } from './g12.componentes.js';
 import { HistorialG12Service, type ActualizacionG12, type TipoActualizacionG12 } from './historial-g12.service.js';
 import { OracleG12Service, type CargaOracleG12, type MiExcelG12, type PedidoOracleG12 } from './oracle-g12.service.js';
 import type { ClaveActualizacionG12 } from './historial-g12.service.js';
@@ -15,6 +15,9 @@ import { SolicitudesG12Service } from './solicitudes-g12.service.js';
 
 /** Cada cuánto da señal de vida una actualización, también mientras espera el cupo de Ripley */
 const LATIDO_MS = 30_000;
+
+/** Cuánto vale el estado compartido de un país antes de volver a calcularlo */
+const ESTADO_COMPARTIDO_MS = 1000;
 
 /** Lo que devuelve lanzar: la actualización, o por qué no hacía falta */
 export interface LanzamientoG12 {
@@ -49,6 +52,19 @@ export interface EstadoG12 {
 @Injectable()
 export class ActualizadorG12Service {
   private readonly logger = new Logger(ActualizadorG12Service.name);
+
+  /**
+   * Lo del estado que es igual para todos, por país: se calcula una vez por
+   * segundo como mucho, aunque lo pregunten veinte paneles (cada pregunta eran
+   * ocho consultas a Supabase). Lo que pasa en este proceso —empieza, avanza o
+   * termina una actualización— lo invalida al momento, para que se vea ya.
+   */
+  private readonly estadosCompartidos = new Map<string, { hasta: number; promesa: Promise<Omit<EstadoG12, 'oracle'> & { oracle: Omit<EstadoG12['oracle'], 'miExcel'> }> }>();
+
+  /** Lo que cambia el estado del país: la próxima pregunta lo vuelve a calcular */
+  private invalidarEstado(pais: string): void {
+    this.estadosCompartidos.delete(pais);
+  }
 
   /** Las que corren en este proceso, y si alguien pidió cancelarlas */
   private readonly enMarcha = new Map<string, { cancelar: string | null }>();
@@ -140,6 +156,7 @@ export class ActualizadorG12Service {
     }
 
     const a = await this.historial.crear(pais, tipo, usuario, pasos);
+    this.invalidarEstado(pais);
     this.enMarcha.set(a.id, { cancelar: null });
     void this.correr(a, usuario, config, pasos);
     const oracle = conOracle ? await this.pedirOracle(pais, usuario, a.id) : null;
@@ -162,6 +179,7 @@ export class ActualizadorG12Service {
       );
     }
     const a = await this.historial.crear(pais, 'solicitudes', usuario, ['solicitudes']);
+    this.invalidarEstado(pais);
     this.enMarcha.set(a.id, { cancelar: null });
     void this.correrSolicitudes(a, usuario, config);
     return { actualizacion: a, mensaje: null, oracle: null };
@@ -206,36 +224,46 @@ export class ActualizadorG12Service {
     const corriendo = this.enMarcha.get(id);
     if (corriendo) {
       corriendo.cancelar = usuario.email;
+      this.invalidarEstado(a.pais);
       return a;
     }
     // No corre en este proceso (se reinició): se cierra aquí
+    this.invalidarEstado(a.pais);
     return this.historial.cerrar(id, 'cancelada', `Cancelada por ${usuario.email}.`);
   }
 
   /** Si hay una en curso y por dónde va, la última, si cambió algo de lo guardado, y el Oracle */
   async estado(pais: string, usuario: UsuarioAutenticado): Promise<EstadoG12> {
-    const [enCurso, ultima, versiones, carga, pedido, miExcel, conectados, solicitudes] = await Promise.all([
-      this.historial.enCurso(pais),
-      this.historial.ultima(pais),
-      this.cuadros.versiones(pais),
-      this.oracle.ultimaCarga(pais),
-      this.oracle.ultimoPedido(pais),
-      this.oracle.miExcel(usuario.id),
-      this.oracle.conectados(),
-      this.solicitudes?.generado(pais) ?? Promise.resolve(null),
-    ]);
-    // Una carga nueva del Oracle también cambia el reporte (las unidades de DD Lima)
-    const version = [
-      ...versiones.map((v) => `${v.clave}:${v.generado}`).sort(),
-      `oracle:${carga?.cargadoEn ?? ''}`,
-    ].join('|');
-    return {
-      enCurso: enCurso ? { ...enCurso, hechas: enCurso.cuadros.length, total: enCurso.claves.length } : null,
-      ultima,
-      version,
-      solicitudes,
-      oracle: { carga, pedido, miExcel, conectados },
-    };
+    const [compartido, miExcel] = await Promise.all([this.estadoCompartido(pais), this.oracle.miExcel(usuario.id)]);
+    return { ...compartido, oracle: { ...compartido.oracle, miExcel } };
+  }
+
+  private estadoCompartido(pais: string) {
+    const guardado = this.estadosCompartidos.get(pais);
+    if (guardado && guardado.hasta > Date.now()) return guardado.promesa;
+    const promesa = (async () => {
+      const [enCurso, ultima, versiones, carga, pedido, conectados, solicitudes] = await Promise.all([
+        this.historial.enCurso(pais),
+        this.historial.ultima(pais),
+        this.cuadros.versiones(pais),
+        this.oracle.ultimaCarga(pais),
+        this.oracle.ultimoPedido(pais),
+        this.oracle.conectados(),
+        this.solicitudes?.generado(pais) ?? Promise.resolve(null),
+      ]);
+      return {
+        enCurso: enCurso ? { ...enCurso, hechas: enCurso.cuadros.length, total: enCurso.claves.length } : null,
+        ultima,
+        // Una carga nueva del Oracle también cambia el reporte (las unidades de DD Lima)
+        version: versionG12(versiones, carga?.cargadoEn),
+        solicitudes,
+        oracle: { carga, pedido, conectados },
+      };
+    })();
+    this.estadosCompartidos.set(pais, { hasta: Date.now() + ESTADO_COMPARTIDO_MS, promesa });
+    // Un fallo no se queda guardado: la próxima pregunta lo intenta otra vez
+    promesa.catch(() => this.estadosCompartidos.delete(pais));
+    return promesa;
   }
 
   /** La actualización en sí, tabla por tabla, con la identidad (y el token de Ripley) de quien la lanzó */
@@ -265,6 +293,7 @@ export class ActualizadorG12Service {
             break;
           }
           await this.historial.latir(a.id, clave);
+          this.invalidarEstado(a.pais);
           if (clave === 'solicitudes') {
             const r = await this.pasoSolicitudes(a, usuario, config);
             if (r.cancelada) {
@@ -277,6 +306,7 @@ export class ActualizadorG12Service {
             const cuadro = await this.reporte.generarCuadro(a.pais, clave, config);
             await this.cuadros.guardar(a.pais, { ...cuadro, actualizacionId: a.id, usuarioEmail: usuario.email });
             await this.historial.anotarCuadro(a.id, a.pais, cuadro);
+            this.invalidarEstado(a.pais);
           } catch (e) {
             // Una tabla que falla no para las demás: queda anotada con su motivo
             fallidas++;
@@ -301,6 +331,7 @@ export class ActualizadorG12Service {
         await this.historial
           .cerrar(a.id, estado, motivo)
           .catch((e: Error) => this.logger.error(`No se pudo cerrar la actualización ${a.id}: ${e.message}`));
+        this.invalidarEstado(a.pais);
       }
     });
   }
@@ -331,6 +362,7 @@ export class ActualizadorG12Service {
         filas: r.filas,
       });
       await this.historial.anotarCuadro(a.id, a.pais, { clave: 'solicitudes', generado, peticiones: r.peticiones });
+      this.invalidarEstado(a.pais);
       if (r.peticiones.length && r.peticiones.every((p) => p.estado === 'error')) {
         return { fallo: 'No se pudo leer ninguna agenda de Solicitudes: mira el motivo de cada una en Peticiones.' };
       }
@@ -374,6 +406,7 @@ export class ActualizadorG12Service {
         await this.historial
           .cerrar(a.id, estado, motivo)
           .catch((e: Error) => this.logger.error(`No se pudo cerrar la actualización ${a.id}: ${e.message}`));
+        this.invalidarEstado(a.pais);
       }
     });
   }

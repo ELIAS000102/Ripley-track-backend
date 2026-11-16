@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -20,6 +21,8 @@ import { Usuario } from '../../seguridad/sesion/decorators/usuario.decorator.js'
 import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { PaisDto } from '../../nucleo/dto/pais.dto.js';
 import { ActualizadorG12Service } from './actualizador-g12.service.js';
+import { CuadrosG12Service } from './cuadros-g12.service.js';
+import { CLAVES_COMPONENTES } from './g12.componentes.js';
 import { ConfiguracionG12Service } from './configuracion-g12.service.js';
 import { nombreXlsxConfiguracion } from './configuracion-xlsx.js';
 import {
@@ -60,12 +63,26 @@ export class G12Controller {
     private readonly actualizador: ActualizadorG12Service,
     private readonly oracle: OracleG12Service,
     private readonly solicitudes: SolicitudesG12Service,
+    private readonly cuadros: CuadrosG12Service,
   ) {}
 
-  /** GET /reportes/g12?pais=PE — lo último generado del país, el mismo para todos. No va a Ripley */
+  /**
+   * GET /reportes/g12?pais=PE[&ligero=true] — lo último generado del país, el mismo
+   * para todos. No va a Ripley. Ligero: sin las peticiones (lo que devolvió Ripley),
+   * que se piden por cuadro con GET cuadros/:clave
+   */
   @Get()
-  async ver(@Query() query: PaisDto) {
-    return this.reporte.reporte(query.pais ?? 'PE');
+  async ver(@Query() query: PaisDto, @Query('ligero') ligero?: string) {
+    return this.reporte.reporte(query.pais ?? 'PE', { ligero: ligero === 'true' || ligero === '1' });
+  }
+
+  /** GET /reportes/g12/cuadros/:clave?pais=PE — un cuadro guardado con sus peticiones: lo que enseña "Datos" */
+  @Get('cuadros/:clave')
+  async cuadro(@Query() query: PaisDto, @Param('clave') clave: string) {
+    if (!(CLAVES_COMPONENTES as readonly string[]).includes(clave)) throw new NotFoundException('Ese cuadro no existe.');
+    const c = await this.cuadros.uno(query.pais ?? 'PE', clave as ClaveComponente);
+    if (!c) throw new NotFoundException('Ese cuadro todavía no se ha generado.');
+    return { clave: c.clave, hoy: c.hoy, generado: c.generado, peticiones: c.peticiones };
   }
 
   /**

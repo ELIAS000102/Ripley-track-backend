@@ -12,7 +12,7 @@ import {
   sumarTotales,
   totalDe,
 } from './g12.calculo.js';
-import { CLAVES_COMPONENTES, definicionDe, GRUPOS_G12 } from './g12.componentes.js';
+import { CLAVES_COMPONENTES, definicionDe, GRUPOS_G12, versionG12 } from './g12.componentes.js';
 import { normalizarConfiguracion } from './g12.validacion.js';
 import { OracleG12Service } from './oracle-g12.service.js';
 import type { ProbarG12Dto } from './dto/g12.dto.js';
@@ -91,7 +91,7 @@ export class ReporteG12Service {
    * se ha generado sale vacío y avisado; uno de otro día sale con sus datos y
    * avisado (decisión del usuario: mejor eso que dejarlo en blanco).
    */
-  async reporte(pais: string): Promise<ReporteG12> {
+  async reporte(pais: string, opciones: { ligero?: boolean } = {}): Promise<ReporteG12> {
     const hoy = hoyEnPais(pais);
     const [config, guardados, oracle] = await Promise.all([
       this.configuracion.configuracion(pais),
@@ -196,18 +196,29 @@ export class ReporteG12Service {
     const agendas = peticiones.filter((p) => p.tipo !== 'simulacion');
     const generados = cuadros.map((c) => c.generado).sort();
 
+    // Ligero (2026-11-16): el panel no necesita lo que devolvió Ripley para pintar la
+    // plantilla; "Datos" lo pide aparte. Era la mayor parte de la respuesta, y doble
+    const cuadrosSalida = cuadros.map((c) => ({
+      ...c,
+      totalPeticiones: c.peticiones.length,
+      errores: c.peticiones.filter((p) => p.estado === 'error').length,
+      ...(opciones.ligero ? { peticiones: [] } : {}),
+    }));
+
     return {
+      version: versionG12(cuadros, oracle.carga?.cargadoEn),
       parametros: { pais, hoy, generado: generados.at(-1) ?? null },
       oracle: oracle.carga,
       consumos: oracle.carga ? oracle.unidades : [],
-      cuadros,
+      cuadros: cuadrosSalida,
       filas: Object.fromEntries(config.componentes.map((c) => [c.clave, c.filas.map((f) => f.nombre)])),
       resaltadas: Object.fromEntries(
         config.componentes.map((c) => [c.clave, c.filas.filter((f) => f.resaltada).map((f) => f.nombre)]),
       ),
-      peticiones,
+      peticiones: opciones.ligero ? [] : peticiones,
       grupos,
-      componentes,
+      // Los mismos que van dentro de cada cuadro: el ligero no los repite
+      componentes: opciones.ligero ? [] : componentes,
       resumen: { fecha: hoy, lineas: resumen.lineas, total: resumen.total },
       cobertura: {
         simulaciones: {

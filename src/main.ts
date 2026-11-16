@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import compression from 'compression';
 import { AppModule } from './app.module.js';
 import { VaciosComoAusentesPipe } from './nucleo/pipes/vacios-como-ausentes.pipe.js';
 
@@ -12,6 +13,15 @@ async function bootstrap() {
 
   // Content-Disposition a la vista: el panel saca de ahí el nombre de los Excel que descarga
   app.enableCors({ exposedHeaders: ['Content-Disposition'] });
+
+  // Las respuestas, comprimidas: el JSON se encoge ~10 veces. Los flujos del
+  // agente (ndjson, con no-transform) van sin comprimir para que lleguen según salen
+  app.use(
+    compression({
+      filter: (req, res) =>
+        !String(res.getHeader('Content-Type') ?? '').includes('ndjson') && compression.filter(req, res),
+    }),
+  );
 
   // 2 MB y no los 100 KB de Express: el panel guarda en el chat la respuesta entera de
   // la v3 del agente (las tablas de un atajo grande), y un 413 la perdería

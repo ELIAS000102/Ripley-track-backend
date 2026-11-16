@@ -868,7 +868,14 @@ describe('Las unidades del Oracle en el reporte', () => {
     expect(r.cuadros[0].componente.filas[0]).toMatchObject({ unidades: 202, porcentaje: 40 });
     expect(r.componentes.find((c) => c.clave === 'dd_lima')!.total).toMatchObject({ unidades: 202 });
     expect(r.avisos.join(' ')).not.toMatch(/Oracle/);
-    expect((await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' })).version).not.toBe(antes);
+    // El estado se comparte un segundo: la carga (llega por el Excel, no por aquí) se ve al siguiente
+    const ahora = Date.now();
+    const reloj = vi.spyOn(Date, 'now').mockReturnValue(ahora + 1500);
+    const despues = (await actualizador.estado('PE', { id: 'u', email: 'u@r.pe' })).version;
+    reloj.mockRestore();
+    expect(despues).not.toBe(antes);
+    // El reporte trae la misma versión que el estado
+    expect(r.version).toBe(despues);
   });
 
   it('una carga de otro día se avisa', async () => {
@@ -1142,6 +1149,52 @@ describe('Los ids guardados del G12', () => {
       'PE',
     );
     expect(tablasIds.g12_ids ?? []).toEqual([]);
+  });
+});
+
+describe('El estado compartido y el reporte ligero (2026-11-16)', () => {
+  const ANA = { id: 'ana', email: 'ana@r.pe' } as never;
+  const LUIS = { id: 'luis', email: 'luis@r.pe' } as never;
+  const config = (): ConfiguracionG12 => ({
+    componentes: [{ clave: 'pickup_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }] }],
+    resumen: [],
+  });
+
+  it('el estado se calcula una vez por segundo para todos, y una actualización nueva se ve al momento', async () => {
+    const { actualizador, historial } = montar({ config: config(), retardoMs: 20 });
+    const enCurso = vi.spyOn(historial, 'enCurso');
+    await actualizador.estado('PE', ANA);
+    await actualizador.estado('PE', LUIS);
+    // Ana y Luis comparten el cálculo: una sola lectura del turno
+    expect(enCurso).toHaveBeenCalledTimes(1);
+
+    // Ana lanza: Luis lo ve en su próxima pregunta, sin esperar al segundo
+    const r = await actualizador.lanzar(ANA, 'PE', 'refrescar');
+    expect((await actualizador.estado('PE', LUIS)).enCurso).toMatchObject({ id: r.actualizacion!.id });
+    for (let i = 0; i < 200 && (await historial.leer(r.actualizacion!.id)).estado === 'en_curso'; i++) await new Promise((x) => setTimeout(x, 5));
+    // Y que terminó, también al momento
+    expect((await actualizador.estado('PE', LUIS)).enCurso).toBeNull();
+  });
+
+  it('el reporte ligero no trae las peticiones, pero sí cuántas y cuántas con error; un cuadro las trae aparte', async () => {
+    const { reporte, cuadros } = montar({ config: config(), fechas: { '20027|RT': sumarDias(hoyEnPais('PE'), 2) } });
+    const generado = await reporte.generarCuadro('PE', 'pickup_lima', config());
+    await cuadros.guardar('PE', { ...generado, actualizacionId: null, usuarioEmail: 'u@r.pe' });
+
+    const completo = await reporte.reporte('PE');
+    const ligero = await reporte.reporte('PE', { ligero: true });
+    expect(completo.cuadros[0].peticiones.length).toBeGreaterThan(0);
+    expect(ligero.cuadros[0].peticiones).toEqual([]);
+    expect(ligero.peticiones).toEqual([]);
+    expect(ligero.componentes).toEqual([]);
+    expect(ligero.cuadros[0]).toMatchObject({ totalPeticiones: completo.cuadros[0].peticiones.length, errores: 0 });
+    // Lo que pinta la plantilla es lo mismo
+    expect(ligero.cuadros[0].componente).toEqual(completo.cuadros[0].componente);
+    expect(ligero.version).toBe(completo.version);
+
+    const uno = await cuadros.uno('PE', 'pickup_lima');
+    expect(uno!.peticiones).toHaveLength(completo.cuadros[0].peticiones.length);
+    expect(await cuadros.uno('PE', 'sfs')).toBeNull();
   });
 });
 
