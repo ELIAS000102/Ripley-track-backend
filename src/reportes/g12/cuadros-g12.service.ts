@@ -63,7 +63,12 @@ export class CuadrosG12Service {
 
   /** Un cuadro guardado con sus peticiones (lo que devolvió Ripley), o null si no está */
   async uno(pais: string, clave: ClaveComponente): Promise<CuadroGuardadoG12 | null> {
-    const { data, error } = await this.supabase.admin.from(TABLA).select('*').eq('pais', pais).eq('clave', clave).maybeSingle();
+    const { data, error } = await this.supabase.admin
+      .from(TABLA)
+      .select('*')
+      .eq('pais', pais)
+      .eq('clave', clave)
+      .maybeSingle();
     if (error) this.fallo(error, 'leer el cuadro guardado');
     return data ? aCuadro(data as FilaCuadro) : null;
   }

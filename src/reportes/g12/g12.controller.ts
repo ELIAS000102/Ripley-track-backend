@@ -79,7 +79,8 @@ export class G12Controller {
   /** GET /reportes/g12/cuadros/:clave?pais=PE — un cuadro guardado con sus peticiones: lo que enseña "Datos" */
   @Get('cuadros/:clave')
   async cuadro(@Query() query: PaisDto, @Param('clave') clave: string) {
-    if (!(CLAVES_COMPONENTES as readonly string[]).includes(clave)) throw new NotFoundException('Ese cuadro no existe.');
+    if (!(CLAVES_COMPONENTES as readonly string[]).includes(clave))
+      throw new NotFoundException('Ese cuadro no existe.');
     const c = await this.cuadros.uno(query.pais ?? 'PE', clave as ClaveComponente);
     if (!c) throw new NotFoundException('Ese cuadro todavía no se ha generado.');
     return { clave: c.clave, hoy: c.hoy, generado: c.generado, peticiones: c.peticiones };

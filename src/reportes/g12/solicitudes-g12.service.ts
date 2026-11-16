@@ -60,7 +60,11 @@ export class SolicitudesG12Service {
   /** Cuándo se generaron las del país (para la versión de /estado), sin traer los datos */
   /** De qué día y cuándo son las del país, sin leer sus filas (null: nunca) */
   async frescura(pais: string): Promise<{ hoy: string; generado: string } | null> {
-    const { data, error } = await this.supabase.admin.from(TABLA).select('hoy, generado').eq('pais', pais).maybeSingle();
+    const { data, error } = await this.supabase.admin
+      .from(TABLA)
+      .select('hoy, generado')
+      .eq('pais', pais)
+      .maybeSingle();
     return error ? null : ((data as { hoy: string; generado: string } | null) ?? null);
   }
 

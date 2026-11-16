@@ -59,7 +59,10 @@ export class ActualizadorG12Service {
    * ocho consultas a Supabase). Lo que pasa en este proceso —empieza, avanza o
    * termina una actualización— lo invalida al momento, para que se vea ya.
    */
-  private readonly estadosCompartidos = new Map<string, { hasta: number; promesa: Promise<Omit<EstadoG12, 'oracle'> & { oracle: Omit<EstadoG12['oracle'], 'miExcel'> }> }>();
+  private readonly estadosCompartidos = new Map<
+    string,
+    { hasta: number; promesa: Promise<Omit<EstadoG12, 'oracle'> & { oracle: Omit<EstadoG12['oracle'], 'miExcel'> }> }
+  >();
 
   /**
    * La señal de vida; si la base dice que ya no está en curso (cancelada desde

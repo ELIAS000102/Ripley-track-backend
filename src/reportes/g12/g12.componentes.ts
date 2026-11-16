@@ -218,7 +218,10 @@ export const DIAS_LECTURA_AGENDAS = 45;
  * otra carga del Oracle (las unidades de DD Lima). El estado la da para saber
  * si hay que volver a pedir el reporte, y el reporte la trae para compararla.
  */
-export function versionG12(cuadros: Array<{ clave: string; generado: string }>, cargadoEn: string | null | undefined): string {
+export function versionG12(
+  cuadros: Array<{ clave: string; generado: string }>,
+  cargadoEn: string | null | undefined,
+): string {
   return [...cuadros.map((v) => `${v.clave}:${v.generado}`).sort(), `oracle:${cargadoEn ?? ''}`].join('|');
 }
 

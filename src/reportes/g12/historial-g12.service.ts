@@ -356,8 +356,14 @@ export class HistorialG12Service {
 
     type Contada = { estado: string; intentos: number | null; llamadas?: number | null; espera_ms?: number | null };
     const contar = (columnas: string) =>
-      leerTodo<Contada>((desde, hasta) =>
-        this.supabase.admin.from(TABLA_PETICIONES).select(columnas).eq('actualizacion_id', id).order('orden').range(desde, hasta) as never,
+      leerTodo<Contada>(
+        (desde, hasta) =>
+          this.supabase.admin
+            .from(TABLA_PETICIONES)
+            .select(columnas)
+            .eq('actualizacion_id', id)
+            .order('orden')
+            .range(desde, hasta) as never,
       );
     const leidas = await contar('estado, intentos, llamadas, espera_ms');
     let data: Contada[] | null = leidas.data;
@@ -411,7 +417,12 @@ export class HistorialG12Service {
 
     // Una actualización del G12 con Solicitudes ronda las 500 peticiones: de 1000 en 1000, por si crece
     const { data: filas, error: e2 } = await leerTodo((desde, hasta) =>
-      this.supabase.admin.from(TABLA_PETICIONES).select('*').eq('actualizacion_id', id).order('orden').range(desde, hasta),
+      this.supabase.admin
+        .from(TABLA_PETICIONES)
+        .select('*')
+        .eq('actualizacion_id', id)
+        .order('orden')
+        .range(desde, hasta),
     );
     if (e2) this.fallo(e2, 'leer las peticiones');
 

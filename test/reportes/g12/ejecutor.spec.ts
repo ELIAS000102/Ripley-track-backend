@@ -1157,7 +1157,13 @@ describe('El estado compartido y el reporte ligero (2026-11-16)', () => {
   const ANA = { id: 'ana', email: 'ana@r.pe' } as never;
   const LUIS = { id: 'luis', email: 'luis@r.pe' } as never;
   const config = (): ConfiguracionG12 => ({
-    componentes: [{ clave: 'pickup_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }] }],
+    componentes: [
+      {
+        clave: 'pickup_lima',
+        filas: [{ nombre: 'A' }],
+        bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }],
+      },
+    ],
     resumen: [],
   });
 
@@ -1172,7 +1178,8 @@ describe('El estado compartido y el reporte ligero (2026-11-16)', () => {
     // Ana lanza: Luis lo ve en su próxima pregunta, sin esperar al segundo
     const r = await actualizador.lanzar(ANA, 'PE', 'refrescar');
     expect((await actualizador.estado('PE', LUIS)).enCurso).toMatchObject({ id: r.actualizacion!.id });
-    for (let i = 0; i < 200 && (await historial.leer(r.actualizacion!.id)).estado === 'en_curso'; i++) await new Promise((x) => setTimeout(x, 5));
+    for (let i = 0; i < 200 && (await historial.leer(r.actualizacion!.id)).estado === 'en_curso'; i++)
+      await new Promise((x) => setTimeout(x, 5));
     // Y que terminó, también al momento
     expect((await actualizador.estado('PE', LUIS)).enCurso).toBeNull();
   });
@@ -1203,7 +1210,13 @@ describe('Riesgos de la revisión (2026-11-16)', () => {
   const ANA = { id: 'ana', email: 'ana@r.pe' } as never;
   const LUIS = { id: 'luis', email: 'luis@r.pe' } as never;
   const config = (): ConfiguracionG12 => ({
-    componentes: [{ clave: 'pickup_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }] }],
+    componentes: [
+      {
+        clave: 'pickup_lima',
+        filas: [{ nombre: 'A' }],
+        bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }],
+      },
+    ],
     resumen: [],
   });
 
@@ -1238,16 +1251,35 @@ describe('Riesgos de la revisión (2026-11-16)', () => {
     const historial = new HistorialG12Service(supabaseEnMemoria(tablas, { maxFilas: 3 }));
     const a = await historial.crear('PE', 'refrescar', ANA, ['pickup_lima']);
     const peticiones = Array.from({ length: 7 }, (_, i) => ({
-      componente: 'pickup_lima', cuadro: 'Pickup in store - Lima', fila: `F${i}`, bloque: 1, tipo: 'simulacion',
-      estado: i === 0 ? 'error' : 'ok', pedido: {}, mensaje: null, meta: null,
+      componente: 'pickup_lima',
+      cuadro: 'Pickup in store - Lima',
+      fila: `F${i}`,
+      bloque: 1,
+      tipo: 'simulacion',
+      estado: i === 0 ? 'error' : 'ok',
+      pedido: {},
+      mensaje: null,
+      meta: null,
     }));
-    await historial.anotarCuadro(a.id, 'PE', { clave: 'pickup_lima', generado: new Date().toISOString(), peticiones: peticiones as never });
+    await historial.anotarCuadro(a.id, 'PE', {
+      clave: 'pickup_lima',
+      generado: new Date().toISOString(),
+      peticiones: peticiones as never,
+    });
     expect((await historial.obtener(a.id)).peticiones).toHaveLength(7);
     const cerrada = await historial.cerrar(a.id, 'terminada');
     expect(cerrada.resumen).toMatchObject({ total: 7, error: 1, ok: 6 });
 
     const ids = new IdsG12Service(supabaseEnMemoria({}, { maxFilas: 2 }));
-    await ids.guardar('PE', Array.from({ length: 5 }, (_, i) => ({ firma: `f${i}`, tipo: 'picking', ids: { tipo: 'picking', agendas: [] }, consultadoEn: 'x' })) as never);
+    await ids.guardar(
+      'PE',
+      Array.from({ length: 5 }, (_, i) => ({
+        firma: `f${i}`,
+        tipo: 'picking',
+        ids: { tipo: 'picking', agendas: [] },
+        consultadoEn: 'x',
+      })) as never,
+    );
     expect((await ids.cargar('PE')).size).toBe(5);
     expect(await ids.olvidar('PE', ['f0', 'f1', 'f2'])).toBe(3);
   });

@@ -17,7 +17,7 @@ export async function leerTodo<T>(
   const filas: T[] = [];
   // Se avanza por lo que llegó y se para con una página vacía: si el tope del
   // proyecto fuera menor que la página, parar en la primera incompleta cortaría
-  for (let desde = 0; ; ) {
+  for (let desde = 0; ;) {
     const { data, error } = await pagina(desde, desde + tamano - 1);
     if (error) return { data: filas, error };
     if (!data?.length) return { data: filas, error: null };
