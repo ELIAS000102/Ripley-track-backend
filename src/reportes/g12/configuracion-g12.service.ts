@@ -8,6 +8,7 @@ import { configuracionAXlsx, xlsxAConfiguracion } from './configuracion-xlsx.js'
 import { CuadrosG12Service } from './cuadros-g12.service.js';
 import { HistorialG12Service } from './historial-g12.service.js';
 import { definicionDe } from './g12.componentes.js';
+import { SUBFLUJOS_ORACLE_POR_DEFECTO } from './g12.calculo.js';
 import { configuracionVacia, normalizarConfiguracion } from './g12.validacion.js';
 import type { GuardarConfiguracionG12Dto } from './dto/g12.dto.js';
 import type { ClaveComponente, ConfiguracionG12 } from './interfaces/g12.interface.js';
@@ -70,11 +71,14 @@ export class ConfiguracionG12Service {
   /** La del país; sin guardar nunca, los cuadros vacíos y el resumen de siempre */
   async leer(pais: string) {
     const fila = await this.configuraciones.leer<ConfiguracionG12>('g12', pais);
+    const { umbrales, ventanas } = solicitudesVacias();
     return {
       pais,
       actualizadoPor: fila.actualizadoPor,
       actualizadoEn: fila.actualizadoEn,
       configuracion: completar(fila.configuracion),
+      // Los valores por defecto, para que el editor los enseñe sin tener su propia copia (2026-11-16)
+      porDefecto: { solicitudes: { umbrales, ventanas }, subFlujosOracle: SUBFLUJOS_ORACLE_POR_DEFECTO },
     };
   }
 

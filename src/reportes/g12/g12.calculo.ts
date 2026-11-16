@@ -315,7 +315,7 @@ export interface UnidadOracleG12 {
  * Oracle, cuando la configuración no dice otros (2026-11-14). El Excel dejaba
  * estas dos filas en 0 porque su SUMIFS buscaba el nombre de la fila.
  */
-const SUBFLUJOS_ORACLE_POR_DEFECTO: Record<string, string[]> = {
+export const SUBFLUJOS_ORACLE_POR_DEFECTO: Record<string, string[]> = {
   '90 min': ['Serv. 90min'],
   // "SD_RM - 1er Turno", "SD_RM - 2do Turno"…: todos los turnos del Same Day de Lima
   'same day': ['SD_RM*'],

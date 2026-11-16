@@ -200,7 +200,7 @@ export class ActualizadorG12Service {
 
   /** Si las Solicitudes del país son de hoy y de menos de 15 minutos, como una tabla del G12 */
   private async solicitudesFrescas(pais: string): Promise<boolean> {
-    const s = await this.solicitudes?.leer(pais).catch(() => null);
+    const s = await this.solicitudes?.frescura(pais).catch(() => null);
     return !!s && s.hoy === hoyEnPais(pais) && Date.now() - new Date(s.generado).getTime() < VIDA_REPORTE_MS;
   }
 

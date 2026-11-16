@@ -1225,6 +1225,14 @@ describe('Riesgos de la revisión (2026-11-16)', () => {
     expect(tablas.reportes[0].actualizado_por).toBe('ana@r.pe');
   });
 
+  it('la configuración trae los valores por defecto, para que el panel no tenga su propia copia', async () => {
+    const { configuracion } = montar({ config: config() });
+    const r = await configuracion.leer('PE');
+    expect(r.porDefecto.solicitudes.umbrales).toMatchObject({ picking: 0.5, recepcion: 0.6, despacho: 0.6 });
+    expect(r.porDefecto.solicitudes.ventanas.picking).toEqual({ desde: 0, dias: 10 });
+    expect(r.porDefecto.subFlujosOracle['same day']).toEqual(['SD_RM*']);
+  });
+
   it('las peticiones de una actualización y los ids se leen enteros, aunque Supabase corte a N filas', async () => {
     const tablas: Record<string, Fila[]> = {};
     const historial = new HistorialG12Service(supabaseEnMemoria(tablas, { maxFilas: 3 }));
