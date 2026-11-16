@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import type { Comuna, RegionDetalle, SimulacionPayload } from '../../simulacion/interfaces/simulacion.interface.js';
 import type { ConfiguracionG12, ItemG12, TipoBloqueG12 } from './interfaces/g12.interface.js';
+import { enTrozos, leerTodo } from '../../nucleo/supabase/leer-todo.js';
 import { faltaTabla } from '../../nucleo/supabase/errores.js';
 
 /**
@@ -107,10 +108,15 @@ export class IdsG12Service {
 
   /** Todos los ids guardados del país, por firma. Sin la tabla, vacío */
   async cargar(pais: string): Promise<Map<string, FilaIdsG12>> {
-    const { data, error } = await this.supabase.admin
-      .from('g12_ids')
-      .select('firma, tipo, ids, consultado_en')
-      .eq('pais', pais);
+    // Ítems del G12, agendas de Solicitudes y regiones: pasan de 450; de 1000 en 1000 por si crecen
+    const { data, error } = await leerTodo((desde, hasta) =>
+      this.supabase.admin
+        .from('g12_ids')
+        .select('firma, tipo, ids, consultado_en')
+        .eq('pais', pais)
+        .order('firma')
+        .range(desde, hasta),
+    );
     if (error) {
       this.avisar(error, 'leer');
       return new Map();
@@ -135,17 +141,20 @@ export class IdsG12Service {
 
   /** Olvida los ids del país (o solo esas firmas): se vuelven a consultar en la próxima actualización */
   async olvidar(pais: string, firmas?: string[]): Promise<number> {
-    let consulta = this.supabase.admin.from('g12_ids').delete().eq('pais', pais);
-    if (firmas) {
-      if (!firmas.length) return 0;
-      consulta = consulta.in('firma', firmas);
+    if (firmas && !firmas.length) return 0;
+    // Las firmas, de 100 en 100: cientos en un solo in(...) no caben en la URL
+    let olvidados = 0;
+    for (const trozo of firmas ? enTrozos(firmas) : [null]) {
+      let consulta = this.supabase.admin.from('g12_ids').delete().eq('pais', pais);
+      if (trozo) consulta = consulta.in('firma', trozo);
+      const { data, error } = await consulta.select('firma');
+      if (error) {
+        this.avisar(error, 'olvidar');
+        return olvidados;
+      }
+      olvidados += (data ?? []).length;
     }
-    const { data, error } = await consulta.select('firma');
-    if (error) {
-      this.avisar(error, 'olvidar');
-      return 0;
-    }
-    return (data ?? []).length;
+    return olvidados;
   }
 
   /**

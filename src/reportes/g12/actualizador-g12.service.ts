@@ -61,6 +61,19 @@ export class ActualizadorG12Service {
    */
   private readonly estadosCompartidos = new Map<string, { hasta: number; promesa: Promise<Omit<EstadoG12, 'oracle'> & { oracle: Omit<EstadoG12['oracle'], 'miExcel'> }> }>();
 
+  /**
+   * La señal de vida; si la base dice que ya no está en curso (cancelada desde
+   * otra instancia, o dada por abandonada), se marca para parar.
+   */
+  private async latirOParar(a: ActualizacionG12, cuadroActual?: ClaveActualizacionG12): Promise<boolean> {
+    const sigue = await this.historial.latir(a.id, cuadroActual);
+    if (!sigue) {
+      const marcha = this.enMarcha.get(a.id);
+      if (marcha && !marcha.cancelar) marcha.cancelar = 'otra instancia del backend (o se dio por abandonada)';
+    }
+    return sigue;
+  }
+
   /** Lo que cambia el estado del país: la próxima pregunta lo vuelve a calcular */
   private invalidarEstado(pais: string): void {
     this.estadosCompartidos.delete(pais);
@@ -278,7 +291,7 @@ export class ActualizadorG12Service {
       // Una sola fila para toda la actualización: lo leído en una tabla no se repite en la siguiente
       this.contexto.activarSecuencial({ aLaVez: this.reporte.aLaVez });
 
-      const latido = setInterval(() => void this.historial.latir(a.id), LATIDO_MS);
+      const latido = setInterval(() => void this.latirOParar(a), LATIDO_MS);
       latido.unref?.();
       let estado: 'terminada' | 'cancelada' | 'fallida' = 'terminada';
       let motivo: string | undefined;
@@ -292,7 +305,7 @@ export class ActualizadorG12Service {
             motivo = `Cancelada por ${cancelada}.`;
             break;
           }
-          await this.historial.latir(a.id, clave);
+          if (!(await this.latirOParar(a, clave))) break;
           this.invalidarEstado(a.pais);
           if (clave === 'solicitudes') {
             const r = await this.pasoSolicitudes(a, usuario, config);
@@ -304,6 +317,7 @@ export class ActualizadorG12Service {
           }
           try {
             const cuadro = await this.reporte.generarCuadro(a.pais, clave, config);
+            if (!(await this.latirOParar(a))) break;
             await this.cuadros.guardar(a.pais, { ...cuadro, actualizacionId: a.id, usuarioEmail: usuario.email });
             await this.historial.anotarCuadro(a.id, a.pais, cuadro);
             this.invalidarEstado(a.pais);
@@ -349,8 +363,10 @@ export class ActualizadorG12Service {
     try {
       const solicitudes = config.solicitudes!;
       const r = await this.solicitudes!.generar(a.pais, solicitudes);
+      // Cancelada mientras leía (aquí o desde otra instancia): lo leído no reemplaza lo que había
+      const sigue = await this.latirOParar(a);
       const cancelada = this.enMarcha.get(a.id)?.cancelar;
-      if (cancelada) return { cancelada };
+      if (cancelada || !sigue) return { cancelada: cancelada ?? 'otra instancia del backend' };
       const generado = new Date().toISOString();
       await this.solicitudes!.guardar({
         pais: a.pais,
@@ -386,7 +402,7 @@ export class ActualizadorG12Service {
     await this.contexto.ejecutar(async () => {
       this.contexto.identificarUsuario(usuario.id, usuario.email);
       this.contexto.activarSecuencial({ aLaVez: this.reporte.aLaVez });
-      const latido = setInterval(() => void this.historial.latir(a.id), LATIDO_MS);
+      const latido = setInterval(() => void this.latirOParar(a), LATIDO_MS);
       latido.unref?.();
       let estado: 'terminada' | 'fallida' | 'cancelada' = 'terminada';
       let motivo: string | undefined;

@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import type { UsuarioAutenticado } from '../../nucleo/contexto/usuario.interface.js';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
 import { faltaEsquema, falloSupabase } from '../../nucleo/supabase/errores.js';
@@ -64,7 +64,55 @@ export class ConfiguracionReportesService {
     );
   }
 
-  async guardar<T>(tipo: TipoReporte, pais: string, configuracion: T, usuario: UsuarioAutenticado): Promise<string> {
+  /**
+   * La guarda entera. Con `esperado` (cuándo se guardó la que se abrió para
+   * editar), solo si nadie la ha guardado después: si no, 409 con quién y
+   * cuándo (`motivo: 'version'`), para no pisar sus cambios sin avisar
+   * (2026-11-16). Se comprueba en la misma escritura: dos que guardan a la vez
+   * no pueden pasar los dos.
+   */
+  async guardar<T>(
+    tipo: TipoReporte,
+    pais: string,
+    configuracion: T,
+    usuario: UsuarioAutenticado,
+    opciones: { esperado?: string } = {},
+  ): Promise<string> {
+    if (opciones.esperado) {
+      const { data, error } = await this.supabase.admin
+        .from(TABLA)
+        .update({
+          configuracion,
+          actualizado_por: usuario.email ?? 'desconocido',
+          actualizado_por_id: usuario.id,
+          actualizado_en: new Date().toISOString(),
+        })
+        .eq('tipo', tipo)
+        .eq('pais', pais)
+        .eq('actualizado_en', opciones.esperado)
+        .select('actualizado_en');
+      if (error) this.fallo(error, `guardar la configuración del reporte ${tipo.toUpperCase()}`);
+      const fila = ((data ?? []) as Array<{ actualizado_en: string }>)[0];
+      if (fila) return fila.actualizado_en;
+      const actual = await this.leer(tipo, pais);
+      const cuando = actual.actualizadoEn
+        ? new Date(actual.actualizadoEn).toLocaleString('es-PE', {
+            timeZone: pais === 'CL' ? 'America/Santiago' : 'America/Lima',
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+        : null;
+      throw new ConflictException({
+        statusCode: 409,
+        motivo: 'version',
+        message: `${actual.actualizadoPor ?? 'Otra persona'} guardó esta configuración${cuando ? ` el ${cuando}` : ''}, después de que abrieras la tuya.`,
+        actualizadoPor: actual.actualizadoPor,
+        actualizadoEn: actual.actualizadoEn,
+      });
+    }
     const { data, error } = await this.supabase.admin
       .from(TABLA)
       .upsert({

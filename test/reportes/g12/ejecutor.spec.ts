@@ -211,6 +211,7 @@ function montar(
     cuadros,
     tablas,
     tablasIds,
+    configuracion,
   };
 }
 
@@ -1195,6 +1196,63 @@ describe('El estado compartido y el reporte ligero (2026-11-16)', () => {
     const uno = await cuadros.uno('PE', 'pickup_lima');
     expect(uno!.peticiones).toHaveLength(completo.cuadros[0].peticiones.length);
     expect(await cuadros.uno('PE', 'sfs')).toBeNull();
+  });
+});
+
+describe('Riesgos de la revisión (2026-11-16)', () => {
+  const ANA = { id: 'ana', email: 'ana@r.pe' } as never;
+  const LUIS = { id: 'luis', email: 'luis@r.pe' } as never;
+  const config = (): ConfiguracionG12 => ({
+    componentes: [{ clave: 'pickup_lima', filas: [{ nombre: 'A' }], bloques: [{ tipo: 'simulacion', items: [simItem('A', '20027', 'RT')] }] }],
+    resumen: [],
+  });
+
+  it('guardar la configuración con la versión que se abrió: si otra persona guardó después, 409; sin versión, encima', async () => {
+    const { configuracion, tablas } = montar({ config: config() });
+    // Ana y Luis abrieron la misma (guardada en "x"); Ana guarda primero
+    const deAna = await configuracion.guardar('PE', config() as never, ANA, 'x');
+    expect(deAna.actualizadoEn).not.toBe('x');
+
+    const conflicto = await configuracion.guardar('PE', config() as never, LUIS, 'x').catch((e) => e);
+    expect(conflicto).toBeInstanceOf(ConflictException);
+    expect(conflicto.getResponse()).toMatchObject({ motivo: 'version', actualizadoPor: 'ana@r.pe' });
+    expect(conflicto.message).toMatch(/ana@r\.pe guardó esta configuración/);
+    expect(tablas.reportes[0].actualizado_por).toBe('ana@r.pe');
+
+    // Con la versión de ahora sí; y sin versión ("guardar igual"), también
+    await configuracion.guardar('PE', config() as never, LUIS, deAna.actualizadoEn);
+    await configuracion.guardar('PE', config() as never, ANA);
+    expect(tablas.reportes[0].actualizado_por).toBe('ana@r.pe');
+  });
+
+  it('las peticiones de una actualización y los ids se leen enteros, aunque Supabase corte a N filas', async () => {
+    const tablas: Record<string, Fila[]> = {};
+    const historial = new HistorialG12Service(supabaseEnMemoria(tablas, { maxFilas: 3 }));
+    const a = await historial.crear('PE', 'refrescar', ANA, ['pickup_lima']);
+    const peticiones = Array.from({ length: 7 }, (_, i) => ({
+      componente: 'pickup_lima', cuadro: 'Pickup in store - Lima', fila: `F${i}`, bloque: 1, tipo: 'simulacion',
+      estado: i === 0 ? 'error' : 'ok', pedido: {}, mensaje: null, meta: null,
+    }));
+    await historial.anotarCuadro(a.id, 'PE', { clave: 'pickup_lima', generado: new Date().toISOString(), peticiones: peticiones as never });
+    expect((await historial.obtener(a.id)).peticiones).toHaveLength(7);
+    const cerrada = await historial.cerrar(a.id, 'terminada');
+    expect(cerrada.resumen).toMatchObject({ total: 7, error: 1, ok: 6 });
+
+    const ids = new IdsG12Service(supabaseEnMemoria({}, { maxFilas: 2 }));
+    await ids.guardar('PE', Array.from({ length: 5 }, (_, i) => ({ firma: `f${i}`, tipo: 'picking', ids: { tipo: 'picking', agendas: [] }, consultadoEn: 'x' })) as never);
+    expect((await ids.cargar('PE')).size).toBe(5);
+    expect(await ids.olvidar('PE', ['f0', 'f1', 'f2'])).toBe(3);
+  });
+
+  it('cancelada desde otra instancia (o dada por abandonada): la que corre para y no guarda nada más', async () => {
+    const { actualizador, historial, tablas } = montar({ config: config(), retardoMs: 80 });
+    const { actualizacion } = await actualizador.lanzar(ANA, 'PE', 'refrescar', undefined, { solicitudes: false });
+    // Otra instancia la cierra mientras esta genera la tabla
+    await historial.cerrar(actualizacion!.id, 'cancelada', 'Cancelada por luis@r.pe.');
+    for (let i = 0; i < 100 && (tablas.g12_cuadros?.length ?? 0) === 0; i++) await new Promise((x) => setTimeout(x, 5));
+    await new Promise((x) => setTimeout(x, 150));
+    expect(tablas.g12_cuadros ?? []).toHaveLength(0);
+    expect((await historial.leer(actualizacion!.id)).estado).toBe('cancelada');
   });
 });
 

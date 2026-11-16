@@ -5,14 +5,18 @@ export type Fila = Record<string, unknown>;
 /**
  * Unas tablas de Supabase en memoria, con lo que usan los servicios de
  * matrices, mallas de despacho y atajos: select, eq, in, order,
- * limit, maybeSingle, single, insert, update y delete.
+ * limit, range, maybeSingle, single, insert, update y delete.
+ *
+ * `maxFilas` hace como el max-rows de PostgREST (1000 en Supabase): una lectura
+ * no devuelve más, sin error. Para probar lo que lee de página en página.
  */
-export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
+export function supabaseEnMemoria(tablas: Record<string, Fila[]>, opciones: { maxFilas?: number } = {}) {
   const from = (nombre: string) => {
     tablas[nombre] ??= [];
     const filtros: Array<[string, unknown]> = [];
     let orden: [string, boolean] | null = null;
     let tope = Infinity;
+    let rango: [number, number] | null = null;
     let accion: 'leer' | 'borrar' | 'actualizar' = 'leer';
     let cambios: Fila = {};
     let tocadas: Fila[] | null = null;
@@ -24,7 +28,9 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
         const [c, asc] = orden;
         r = [...r].sort((a, b) => String(a[c]).localeCompare(String(b[c])) * (asc ? 1 : -1));
       }
-      return r.slice(0, tope);
+      if (accion !== 'leer') return r.slice(0, tope);
+      const leidas = rango ? r.slice(rango[0], rango[1] + 1) : r.slice(0, tope);
+      return leidas.slice(0, opciones.maxFilas ?? Infinity);
     };
     /*
      * Una consulta se resuelve UNA vez, como la de Supabase, que es una sola
@@ -39,7 +45,8 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
       if (accion === 'borrar') {
         const quitar = new Set(filtradas());
         tablas[nombre] = tablas[nombre].filter((f) => !quitar.has(f));
-        return { data: null, error: null };
+        // Como Supabase con .select(): las filas borradas
+        return { data: [...quitar], error: null };
       }
       if (accion === 'actualizar') {
         tocadas = filtradas();
@@ -76,6 +83,10 @@ export function supabaseEnMemoria(tablas: Record<string, Fila[]>) {
       },
       limit: (n: number) => {
         tope = n;
+        return cadena();
+      },
+      range: (desde: number, hasta: number) => {
+        rango = [desde, hasta];
         return cadena();
       },
       maybeSingle: async () => ({ data: filtradas()[0] ?? null, error: null }),

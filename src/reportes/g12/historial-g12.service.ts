@@ -11,6 +11,7 @@ import type {
   RespuestaSimulacionG12,
 } from './interfaces/g12.interface.js';
 import { esDuplicado, faltaColumna, falloSupabase } from '../../nucleo/supabase/errores.js';
+import { leerTodo } from '../../nucleo/supabase/leer-todo.js';
 
 const TABLA = 'g12_actualizaciones';
 const TABLA_PETICIONES = 'g12_peticiones';
@@ -256,12 +257,26 @@ export class HistorialG12Service {
     return a ?? null;
   }
 
-  /** Señal de vida, y qué tabla está generando */
-  async latir(id: string, cuadroActual?: ClaveActualizacionG12 | null): Promise<void> {
+  /**
+   * Señal de vida, y qué tabla está generando. Devuelve si sigue en curso: si
+   * otra instancia del backend la canceló, o se dio por abandonada, ya no lo
+   * está y quien la lleva debe parar sin guardar nada más (2026-11-16). Si
+   * Supabase no responde, se supone que sigue (no se para por un fallo de red).
+   */
+  async latir(id: string, cuadroActual?: ClaveActualizacionG12 | null): Promise<boolean> {
     const cambios: Record<string, unknown> = { latido: new Date().toISOString() };
     if (cuadroActual !== undefined) cambios.cuadro_actual = cuadroActual;
-    const { error } = await this.supabase.admin.from(TABLA).update(cambios).eq('id', id);
-    if (error) this.logger.warn(`No se pudo dar señal de vida a la actualización ${id}: ${error.message}`);
+    const { data, error } = await this.supabase.admin
+      .from(TABLA)
+      .update(cambios)
+      .eq('id', id)
+      .eq('estado', 'en_curso')
+      .select('id');
+    if (error) {
+      this.logger.warn(`No se pudo dar señal de vida a la actualización ${id}: ${error.message}`);
+      return true;
+    }
+    return (data ?? []).length > 0;
   }
 
   /** Lo que hizo una tabla en esta actualización: sus peticiones, o por qué no se pudo generar */
@@ -340,15 +355,13 @@ export class HistorialG12Service {
     if (actual.estado !== 'en_curso') return actual;
 
     type Contada = { estado: string; intentos: number | null; llamadas?: number | null; espera_ms?: number | null };
-    const leidas = await this.supabase.admin
-      .from(TABLA_PETICIONES)
-      .select('estado, intentos, llamadas, espera_ms')
-      .eq('actualizacion_id', id);
-    let data = leidas.data as Contada[] | null;
-    if (faltaColumna(leidas.error)) {
-      data = (await this.supabase.admin.from(TABLA_PETICIONES).select('estado, intentos').eq('actualizacion_id', id))
-        .data as Contada[] | null;
-    }
+    const contar = (columnas: string) =>
+      leerTodo<Contada>((desde, hasta) =>
+        this.supabase.admin.from(TABLA_PETICIONES).select(columnas).eq('actualizacion_id', id).order('orden').range(desde, hasta) as never,
+      );
+    const leidas = await contar('estado, intentos, llamadas, espera_ms');
+    let data: Contada[] | null = leidas.data;
+    if (faltaColumna(leidas.error)) data = (await contar('estado, intentos')).data;
     const filas = data ?? [];
     const cuenta = (e: string) => filas.filter((f) => f.estado === e).length;
     const resumen: ResumenActualizacionG12 = {
@@ -396,11 +409,10 @@ export class HistorialG12Service {
   ): Promise<{ actualizacion: ActualizacionG12; peticiones: Array<PeticionG12 & { orden: number }> }> {
     const actualizacion = await this.leer(id, 'Esa actualización no existe (se guardan 60 días).');
 
-    const { data: filas, error: e2 } = await this.supabase.admin
-      .from(TABLA_PETICIONES)
-      .select('*')
-      .eq('actualizacion_id', id)
-      .order('orden');
+    // Una actualización del G12 con Solicitudes ronda las 500 peticiones: de 1000 en 1000, por si crece
+    const { data: filas, error: e2 } = await leerTodo((desde, hasta) =>
+      this.supabase.admin.from(TABLA_PETICIONES).select('*').eq('actualizacion_id', id).order('orden').range(desde, hasta),
+    );
     if (e2) this.fallo(e2, 'leer las peticiones');
 
     return {

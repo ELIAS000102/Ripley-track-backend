@@ -215,15 +215,23 @@ export class G12Controller {
     return this.configuracion.leer(query.pais ?? 'PE');
   }
 
-  /** PUT /reportes/g12/configuracion?pais=PE — la reemplaza entera; 409 mientras alguien actualiza */
+  /**
+   * PUT /reportes/g12/configuracion?pais=PE[&version=…] — la reemplaza entera; 409
+   * mientras alguien actualiza. Con `version` (el actualizadoEn que se leyó), 409
+   * `motivo: 'version'` si otra persona guardó después; sin ella (o con
+   * `forzar=true`), se guarda encima.
+   */
   @Auditar('reporte-g12.configurar')
   @Put('configuracion')
   async guardarConfiguracion(
     @Query() query: PaisDto,
     @Body() body: GuardarConfiguracionG12Dto,
     @Usuario() usuario: UsuarioAutenticado,
+    @Query('version') version?: string,
+    @Query('forzar') forzar?: string,
   ) {
-    return this.configuracion.guardar(query.pais ?? 'PE', body, usuario);
+    const comprobar = forzar === 'true' || forzar === '1' ? undefined : version;
+    return this.configuracion.guardar(query.pais ?? 'PE', body, usuario, comprobar);
   }
 
   /**

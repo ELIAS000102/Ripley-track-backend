@@ -102,7 +102,8 @@ export class ConfiguracionG12Service {
     return configuracionAXlsx(completar(configuracion), pais, new Date(), ids);
   }
 
-  async guardar(pais: string, dto: GuardarConfiguracionG12Dto, usuario: UsuarioAutenticado) {
+  /** `version`: cuándo se guardó la que se abrió; si alguien guardó después, 409 (salvo sin ella) */
+  async guardar(pais: string, dto: GuardarConfiguracionG12Dto, usuario: UsuarioAutenticado, version?: string) {
     const { configuracion, errores } = normalizarConfiguracion(dto);
     if (errores.length) throw new BadRequestException(errores.slice(0, 25).join(' '));
 
@@ -118,7 +119,9 @@ export class ConfiguracionG12Service {
     // Sin Solicitudes en lo que llega, se conservan las guardadas: no se borran por omisión
     if (!configuracion.solicitudes && anterior.configuracion?.solicitudes)
       configuracion.solicitudes = anterior.configuracion.solicitudes;
-    const actualizadoEn = await this.configuraciones.guardar<ConfiguracionG12>('g12', pais, configuracion, usuario);
+    const actualizadoEn = await this.configuraciones.guardar<ConfiguracionG12>('g12', pais, configuracion, usuario, {
+      esperado: version,
+    });
 
     // Lo generado de un cuadro que cambió ya no vale; el de los demás, sí. Antes
     // se olvidaba todo, y corregir una dirección dejaba en blanco las diez tablas
