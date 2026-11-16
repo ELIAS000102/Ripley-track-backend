@@ -307,6 +307,9 @@ export function leerPlan(
       if (falta) return { ok: false, motivo: `paso ${n} (${h.id}): falta ${falta.nombre}` };
     }
 
+    // Consultar "todos los servicios" de unos OPL es no filtrar por ninguno
+    if (h.id === 'consultar_servicios_opl' && Array.isArray(limpio.servicio) && limpio.servicio[0] === 'TODOS')
+      delete limpio.servicio;
     // "Todos los servicios": solo en los servicios de OPL y sobre algo que se vio (un paso o el anterior)
     if (Array.isArray(limpio.servicio) && limpio.servicio[0] === 'TODOS') {
       const opl = limpio.opl as { ref?: string } | undefined;

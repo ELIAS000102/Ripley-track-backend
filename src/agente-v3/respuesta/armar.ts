@@ -11,6 +11,7 @@ import type {
   Vista,
 } from '../interfaces/agente-v3.interface.js';
 import { vistasDe } from '../presentar/prompt.js';
+import { sinTraer, traePaso } from '../atajos.js';
 import { herramienta as herramientaDe } from '../herramientas.js';
 import { fraseAtajo, fraseConsulta, markdownAtajo, markdownConsulta, nombreCorto } from './atajo.js';
 import { fraseDeCambios, markdownCambio, NO_APLICADO, resumenCambio } from './cambio.js';
@@ -277,7 +278,7 @@ function frase(pasos: PasoEjecutado[], principal: PasoEjecutado | undefined): st
   }
   const r = principal.resumen.trim();
   const fallidos = pasos.filter((p) => p.estado === 'error');
-  return `${/[.!?]$/.test(r) ? r : `${r}.`}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}`;
+  return `${/[.!?]$/.test(r) ? r : `${r}.`}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => String(p.error ?? '').replace(/\.$/, '')).join('; ')}.)` : ''}`;
 }
 
 function markdownDelPaso(p: PasoEjecutado): string {
@@ -352,6 +353,30 @@ export function intermedios(turno: Pick<Turno, 'plan'>): Set<number> {
   return usados;
 }
 
+/**
+ * Los pasos que NO traen nada de lo que pidió la persona (lo que dijo Clasificar
+ * en "pide"), cuando otro paso que contesta sí lo trae: "el consumo del DX en el
+ * CD de Chile" pide el reporte; el atajo del estado del DX, que el plan consultó
+ * de paso, no es la respuesta. Van con los pasos (plegados) y fuera de la frase
+ * (2026-11-16, decisión del usuario: "mostrarle lo que pidió y el resto que
+ * consultó, como detalles de los pasos").
+ */
+export function noPedidos(turno: Pick<Turno, 'plan' | 'pasos' | 'clasificacion' | 'contexto'>): Set<number> {
+  const pide = turno.clasificacion?.pide ?? [];
+  const fuera = new Set<number>();
+  if (!pide.length) return fuera;
+  const atajos = turno.contexto?.atajos ?? [];
+  const usados = intermedios(turno);
+  const pasos = (turno.pasos ?? []).filter((p) => p.estado !== 'error' && !herramientaDe(p.herramienta)?.edicion);
+  const aporta = (p: PasoEjecutado) => {
+    const paso = turno.plan?.pasos?.[p.n - 1];
+    return !paso || sinTraer(pide, traePaso(paso, atajos)).length < pide.length;
+  };
+  if (!pasos.some((p) => !usados.has(p.n) && aporta(p))) return fuera;
+  for (const p of pasos) if (!aporta(p) && !p.comprobacion) fuera.add(p.n);
+  return fuera;
+}
+
 const conPunto = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
 
 /**
@@ -379,30 +404,44 @@ export function armarRespuesta(turno: Turno, ahora = new Date()): RespuestaPanel
   const varios = cambios.length > 1 && cambios.some((p) => p.estado !== 'error');
   // Varias preguntas en un mensaje: cada respuesta en la frase y con su tabla a la vista
   const usados = intermedios(turno);
-  const contestan = varios ? [] : pasos.filter((p) => !usados.has(p.n) && p.estado !== 'error');
+  const sinPedir = noPedidos(turno);
+  const contestan = varios ? [] : pasos.filter((p) => !usados.has(p.n) && !sinPedir.has(p.n) && p.estado !== 'error');
   const variasRespuestas = contestan.length > 1;
   const fallidos = pasos.filter((p) => p.estado === 'error');
   const delCodigo = varios
     ? fraseDeCambios(cambios)
     : variasRespuestas
-      ? `${contestan.map((p) => conPunto(p.resumen)).join(' ')}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}`
+      ? `${contestan.map((p) => conPunto(p.resumen)).join(' ')}${fallidos.length ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => String(p.error ?? '').replace(/\.$/, '')).join('; ')}.)` : ''}`
       : frase(pasos, principal);
   // Lo que decidió Presentar (la frase natural y la vista de cada uno); si no, lo del código
   const pres = turno.contexto?.presentacion ?? null;
   const texto = pres?.frase
-    ? `${pres.frase}${fallidos.length && !varios ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => p.error).join('; ')}.)` : ''}`
+    ? `${pres.frase}${fallidos.length && !varios ? ` (${fallidos.length === 1 ? 'Un paso falló' : `${fallidos.length} pasos fallaron`}: ${fallidos.map((p) => String(p.error ?? '').replace(/\.$/, '')).join('; ')}.)` : ''}`
     : delCodigo;
   const esPrincipal = (p: PasoEjecutado) =>
     varios ? cambios.includes(p) : variasRespuestas ? contestan.includes(p) : p === principal;
   // Un cambio que cambia algo se ENSEÑA siempre (antes de «¿Procedo?» hay que ver qué cambiaría); con "no", plegado
   const aplicacion = turno.contexto?.aplicacion;
   const dijoQueNo = aplicacion?.respuesta === 'no' && !aplicacion.en;
-  const vistaDe = (p: PasoEjecutado): Vista =>
+  const vistaElegida = (p: PasoEjecutado): Vista =>
     herramientaDe(p.herramienta)?.edicion && p.estado === 'ok'
       ? dijoQueNo && !p.aplicado
         ? 'plegado'
         : 'detalle'
       : (pres?.vistas[String(p.n)] ?? vistaPorDefecto(p, esPrincipal(p), variasRespuestas, turno));
+  // Pidió los totales y hay un cuadro de totales a la vista: las demás tablas, plegadas (siguen a mano).
+  // "Dame los totales…" no puede acabar con la tabla entera de otra consulta debajo
+  const pideTotales =
+    turno.plan?.ver === 'totales' || /\btotal(es)?\b/i.test(turno.contexto?.mensaje_efectivo ?? turno.mensaje);
+  const conTotales = pideTotales && pasos.some((p) => p.estado !== 'error' && vistaElegida(p) === 'totales');
+  const vistaDe = (p: PasoEjecutado): Vista => {
+    const v = vistaElegida(p);
+    if (herramientaDe(p.herramienta)?.edicion) return v;
+    // Lo que no pidió, con los pasos; pedidos los totales, lo que no es su cuadro también
+    if (sinPedir.has(p.n) && v !== 'frase') return 'plegado';
+    if (conTotales && (v === 'detalle' || v === 'uso')) return 'plegado';
+    return v;
+  };
   // "No apliqué nada", una vez: tras un "no", solo eso; en una vista previa que no pregunta «¿Procedo?», al final
   const previa = cambios.some((p) => p.estado !== 'error' && !p.aplicado);
   const preguntando = turno.contexto?.pregunta?.etapa === 'aplicar';
@@ -520,7 +559,7 @@ export function respuestaProgreso(turno: Turno, ahora = new Date()): RespuestaPa
         resumen: hecho.resumen,
         ms: hecho.ms,
       };
-    const que = queEs(p, turno.contexto?.pais);
+    const que = queEs(p, turno.contexto?.pais, plan);
     return {
       n: i + 1,
       que,

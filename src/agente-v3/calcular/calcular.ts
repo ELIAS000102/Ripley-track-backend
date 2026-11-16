@@ -154,7 +154,7 @@ export function calcular(todas: Fila[], k: Calculo, deDonde: string): ResultadoC
   }
 
   // Explicar o filtrar: las filas tal cual (las primeras 30), con lo que significa cada campo
-  if (k.operacion === 'explicar' || k.operacion === 'filtrar') {
+  if (k.operacion === 'explicar' || k.operacion === 'filtrar' || k.operacion === 'mostrar') {
     const columnas = columnasDe(filas[0]);
     const tabla = filas.slice(0, 30).map((f) => columnas.map((c) => celda(f, c)));
     const glosario = columnas.map((c) => GLOSARIO[c]).filter(Boolean);

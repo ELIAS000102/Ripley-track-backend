@@ -54,6 +54,7 @@ import { herramienta } from './herramientas.js';
 import {
   armarRespuesta,
   intermedios,
+  noPedidos,
   respuestaCharla,
   respuestaPregunta,
   respuestaProgreso,
@@ -282,7 +283,9 @@ export class AgenteV3Service {
       if (!leida.ok) motivo = leida.motivo;
       else
         motivo = leida.valor.atajo
-          ? (this.atajoDeOtroPais(turno, leida.valor.atajo) ?? atajoQueNoTrae(leida.valor, contexto))
+          ? (this.atajoDeOtroPais(turno, leida.valor.atajo) ??
+            atajoQueNoTrae(leida.valor, contexto) ??
+            atajoSinLosServicios(leida.valor, contexto, mensajeDe(turno)))
           : null;
       if (leida.ok && !motivo) clasificacion = leida.valor;
       if (leida.ok && motivo)
@@ -494,6 +497,7 @@ export class AgenteV3Service {
         turno.pasos ?? [],
         intermedios(turno),
         armarRespuesta({ ...turno, contexto: { ...contexto, presentacion: null } }).frase,
+        noPedidos(turno),
       );
     else {
       const [sabido, fases] = await Promise.all([this.aprendizaje.sabido(contexto, mensaje), this.aprendizaje.fases()]);
@@ -991,9 +995,9 @@ export class AgenteV3Service {
           turno,
           preguntaDeZonas(
             k + 1,
-            queEs(plan.pasos[k], turno.contexto!.pais)
+            queEs(plan.pasos[k], turno.contexto!.pais, plan.pasos)
               .replace(/^Vista previa: /, '')
-              .replace(/ de lo del mensaje anterior$/, ''),
+              .replace(/ de las oficinas del mensaje anterior$/, ''),
             porElegir,
           ),
         );
@@ -1356,6 +1360,26 @@ export class AgenteV3Service {
 }
 
 /** Un atajo (todo el pedido) que no trae lo que se pide: "el despacho del 90 min" no es un atajo de servicios de OPL */
+/**
+ * Un atajo SOLO (tipo "atajo") tiene que ser de los servicios que nombra el
+ * mensaje: "los totales de opls activos e inactivos del AT y OP" no lo contesta
+ * «OPLS de la ST» (2026-11-16, el modelo lo eligió por parecido y la respuesta
+ * hablaba de la ST). Encadenado a una consulta sí puede ser solo una parte.
+ */
+export function atajoSinLosServicios(c: Clasificacion, contexto: ContextoTurno, mensaje: string): string | null {
+  if (c.tipo !== 'atajo' || !c.atajo) return null;
+  const a = contexto.atajos.find((x) => x.nombre === c.atajo);
+  if (!a) return null;
+  const texto = `${a.nombre} ${a.descripcion ?? ''}`;
+  const faltan = serviciosNombrados(
+    mensaje,
+    contexto.servicios.map((s) => s.codigo),
+  ).filter((s) => !new RegExp(`\\b${s}\\b`, 'i').test(texto));
+  return faltan.length
+    ? `el mensaje nombra ${faltan.join(' y ')} y el atajo «${a.nombre}» no es de ${faltan.length === 1 ? 'ese servicio' : 'esos servicios'}: si ningún atajo es de ${faltan.join(' y ')}, es "consulta"`
+    : null;
+}
+
 export function atajoQueNoTrae(c: Clasificacion, contexto: ContextoTurno): string | null {
   if (c.tipo !== 'atajo' || !c.atajo || !c.pide?.length) return null;
   const a = contexto.atajos.find((x) => x.nombre === c.atajo);

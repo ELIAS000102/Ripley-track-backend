@@ -35,7 +35,15 @@ import {
   type Grupo,
   type PorElegir,
 } from './zonas.js';
-import { codigosQueCumplen, comprobar, filasDe, filtrarDatos, type Fila } from './filas.js';
+import {
+  codigosQueCumplen,
+  comprobar,
+  filasDe,
+  filtrarDatos,
+  soloJornadasDelReporte,
+  soloServiciosDeOpl,
+  type Fila,
+} from './filas.js';
 import { herramienta } from './herramientas.js';
 import { queEs } from './que.js';
 import type {
@@ -48,6 +56,7 @@ import type {
   PlanV3,
 } from './interfaces/agente-v3.interface.js';
 import { resumenDelPaso, type FilaAtajo } from './respuesta/armar.js';
+import { vistasDe } from './presentar/prompt.js';
 import { filasDelCambio } from './respuesta/cambio.js';
 import { faltaColumna } from '../nucleo/supabase/errores.js';
 
@@ -204,7 +213,7 @@ export class EjecucionV3Service {
     const paso = plan.pasos[k];
     const n = k + 1;
     const t0 = Date.now();
-    const base = { n, que: paso.titulo ?? queEs(paso, contexto.pais), herramienta: paso.herramienta };
+    const base = { n, que: paso.titulo ?? queEs(paso, contexto.pais, plan.pasos), herramienta: paso.herramienta };
     // Lo que se manda en la vista previa de un cambio: lo mismo se aplica con el "sí"
     const cuerpos: Array<Record<string, unknown>> = [];
     try {
@@ -217,6 +226,20 @@ export class EjecucionV3Service {
         .find((k) => hechos[k - 1]?.estado === 'error');
       if (fallido) throw new Error(`no se hizo: dependía del paso ${fallido}, que falló`);
 
+      // "Solo dame el cuadro de los totales": lo que trajo el anterior, otra vez, para enseñarlo de otra forma
+      if (paso.herramienta === 'calcular' && plan.calculo?.operacion === 'mostrar') {
+        const r = this.loDelAnterior(plan, contexto);
+        const { estado, resumen } = resumenDelPaso(r.herramienta, r.datos, {}, contexto.hoy);
+        return {
+          ...base,
+          que: r.titulo,
+          herramienta: r.herramienta,
+          estado,
+          resumen,
+          ms: Date.now() - t0,
+          datos: r.datos,
+        };
+      }
       let datos =
         paso.herramienta === 'calcular'
           ? this.calcular(plan, contexto)
@@ -360,6 +383,17 @@ export class EjecucionV3Service {
   }
 
   /** 1c: el cálculo con las filas de lo que trajo el mensaje anterior */
+  /**
+   * El resultado del anterior que se vuelve a enseñar ("mostrar"): con "totales",
+   * el primero que se puede ver como cuadro de totales; si no, el primero.
+   */
+  private loDelAnterior(plan: PlanV3, contexto: ContextoTurno) {
+    const conDatos = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
+    if (!conDatos.length) throw new Error('no hay datos del mensaje anterior que enseñar');
+    const conTotales = conDatos.filter((r) => vistasDe(r.herramienta).includes('totales'));
+    return (plan.ver === 'totales' && conTotales.length ? conTotales : conDatos)[0];
+  }
+
   private calcular(plan: PlanV3, contexto: ContextoTurno) {
     const conDatos = (contexto.anterior?.resultados ?? []).filter((r) => r.datos);
     if (!plan.calculo || !conDatos.length) throw new Error('no hay datos del mensaje anterior con los que calcular');
@@ -491,7 +525,19 @@ export class EjecucionV3Service {
     }
 
     // Lo que el backend filtra por texto exacto o por UN servicio se pide sin ello y se filtra aquí
-    const despues: { servicios?: string[]; agenda?: string; exactas?: string[] } = {};
+    const despues: {
+      servicios?: string[];
+      agenda?: string;
+      exactas?: string[];
+      jornadas?: string[];
+      serviciosOpl?: string[];
+    } = {};
+    // Solo las jornadas del CD o los servicios de OPL que se nombraron: Ripley trae todo y se filtra aquí
+    if (h.id === 'consultar_reporte_cds' && lista(plano0.jornada).length) despues.jornadas = lista(plano0.jornada);
+    if (h.id === 'consultar_servicios_opl' && lista(plano0.servicio).length)
+      despues.serviciosOpl = lista(plano0.servicio);
+    if (h.id === 'consultar_reporte_cds') delete plano0.jornada;
+    if (h.id === 'consultar_servicios_opl') delete plano0.servicio;
     if (h.id === 'consultar_capacidad') {
       const servicios = lista(plano0.servicio);
       if (servicios.length > 1) {
@@ -585,6 +631,16 @@ export class EjecucionV3Service {
           ),
         })),
       };
+    }
+    if (despues.jornadas) {
+      const r = soloJornadasDelReporte(datos, despues.jornadas);
+      datos = r.datos;
+      notas = [...notas, ...r.notas];
+    }
+    if (despues.serviciosOpl) {
+      const r = soloServiciosDeOpl(datos, despues.serviciosOpl);
+      datos = r.datos;
+      notas = [...notas, ...r.notas];
     }
     return notas.length ? { ...datos, notas } : datos;
   }

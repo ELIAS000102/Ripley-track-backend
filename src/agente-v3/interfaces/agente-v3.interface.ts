@@ -281,7 +281,7 @@ export interface Aplicacion {
 
 /** Lo que devuelve «Qué calcular» (1c): la operación; el número lo saca el código */
 export interface Calculo {
-  operacion: 'suma' | 'maximo' | 'minimo' | 'contar' | 'porcentaje' | 'filtrar' | 'ordenar' | 'explicar';
+  operacion: 'suma' | 'maximo' | 'minimo' | 'contar' | 'porcentaje' | 'filtrar' | 'ordenar' | 'explicar' | 'mostrar';
   campo: string | null;
   filtro: {
     agenda?: string;

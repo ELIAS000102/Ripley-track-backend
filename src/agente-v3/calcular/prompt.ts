@@ -10,7 +10,17 @@ import type { Calculo, ContextoTurno } from '../interfaces/agente-v3.interface.j
  * al revisar los casos (agente-v3/PLAN.md).
  */
 
-const OPERACIONES = ['suma', 'maximo', 'minimo', 'contar', 'porcentaje', 'filtrar', 'ordenar', 'explicar'] as const;
+const OPERACIONES = [
+  'suma',
+  'maximo',
+  'minimo',
+  'contar',
+  'porcentaje',
+  'filtrar',
+  'ordenar',
+  'explicar',
+  'mostrar',
+] as const;
 const AGRUPAR = ['total', 'fecha', 'entidad', 'agenda', 'servicio', 'activa', 'tipo', 'fase'];
 const CAMPOS = [
   'ocupado',
@@ -28,7 +38,7 @@ const CAMPOS = [
 const SISTEMA_CALCULAR = `Dices QUÉ CALCULAR con lo que ya trajo el mensaje anterior del chat de la operación logística de Ripley. No calculas nada tú: el número lo saca el sistema de los datos.
 
 Devuelve:
-- operacion: "suma", "maximo", "minimo", "contar", "porcentaje" (el uso: ocupado entre asignado), "filtrar" (quedarse con unas filas: "solo las inactivas", "y los activos"), "ordenar" ("las más cargadas", "la mayoría consumido" = las de uso más alto) o "explicar" ("explícame cómo es", "detállame la de Breña", "¿qué significa el desfase?").
+- operacion: "suma", "maximo", "minimo", "contar", "porcentaje" (el uso: ocupado entre asignado), "filtrar" (quedarse con unas filas: "solo las inactivas", "y los activos"), "ordenar" ("las más cargadas", "la mayoría consumido" = las de uso más alto) o "explicar" ("explícame cómo es", "detállame la de Breña", "¿qué significa el desfase?"). "mostrar": VOLVER A ENSEÑAR lo que trajo, de otra forma y sin calcular nada nuevo ("solo dame el cuadro de los totales", "sin el detalle", "dámelo en un cuadro"), con ver "totales" o "cuadro". La operación nunca es null, salvo con "falta".
 - campo: ${CAMPOS.map((c) => `"${c}"`).join(', ')}, o null en "contar", "filtrar" y "explicar". "Consumo" es el ocupado; "porcentaje de consumo" es el uso.
 - filtro: lo que acota, solo si se dice: {"agenda": "centralizado", "codigo": ["1100"], "fecha": "hoy" | "mañana" | "AAAA-MM-DD", "servicio": ["RT"], "activa": true | false, "nombre": "plaza" (parte del nombre), "fase": "F1", "tipo": "tienda" | "almacen" | "CD" | "opl"}.
 - agrupar: lista de ${AGRUPAR.map((a) => `"${a}"`).join(', ')}. Sin día dicho, una suma o un máximo van POR DÍA (["fecha"]); con un día dicho, ["total"]. "Para cada tienda" es ["entidad"]. "Activas e inactivas por servicio" es ["servicio", "activa"].
@@ -80,7 +90,13 @@ export function leerCalculo(
     return { ok: true, valor: { falta: j.falta.trim().replace(/\s+/g, ' ').slice(0, 120) } };
   const operacion = String(j.operacion ?? '') as Calculo['operacion'];
   if (!(OPERACIONES as readonly string[]).includes(operacion))
-    return { ok: false, motivo: `operación que no existe: ${JSON.stringify(j.operacion)}` };
+    return {
+      ok: false,
+      motivo:
+        j.operacion === null || j.operacion === undefined || j.operacion === ''
+          ? 'sin operación: si solo pide volver a verlo de otra forma ("solo el cuadro de los totales"), es "mostrar" con ver "totales" o "cuadro"'
+          : `operación que no existe: ${JSON.stringify(j.operacion)}`,
+    };
   const campo = j.campo === null || j.campo === undefined || j.campo === '' ? null : String(j.campo);
   if (campo && !CAMPOS.includes(campo)) return { ok: false, motivo: `campo que no existe: ${campo}` };
   if (['suma', 'maximo', 'minimo', 'ordenar'].includes(operacion) && !campo)

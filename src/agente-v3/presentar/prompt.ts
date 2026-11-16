@@ -18,6 +18,7 @@ Para cada resultado elige su "vista" (solo de las que tiene permitidas):
 - "uso": los porcentajes de consumo (solo si los pide).
 - "frase": sin tabla; basta lo que dice la frase (una comprobación "fíjate que…", un sí o un no, un dato suelto).
 - "plegado": la tabla se guarda plegada, para quien la quiera ver (lo intermedio, lo que no pidió ver).
+Si pide los totales (o "solo el cuadro de los totales"), lo que no es un cuadro de totales va "plegado". Si dice "solo …", lo que no nombra va "plegado".
 Y el "orden": primero lo que pidió primero.
 
 La "frase": una o dos oraciones naturales, en español claro y cercano, que contesten lo que pidió en su orden, como se lo diría una compañera del equipo. NO copies la frase del sistema: cuéntalo con tus palabras (sin punto y coma, sin "con 1 cerradas"; concuerda el singular y el plural). Lo importante primero (lo que está cerrado o sin cupo), y la tienda por su nombre con el código entre paréntesis si lo tienes ("Plaza Norte (20025)"). USA SOLO las cifras, códigos y nombres que aparecen en lo que dicen los resultados: no calcules, no redondees, no inventes, no añadas datos. Sin tablas ni listas. No nombres los pasos por dentro («Búsqueda masiva de…», «Cálculo con lo del mensaje anterior»): di de qué es (la RE, la RT, el Big Ticket Lima) o "lo que te traje antes".
@@ -97,13 +98,14 @@ export function promptPresentar(
   pasos: PasoEjecutado[],
   intermedios: Set<number>,
   fraseDelCodigo: string,
+  noPedidos: Set<number> = new Set(),
 ): { sistema: string; mensaje: string } {
   const largos = nombresLargos(pasos);
   const lineas = pasos
     .filter((p) => p.estado !== 'error')
     .map((p) =>
       [
-        `- Resultado ${p.n}: ${p.que}${intermedios.has(p.n) ? ' (intermedio: da sus códigos a otro paso)' : ''}${p.comprobacion ? ' (es una comprobación)' : ''}`,
+        `- Resultado ${p.n}: ${p.que}${intermedios.has(p.n) ? ' (intermedio: da sus códigos a otro paso)' : ''}${noPedidos.has(p.n) ? ' (NO lo pidió: va "plegado" y no se dice en la frase)' : ''}${p.comprobacion ? ' (es una comprobación)' : ''}`,
         `  Lo que dice: ${p.resumen}`,
         `  Vistas permitidas: ${vistasDe(p.herramienta).join(', ')}`,
       ].join('\n'),

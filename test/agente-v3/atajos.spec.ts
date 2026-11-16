@@ -237,7 +237,11 @@ describe('"Dame todos los tipos de servicio que tienen las sucursales de la SE" 
   });
 
   it('Clasificar y Armar lo ven: "tipos de servicio" son los servicios de cada sucursal', () => {
-    expect(promptClasificar(m, c).sistema).toContain('"opl" (los TIPOS DE SERVICIO de cada OPL o sucursal');
+    expect(promptClasificar(m, c).sistema).toContain('"opl" (la pantalla de TIPOS DE SERVICIO de cada OPL o sucursal');
+    // Contar activas e inactivas de un servicio no es "opl" (2026-11-16: "los totales de opls activos e inactivos del AT y OP")
+    expect(promptClasificar(m, c).sistema).toContain(
+      '"los totales de opls activos e inactivos del AT y OP" = ["masivo"]',
+    );
     expect(
       promptArmar(m, c, { tipo: 'consulta', dep: false, atajo: SE.nombre, motivo: '', pide: ['opl'] }).sistema,
     ).toContain('"Todos los tipos de servicio que tienen las sucursales de la SE" = ejecutar_atajo «OPLS de la SE»');

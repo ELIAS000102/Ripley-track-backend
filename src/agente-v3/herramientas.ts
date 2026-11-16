@@ -91,6 +91,12 @@ export const HERRAMIENTAS: Herramienta[] = [
       { nombre: 'cd', tipo: 'codigo', entidades: ['almacen'], descripcion: 'un CD; sin él, todos los del país' },
       { nombre: 'desde', tipo: 'fecha', descripcion: 'primer día; por defecto hoy' },
       { nombre: 'dias', tipo: 'numero', min: 1, max: 14, descripcion: 'cuántos días' },
+      {
+        nombre: 'jornada',
+        tipo: 'servicios',
+        descripcion:
+          'solo estas jornadas del CD (son servicios: DX, ST, RC…) si la persona nombra alguna ("el consumo del DX en el CD"); sin ella, todas',
+      },
     ],
   },
   {
@@ -125,6 +131,12 @@ export const HERRAMIENTAS: Herramienta[] = [
       { nombre: 'opl', tipo: 'codigos', requerido: true, ref: true, entidades: ['opl'], descripcion: 'los OPL' },
       { nombre: 'zona', tipo: 'texto', descripcion: 'el nombre de la zona' },
       { nombre: 'agenda', tipo: 'texto', descripcion: 'el nombre de la agenda' },
+      {
+        nombre: 'servicio',
+        tipo: 'servicios',
+        descripcion:
+          'solo estos servicios de cada OPL si la persona pregunta por uno o varios ("las sucursales de la SE" = ["SE"]); sin él, todos (también si pide "todos los tipos de servicio")',
+      },
     ],
   },
   {

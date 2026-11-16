@@ -460,3 +460,80 @@ export function comprobar(filas: Fila[], c: Comprobacion): ResultadoComprobacion
         : cumplen.length > 0;
   return { si, total: porCodigo.size, cumplen, noCumplen };
 }
+
+/**
+ * El reporte de CDs con SOLO las jornadas que se nombraron ("el consumo del DX
+ * en el CD"): el total y lo más cargado se rehacen con ellas, para que la tabla
+ * y la frase hablen de lo pedido y no de otra jornada. Lo que el CD no tiene en
+ * el rango se dice en una nota, y un CD sin ninguna de ellas sale de la tabla.
+ */
+export function soloJornadasDelReporte(
+  datos: Record<string, unknown>,
+  jornadas: string[],
+): { datos: Record<string, unknown>; notas: string[] } {
+  const quiere = new Set(jornadas.map((j) => j.trim().toUpperCase()));
+  const fechas = arr<string>(datos.fechas);
+  const notas: string[] = [];
+  type Celda = [number, number, number, number, number];
+  const cds = arr<Record<string, unknown>>(datos.cds).map((c) => {
+    const quedan = arr<{ jornada: string; dias: Celda[] }>(c.jornadas).filter((j) =>
+      quiere.has(String(j.jornada).toUpperCase()),
+    );
+    const faltan = [...quiere].filter((q) => !quedan.some((j) => String(j.jornada).toUpperCase() === q));
+    if (faltan.length) notas.push(`${String(c.cd)}: sin la jornada ${faltan.join(', ')} en el rango`);
+    const total: Celda[] = fechas.map((_, i) => {
+      const asignado = quedan.reduce((t, j) => t + (j.dias[i]?.[0] ?? 0), 0);
+      const ocupado = quedan.reduce((t, j) => t + (j.dias[i]?.[1] ?? 0), 0);
+      const abierta = quedan.some((j) => j.dias[i]?.[4]) ? 1 : 0;
+      return [
+        asignado,
+        ocupado,
+        asignado - ocupado,
+        asignado > 0 ? Math.round((ocupado / asignado) * 100) : 0,
+        abierta,
+      ];
+    });
+    let masCargada: { jornada: string; fecha: string; uso: number } | null = null;
+    for (const j of quedan)
+      for (const [i, [asignado, , , uso]] of j.dias.entries())
+        if (asignado > 0 && (!masCargada || uso > masCargada.uso))
+          masCargada = { jornada: j.jornada, fecha: fechas[i], uso };
+    return {
+      ...c,
+      jornadas: quedan,
+      total,
+      masCargada,
+      sinCapacidad: arr<string>(c.sinCapacidad).filter((j) => quiere.has(j.toUpperCase())),
+    };
+  });
+  // Un CD sin ninguna de esas jornadas no lleva tabla (sería solo su total en cero): lo dice la nota
+  return { datos: { ...datos, cds: cds.filter((c) => c.jornadas.length), jornadas: [...quiere] }, notas };
+}
+
+/**
+ * Los servicios de OPL con SOLO los servicios por los que se preguntó ("las
+ * sucursales de la SE"): cada OPL con esos y nada más, así la tabla y las
+ * cuentas ("n de m activos") son de lo pedido. Un OPL que no tiene ninguno sale
+ * de la tabla y se nombra en una nota.
+ */
+export function soloServiciosDeOpl(
+  datos: Record<string, unknown>,
+  servicios: string[],
+): { datos: Record<string, unknown>; notas: string[] } {
+  const quiere = new Set(servicios.map((s) => s.trim().toUpperCase()));
+  const sinEllos: string[] = [];
+  const opls = arr<Record<string, unknown>>(datos.opls)
+    .map((o): Record<string, unknown> & { servicios: Array<Record<string, unknown>> } => ({
+      ...o,
+      servicios: arr<Record<string, unknown>>(o.servicios).filter((s) =>
+        quiere.has(String(s.code ?? '').toUpperCase()),
+      ),
+    }))
+    .filter((o) => {
+      const queda = o.error || o.servicios.length > 0;
+      if (!queda) sinEllos.push(String(o.opl));
+      return queda;
+    });
+  const notas = sinEllos.length ? [`sin ${[...quiere].join(', ')}: ${sinEllos.join(', ')}`] : [];
+  return { datos: { ...datos, opls }, notas };
+}

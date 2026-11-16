@@ -876,7 +876,7 @@ describe('"Activa todos los servicios menos de la 1111" tras los anillos de la S
     expect(await ejecucion.zonasPorElegir(USUARIO as never, plan, 0, [], ctx)).toEqual([]);
     const paso = await ejecucion.ejecutar(USUARIO as never, plan, 0, [], ctx);
     expect(paso.error ?? null).toBeNull();
-    expect(paso.que).toBe('Vista previa: activar todos los servicios de lo del mensaje anterior menos 1111');
+    expect(paso.que).toBe('Vista previa: activar todos los servicios de las oficinas del mensaje anterior menos 1111');
     expect(editar.mock.calls.map(([, d]) => [d.opl, d.agenda, d.zona, d.servicio])).toEqual([
       ['1113', 'SD CD A1 (2)', 'Zona SD CD A1 (2)', 'S,SD'],
       ['1115', 'SD CD A3 (2)', 'Zona SD 1115 - SD CD A3 (2)', 'S'],

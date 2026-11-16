@@ -185,10 +185,10 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
     let r = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(r.progreso!.pasos.map((p) => p.descripcion)).toEqual([
       'Búsqueda masiva de SE',
-      'Vista previa: activar SE en lo del paso 1',
-      'Vista previa: desactivar ST en lo del paso 1',
+      'Vista previa: activar SE en las sucursales de la SE',
+      'Vista previa: desactivar ST en las sucursales de la SE',
       'Búsqueda masiva de ST',
-      'Vista previa: activar ST en lo del paso 4 menos lo del paso 1',
+      'Vista previa: activar ST en las sucursales de la ST menos las sucursales de la SE',
     ]);
     r = await seguir(servicio, t.turno_id, r);
 
@@ -199,12 +199,14 @@ describe('Varios cambios en un mensaje, en vista previa', () => {
     ]);
     const resp = r.respuesta!;
     expect(resp.frase).toBe(
-      'Así quedaría — paso 2 · activar SE en lo del paso 1: cambiarían 2 de 2 agendas. ' +
-        'paso 3 · desactivar ST en lo del paso 1: cambiarían 2 de 2 agendas. ' +
-        'paso 5 · activar ST en lo del paso 4 menos lo del paso 1: cambiarían 2 de 2 agendas. ' +
+      'Así quedaría — paso 2 · activar SE en las sucursales de la SE: cambiarían 2 de 2 agendas. ' +
+        'paso 3 · desactivar ST en las sucursales de la SE: cambiarían 2 de 2 agendas. ' +
+        'paso 5 · activar ST en las sucursales de la ST menos las sucursales de la SE: cambiarían 2 de 2 agendas. ' +
         'No apliqué nada: es solo una vista previa.',
     );
-    expect(resp.markdown).toContain('**Vista previa: desactivar ST en lo del paso 1**\n\n| Dónde | Ahora | Quedaría |');
+    expect(resp.markdown).toContain(
+      '**Vista previa: desactivar ST en las sucursales de la SE**\n\n| Dónde | Ahora | Quedaría |',
+    );
     expect(resp.markdown).toContain(
       '| 20066 · Plaza Lima Norte · Agenda Plaza Lima Norte (Zona Plaza Lima Norte) | inactivo · fuera del checkout | activo · fuera del checkout |',
     );

@@ -371,7 +371,7 @@ describe('No dejar fuera lo que se nombra', () => {
       ),
     ).toMatchObject({ ok: true });
   });
-  it('un atajo que la lleva en su nombre cuenta; un paso sin servicio (el reporte de CDs) no obliga', () => {
+  it('un atajo que la lleva en su nombre cuenta; el reporte de CDs la usa por su jornada (2026-11-16)', () => {
     const c = ctx({ atajos: [{ nombre: 'OPLS de la SE', descripcion: null, tipos: ['masivo'], pais: 'PE' }] });
     expect(
       serviciosSinUsar(
@@ -383,9 +383,17 @@ describe('No dejar fuera lo que se nombra', () => {
         c,
       ),
     ).toEqual([]);
+    // "Cómo va la ST del 20026": el reporte, solo con la jornada ST
     expect(
       serviciosSinUsar(
         [{ herramienta: 'consultar_reporte_cds', param: { cd: '20026' } }],
+        'cómo va la ST del 20026',
+        c,
+      ),
+    ).toEqual(['ST']);
+    expect(
+      serviciosSinUsar(
+        [{ herramienta: 'consultar_reporte_cds', param: { cd: '20026', jornada: ['ST'] } }],
         'cómo va la ST del 20026',
         c,
       ),

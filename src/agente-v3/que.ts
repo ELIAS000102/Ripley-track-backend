@@ -15,20 +15,50 @@ const lista = (v: unknown): string[] =>
           .split(',')
           .map((x) => x.trim());
 
-/** "menos lo del paso 1" o "menos 1111, 1112" */
-const menosDe = (sin: number | string[] | undefined) =>
+/** "AT y OP", "SE, ST y RT" */
+const conY = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} y ${xs.at(-1)}` : (xs[0] ?? ''));
+
+/**
+ * De qué habla una referencia a otro paso, en palabras de la persona: "las
+ * sucursales de AT y OP" (una búsqueda masiva), "las oficinas del atajo «OPLS
+ * de la SE»". Antes decía "lo del paso 1", que es cómo se arma el plan, no lo
+ * que la persona pidió, y se leía así en el título de la tabla.
+ */
+function lasDelPaso(pasos: PasoPlan[] | undefined, n: number, pais?: string): string {
+  const p = pasos?.[n - 1];
+  if (!p) return `las oficinas del paso ${n}`;
+  switch (p.herramienta) {
+    case 'busqueda_masiva':
+      return lista(p.param.servicio).length === 1
+        ? `las sucursales de la ${lista(p.param.servicio)[0]}`
+        : `las sucursales de ${conY(lista(p.param.servicio))}`;
+    case 'ejecutar_atajo':
+      return `las oficinas del atajo «${String(p.param.nombre)}»`;
+    default: {
+      const que = queEs(p, pais, pasos);
+      return `las de «${que.charAt(0).toLowerCase()}${que.slice(1)}»`;
+    }
+  }
+}
+
+/** "menos las sucursales de la SE" o "menos 1111, 1112" */
+const menosDe = (sin: number | string[] | undefined, pasos?: PasoPlan[], pais?: string) =>
   typeof sin === 'number'
-    ? ` menos lo del paso ${sin}`
+    ? ` menos ${lasDelPaso(pasos, sin, pais)}`
     : Array.isArray(sin) && sin.length
       ? ` menos ${sin.join(', ')}`
       : '';
 
-export function queEs(p: PasoPlan, paisDelTurno?: string): string {
+/**
+ * `pasos`: el plan entero, para nombrar lo que trae otro paso ("las sucursales
+ * de AT y OP"); sin él, "las oficinas del paso N".
+ */
+export function queEs(p: PasoPlan, paisDelTurno?: string, pasos?: PasoPlan[]): string {
   const pais = NOMBRE_PAIS[String(p.param.pais ?? paisDelTurno)] ?? '';
   const x = p.param;
   const cods = (v: unknown) =>
     v && typeof v === 'object' && !Array.isArray(v)
-      ? `${(v as { ref: string }).ref === 'anterior' ? 'lo del mensaje anterior' : `lo del paso ${(v as { n: number }).n}`}${menosDe((v as { sin?: number | string[] }).sin)}`
+      ? `${(v as { ref: string }).ref === 'anterior' ? 'las oficinas del mensaje anterior' : lasDelPaso(pasos, (v as { n: number }).n, paisDelTurno)}${menosDe((v as { sin?: number | string[] }).sin, pasos, paisDelTurno)}`
       : lista(v).slice(0, 4).join(', ') + (lista(v).length > 4 ? ` y ${lista(v).length - 4} más` : '');
   const accion = (activo: unknown, si: string, no: string) =>
     activo === true ? si : activo === false ? no : 'cambiar';
@@ -51,11 +81,11 @@ export function queEs(p: PasoPlan, paisDelTurno?: string): string {
     case 'consultar_capacidad':
       return `Capacidad de ${x.tipo} de ${cods(x.codigo)}${x.servicio ? ` (${lista(x.servicio).join(', ')})` : ''}`;
     case 'consultar_reporte_cds':
-      return `Reporte de ${x.cd ? `el CD ${x.cd}` : 'los CDs'}`;
+      return `Reporte ${x.cd ? `del CD ${x.cd}` : 'de los CDs'}${lista(x.jornada).length ? ` (${conY(lista(x.jornada))})` : ''}`;
     case 'consultar_transferencia':
       return `Transferencia${x.origen ? ` desde ${x.origen}` : ''}${x.destino ? ` a ${cods(x.destino)}` : ''}`;
     case 'consultar_servicios_opl':
-      return `Servicios de ${cods(x.opl)}`;
+      return `Servicios${lista(x.servicio).length ? ` ${conY(lista(x.servicio))}` : ''} de ${cods(x.opl)}`;
     case 'busqueda_masiva':
       return `Búsqueda masiva de ${lista(x.servicio).join(', ')}`;
     case 'simular_entrega':

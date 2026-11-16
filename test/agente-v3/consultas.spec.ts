@@ -532,7 +532,7 @@ describe('Un turno de consulta, de punta a punta', () => {
     const cero = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(cero.progreso!.pasos.map((p) => [p.descripcion, p.estado])).toEqual([
       ['Búsqueda masiva de SE', 'en_curso'],
-      ['Transferencia desde 20026 a lo del paso 1', 'pendiente'],
+      ['Transferencia desde 20026 a las sucursales de la SE', 'pendiente'],
     ]);
     const uno = await servicio.ejecutar(USUARIO, t.turno_id);
     expect(uno.camino).toBe('avisar');
