@@ -71,7 +71,7 @@ export function tipoConZona(id: string, p: Record<string, unknown>): string | nu
 
 /** Una cosa que se puede elegir: una agenda exacta ("a:zona›agenda"), una zona (su nombre) o "todas" */
 const codificar = (a: AgendaConocida) => `a:${a.zona ?? ''}›${a.agenda}`;
-function decodificar(id: string): { zona?: string; agenda?: string } | 'todas' {
+export function decodificar(id: string): { zona?: string; agenda?: string } | 'todas' {
   if (id === TODAS) return TODAS;
   if (id.startsWith('a:')) {
     const [zona, agenda] = id.slice(2).split('›');
@@ -117,7 +117,6 @@ export function porEleccion(
     grupos.set(k, g);
   };
   let usado = false;
-  const notas: string[] = [];
   for (const c of codigos) {
     const vistasDeC = porOficina.get(c) ?? [];
     const e = elegidas?.[c] ?? elegidas?.['*'];
@@ -128,7 +127,6 @@ export function porEleccion(
         if (vistasDeC.length) vistasDeC.forEach((a) => meter(c, extraDe(a)));
         else meter(c, conZona ? { zona: TODAS } : {});
       } else meter(c, d);
-      notas.push(`${c}: ${d === TODAS ? 'todas' : (d.agenda ?? d.zona)}`);
     } else if (vistasDeC.length) {
       // Una vista (o varias, si no hubo a quién preguntar): a esas
       usado = true;
@@ -136,16 +134,21 @@ export function porEleccion(
     } else meter(c, {});
   }
   if (!usado) return null;
-  const vistas_ = codigos.filter((c) => !(elegidas?.[c] ?? elegidas?.['*']) && porOficina.get(c)?.length).length;
-  return {
-    grupos: [...grupos.values()],
-    notas: [
-      ...(notas.length
-        ? [`elegido: ${notas.slice(0, 4).join('; ')}${notas.length > 4 ? ` y ${notas.length - 4} más` : ''}`]
-        : []),
-      ...(vistas_ ? [`las agendas que se vieron (${vistas_ === 1 ? '1 oficina' : `${vistas_} oficinas`})`] : []),
-    ],
-  };
+  // Sin notas para la frase: "(elegido: 20069: todas)" o "(las agendas que se vieron…)" es cómo se
+  // armó el cambio, no lo que la persona necesita leer; dónde va cada cambio ya lo dice su tabla
+  return { grupos: [...grupos.values()], notas: [] };
+}
+
+/**
+ * "Para todo la 1100", "para todas sus agendas", "en todas las zonas": la
+ * persona ya dijo que es a todas; no se le pregunta a cuál (2026-11-18: lo
+ * preguntaba igual y había que contestar "1100 · todas").
+ */
+export function pideTodasLasAgendas(mensaje: string): boolean {
+  return (
+    /\btod[oa]s?\s+(?:sus\s+|las\s+|los\s+)?(?:agendas?|zonas?|jornadas?)\b/i.test(mensaje) ||
+    /\btod[oa]s?\s+(?:el\s+|la\s+|lo\s+)?\d{3,6}\b/i.test(mensaje)
+  );
 }
 
 /**
@@ -293,6 +296,7 @@ export function preguntaDeZonas(n: number, que: string, oficinas: PorElegir[]): 
       id: `zona:${n}:*`,
       etapa: 'zona',
       paso: n,
+      codigos: oficinas.map((o) => o.codigo),
       texto: `${oficinas.length} oficinas tienen varias ${deAgenda ? 'agendas' : 'zonas'} (${oficinas
         .slice(0, 4)
         .map((o) => o.codigo)
@@ -306,6 +310,7 @@ export function preguntaDeZonas(n: number, que: string, oficinas: PorElegir[]): 
     id: `zona:${n}`,
     etapa: 'zona',
     paso: n,
+    codigos: oficinas.map((o) => o.codigo),
     texto: una
       ? `De la ${una.codigo} hay ${una.opciones.length} ${una.que === 'agenda' ? 'agendas' : 'zonas'}. Para «${que}», ¿a cuál?`
       : `Estas oficinas tienen varias ${deAgenda ? 'agendas' : 'zonas'}. Para «${que}», ¿a cuál de cada una?`,

@@ -18,6 +18,12 @@ export const MODELOS_DE_APRENDER = ['gemini-3.5-flash', ...MODELOS] as const;
 /** Todos los modelos que puede usar algún rol */
 export const TODOS_LOS_MODELOS = MODELOS_DE_APRENDER;
 export const CUENTAS = [1, 2, 3] as const;
+/**
+ * Los días de una consulta de capacidad cuando la persona no dice cuántos
+ * (decisión del usuario, 2026-11-18: de 7 a 12). Solo en la v3: el DTO del
+ * backend sigue en 7 por defecto, que es lo que pide la v2 de n8n.
+ */
+export const DIAS_CAPACIDAD = 12;
 
 /** Cuántas veces se prueba un modelo distinto en cada rol antes de seguir sin IA */
 export const INTENTOS_POR_ROL = {

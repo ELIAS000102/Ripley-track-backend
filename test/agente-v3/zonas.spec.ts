@@ -154,7 +154,14 @@ function armar(contexto: ContextoTurno) {
     armar: vi.fn(async () => structuredClone(contexto)),
     rebuscar: vi.fn(async () => []),
   };
-  const supabase = { admin: { rpc: vi.fn(async () => ({ data: 'm-1', error: null })) } };
+  // agente_preferencias: lo que se guarda (upsert) y lo que se borra (delete…eq)
+  // Una promesa de verdad que además encadena .eq(), como el cliente de Supabase
+  const borrado: Promise<{ error: null }> & { eq?: () => unknown } = Promise.resolve({ error: null });
+  borrado.eq = vi.fn(() => borrado);
+  const preferencias = { upsert: vi.fn(async () => ({ error: null })), delete: vi.fn(() => borrado) };
+  const supabase = {
+    admin: { rpc: vi.fn(async () => ({ data: 'm-1', error: null })), from: vi.fn(() => preferencias) },
+  };
   const capacidad = { consultar: vi.fn(async () => structuredClone(DESPACHO)) };
   const masivo = {
     buscar: vi.fn(async (_u: unknown, dto: { servicio: string }) => ({
@@ -213,7 +220,7 @@ function armar(contexto: ContextoTurno) {
     supabase as never,
     {} as never,
   );
-  return { servicio, capacidad, editarCapacidad, masivo, filas };
+  return { servicio, capacidad, editarCapacidad, masivo, filas, preferencias };
 }
 
 const clasif = (tipo: string, extra: Record<string, unknown> = {}) =>
@@ -245,9 +252,7 @@ describe('"Cierra la fecha 11-11 para los tres": las agendas que se vieron', () 
       ['1402', 'Zona 1402 - Suc. Aldea 6 Perif.', 'Agenda 1402 - Suc. Aldea 6 Perif.'],
       ['1403', 'Zona BT Playas', 'Zona BT Playas'],
     ]);
-    expect(r.respuesta!.frase).toMatch(
-      /^Así quedaría: cambiarían 3 de 3 días \(las agendas que se vieron \(3 oficinas\)\)/,
-    );
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 3 de 3 días\./);
   });
 });
 
@@ -500,22 +505,23 @@ describe('Dos preguntas en un mensaje: las dos en la respuesta', () => {
   });
 });
 
+/** La 1401 con dos agendas de despacho a la vista */
+const DOS = {
+  tipo: 'despacho',
+  pais: 'PE',
+  desde: HOY,
+  sinDatos: [],
+  oficinas: [
+    {
+      oficina: '1401',
+      agendas: [
+        ag('Zona 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana'),
+        ag('Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT'),
+      ],
+    },
+  ],
+};
 describe('"Cierra la fecha 18-11" tras el despacho de la 1401 (dos agendas a la vista): pregunta a cuál', () => {
-  const DOS = {
-    tipo: 'despacho',
-    pais: 'PE',
-    desde: HOY,
-    sinDatos: [],
-    oficinas: [
-      {
-        oficina: '1401',
-        agendas: [
-          ag('Zona 1401 - Suc. Aldea 6 Lima/Metropolitana', 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana'),
-          ag('Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT', 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana BT'),
-        ],
-      },
-    ],
-  };
   const ANT: MensajeAnterior = {
     id: 'm1',
     persona: 'dame la agenda de despacho de la 1401',
@@ -572,7 +578,118 @@ describe('"Cierra la fecha 18-11" tras el despacho de la 1401 (dos agendas a la 
     await servicio.respuesta(USUARIO, t.turno_id, { respuestas: { [duda.id]: 'todas' } });
     const r = await seguir(servicio, t.turno_id, await servicio.ejecutar(USUARIO, t.turno_id));
     expect(editarCapacidad.editarCapacidad).toHaveBeenCalledTimes(2);
-    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiaría 1 de 2 días \(.*\); 1 ya estaba así\./);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiaría 1 de 2 días; 1 ya estaba así\./);
     expect(r.respuesta!.markdown).toContain('| ya está así | igual |');
+  });
+
+  it('"… para todas sus agendas": ya lo dijo; no se pregunta y va a las dos (2026-11-18)', async () => {
+    const h = armar(ctx({ anterior: ANT }));
+    const { t, a } = await hastaArmar(h.servicio, 'cierra la fecha 18-11 para todas sus agendas');
+    await h.servicio.armado(USUARIO, t.turno_id, {
+      salida: cerrar({ ref: 'anterior' }),
+      modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre },
+    });
+    const r = await seguir(h.servicio, t.turno_id, await h.servicio.ejecutar(USUARIO, t.turno_id));
+    expect(r.camino).not.toBe('preguntar');
+    expect(h.editarCapacidad.editarCapacidad).toHaveBeenCalledTimes(2);
+    expect(r.respuesta!.frase).toMatch(/^Así quedaría: cambiarían 2 de 2 días\./);
+  });
+});
+
+describe('Preferencias: «Recordar mi elección» (2026-11-18)', () => {
+  const ANT_DOS = {
+    id: 'm-ant',
+    persona: 'dame el despacho de la 1401',
+    frase: '…',
+    herramientas: ['consultar_capacidad'],
+    plan: null,
+    version: 3 as const,
+    elegido: false,
+    resultados: [{ herramienta: 'consultar_capacidad', titulo: 'Capacidad de despacho de 1401', datos: DOS }],
+  };
+  const ALDEA = {
+    agenda: 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana',
+    zona: 'Zona 1401 - Suc. Aldea 6 Lima/Metropolitana',
+  };
+  async function cierre(contexto: ContextoTurno) {
+    const h = armar(contexto);
+    const { t, a } = await hastaArmar(h.servicio, 'cierra la fecha 18-11');
+    await h.servicio.armado(USUARIO, t.turno_id, {
+      salida: cerrar({ ref: 'anterior' }),
+      modelo: { cuenta: a.modelo!.cuenta, nombre: a.modelo!.nombre },
+    });
+    await h.servicio.ejecutar(USUARIO, t.turno_id);
+    return { ...h, t, p: await h.servicio.ejecutar(USUARIO, t.turno_id) };
+  }
+
+  it('la pregunta ofrece recordar; con la casilla, se guarda la elección de esa oficina', async () => {
+    const { servicio, t, p, preferencias } = await cierre(ctx({ anterior: ANT_DOS }));
+    expect(p.camino).toBe('preguntar');
+    expect(p.pregunta!.recordar).toBe(true);
+    const duda = p.pregunta!.dudas![0];
+    await servicio.respuesta(USUARIO, t.turno_id, { respuestas: { [duda.id]: duda.opciones[0].id }, recordar: true });
+    expect(preferencias.upsert).toHaveBeenCalledTimes(1);
+    expect((preferencias.upsert.mock.calls[0] as unknown[])[0]).toEqual([
+      expect.objectContaining({
+        usuario_id: 'u1',
+        pais: 'PE',
+        clase: 'despacho',
+        codigo: '1401',
+        servicio: '',
+        ...ALDEA,
+      }),
+    ]);
+  });
+
+  it('con una preferencia guardada, va a esa agenda sin preguntar', async () => {
+    const { p, editarCapacidad } = await cierre(
+      ctx({
+        anterior: ANT_DOS,
+        preferencias: [{ pais: 'PE', clase: 'despacho', codigo: '1401', servicio: '', ...ALDEA }],
+      }),
+    );
+    expect(p.camino).not.toBe('preguntar');
+    expect(editarCapacidad.editarCapacidad.mock.calls.map(([, d]) => [d.codigo, d.zona, d.agenda])).toEqual([
+      ['1401', ALDEA.zona, ALDEA.agenda],
+    ]);
+  });
+
+  it('una preferencia que ya no es ninguna de las opciones se borra y se pregunta', async () => {
+    const { p, preferencias } = await cierre(
+      ctx({
+        anterior: ANT_DOS,
+        preferencias: [
+          { pais: 'PE', clase: 'despacho', codigo: '1401', servicio: '', agenda: 'Agenda vieja', zona: null },
+        ],
+      }),
+    );
+    expect(p.camino).toBe('preguntar');
+    expect(preferencias.delete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Preferencias: ver y olvidar, sin IA (2026-11-18)', () => {
+  const PREF = {
+    pais: 'PE',
+    clase: 'despacho',
+    codigo: '1401',
+    servicio: '',
+    agenda: 'Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana',
+    zona: null,
+  };
+  it('«¿qué preferencias tengo?»: la lista, sin clasificar', async () => {
+    const { servicio } = armar(ctx({ preferencias: [PREF] }));
+    const r = await servicio.crear(USUARIO, { mensaje: '¿qué preferencias tengo?', chat_id: 'c' });
+    expect(r.camino).toBe('responder');
+    expect(r.respuesta!.frase).toBe(
+      'Tus preferencias en Perú (1): las uso en los cambios para no preguntarte la agenda.',
+    );
+    expect(r.respuesta!.markdown).toContain('- 1401 · despacho: Agenda 1401 - Suc. Aldea 6 Lima/Metropolitana');
+  });
+  it('«olvida mi preferencia de la 1401»: la borra', async () => {
+    const { servicio, preferencias } = armar(ctx({ preferencias: [PREF] }));
+    const r = await servicio.crear(USUARIO, { mensaje: 'olvida mi preferencia de la 1401', chat_id: 'c' });
+    expect(preferencias.delete).toHaveBeenCalledTimes(1);
+    expect(r.respuesta!.frase).toMatch(/^Listo: olvidé tu preferencia de 1401 en Perú./);
   });
 });

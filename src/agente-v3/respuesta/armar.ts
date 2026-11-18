@@ -521,6 +521,7 @@ export function respuestaPregunta(turno: Turno, p: Pregunta, ahora = new Date())
   const dudas = p.dudas?.length
     ? p.dudas.map((d) => ({ id: d.id, pregunta: d.texto, opciones: d.opciones, libre: null }))
     : [{ id: p.id, pregunta: p.texto, opciones: p.opciones, libre: p.libre }];
+  const recordar = p.etapa === 'zona' ? { recordar: true } : {};
   if ((p.etapa === 'aprender' || p.etapa === 'aplicar') && (turno.pasos ?? []).length) {
     const r = armarRespuesta(turno, ahora);
     return { ...r, tipo: 'pregunta', markdown: `${r.markdown}\n\n${p.texto}`, dudas };
@@ -534,6 +535,7 @@ export function respuestaPregunta(turno: Turno, p: Pregunta, ahora = new Date())
       ...(p.dudas ?? []).map((d) => `- ${d.texto} ${d.opciones.map((o) => o.texto).join(' · ')}`),
     ].join('\n'),
     dudas,
+    ...recordar,
     // Lo hecho hasta aquí (la pregunta de zona llega a mitad de la ejecución)
     pasos: (turno.pasos ?? []).map(({ n, que, estado, resumen, ms }) => ({ n, que, estado, resumen, ms })),
   };

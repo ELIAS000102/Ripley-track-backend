@@ -56,7 +56,15 @@ export function fechaIso(v: unknown, hoy: string): string | null {
   if (s === 'hoy') return hoy;
   if (s === 'manana') return mas(1);
   if (s === 'pasado manana') return mas(2);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // Un año que nadie dijo: el modelo escribió "2023-11-23" para "el 23-11" (2026-11-18). Lejos de hoy
+  // (más de 300 días), es el mismo día y mes en el año más cercano a hoy
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const dia = (iso: string) => Date.parse(`${iso}T12:00:00Z`) / 86400000;
+    if (Math.abs(dia(s) - dia(hoy)) <= 300) return s;
+    const anio = Number(hoy.slice(0, 4));
+    const opciones = [anio - 1, anio, anio + 1].map((a) => `${a}${s.slice(4)}`).filter((x) => !Number.isNaN(dia(x)));
+    return opciones.sort((a, b) => Math.abs(dia(a) - dia(hoy)) - Math.abs(dia(b) - dia(hoy)))[0] ?? s;
+  }
   const dm = /^(\d{1,2})[-/](\d{1,2})(?:[-/](\d{4}))?$/.exec(s);
   if (dm) return `${dm[3] ?? hoy.slice(0, 4)}-${dm[2].padStart(2, '0')}-${dm[1].padStart(2, '0')}`;
   return null;

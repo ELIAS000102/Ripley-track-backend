@@ -15,6 +15,7 @@ import {
   EditarTransferenciaDto,
   ReasignarCapacidadDto,
 } from '../agente/dto/edicion.dto.js';
+import { DIAS_CAPACIDAD } from './constantes.js';
 
 /**
  * Las consultas que puede armar la v3 (parte 1b), con lo que acepta cada una.
@@ -79,7 +80,7 @@ export const HERRAMIENTAS: Herramienta[] = [
       { nombre: 'zona', tipo: 'texto', descripcion: 'en despacho, el nombre de la zona' },
       { nombre: 'agenda', tipo: 'texto', descripcion: 'el nombre (o parte) de la agenda: "centralizado"' },
       { nombre: 'desde', tipo: 'fecha', descripcion: 'primer día; por defecto hoy' },
-      { nombre: 'dias', tipo: 'numero', min: 1, max: 30, descripcion: 'cuántos días; por defecto 7' },
+      { nombre: 'dias', tipo: 'numero', min: 1, max: 30, descripcion: `cuántos días; por defecto ${DIAS_CAPACIDAD}` },
     ],
   },
   {

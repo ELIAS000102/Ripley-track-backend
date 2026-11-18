@@ -9,6 +9,7 @@ import type {
   MensajeAnterior,
   Pais,
   PasoPlan,
+  PreferenciaAgenda,
   ResultadoAnterior,
 } from './interfaces/agente-v3.interface.js';
 import { faltaColumna } from '../nucleo/supabase/errores.js';
@@ -123,10 +124,11 @@ export class ContextoV3Service {
   }
 
   async armar(mensaje: string, chatId: string, usuarioId: string, respondeA: string | null): Promise<ContextoTurno> {
-    const [mensajes, atajos, directorio] = await Promise.all([
+    const [mensajes, atajos, directorio, preferencias] = await Promise.all([
       this.mensajesDelChat(chatId, usuarioId, respondeA),
       this.atajosConPais(),
       this.leerDirectorio(),
+      this.preferenciasDe(usuarioId),
     ]);
     const ultimo = mensajes.ultimo;
     const elegido = mensajes.elegido;
@@ -189,7 +191,19 @@ export class ContextoV3Service {
       pregunta: null,
       rondas: 0,
       avisos,
+      ...(preferencias.length ? { preferencias } : {}),
     };
+  }
+
+  /** Las agendas que esta persona eligió "para la próxima vez" (si falta la tabla, ninguna) */
+  async preferenciasDe(usuarioId: string): Promise<PreferenciaAgenda[]> {
+    const { data, error } = await this.supabase.admin
+      .from('agente_preferencias')
+      .select('pais, clase, codigo, servicio, agenda, zona')
+      .eq('usuario_id', usuarioId)
+      .limit(500);
+    if (error) return [];
+    return (data ?? []) as PreferenciaAgenda[];
   }
 
   /**

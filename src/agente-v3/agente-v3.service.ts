@@ -28,6 +28,7 @@ import type {
   PasoEjecutado,
   PasoPlan,
   PlanV3,
+  PreferenciaAgenda,
   Pregunta,
   Presentacion,
   RespuestaPanel,
@@ -64,7 +65,15 @@ import { atajoEsperado, atajosNombrados, motivoNoTrae, NO_TRAE, QUE_TRAE, sinTra
 import { leerPresentacion, nombresLargos, PIDE_FORMA, promptPresentar } from './presentar/prompt.js';
 import { TurnosService } from './turnos.service.js';
 import { queEs } from './que.js';
-import { preguntaDeZonas, zonasDeLaRespuesta } from './zonas.js';
+import { pideTodasLasAgendas, preguntaDeZonas, TODAS, zonasDeLaRespuesta } from './zonas.js';
+import {
+  aplicarPreferencias,
+  clavePreferencia,
+  pideOlvidarPreferencias,
+  pideVerPreferencias,
+  preferenciaDeEleccion,
+  preferenciaEnPalabras,
+} from './preferencias.js';
 
 /**
  * Las etapas de un turno. Cada una devuelve `camino`: por ahí sigue el motor
@@ -258,6 +267,10 @@ export class AgenteV3Service {
     const contexto = await this.contexto.armar(turno.mensaje, turno.chat_id, usuario.id, turno.responde_a);
     turno.contexto = contexto;
     await this.turnos.actualizar(turno.id, { contexto, etapa: 'clasificar' });
+
+    // "¿Qué preferencias tengo?", "olvida mi preferencia de la 1401": sin IA
+    if (pideOlvidarPreferencias(turno.mensaje)) return this.preferenciasPedidas(usuario, turno, 'olvidar');
+    if (pideVerPreferencias(turno.mensaje)) return this.preferenciasPedidas(usuario, turno, 'ver');
 
     const modelo = elegirModelo('clasificar', turno.id, []);
     if (!modelo) return this.sinModelo(usuario, turno);
@@ -957,8 +970,100 @@ export class AgenteV3Service {
       pregunta: null,
       zonas_elegidas: { ...contexto.zonas_elegidas, [n]: { ...contexto.zonas_elegidas?.[n], ...elegidas } },
     };
+    if (dto.recordar) await this.recordarEleccion(usuario, turno, p, elegidas);
     turno.estado = 'en_curso';
     return this.aEjecutar(turno, turno.plan as PlanV3);
+  }
+
+  /** «Recordar mi elección»: cada oficina elegida, con la clase de agenda y el servicio de ese paso */
+  private async recordarEleccion(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    p: Pregunta,
+    elegidas: Record<string, string>,
+  ): Promise<void> {
+    const paso = (turno.plan as PlanV3 | null)?.pasos?.[(p.paso ?? 1) - 1];
+    const clave = paso ? clavePreferencia(paso) : null;
+    if (!clave) return;
+    const pais = turno.contexto!.pais;
+    const filas = Object.entries(elegidas).flatMap(([codigo, id]) => {
+      // Solo lo que es una de sus opciones (lo escrito a mano no se recuerda)
+      const valida = p.dudas?.some((d) => d.opciones.some((o) => o.id === id)) || p.opciones.some((o) => o.id === id);
+      const eleccion = valida ? preferenciaDeEleccion(id) : null;
+      if (!eleccion) return [];
+      const codigos = codigo === '*' ? (p.codigos ?? []) : [codigo];
+      return codigos.map((c) => ({
+        usuario_id: usuario.id,
+        pais,
+        clase: clave.clase,
+        codigo: c,
+        servicio: clave.servicio,
+        ...eleccion,
+        actualizado_en: new Date().toISOString(),
+      }));
+    });
+    if (!filas.length) return;
+    const { error } = await this.supabase.admin
+      .from('agente_preferencias')
+      .upsert(filas, { onConflict: 'usuario_id,pais,clase,codigo,servicio' });
+    turno.contexto = {
+      ...turno.contexto!,
+      avisos: [
+        ...(turno.contexto!.avisos ?? []),
+        error
+          ? `No pude guardar tu elección para la próxima vez: ${error.message}`
+          : `Guardé tu elección para la próxima vez (${filas.map((f) => f.codigo).join(', ')}).`,
+      ],
+    };
+  }
+
+  /** Borra preferencias de esta persona (las que ya no encajan, o las que pidió olvidar) */
+  private async olvidarPreferencias(usuario: UsuarioAutenticado, prefs: PreferenciaAgenda[]): Promise<number> {
+    let borradas = 0;
+    for (const x of prefs) {
+      const { error } = await this.supabase.admin
+        .from('agente_preferencias')
+        .delete()
+        .eq('usuario_id', usuario.id)
+        .eq('pais', x.pais)
+        .eq('clase', x.clase)
+        .eq('codigo', x.codigo)
+        .eq('servicio', x.servicio);
+      if (!error) borradas++;
+    }
+    return borradas;
+  }
+
+  /**
+   * "¿Qué preferencias tengo?" y "olvida mi preferencia de la 1401": sin IA,
+   * con las de esta persona en el país del chat (con códigos en el mensaje,
+   * solo las de esos códigos).
+   */
+  private async preferenciasPedidas(
+    usuario: UsuarioAutenticado,
+    turno: Turno,
+    que: 'ver' | 'olvidar',
+  ): Promise<SalidaRuta> {
+    const contexto = turno.contexto!;
+    const codigos = [...turno.mensaje.matchAll(/\b(\d{3,6})\b/g)].map((m) => m[1]);
+    const suyas = (contexto.preferencias ?? []).filter(
+      (p) => p.pais === contexto.pais && (!codigos.length || codigos.includes(p.codigo)),
+    );
+    const de = codigos.length ? ` de ${codigos.join(', ')}` : '';
+    const pais = contexto.pais === 'CL' ? 'Chile' : 'Perú';
+    let texto: string;
+    if (!suyas.length) texto = `No tienes preferencias guardadas${de} en ${pais}.`;
+    else if (que === 'olvidar') {
+      const n = await this.olvidarPreferencias(usuario, suyas);
+      texto = `Listo: olvidé ${n === 1 ? 'tu preferencia' : `tus ${n} preferencias`}${de} en ${pais}. La próxima vez te pregunto a qué agenda va.`;
+    } else
+      texto = [
+        `Tus preferencias en ${pais} (${suyas.length}): las uso en los cambios para no preguntarte la agenda.`,
+        ...suyas.map((p) => `- ${preferenciaEnPalabras(p)}`),
+        '- Para borrar una: «olvida mi preferencia de la 1401».',
+      ].join('\n');
+    turno.plan = { origen: 'saber', pasos: [] };
+    return this.terminar(usuario, turno, respuestaCharla(turno, texto), 'terminado');
   }
 
   // ───────────── 6 · Ejecutar, un paso por llamada ─────────────
@@ -987,7 +1092,37 @@ export class AgenteV3Service {
     }
     // Un cambio de despacho u OPL sin zona, con oficinas de varias zonas: se pregunta cuál (y sigue aquí con la respuesta)
     if (k < plan.pasos.length) {
-      const porElegir = await this.ejecucion.zonasPorElegir(usuario, plan, k, hechos, turno.contexto!);
+      // "Para todo la 1100", "para todas sus agendas": ya lo dijo, no se pregunta (como si contestara «todas»)
+      const n = String(k + 1);
+      if (!turno.contexto?.zonas_elegidas?.[n] && pideTodasLasAgendas(mensajeDe(turno)))
+        turno.contexto = {
+          ...turno.contexto!,
+          zonas_elegidas: { ...turno.contexto?.zonas_elegidas, [n]: { '*': TODAS } },
+        };
+      let porElegir = await this.ejecucion.zonasPorElegir(usuario, plan, k, hechos, turno.contexto!);
+      // Lo que eligió "para la próxima vez" (agente_preferencias): a eso, sin preguntar, y se dice en los avisos
+      const clave = porElegir.length && turno.contexto?.preferencias?.length ? clavePreferencia(plan.pasos[k]) : null;
+      if (clave) {
+        const r = aplicarPreferencias(porElegir, turno.contexto!.preferencias!, clave, turno.contexto!.pais);
+        if (Object.keys(r.elegidas).length)
+          turno.contexto = {
+            ...turno.contexto!,
+            zonas_elegidas: {
+              ...turno.contexto!.zonas_elegidas,
+              [n]: { ...turno.contexto!.zonas_elegidas?.[n], ...r.elegidas },
+            },
+            avisos: [...(turno.contexto!.avisos ?? []), ...r.avisos],
+          };
+        // La que ya no está entre las opciones (la agenda cambió de nombre o ya no existe): se borra y se pregunta
+        if (r.viejas.length) {
+          await this.olvidarPreferencias(usuario, r.viejas);
+          turno.contexto = {
+            ...turno.contexto!,
+            preferencias: turno.contexto!.preferencias!.filter((p) => !r.viejas.includes(p)),
+          };
+        }
+        porElegir = r.quedan;
+      }
       if (porElegir.length) {
         turno.etapa = 'ejecutar';
         return this.preguntar(

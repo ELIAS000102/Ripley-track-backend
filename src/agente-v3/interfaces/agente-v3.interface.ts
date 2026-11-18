@@ -169,6 +169,21 @@ export interface Pregunta {
   paso?: number;
   /** Varias dudas a la vez (una por oficina): el panel manda la respuesta cuando están todas */
   dudas?: Array<{ id: string; texto: string; opciones: Array<{ id: string; texto: string }> }>;
+  /** Para "zona": las oficinas que se preguntan (con "¿en todas?" no van en las dudas) */
+  codigos?: string[];
+}
+
+/** Una agenda que la persona eligió "para la próxima vez" (agente_preferencias) */
+export interface PreferenciaAgenda {
+  pais: string;
+  /** picking · despacho · recepcion · servicio_opl */
+  clase: string;
+  codigo: string;
+  /** El servicio del cambio ('' si no dependía de él) */
+  servicio: string;
+  agenda: string | null;
+  /** La zona, o "todas" */
+  zona: string | null;
 }
 
 export interface ContextoTurno {
@@ -212,6 +227,8 @@ export interface ContextoTurno {
   agendas?: AgendaConocida[];
   /** Las oficinas cuyas agendas ya se buscaron ("tipo:código"): no se vuelven a buscar */
   buscadas?: string[];
+  /** Las agendas que esta persona eligió "para la próxima vez" (agente_preferencias), de los dos países */
+  preferencias?: PreferenciaAgenda[];
   /** Las zonas que eligió la persona, por paso: { "2": { "1401": "Zona 1401 - …", "*": "todas" } } */
   zonas_elegidas?: Record<string, Record<string, string>>;
   /** Cuándo terminó la vista previa de los cambios: pasados 10 minutos, se rehace antes de aplicar */
@@ -403,6 +420,8 @@ export interface RespuestaPanel {
   };
   /** En una pregunta: lo que hay que contestar (como la v2) */
   dudas?: DudaPanel[];
+  /** Una pregunta de zona o agenda: el panel ofrece «Recordar mi elección para la próxima vez» */
+  recordar?: boolean;
   /** Cómo pidió verlo la persona: "totales" (un cuadro de totales), "cuadro" o "uso" */
   ver?: string | null;
   /** Los nombres largos de las tablas, acortados por Presentar: el panel los usa en lugar del largo */

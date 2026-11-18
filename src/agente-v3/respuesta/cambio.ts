@@ -204,13 +204,17 @@ export function resumenCambio(herramienta: string, datos: unknown): { estado: 'o
   // Las notas del paso ("agenda: …; sin ella: 1007, 1021") dicen a qué se aplicaría: van en la frase
   const notas = ((datos as { notas?: unknown[] } | null)?.notas ?? []).map(String).filter((x) => x.trim());
   const aQue = notas.length ? ` (${notas.join('; ')})` : '';
+  // Las que dan error no "ya están así": se cuentan aparte (antes salía "las 4 ya están así; 4 no se podrían tocar")
+  const motivos = [...new Set(errores.map((e) => String(e.error).replace(/\.$/, '')))].slice(0, 2).join('; ');
   const partes = [
     cambian.length
       ? `Así quedaría: ${cambian.length === 1 ? 'cambiaría 1' : `cambiarían ${cambian.length}`} de ${filas.length}${unidad(herramienta, filas.length)}${aQue}`
-      : `No cambiaría nada${aQue}: ${filas.length === 1 ? 'ya está' : `las ${filas.length} ya están`} así`,
+      : iguales
+        ? `No cambiaría nada${aQue}: ${iguales === 1 ? 'ya está' : `las ${iguales} ya están`} así`
+        : `No se podría cambiar nada${aQue}: ${motivos}`,
     iguales && cambian.length ? `${iguales} ya ${iguales === 1 ? 'estaba' : 'estaban'} así` : null,
-    errores.length
-      ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${[...new Set(errores.map((e) => e.error))].slice(0, 2).join('; ')})`
+    errores.length && (cambian.length || iguales)
+      ? `${errores.length} no se ${errores.length === 1 ? 'podría' : 'podrían'} tocar (${motivos})`
       : null,
   ].filter(Boolean);
   // "No apliqué nada" lo dice la respuesta, una vez y solo si no pregunta «¿Procedo?» (armarRespuesta)

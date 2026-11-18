@@ -89,6 +89,11 @@ export class RespuestaPersonaDto {
   @IsOptional()
   @IsBoolean()
   caducada?: boolean;
+
+  /** En la pregunta de zona o agenda: guardar lo elegido para la próxima vez (agente_preferencias) */
+  @IsOptional()
+  @IsBoolean()
+  recordar?: boolean;
 }
 
 /** La respuesta a una pregunta, desde el panel: con la petición, para "Detener" */

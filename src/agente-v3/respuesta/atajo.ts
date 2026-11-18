@@ -1,4 +1,5 @@
 import { ddmm } from '../../nucleo/fechas.js';
+import { DIAS_CAPACIDAD } from '../constantes.js';
 import type { BloqueEjecutado, Ejecucion } from '../../configuracion/atajos/interfaces/atajos.interface.js';
 import type {
   AgendaCapacidad,
@@ -22,7 +23,8 @@ import type {
  */
 
 const MAX_FILAS = 60;
-const MAX_DIAS = 7;
+// Las columnas de días de la tabla: las que trae la consulta de capacidad por defecto (DIAS_CAPACIDAD)
+const MAX_DIAS = DIAS_CAPACIDAD;
 
 /** "20066 - Ripley Plaza Lima Norte" → "20066 · Plaza Lima Norte" */
 export function nombreCorto(s: string | null | undefined): string {

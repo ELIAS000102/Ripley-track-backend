@@ -9,6 +9,7 @@ import { SimulacionAgenteService } from '../agente/consultas/simulacion/simulaci
 import { TipoServicioAgenteService } from '../agente/consultas/tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from '../agente/consultas/transferencia/transferencia.service.js';
 import { POR_VEZ } from '../agente/constantes/limites.constants.js';
+import { DIAS_CAPACIDAD } from './constantes.js';
 import { EditarCapacidadAgenteService } from '../agente/edicion/capacidad/capacidad.service.js';
 import { EditarCdAgenteService } from '../agente/edicion/cd/cd.service.js';
 import { EditarMasivoAgenteService } from '../agente/edicion/masivo/masivo.service.js';
@@ -539,6 +540,8 @@ export class EjecucionV3Service {
     if (h.id === 'consultar_reporte_cds') delete plano0.jornada;
     if (h.id === 'consultar_servicios_opl') delete plano0.servicio;
     if (h.id === 'consultar_capacidad') {
+      // Sin días dichos, DIAS_CAPACIDAD (12), no los 7 del DTO
+      if (plano0.dias === undefined || plano0.dias === null || plano0.dias === '') plano0.dias = DIAS_CAPACIDAD;
       const servicios = lista(plano0.servicio);
       if (servicios.length > 1) {
         despues.servicios = servicios;

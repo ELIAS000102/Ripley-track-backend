@@ -328,7 +328,7 @@ describe('Cambios: cómo quedaría, sin aplicar nada', () => {
     };
     expect(resumenCambio('editar_transferencia', t)).toEqual({
       estado: 'vacio',
-      resumen: 'No cambiaría nada: ya está así; 1 no se podría tocar (no existe esa relación).',
+      resumen: 'No se podría cambiar nada: no existe esa relación.',
     });
     expect(markdownCambio('editar_transferencia', t)).toContain('no se puede: no existe esa relación');
   });

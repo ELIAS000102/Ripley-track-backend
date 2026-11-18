@@ -5,6 +5,9 @@ import { EjecucionV3Service } from '../../src/agente-v3/ejecucion.service.js';
 import { soloJornadasDelReporte, soloServiciosDeOpl } from '../../src/agente-v3/filas.js';
 import type { ContextoTurno, PasoPlan, Turno } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
 import { queEs } from '../../src/agente-v3/que.js';
+import { fechaIso } from '../../src/agente-v3/armar/leer.js';
+import { pideTodasLasAgendas } from '../../src/agente-v3/zonas.js';
+import { resumenCambio } from '../../src/agente-v3/respuesta/cambio.js';
 import { leerCalculo } from '../../src/agente-v3/calcular/prompt.js';
 import { armarRespuesta, noPedidos } from '../../src/agente-v3/respuesta/armar.js';
 
@@ -478,5 +481,73 @@ describe('Un CD sin la jornada pedida (2026-11-16)', () => {
     );
     expect((r.datos.cds as Array<{ cd: string }>).map((c) => c.cd)).toEqual(['10095']);
     expect(r.notas).toEqual(['10082: sin la jornada DX en el rango']);
+  });
+});
+
+describe('Cambios: fechas, "todas" y la frase (2026-11-18)', () => {
+  it('una fecha con un año que nadie dijo ("2023-11-23" por "el 23-11") va al año más cercano a hoy', () => {
+    expect(fechaIso('2023-11-23', '2026-11-17')).toBe('2026-11-23');
+    expect(fechaIso('23-11', '2026-11-17')).toBe('2026-11-23');
+    // Cerca de hoy, tal cual (también a fin de año)
+    expect(fechaIso('2027-01-03', '2026-12-28')).toBe('2027-01-03');
+    expect(fechaIso('2025-01-03', '2026-12-28')).toBe('2027-01-03');
+  });
+
+  it('"para todo la 1100", "para todas sus agendas": no se pregunta a cuál', () => {
+    expect(
+      pideTodasLasAgendas('para todo la 1100 cierra la fecha 18-11 y para la 1007 y 1021 cierra la fecha 19-11'),
+    ).toBe(true);
+    expect(pideTodasLasAgendas('cierra la fecha del 17-11 hasta el 23-11 para todas sus agendas')).toBe(true);
+    expect(pideTodasLasAgendas('cierra la fecha 18-11 en todas las zonas')).toBe(true);
+    expect(pideTodasLasAgendas('cierra la fecha 18-11 de la 1401')).toBe(false);
+    expect(pideTodasLasAgendas('dame todos los opls de la SE')).toBe(false);
+  });
+
+  it('si todo da error, no dice que "ya están así"', () => {
+    const datos = {
+      oficinas: [],
+      destinos: [{ destino: '20048', antes: null, despues: null, error: 'El rango va al revés.' }],
+      origen: '20026',
+    };
+    expect(resumenCambio('editar_transferencia', datos)).toEqual({
+      estado: 'vacio',
+      resumen: 'No se podría cambiar nada: El rango va al revés.',
+    });
+  });
+});
+
+describe('Capacidad: 12 días por defecto (2026-11-18)', () => {
+  const ejecucionCon = (consultar: ReturnType<typeof vi.fn>) =>
+    new EjecucionV3Service(
+      { admin: {} } as never,
+      {} as never,
+      {} as never,
+      { consultar } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+  const plan = (param: Record<string, unknown>) => ({
+    origen: 'armar' as const,
+    pasos: [{ herramienta: 'consultar_capacidad', param: { tipo: 'picking', codigo: ['20021'], ...param } }],
+  });
+
+  it('sin días dichos, pide 12; con días dichos, esos', async () => {
+    const consultar = vi.fn(async () => ({ oficinas: [] }));
+    const e = ejecucionCon(consultar);
+    await e.ejecutar(USUARIO as never, plan({}) as never, 0, [], ctx('PE', []));
+    await e.ejecutar(USUARIO as never, plan({ dias: 3 }) as never, 0, [], ctx('PE', []));
+    expect(consultar.mock.calls.map((c) => (c as unknown[])[0] as { dias: number }).map((d) => d.dias)).toEqual([
+      12, 3,
+    ]);
   });
 });
