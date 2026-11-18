@@ -7,7 +7,7 @@
 # Documentación y panel de pruebas: se mantienen fuera del repositorio
 /docs
 /prueba.html
-/Ripley-Track-v1.html
+/Ripley-Track-v*.html
 
 # Logs
 logs
