@@ -5,7 +5,7 @@ import { EjecucionV3Service } from '../../src/agente-v3/ejecucion.service.js';
 import { soloJornadasDelReporte, soloServiciosDeOpl } from '../../src/agente-v3/filas.js';
 import type { ContextoTurno, PasoPlan, Turno } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
 import { queEs } from '../../src/agente-v3/que.js';
-import { fechaIso } from '../../src/agente-v3/armar/leer.js';
+import { fechaIso, leerPlan } from '../../src/agente-v3/armar/leer.js';
 import { pideTodasLasAgendas } from '../../src/agente-v3/zonas.js';
 import { resumenCambio } from '../../src/agente-v3/respuesta/cambio.js';
 import { leerCalculo } from '../../src/agente-v3/calcular/prompt.js';
@@ -549,5 +549,31 @@ describe('Capacidad: 12 días por defecto (2026-11-18)', () => {
     expect(consultar.mock.calls.map((c) => (c as unknown[])[0] as { dias: number }).map((d) => d.dias)).toEqual([
       12, 3,
     ]);
+  });
+});
+
+describe('Jornadas de un CD, aunque no sean servicios del país (2026-11-20)', () => {
+  const PE = {
+    ...ctx('PE', ['ST', 'SE', 'RT']),
+    almacenes: [{ codigo: '20026', nombre: 'CD Villa', es_cd: true, alias: ['villa'] }],
+  } as ContextoTurno;
+  const plan = (origen: string) =>
+    JSON.stringify({
+      pasos: [
+        {
+          herramienta: 'reasignar_capacidad',
+          param: { cd: '20026', origen, destino: 'ST', unidades: 40, fecha: 'hoy' },
+        },
+      ],
+    });
+
+  it('«reasigna 40 de la RC para la ST del CD Villa»: la RC vale como jornada', () => {
+    const r = leerPlan(plan('rc'), PE, 'reasigna 40 unidades de la RC para la ST del cd villa de hoy', true);
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.valor.plan!.pasos[0].param).toMatchObject({ origen: 'RC', destino: 'ST', unidades: 40 });
+  });
+
+  it('lo que no es un código de jornada no vale', () => {
+    expect(leerPlan(plan('retiro cercano'), PE, 'reasigna 40 para la ST', true)).toMatchObject({ ok: false });
   });
 });

@@ -26,7 +26,25 @@ import { DIAS_CAPACIDAD } from './constantes.js';
  * validación de aquí pasa también la del backend.
  */
 
-type TipoParam = 'codigos' | 'codigo' | 'servicios' | 'servicio' | 'texto' | 'fecha' | 'numero' | 'booleano' | 'opcion';
+/**
+ * `jornada` / `jornadas`: las de un CD (RC, ST, SE…). Van tal cual las dice la
+ * persona y no se miran en los servicios del país: el CD Villa tiene la RC y
+ * Perú no la tiene como servicio (2026-11-20: "reasigna 40 de la RC para la ST"
+ * preguntaba la jornada de origen y luego decía que la RC no existía en Perú).
+ * Que sean del CD lo comprueba el backend con la configuración de los CDs.
+ */
+type TipoParam =
+  | 'codigos'
+  | 'codigo'
+  | 'servicios'
+  | 'servicio'
+  | 'jornada'
+  | 'jornadas'
+  | 'texto'
+  | 'fecha'
+  | 'numero'
+  | 'booleano'
+  | 'opcion';
 
 export interface ParamDef {
   nombre: string;
@@ -94,7 +112,7 @@ export const HERRAMIENTAS: Herramienta[] = [
       { nombre: 'dias', tipo: 'numero', min: 1, max: 14, descripcion: 'cuántos días' },
       {
         nombre: 'jornada',
-        tipo: 'servicios',
+        tipo: 'jornadas',
         descripcion:
           'solo estas jornadas del CD (son servicios: DX, ST, RC…) si la persona nombra alguna ("el consumo del DX en el CD"); sin ella, todas',
       },
@@ -271,7 +289,7 @@ export const HERRAMIENTAS: Herramienta[] = [
     dto: EditarCdDto,
     params: [
       { nombre: 'cd', tipo: 'codigo', entidades: ['almacen'], descripcion: 'el CD' },
-      { nombre: 'jornadas', tipo: 'servicios', descripcion: 'las jornadas; sin ellas, todas' },
+      { nombre: 'jornadas', tipo: 'jornadas', descripcion: 'las jornadas del CD; sin ellas, todas' },
       { nombre: 'fecha', tipo: 'fecha', descripcion: 'el día; por defecto hoy' },
       { nombre: 'hasta', tipo: 'fecha', descripcion: 'el último día' },
       { nombre: 'activa', tipo: 'booleano', requerido: true, descripcion: 'false = cortar; true = reabrir' },
@@ -284,8 +302,8 @@ export const HERRAMIENTAS: Herramienta[] = [
     dto: ReasignarCapacidadDto,
     params: [
       { nombre: 'cd', tipo: 'codigo', requerido: true, entidades: ['almacen'], descripcion: 'el CD' },
-      { nombre: 'origen', tipo: 'servicio', requerido: true, descripcion: 'la jornada que da' },
-      { nombre: 'destino', tipo: 'servicio', requerido: true, descripcion: 'la jornada que recibe' },
+      { nombre: 'origen', tipo: 'jornada', requerido: true, descripcion: 'la jornada del CD que da' },
+      { nombre: 'destino', tipo: 'jornada', requerido: true, descripcion: 'la jornada del CD que recibe' },
       { nombre: 'unidades', tipo: 'numero', requerido: true, min: 1, max: 100000, descripcion: 'cuántas' },
       { nombre: 'fecha', tipo: 'fecha', descripcion: 'el día de las dos' },
     ],

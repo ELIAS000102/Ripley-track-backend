@@ -174,6 +174,21 @@ function valorDe(p: ParamDef, v: unknown, contexto: ContextoTurno, permitidos: S
       if (p.tipo === 'servicio' && lista.length > 1) return { ok: false, motivo: `${p.nombre}: solo uno` };
       return { ok: true, v: p.tipo === 'servicio' ? lista[0] : [...new Set(lista)] };
     }
+    // Una jornada de CD: el código tal cual (lo comprueba el backend con la configuración del CD)
+    case 'jornada':
+    case 'jornadas': {
+      const lista = (Array.isArray(v) ? v : String(v ?? '').split(/[,\s]+/))
+        .map((x) => String(x).trim().toUpperCase())
+        .filter(Boolean);
+      const malos = lista.filter((j) => !/^[A-Z0-9]{1,4}$/.test(j));
+      if (!lista.length || malos.length)
+        return {
+          ok: false,
+          motivo: `${p.nombre}: ${malos.join(', ') || 'vacío'} no es el código de una jornada (RC, ST, SE…)`,
+        };
+      if (p.tipo === 'jornada' && lista.length > 1) return { ok: false, motivo: `${p.nombre}: solo una` };
+      return { ok: true, v: p.tipo === 'jornada' ? lista[0] : [...new Set(lista)] };
+    }
     case 'opcion':
       return p.opciones!.includes(String(v))
         ? { ok: true, v: String(v) }
@@ -233,7 +248,9 @@ export function serviciosSinUsar(pasos: PasoPlan[], mensaje: string, contexto: C
   );
   if (!nombrados.length) return [];
   const conServicio = (p: PasoPlan) =>
-    herramienta(p.herramienta)?.params.filter((d) => d.tipo === 'servicio' || d.tipo === 'servicios') ?? [];
+    herramienta(p.herramienta)?.params.filter((d) =>
+      ['servicio', 'servicios', 'jornada', 'jornadas'].includes(d.tipo),
+    ) ?? [];
   if (!pasos.some((p) => conServicio(p).length || p.herramienta === 'saber_servicios')) return [];
   const usados = new Set<string>();
   for (const p of pasos) {
