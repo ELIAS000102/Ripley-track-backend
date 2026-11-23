@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { OplService } from '../../../configuracion/tipo-servicio/opl/opl.service.js';
 import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
 import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
@@ -19,6 +19,8 @@ const codigoDeOpl = (s: string) =>
     .trim()
     .toUpperCase();
 import { POR_VEZ } from '../../constantes/limites.constants.js';
+import { IdsRipleyService } from '../../ids/ids-ripley.service.js';
+import { conListados, type Listados } from '../../ids/listados.js';
 
 /**
  * Lo que una petición pide cambiar. Lo que no venga, no se toca.
@@ -96,6 +98,8 @@ export class EditarTipoServicioAgenteService {
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoPeticion,
     private readonly agendasGuardadas: AgendasDeAtajoService,
+    // El operador, sus zonas y sus agendas guardados con sus ids; sin él, se listan cada vez
+    @Optional() private readonly ids?: IdsRipleyService,
   ) {}
 
   async editar(usuario: UsuarioAutenticado, dto: EditarTipoServicioDto): Promise<TipoServicioEditado> {
@@ -200,10 +204,36 @@ export class EditarTipoServicioAgenteService {
     corte: { id: number; value: string } | undefined,
     pais: string,
   ): Promise<{ filas: ServicioEditado[]; etiqueta: string }> {
-    let resuelto;
+    // El operador, la zona y la agenda, y sus servicios leídos, antes de
+    // escribir nada: con los ids guardados y, si con ellos algo falla, con lo
+    // de Ripley. Que no se pueda resolver el operador no lanza: va en sus filas
+    let leido;
 
     try {
-      resuelto = await this.resolverAgenda({ ...dto, opl: termino }, pais);
+      leido = await conListados(
+        this.ids,
+        'opl',
+        pais,
+        true,
+        async (l) => {
+          const resuelto = await this.resolverAgenda({ ...dto, opl: termino }, pais, l).catch((e: unknown) => {
+            // Con lo guardado, que lo diga Ripley; sin ello, es el motivo de verdad
+            if (l.usados) throw e;
+            return { error: e };
+          });
+          if ('error' in resuelto) return resuelto;
+          const { operador, zona, agenda } = resuelto;
+          const { servicios } = await this.opl.listarServicios({
+            courier: operador.id,
+            mainZone: zona.mainZone,
+            mainSchedule: agenda.mainSchedule,
+            pais,
+          });
+          return { ...resuelto, servicios };
+        },
+        this.logger,
+      );
+      if ('error' in leido) throw leido.error;
     } catch (e) {
       return {
         etiqueta: termino,
@@ -219,7 +249,7 @@ export class EditarTipoServicioAgenteService {
       };
     }
 
-    const { operador, zona, agenda } = resuelto;
+    const { operador, zona, agenda, servicios } = leido;
 
     const etiqueta = `${operador.code} - ${operador.nombre ?? ''}`.trim();
     const base = {
@@ -234,8 +264,6 @@ export class EditarTipoServicioAgenteService {
       mainSchedule: agenda.mainSchedule,
       pais,
     };
-
-    const { servicios } = await this.opl.listarServicios(consulta);
 
     // Se resuelven todos antes de escribir ninguno: descubrir a mitad que el
     // tercer código no existe deja la agenda con dos servicios cambiados
@@ -467,11 +495,11 @@ export class EditarTipoServicioAgenteService {
    * primera zona y avisar es razonable, porque solo se está mirando. Aquí sería
    * cambiar la configuración de una agenda que nadie nombró.
    */
-  private async resolverAgenda(dto: EditarTipoServicioDto, pais: string) {
+  private async resolverAgenda(dto: EditarTipoServicioDto, pais: string, l: Listados) {
     // "90 min" es como se conoce al 1130; no existe como código ni como nombre
     const buscado = resolverAliasOpl(dto.opl);
 
-    const { opls } = await this.opl.buscarOpl(buscado, pais);
+    const { opls } = await l.de(`opl|${buscado}`, () => this.opl.buscarOpl(buscado, pais));
 
     if (!opls.length) {
       throw new NotFoundException(`No se encontró ningún operador logístico que coincida con "${dto.opl}"`);
@@ -479,7 +507,7 @@ export class EditarTipoServicioAgenteService {
 
     const operador = opls.find((o) => o.code === buscado.trim()) ?? opls[0];
 
-    const zonas = await this.opl.listarZonas(operador.id, pais);
+    const zonas = await l.de(`zonas|${operador.id}`, () => this.opl.listarZonas(operador.id, pais));
     const zona = this.unica(
       filtrarPorNombre(zonas, dto.zona, (z) => z.nombre),
       zonas,
@@ -488,7 +516,7 @@ export class EditarTipoServicioAgenteService {
       'la zona',
     );
 
-    const agendas = await this.opl.listarAgendas(zona.mainZone, pais);
+    const agendas = await l.de(`agendas|${zona.mainZone}`, () => this.opl.listarAgendas(zona.mainZone, pais));
     const agenda = this.unica(
       filtrarPorNombre(agendas, dto.agenda, (a) => a.nombre),
       agendas,

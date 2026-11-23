@@ -128,7 +128,8 @@ describe('Los ítems de un bloque van a la operación de su tipo', () => {
 
     await servicio.ejecutar(USUARIO, atajo([bloque('simulacion', 'consultar', [item(1, { operador: '1111' })])]));
 
-    expect(simular).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ operador: '1111' }));
+    // El tercero: lo que se resuelve (sus ids) para guardarlo
+    expect(simular).toHaveBeenCalledWith(USUARIO, expect.objectContaining({ operador: '1111' }), expect.anything());
   });
 });
 

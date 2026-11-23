@@ -274,3 +274,59 @@ describe('El cálculo de cada simulación, en una línea', () => {
     expect(r.resultados[0].calculo).toBe('Plazo transferencia +2 · 20026 → 20040');
   });
 });
+
+describe('Con lo resuelto guardado (atajos, 2026-11-23): solo se simula', () => {
+  it('la primera vez cuenta lo resuelto; con ello, no se busca almacén, SKU, operador ni distrito', async () => {
+    const a = armar();
+    let resuelta: unknown = null;
+    await a.servicio.simular(USUARIO, { ...pedir(), operador: '1111', servicio: 'SD' } as never, {
+      alResolver: (r) => (resuelta = r),
+    });
+    expect(resuelta).toMatchObject({
+      almacen: { id: 'w-1', code: '20026' },
+      destinos: [{ code: '1111', operador: { id: 'o1' }, regionId: 'r1', communeId: 'c1' }],
+    });
+
+    const b = armar();
+    const r = await b.servicio.simular(USUARIO, { ...pedir(), operador: '1111', servicio: 'SD' } as never, {
+      resuelta: resuelta as never,
+    });
+    const s = b.simulacion as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    for (const m of ['buscarAlmacenes', 'buscarOpl', 'buscarSku', 'listarRegiones', 'listarDistritosDeRegion'])
+      expect(s[m]).not.toHaveBeenCalled();
+    expect(b.simular).toHaveBeenCalledWith(
+      expect.objectContaining({ warehouseId: 'w-1', courierId: 'o1', regionId: 'r1', communeId: 'c1' }),
+    );
+    expect(r.parametros.almacen).toBe('20026 - Ripley Fulfillment');
+  });
+
+  it('un destino que no se resuelve: va con su error y no se cuenta lo resuelto (no se guardaría a medias)', async () => {
+    const a = armar();
+    (a.simulacion.buscarOpl as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    const alResolver = vi.fn();
+    const r = await a.servicio.simular(USUARIO, { ...pedir(), operador: '9999' } as never, { alResolver });
+    expect(alResolver).not.toHaveBeenCalled();
+    expect(r.resultados[0].error).toBeTruthy();
+  });
+
+  it('con lo guardado, si todo falla porque Ripley no reconoce algo, lanza (quien llama resuelve de nuevo)', async () => {
+    const b = armar();
+    b.simular.mockRejectedValueOnce(new Error('La API corporativa respondió 404: no existe'));
+    const resuelta = {
+      almacen: null,
+      producto: { sku: SKU_POR_DEFECTO },
+      destinos: [
+        {
+          code: '1111',
+          distrito: 'San Borja',
+          operador: { id: 'viejo', nombre: 'X' },
+          regionId: 'r1',
+          communeId: 'c1',
+        },
+      ],
+    };
+    await expect(b.servicio.simular(USUARIO, { ...pedir(), operador: '1111' } as never, { resuelta })).rejects.toThrow(
+      /ya no valen/,
+    );
+  });
+});

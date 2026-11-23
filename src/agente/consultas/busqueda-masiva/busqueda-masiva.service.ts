@@ -9,6 +9,7 @@ import type {
   BusquedaMasivaRespuesta,
   BusquedaMasivaVarias,
   ContextoAgente,
+  MasivoResuelto,
 } from '../../interfaces/agente.interface.js';
 import { partirLista, partirListaUnica } from '../../utils/lista.util.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
@@ -46,6 +47,15 @@ type MetodoConServicios = Awaited<ReturnType<OplMasivoService['listarMetodosEntr
  * todas —compactas, sin campos repetidos— y es el agente quien las ordena y
  * resume al presentarlas.
  */
+/** Lo ya resuelto de cada servicio pedido, y a quién avisar de lo que se resuelva ahora */
+export interface ResolucionMasiva {
+  resueltos?: Record<string, MasivoResuelto>;
+  alResolver?: (servicioPedido: string, r: MasivoResuelto) => void;
+}
+
+/** La clave de un servicio pedido ("se", "retiro express"): sin mayúsculas ni espacios de más */
+export const claveMasiva = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
 @Injectable()
 export class BusquedaMasivaAgenteService {
   private readonly logger = new Logger(BusquedaMasivaAgenteService.name);
@@ -55,16 +65,22 @@ export class BusquedaMasivaAgenteService {
     private readonly contexto: ContextoAgenteService,
   ) {}
 
+  /**
+   * `resueltos`: por servicio pedido, su método, su código y sus orígenes ya
+   * resueltos (los guardan los atajos): se consulta sin los dos catálogos.
+   * `alResolver`: se llama con lo que se resolvió ahora, para guardarlo.
+   */
   async buscar(
     usuario: UsuarioAutenticado,
     dto: BuscarMasivoDto,
+    opciones: ResolucionMasiva = {},
   ): Promise<BusquedaMasivaRespuesta | BusquedaMasivaVarias> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const servicios = partirListaUnica(dto.servicio);
 
     // Uno solo: la respuesta de siempre, y sus errores son errores de verdad
     if (servicios.length <= 1) {
-      return this.buscarUno(contexto, dto, servicios[0] ?? dto.servicio);
+      return this.buscarUno(contexto, dto, servicios[0] ?? dto.servicio, opciones);
     }
 
     if (servicios.length > POR_VEZ) {
@@ -77,7 +93,7 @@ export class BusquedaMasivaAgenteService {
      */
     const busquedas = await enLotes(servicios, SERVICIOS_A_LA_VEZ, async (servicio) => {
       try {
-        const r = await this.buscarUno(contexto, dto, servicio);
+        const r = await this.buscarUno(contexto, dto, servicio, opciones);
         return {
           metodo: r.metodo,
           servicio: r.servicio,
@@ -99,13 +115,19 @@ export class BusquedaMasivaAgenteService {
     contexto: ContextoAgente,
     dto: BuscarMasivoDto,
     servicioPedido: string,
+    opciones: ResolucionMasiva = {},
   ): Promise<BusquedaMasivaRespuesta> {
     const pais = contexto.pais;
 
     this.logger.log(`Agente buscando agendas del servicio ${servicioPedido} en ${pais}`);
 
-    const { metodo, servicio } = await this.resolverCodigos(dto.metodo, servicioPedido, pais);
-    const origenes = await this.resolverOrigenes(dto.origenes, pais);
+    const clave = claveMasiva(servicioPedido);
+    const guardado = opciones.resueltos?.[clave];
+    const { metodo, servicio, origenes } = guardado ?? {
+      ...(await this.resolverCodigos(dto.metodo, servicioPedido, pais)),
+      origenes: await this.resolverOrigenes(dto.origenes, pais),
+    };
+    if (!guardado) opciones.alResolver?.(clave, { metodo, servicio, origenes });
 
     const { total, agendas } = await this.masivo.consultar({
       deliveryCode: metodo,

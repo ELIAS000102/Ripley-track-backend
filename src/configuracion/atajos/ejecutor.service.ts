@@ -16,15 +16,8 @@ import {
 } from '../../agente/dto/consultas.dto.js';
 import { motivoDelFallo } from '../../agente/utils/error.util.js';
 import { enParalelo } from '../../nucleo/lotes.util.js';
-import {
-  AtajoIdsService,
-  firmaAtajo,
-  idInvalido,
-  TIPOS_CON_IDS,
-  vencido,
-  type GuardadoAtajo,
-  type IdsAtajo,
-} from './ids-atajos.service.js';
+import { ConsultasConIdsService, type SesionIds } from '../../agente/ids/consultas-con-ids.service.js';
+import { IdsRipleyService } from '../../agente/ids/ids-ripley.service.js';
 
 /**
  * Cuántos ítems de un bloque a la vez. Iban de uno en uno: cuarenta tiendas
@@ -86,8 +79,13 @@ export class EjecutorAtajoService {
     private readonly transferencia: TransferenciaAgenteService,
     private readonly simulacion: SimulacionAgenteService,
     // Opcional: sin él (o sin la tabla), los atajos se resuelven por nombre cada vez, como antes
-    @Optional() private readonly ids?: AtajoIdsService,
-  ) {}
+    @Optional() ids?: IdsRipleyService,
+  ) {
+    this.conIds = new ConsultasConIdsService(capacidad, tipoServicio, masivo, simulacion, ids);
+  }
+
+  /** Las consultas con los ids guardados: las mismas que usa Silvana */
+  private readonly conIds: ConsultasConIdsService;
 
   /** La receta de cada pareja tipo + acción */
   private receta(tipo: Tipo, accion: Accion): Receta {
@@ -199,12 +197,8 @@ export class EjecutorAtajoService {
     );
 
     // Los ids guardados de sus ítems, de una vez; los que se resuelvan ahora se guardan al final
-    const firmas = bloques.flatMap((b) =>
-      TIPOS_CON_IDS.has(b.tipo)
-        ? (b.items ?? []).map((i) => firmaAtajo(b.tipo, i)).filter((f): f is string => !!f)
-        : [],
-    );
-    const ids: IdsDeLaEjecucion = { guardados: (await this.ids?.cargar(firmas)) ?? new Map(), nuevos: [] };
+    const firmas = bloques.flatMap((b) => (b.items ?? []).map((i) => this.conIds.firma(b.tipo, i)));
+    const ids = await this.conIds.abrir(firmas);
 
     const salida: BloqueEjecutado[] = [];
 
@@ -212,8 +206,8 @@ export class EjecutorAtajoService {
       salida.push(await this.ejecutarBloque(usuario, bloque, soloPrimeras, ids));
     }
 
-    await this.ids?.guardar(ids.nuevos);
-    if (ids.nuevos.length) this.logger.log(`"${atajo.nombre}": ${ids.nuevos.length} ítem(s) con ids nuevos guardados`);
+    const nuevos = await this.conIds.cerrar(ids);
+    if (nuevos) this.logger.log(`"${atajo.nombre}": ${nuevos} ítem(s) con ids nuevos guardados`);
 
     const todas = salida.flatMap((b) => b.items);
     const fallidas = todas.filter((t) => t.error).length;
@@ -234,7 +228,7 @@ export class EjecutorAtajoService {
     usuario: UsuarioAutenticado,
     bloque: Bloque,
     soloPrimeras?: number,
-    ids: IdsDeLaEjecucion = { guardados: new Map(), nuevos: [] },
+    ids: SesionIds = { guardados: new Map(), nuevos: [] },
   ): Promise<BloqueEjecutado> {
     const base = {
       orden: bloque.orden,
@@ -263,9 +257,8 @@ export class EjecutorAtajoService {
     const hechas: ItemEjecutada[] = await enParalelo(items, ITEMS_A_LA_VEZ, async (item) => {
       try {
         const dto = await this.comoDto(item, receta, bloque.tipo);
-        const firma = TIPOS_CON_IDS.has(bloque.tipo) ? firmaAtajo(bloque.tipo, dto as Record<string, unknown>) : null;
-        const resultado = firma
-          ? await this.conIds(usuario, bloque.tipo, dto, firma, ids)
+        const resultado = this.conIds.firma(bloque.tipo, dto)
+          ? await this.conIds.consultar(usuario, bloque.tipo, dto, ids)
           : await receta.correr(usuario, dto);
         return { orden: item.orden, nota: item.nota, resultado };
       } catch (e) {
@@ -275,68 +268,4 @@ export class EjecutorAtajoService {
 
     return { ...base, items: hechas };
   }
-
-  /**
-   * Un ítem de capacidad o de servicios de OPL con sus ids: si los hay (y no
-   * han caducado), se lee directamente con ellos; si no, o si Ripley ya no los
-   * reconoce, se resuelve por nombre como siempre y se apuntan para guardarlos.
-   * Lo que devuelve es lo mismo en los dos caminos (sin los ids).
-   */
-  private async conIds(
-    usuario: UsuarioAutenticado,
-    tipo: Tipo,
-    dto: any,
-    firma: string,
-    ids: IdsDeLaEjecucion,
-  ): Promise<unknown> {
-    const g = ids.guardados.get(firma);
-    if (g && !vencido(g) && g.ids.tipo === (tipo === 'opl' ? 'opl' : tipo)) {
-      try {
-        return g.ids.tipo === 'opl'
-          ? await this.tipoServicio.consultarPorIds(usuario, dto, g.ids)
-          : await this.capacidad.consultarPorIds(dto, g.ids.oficina, g.ids.agendas, g.ids.avisos);
-      } catch (e) {
-        if (!idInvalido(e)) throw e;
-        this.logger.warn(
-          `Ripley no reconoce los ids guardados de ${firma} (${motivoDelFallo(e, 'sin motivo')}): se resuelve por nombre`,
-        );
-      }
-    }
-
-    if (tipo === 'opl') {
-      const r = await this.tipoServicio.consultar(usuario, dto, { conIds: true });
-      const o = r.opls[0];
-      if (r.opls.length === 1 && o?.ids && !o.error)
-        ids.nuevos.push({ firma, ids: { tipo: 'opl', opl: o.opl, zona: o.zona, agenda: o.agenda, ids: o.ids } });
-      return { ...r, opls: r.opls.map(({ ids: _ids, ...x }) => x) };
-    }
-
-    const r = await this.capacidad.consultar(dto, { conIds: true });
-    const o = r.oficinas[0];
-    if (r.oficinas.length === 1 && o && !o.error && o.agendas.length && o.agendas.every((a) => a.ids?.agendaId))
-      ids.nuevos.push({
-        firma,
-        ids: {
-          tipo: tipo as 'picking' | 'despacho' | 'recepcion',
-          oficina: o.oficina,
-          agendas: o.agendas.map((a) => ({
-            id: a.ids!.agendaId,
-            ...(a.ids?.capacidadId ? { capacidadId: a.ids.capacidadId } : {}),
-            nombre: a.agenda,
-            servicio: a.servicio,
-            ...(a.zona ? { zona: a.zona } : {}),
-            ...(a.ids?.zonaId ? { zonaId: a.ids.zonaId } : {}),
-            unidad: a.unidad ?? null,
-          })),
-          avisos: r.sinDatos,
-        },
-      });
-    return { ...r, oficinas: r.oficinas.map((x) => ({ ...x, agendas: x.agendas.map(({ ids: _ids, ...a }) => a) })) };
-  }
-}
-
-/** Los ids de una ejecución: los que había guardados y los que se resolvieron ahora */
-interface IdsDeLaEjecucion {
-  guardados: Map<string, GuardadoAtajo>;
-  nuevos: Array<{ firma: string; ids: IdsAtajo }>;
 }

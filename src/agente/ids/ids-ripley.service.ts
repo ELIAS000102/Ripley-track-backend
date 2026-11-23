@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { AgendaConIds, IdsOpl } from '../../agente/interfaces/agente.interface.js';
+import type { AgendaConIds, IdsOpl, MasivoResuelto, SimulacionResuelta } from '../interfaces/agente.interface.js';
 import { faltaTabla } from '../../nucleo/supabase/errores.js';
 import { enTrozos } from '../../nucleo/supabase/leer-todo.js';
 import { SupabaseService } from '../../nucleo/supabase/supabase.service.js';
@@ -15,10 +15,17 @@ import { RipleyApiError } from '../../ripley/ripley.errors.js';
  * El atajo sigue escrito con códigos y nombres (la oficina 1401, la zona
  * "Zona 1401 - Suc. Aldea 6", la agenda): es lo que se edita y lo que se lee.
  * La primera vez que se ejecuta un ítem se resuelve por nombre, como siempre, y
- * los ids que salen (las agendas en capacidad; el courier, la zona y la agenda
- * en los servicios de un OPL) se guardan en `atajo_ids`. Las siguientes, se lee
- * directamente con ellos: en capacidad, sin buscar la oficina, sus zonas ni sus
- * agendas; en un OPL, una llamada en vez de cuatro.
+ * los ids que salen se guardan en `atajo_ids`, y las siguientes se lee
+ * directamente con ellos (2026-11-23, para todos los tipos salvo transferencia):
+ * - capacidad (picking, despacho, recepción): las agendas de cada oficina; se
+ *   leen sus días sin buscar la oficina, sus zonas ni sus agendas;
+ * - servicios de OPL: el courier, la zona y la agenda de cada operador; una
+ *   llamada en vez de cuatro;
+ * - búsqueda masiva: el método, el servicio y los orígenes ya resueltos; sin los
+ *   dos catálogos;
+ * - simulación: el almacén, el producto y el operador, la región y el distrito
+ *   de cada destino; solo la llamada al simulador.
+ * Un ítem con varias oficinas, operadores o servicios guarda los de cada uno.
  *
  * Como en el G12, cada ítem se reconoce por su **firma**: su tipo, su país y los
  * campos con los que se buscan sus ids. Cambiar uno de esos campos cambia la
@@ -27,26 +34,53 @@ import { RipleyApiError } from '../../ripley/ripley.errors.js';
  * - los guardados hace más de `VIGENCIA_IDS_DIAS` días, por si la oficina tiene
  *   agendas nuevas que encajan con el ítem (con los ids guardados no se verían).
  *
- * Sin la tabla (SQL sin correr), los atajos funcionan como antes: se resuelven
- * en cada ejecución y no se guarda nada.
+ * Lo mismo para las consultas que Silvana hace directamente
+ * (`ConsultasConIdsService`) y, con los listados de Ripley, para sus cambios
+ * (`listados.ts`): todo en la misma tabla.
+ *
+ * Sin la tabla (SQL sin correr), todo funciona como antes: se resuelve en cada
+ * ejecución y no se guarda nada.
  */
 
 /** Pasados estos días, un ítem se vuelve a resolver por nombre (y sus ids se renuevan) */
 export const VIGENCIA_IDS_DIAS = 7;
 
 /** Los tipos de ítem cuyos ids se guardan */
-export const TIPOS_CON_IDS = new Set(['picking', 'despacho', 'recepcion', 'opl']);
+export const TIPOS_CON_IDS = new Set(['picking', 'despacho', 'recepcion', 'opl', 'masivo', 'simulacion']);
+
+/** Una oficina de capacidad ya resuelta: tal como sale en la respuesta ("1130 (90 min)") y sus agendas */
+export interface OficinaConIds {
+  oficina: string;
+  agendas: AgendaConIds[];
+}
+
+/** Un operador ya resuelto, con lo que se enseña de él y sus ids */
+export interface OplGuardado {
+  opl: string;
+  zona: string;
+  agenda: string;
+  ids: IdsOpl;
+}
 
 export type IdsAtajo =
   | {
       tipo: 'picking' | 'despacho' | 'recepcion';
-      /** La oficina tal como sale en la respuesta ("1130 (90 min)") */
-      oficina: string;
-      agendas: AgendaConIds[];
-      /** Lo que se avisó al resolverla, que se repite al leer con los ids */
+      oficinas: OficinaConIds[];
+      /** Lo que se avisó al resolverlas, que se repite al leer con los ids */
       avisos: string[];
     }
-  | { tipo: 'opl'; opl: string; zona: string; agenda: string; ids: IdsOpl };
+  | { tipo: 'opl'; opls: OplGuardado[] }
+  | { tipo: 'masivo'; resueltos: Record<string, MasivoResuelto> }
+  | { tipo: 'simulacion'; resuelta: SimulacionResuelta };
+
+/**
+ * Un listado de Ripley guardado para los cambios (ver `listados.ts`): firma
+ * "lista|tipo|PAIS|clave". Las consultas no lo leen (sus firmas son otras).
+ */
+export interface ListadoGuardado {
+  tipo: 'picking' | 'despacho' | 'opl';
+  lista: unknown;
+}
 
 export interface GuardadoAtajo {
   firma: string;
@@ -60,22 +94,34 @@ const CAMPOS_FIRMA: Record<string, string[]> = {
   recepcion: ['codigo', 'servicio', 'agenda'],
   despacho: ['codigo', 'zona', 'agenda'],
   opl: ['opl', 'zona', 'agenda'],
+  masivo: ['servicio', 'metodo', 'origenes'],
+  // El servicio, el método, la fecha, la hora y la cantidad no son ids: se toman del ítem cada vez
+  simulacion: ['operador', 'region', 'provincia', 'distrito', 'almacen', 'sku'],
 };
 
 /**
  * "despacho|PE|1401|zona 1401 - suc. aldea 6|" — sin mayúsculas, tildes ni
- * espacios de más. Null si el tipo no guarda ids o el ítem pide VARIAS oficinas
- * (sus ids no son de una sola: se resuelve por nombre como siempre).
+ * espacios de más. Null si el tipo no guarda ids (transferencia) o el ítem no
+ * dice a quién (sin código, operador o servicio).
  */
 export function firmaAtajo(tipo: string, campos: Record<string, unknown>): string | null {
   const nombres = CAMPOS_FIRMA[tipo];
   if (!nombres) return null;
-  const quien = String(campos[nombres[0]] ?? '').trim();
-  if (!quien || quien.split(/[\s,;]+/).filter(Boolean).length > 1) return null;
+  if (!String(campos[nombres[0]] ?? '').trim()) return null;
   const pais = String(campos.pais ?? 'PE')
     .trim()
     .toUpperCase();
   return [tipo, pais, ...nombres.map((c) => plano(campos[c]))].join('|');
+}
+
+/** Un guardado con la forma de antes (o de otro tipo): no se usa, se vuelve a resolver */
+export function deLaForma(g: GuardadoAtajo | undefined, tipo: string): boolean {
+  if (!g || g.ids.tipo !== tipo) return false;
+  const i = g.ids as Record<string, unknown>;
+  if (tipo === 'opl') return Array.isArray(i.opls);
+  if (tipo === 'masivo') return Boolean(i.resueltos && typeof i.resueltos === 'object');
+  if (tipo === 'simulacion') return Boolean(i.resuelta && typeof i.resuelta === 'object');
+  return Array.isArray(i.oficinas);
 }
 
 /** Un guardado que ya toca renovar */
@@ -95,8 +141,8 @@ export function idInvalido(e: unknown): boolean {
 }
 
 @Injectable()
-export class AtajoIdsService {
-  private readonly logger = new Logger(AtajoIdsService.name);
+export class IdsRipleyService {
+  private readonly logger = new Logger(IdsRipleyService.name);
   /** Sin la tabla, no se vuelve a intentar en cada ejecución (ni a avisar) */
   private sinTabla = false;
 
@@ -122,7 +168,7 @@ export class AtajoIdsService {
   }
 
   /** Guarda (o reemplaza) los ids recién resueltos */
-  async guardar(filas: Array<{ firma: string; ids: IdsAtajo }>): Promise<void> {
+  async guardar(filas: Array<{ firma: string; ids: IdsAtajo | ListadoGuardado }>): Promise<void> {
     if (this.sinTabla || !filas.length) return;
     const ahora = new Date().toISOString();
     const { error } = await this.supabase.admin.from('atajo_ids').upsert(
@@ -136,10 +182,10 @@ export class AtajoIdsService {
     if (faltaTabla(error)) {
       this.sinTabla = true;
       this.logger.warn(
-        'Falta la tabla atajo_ids (docs/sql/supabase/04-atajos.sql): los atajos se resuelven por nombre cada vez',
+        'Falta la tabla atajo_ids (docs/sql/supabase/04-atajos.sql): las consultas se resuelven por nombre cada vez',
       );
       return;
     }
-    this.logger.warn(`No se pudieron ${que} los ids de los atajos: ${error.message ?? 'sin motivo'}`);
+    this.logger.warn(`No se pudieron ${que} los ids guardados: ${error.message ?? 'sin motivo'}`);
   }
 }

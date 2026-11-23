@@ -111,6 +111,8 @@ export interface OficinaCapacidad {
   agendas: AgendaCapacidad[];
   /** Por qué esta oficina no se pudo consultar, cuando las demás sí */
   error?: string;
+  /** Solo con `conIds`: a alguna agenda no se le pudieron leer los días (sus ids no se guardan) */
+  incompleta?: boolean;
 }
 
 export interface CapacidadRespuesta {
@@ -287,6 +289,27 @@ export interface OplConServicios {
    * ("tiene 3 zonas; se consultó …"), que se repiten al leer con los ids.
    */
   ids?: IdsOpl;
+}
+
+/** Un servicio de la búsqueda masiva ya resuelto: su método, su código y los orígenes (sin los dos catálogos) */
+export interface MasivoResuelto {
+  metodo: string;
+  servicio: string;
+  origenes: string[];
+}
+
+/** Una simulación ya resuelta: el almacén, el producto y cada destino con sus ids (solo falta simular) */
+export interface SimulacionResuelta {
+  almacen: { id: string; code: string; nombre: string } | null;
+  almacenPorDefecto?: boolean;
+  producto: { sku: number | string; nombre?: string | null };
+  destinos: Array<{
+    code: string;
+    distrito: string;
+    operador: { id: string; nombre: string };
+    regionId: string;
+    communeId: string;
+  }>;
 }
 
 /** Lo que hace falta para leer los servicios de un operador sin buscarlo: su courier, zona y agenda */

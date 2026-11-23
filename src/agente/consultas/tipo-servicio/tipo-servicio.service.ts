@@ -68,27 +68,20 @@ export class TipoServicioAgenteService {
   async consultarPorIds(
     usuario: UsuarioAutenticado,
     dto: ConsultarTipoServicioDto,
-    guardado: { opl: string; zona: string; agenda: string; ids: IdsOpl },
+    guardados: Array<{ opl: string; zona: string; agenda: string; ids: IdsOpl }>,
   ): Promise<TipoServicioRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
-    const { servicios } = await this.opl.listarServicios({
-      courier: guardado.ids.courier,
-      mainZone: guardado.ids.mainZone,
-      mainSchedule: guardado.ids.mainSchedule,
-      pais: contexto.pais,
-    });
-    return {
-      contexto,
-      opls: [
-        {
-          opl: guardado.opl,
-          zona: guardado.zona,
-          agenda: guardado.agenda,
-          servicios: servicios.map((s) => this.compactar(s)),
-        },
-      ],
-      sinDatos: [...guardado.ids.avisos],
-    };
+    const opls: OplConServicios[] = [];
+    for (const g of guardados) {
+      const { servicios } = await this.opl.listarServicios({
+        courier: g.ids.courier,
+        mainZone: g.ids.mainZone,
+        mainSchedule: g.ids.mainSchedule,
+        pais: contexto.pais,
+      });
+      opls.push({ opl: g.opl, zona: g.zona, agenda: g.agenda, servicios: servicios.map((s) => this.compactar(s)) });
+    }
+    return { contexto, opls, sinDatos: guardados.flatMap((g) => g.ids.avisos) };
   }
 
   private async consultarTodo(

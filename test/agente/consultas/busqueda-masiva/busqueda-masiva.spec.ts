@@ -81,6 +81,7 @@ function armar() {
   return {
     servicio: new BusquedaMasivaAgenteService(masivo, contexto),
     consultar,
+    masivo,
   };
 }
 
@@ -217,5 +218,26 @@ describe('Búsqueda masiva: varios servicios sin cruce', () => {
     const r = (await servicio.buscar(USUARIO, { servicio: 'SE, SD' } as never)) as BusquedaMasivaVarias;
 
     expect(Object.keys(r).sort()).toEqual(['busquedas', 'contexto']);
+  });
+});
+
+describe('Con lo resuelto guardado (atajos, 2026-11-23): sin los dos catálogos', () => {
+  it('la primera vez cuenta el método, el servicio y los orígenes; con ellos, no se leen los catálogos', async () => {
+    const a = armar();
+    const resueltos: Record<string, unknown> = {};
+    await a.servicio.buscar(USUARIO, { servicio: 'SE', pais: 'PE' } as never, {
+      alResolver: (k, v) => (resueltos[k] = v),
+    });
+    expect(Object.keys(resueltos)).toEqual(['se']);
+
+    const b = armar();
+    await b.servicio.buscar(USUARIO, { servicio: 'SE', pais: 'PE' } as never, { resueltos: resueltos as never });
+    const m = b.masivo as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    expect(m.listarMetodosEntrega).not.toHaveBeenCalled();
+    expect(m.listarOrigenes).not.toHaveBeenCalled();
+    const se = resueltos.se as { metodo: string; servicio: string; origenes: string[] };
+    expect(b.consultar).toHaveBeenCalledWith(
+      expect.objectContaining({ deliveryCode: se.metodo, serviceCode: se.servicio, origenes: se.origenes }),
+    );
   });
 });

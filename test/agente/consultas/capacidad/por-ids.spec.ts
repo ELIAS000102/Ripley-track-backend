@@ -32,8 +32,12 @@ describe('Capacidad por ids', () => {
     const { s, picking } = armar();
     const r = await s.consultarPorIds(
       { tipo: 'picking', codigo: '20026', pais: 'PE', desde: '2026-11-23', dias: 12 } as never,
-      '20026',
-      [{ id: 'sch-1', nombre: 'Agenda Picking ST - 20026', servicio: 'ST', unidad: 'unidades' }],
+      [
+        {
+          oficina: '20026',
+          agendas: [{ id: 'sch-1', nombre: 'Agenda Picking ST - 20026', servicio: 'ST', unidad: 'unidades' }],
+        },
+      ],
     );
     expect(picking.obtener).toHaveBeenCalledWith('sch-1', '23-11-2026', 'PE');
     expect(picking.listarAgendasPorOficina).not.toHaveBeenCalled();
@@ -54,8 +58,7 @@ describe('Capacidad por ids', () => {
     const { s, despacho } = armar();
     const r = await s.consultarPorIds(
       { tipo: 'despacho', codigo: '1401', pais: 'PE', desde: '2026-11-23' } as never,
-      '1401',
-      [{ id: 'ms-9', nombre: 'Agenda 1401', servicio: null, zona: 'Zona 1401' }],
+      [{ oficina: '1401', agendas: [{ id: 'ms-9', nombre: 'Agenda 1401', servicio: null, zona: 'Zona 1401' }] }],
       ['1401: aviso de cuando se resolvió'],
     );
     expect(despacho.buscarCapacidades).toHaveBeenCalledWith('ms-9', '23-11-2026', 'PE');
@@ -64,14 +67,34 @@ describe('Capacidad por ids', () => {
     expect(r.sinDatos).toEqual(['1401: aviso de cuando se resolvió']);
   });
 
+  it('varias oficinas: cada una con sus agendas, en el orden guardado', async () => {
+    const { s, despacho } = armar();
+    const r = await s.consultarPorIds(
+      { tipo: 'despacho', codigo: '1401,1402', pais: 'PE', desde: '2026-11-23' } as never,
+      [
+        { oficina: '1401', agendas: [{ id: 'ms-1', nombre: 'A1', servicio: null }] },
+        { oficina: '1402', agendas: [{ id: 'ms-2', nombre: 'A2', servicio: null }] },
+      ],
+    );
+    expect(despacho.buscarCapacidades).toHaveBeenCalledTimes(2);
+    expect(r.oficinas.map((o) => [o.oficina, o.agendas[0].agenda])).toEqual([
+      ['1401', 'A1'],
+      ['1402', 'A2'],
+    ]);
+  });
+
   it('recepción: con el id de su capacidad; sin él, sin días', async () => {
     const { s, recepcion } = armar();
     const r = await s.consultarPorIds(
       { tipo: 'recepcion', codigo: '20021', pais: 'PE', desde: '2026-11-23' } as never,
-      '20021',
       [
-        { id: 'sch-r', capacidadId: 'cap-1', nombre: 'Agenda Recepción ST', servicio: 'ST' },
-        { id: 'sch-r2', capacidadId: null, nombre: 'Agenda sin capacidad', servicio: 'SE' },
+        {
+          oficina: '20021',
+          agendas: [
+            { id: 'sch-r', capacidadId: 'cap-1', nombre: 'Agenda Recepción ST', servicio: 'ST' },
+            { id: 'sch-r2', capacidadId: null, nombre: 'Agenda sin capacidad', servicio: 'SE' },
+          ],
+        },
       ],
     );
     expect(recepcion.diasPorCapacidad).toHaveBeenCalledTimes(1);
@@ -84,8 +107,8 @@ describe('Capacidad por ids', () => {
     const { s, picking } = armar();
     picking.obtener.mockRejectedValueOnce(new Error('La API corporativa respondió 404'));
     await expect(
-      s.consultarPorIds({ tipo: 'picking', codigo: '20026', pais: 'PE' } as never, '20026', [
-        { id: 'viejo', nombre: 'A', servicio: 'ST' },
+      s.consultarPorIds({ tipo: 'picking', codigo: '20026', pais: 'PE' } as never, [
+        { oficina: '20026', agendas: [{ id: 'viejo', nombre: 'A', servicio: 'ST' }] },
       ]),
     ).rejects.toThrow(/404/);
   });

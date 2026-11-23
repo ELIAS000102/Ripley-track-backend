@@ -60,6 +60,7 @@ import { resumenDelPaso, type FilaAtajo } from './respuesta/armar.js';
 import { vistasDe } from './presentar/prompt.js';
 import { filasDelCambio } from './respuesta/cambio.js';
 import { faltaColumna } from '../nucleo/supabase/errores.js';
+import { ConsultasConIdsService } from '../agente/ids/consultas-con-ids.service.js';
 
 /**
  * Etapa 6 · Ejecutar: un paso del plan, con los services del backend en el
@@ -202,6 +203,9 @@ export class EjecucionV3Service {
     private readonly editarMasivo: EditarMasivoAgenteService,
     private readonly editarTransferencia: EditarTransferenciaAgenteService,
     @Optional() private readonly registro?: AuditoriaService,
+    // Las consultas con los ids de Ripley guardados (los mismos de los atajos);
+    // sin él, todo se resuelve por nombre como antes
+    @Optional() private readonly conIds?: ConsultasConIdsService,
   ) {}
 
   async ejecutar(
@@ -662,17 +666,23 @@ export class EjecucionV3Service {
     }
     switch (id) {
       case 'consultar_capacidad':
-        return this.capacidad.consultar(dto as never);
+        return this.conIds
+          ? this.conIds.consultar(usuario, (dto as { tipo: string }).tipo, dto)
+          : this.capacidad.consultar(dto as never);
       case 'consultar_reporte_cds':
         return this.reporte.consultar(usuario, dto as never);
       case 'consultar_transferencia':
         return this.transferencia.consultar(usuario, dto as never);
       case 'consultar_servicios_opl':
-        return this.tipoServicio.consultar(usuario, dto as never);
+        return this.conIds
+          ? this.conIds.consultar(usuario, 'opl', dto)
+          : this.tipoServicio.consultar(usuario, dto as never);
       case 'busqueda_masiva':
-        return this.masivo.buscar(usuario, dto as never);
+        return this.conIds ? this.conIds.consultar(usuario, 'masivo', dto) : this.masivo.buscar(usuario, dto as never);
       case 'simular_entrega':
-        return this.simulacion.simular(usuario, dto as never);
+        return this.conIds
+          ? this.conIds.consultar(usuario, 'simulacion', dto)
+          : this.simulacion.simular(usuario, dto as never);
       default:
         throw new Error(`La v3 no sabe usar «${id}»`);
     }

@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
 import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
@@ -15,6 +22,8 @@ import {
 } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { ReasignarCapacidadDto } from '../../dto/edicion.dto.js';
+import { IdsRipleyService } from '../../ids/ids-ripley.service.js';
+import { conListados } from '../../ids/listados.js';
 import type { CapacidadReasignada, JornadaReasignada } from '../../interfaces/edicion.interface.js';
 
 const NO_FUNCIONAL = /no\s*funcional/i;
@@ -42,6 +51,8 @@ export class ReasignarCapacidadAgenteService {
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoPeticion,
     private readonly configuracionCds: ConfiguracionCdsService,
+    // Las agendas del CD guardadas con sus ids; sin él, se listan cada vez
+    @Optional() private readonly ids?: IdsRipleyService,
   ) {}
 
   async reasignar(usuario: UsuarioAutenticado, dto: ReasignarCapacidadDto): Promise<CapacidadReasignada> {
@@ -65,15 +76,27 @@ export class ReasignarCapacidadAgenteService {
 
     this.exigirAutorizacion(cd, origen, destino, dto.autorizado);
 
-    // Las dos agendas, resueltas antes de escribir nada
-    const agendas = await this.picking.listarAgendasPorOficina(cd.code, pais);
+    // Las dos agendas, resueltas y leídas antes de escribir nada. Con las
+    // agendas del CD guardadas (sus ids); si con ellas algo falla, con las de Ripley
     const hoy = hoyEnPais(pais);
-
-    const agendaOrigen = this.agendaDe(agendas, origen, cd, hoy);
-    const agendaDestino = this.agendaDe(agendas, destino, cd, hoy);
-
-    const diaOrigen = await this.dia(agendaOrigen, fechaOrigen, pais, origen);
-    const diaDestino = await this.dia(agendaDestino, fechaDestino, pais, destino);
+    const { agendaOrigen, agendaDestino, diaOrigen, diaDestino } = await conListados(
+      this.ids,
+      'picking',
+      pais,
+      true,
+      async (l) => {
+        const agendas = await l.de(`agendas|${cd.code}`, () => this.picking.listarAgendasPorOficina(cd.code, pais));
+        const agendaOrigen = this.agendaDe(agendas, origen, cd, hoy);
+        const agendaDestino = this.agendaDe(agendas, destino, cd, hoy);
+        return {
+          agendaOrigen,
+          agendaDestino,
+          diaOrigen: await this.dia(agendaOrigen, fechaOrigen, pais, origen),
+          diaDestino: await this.dia(agendaDestino, fechaDestino, pais, destino),
+        };
+      },
+      this.logger,
+    );
 
     this.exigirUnidadesLibres(diaOrigen, dto.unidades, origen, fechaOrigen);
 

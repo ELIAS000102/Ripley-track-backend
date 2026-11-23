@@ -11,7 +11,12 @@ import {
   tipoParaRipley,
   type OplPorDefecto,
 } from '../../constantes/simulacion.constants.js';
-import type { ResultadoSimulacion, SimulacionRespuesta } from '../../interfaces/agente.interface.js';
+import type {
+  ResultadoSimulacion,
+  SimulacionResuelta,
+  SimulacionRespuesta,
+} from '../../interfaces/agente.interface.js';
+import { RipleyApiError } from '../../../ripley/ripley.errors.js';
 import { partirLista } from '../../utils/lista.util.js';
 import { resumirCalculo, type OpcionCalculada } from '../../utils/calculo-simulacion.util.js';
 import { enLotes } from '../../../nucleo/lotes.util.js';
@@ -80,14 +85,86 @@ export class SimulacionAgenteService {
     private readonly almacenes: AlmacenesAgenteService,
   ) {}
 
-  async simular(usuario: UsuarioAutenticado, dto: SimularAgenteDto): Promise<SimulacionRespuesta> {
+  /**
+   * `resuelta`: el almacén, el producto y cada destino con sus ids (los guardan
+   * los atajos): solo se llama al simulador. Si con ellos falla todo por un id
+   * que Ripley ya no reconoce, LANZA, y quien llama vuelve a resolver por nombre.
+   * `alResolver`: se llama con lo resuelto ahora (si se resolvieron todos los
+   * destinos), para guardarlo.
+   */
+  async simular(
+    usuario: UsuarioAutenticado,
+    dto: SimularAgenteDto,
+    opciones: { resuelta?: SimulacionResuelta; alResolver?: (r: SimulacionResuelta) => void } = {},
+  ): Promise<SimulacionRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
 
     const servicio = dto.servicio?.trim().toUpperCase() || null;
     const sku = dto.sku?.trim() || SKU_POR_DEFECTO;
     const cantidad = dto.cantidad ?? 1;
+    const metodo = this.metodo(dto, servicio);
 
+    const { resuelta, fallidos } = opciones.resuelta
+      ? { resuelta: opciones.resuelta, fallidos: [] as ResultadoSimulacion[] }
+      : await this.resolver(dto, pais, servicio, sku);
+    if (!opciones.resuelta && !fallidos.length) opciones.alResolver?.(resuelta);
+
+    this.logger.log(
+      `Agente simulando ${metodo}/${servicio ?? 'todos'} en ${resuelta.destinos.length + fallidos.length} destino(s) — ${pais}${opciones.resuelta ? ' (con ids guardados)' : ''}`,
+    );
+
+    const conIds = await enLotes(resuelta.destinos, this.CONCURRENCIA, (d) =>
+      this.simularResuelto(d, {
+        almacen: resuelta.almacen,
+        producto: resuelta.producto,
+        metodo,
+        servicio,
+        cantidad,
+        pais,
+        fecha: dto.fecha?.trim(),
+        hora: dto.hora?.trim(),
+      }),
+    );
+    // Con ids guardados, si TODOS fallaron porque Ripley no reconoce algo: a resolver de nuevo
+    if (opciones.resuelta && conIds.length && conIds.every((x) => x.idInvalido)) {
+      throw new RipleyApiError(
+        `Los ids guardados de la simulación ya no valen: ${conIds[0].filas[0]?.error ?? 'sin motivo'}`,
+      );
+    }
+
+    // Cada destino devuelve una fila por tipo de servicio: se aplanan aquí, que
+    // es donde se sabe que eso es lo que significa
+    const resultados = [...fallidos, ...conIds.flatMap((x) => x.filas)];
+    const conEntrega = resultados.filter((r) => r.entrega).length;
+    const { almacen, producto } = resuelta;
+
+    return {
+      contexto,
+      parametros: {
+        servicio,
+        metodo,
+        almacen: almacen ? `${almacen.code} - ${almacen.nombre}` : null,
+        ...(resuelta.almacenPorDefecto ? { almacenPorDefecto: true } : {}),
+        sku: producto.nombre ? `${producto.sku} - ${producto.nombre}` : String(producto.sku),
+        cantidad,
+      },
+      resultados,
+      aviso: conEntrega ? undefined : this.porQueNoHayFechas(resultados),
+    };
+  }
+
+  /**
+   * De nombres a ids: el almacén, el producto y, por destino, el operador y su
+   * región y distrito. Un destino que no se resuelve va como fila con su error
+   * (y entonces lo resuelto no se guarda: le faltaría ese destino).
+   */
+  private async resolver(
+    dto: SimularAgenteDto,
+    pais: string,
+    servicio: string | null,
+    sku: string,
+  ): Promise<{ resuelta: SimulacionResuelta; fallidos: ResultadoSimulacion[] }> {
     /*
      * Los destinos salen de lo que llegue, siempre.
      *
@@ -102,13 +179,10 @@ export class SimulacionAgenteService {
      */
     const destinos = this.destinosPedidos(dto);
 
-    const metodo = this.metodo(dto, servicio);
     // La fuente de stock: la que se dijo ("CD Villa" es el 20026) o la de por defecto del país.
     // Sin ninguna (Chile), Ripley la resuelve, como antes
     const fuente = await this.almacenes.fuente(dto.almacen, pais, 'la simulación').catch(() => null);
     const codigoAlmacen = fuente?.codigo;
-
-    this.logger.log(`Agente simulando ${metodo}/${servicio ?? 'todos'} en ${destinos.length} destino(s) — ${pais}`);
 
     const [almacen, producto] = await Promise.all([
       codigoAlmacen
@@ -120,37 +194,44 @@ export class SimulacionAgenteService {
     // Los destinos suelen compartir región y árbol de distritos
     const cache: Caches = { regiones: new Map(), distritos: new Map() };
 
-    const porDestino = await enLotes(destinos, this.CONCURRENCIA, (d) =>
-      this.simularUno(d, {
-        almacen,
-        producto,
-        metodo,
-        servicio,
-        cantidad,
-        pais,
-        cache,
-        fecha: dto.fecha?.trim(),
-        hora: dto.hora?.trim(),
-      }),
-    );
-
-    // Cada destino devuelve una fila por tipo de servicio: se aplanan aquí, que
-    // es donde se sabe que eso es lo que significa
-    const resultados = porDestino.flat();
-    const conEntrega = resultados.filter((r) => r.entrega).length;
+    const porDestino = await enLotes(destinos, this.CONCURRENCIA, async (destino) => {
+      try {
+        const operador = await this.unico(
+          this.simulacion.buscarOpl(destino.code, pais),
+          destino.code,
+          'operador logístico',
+        );
+        const { regionId, communeId } = await this.geografia(destino, pais, cache);
+        return {
+          ok: {
+            code: destino.code,
+            distrito: destino.distrito,
+            operador: { id: operador.id, nombre: operador.nombre },
+            regionId,
+            communeId,
+          },
+        };
+      } catch (e) {
+        return {
+          fila: {
+            opl: `${destino.code} - ${destino.nombre}`,
+            destino: destino.distrito,
+            servicio: servicio ?? '-',
+            entrega: null,
+            error: (e as Error).message,
+          } as ResultadoSimulacion,
+        };
+      }
+    });
 
     return {
-      contexto,
-      parametros: {
-        servicio,
-        metodo,
-        almacen: almacen ? `${almacen.code} - ${almacen.nombre}` : null,
+      resuelta: {
+        almacen: almacen ? { id: almacen.id, code: almacen.code, nombre: almacen.nombre } : null,
         ...(fuente?.porDefecto ? { almacenPorDefecto: true } : {}),
-        sku: producto.nombre ? `${producto.sku} - ${producto.nombre}` : String(producto.sku),
-        cantidad,
+        producto: { sku: producto.sku, nombre: (producto as { nombre?: string | null }).nombre ?? null },
+        destinos: porDestino.flatMap((d) => (d.ok ? [d.ok] : [])),
       },
-      resultados,
-      aviso: conEntrega ? undefined : this.porQueNoHayFechas(resultados),
+      fallidos: porDestino.flatMap((d) => (d.fila ? [d.fila] : [])),
     };
   }
 
@@ -236,8 +317,8 @@ export class SimulacionAgenteService {
 
   // ---------- Una simulación ----------
 
-  private async simularUno(
-    destino: OplPorDefecto,
+  private async simularResuelto(
+    destino: SimulacionResuelta['destinos'][number],
     ctx: {
       almacen: { id: string; code: string; nombre: string } | null;
       producto: { sku: number | string };
@@ -245,23 +326,15 @@ export class SimulacionAgenteService {
       servicio: string | null;
       cantidad: number;
       pais: string;
-      cache: Caches;
       /** Venta simulada. Si no llegan, el service de abajo usa hoy y ahora. */
       fecha?: string;
       hora?: string;
     },
-  ): Promise<ResultadoSimulacion[]> {
-    // Nombre de la tienda para identificarla; el distrito es a dónde se simula
-    const etiqueta = `${destino.code} - ${destino.nombre}`;
+  ): Promise<{ filas: ResultadoSimulacion[]; idInvalido: boolean }> {
+    const etiqueta = `${destino.code} - ${destino.operador.nombre}`;
+    const { operador, regionId, communeId } = destino;
 
     try {
-      const operador = await this.unico(
-        this.simulacion.buscarOpl(destino.code, ctx.pais),
-        destino.code,
-        'operador logístico',
-      );
-      const { regionId, communeId } = await this.geografia(destino, ctx.pais, ctx.cache);
-
       const cruda = await this.simulacion.simular({
         deliveryMethod: ctx.metodo,
         // En SD se manda vacío a propósito: así Ripley devuelve SD y S, que es
@@ -277,17 +350,14 @@ export class SimulacionAgenteService {
         pais: ctx.pais,
       });
 
-      return this.aplanar(cruda, `${destino.code} - ${operador.nombre}`, destino.distrito);
+      return { filas: this.aplanar(cruda, etiqueta, destino.distrito), idInvalido: false };
     } catch (e) {
-      return [
-        {
-          opl: etiqueta,
-          destino: destino.distrito,
-          servicio: ctx.servicio ?? '-',
-          entrega: null,
-          error: (e as Error).message,
-        },
-      ];
+      const msg = (e as Error).message;
+      return {
+        filas: [{ opl: etiqueta, destino: destino.distrito, servicio: ctx.servicio ?? '-', entrega: null, error: msg }],
+        // Ripley no reconoce algo de lo guardado: un 404 u otro 4xx que no sea el 429 del cupo
+        idInvalido: e instanceof RipleyApiError || (/respondió 4\d\d/.test(msg) && !/\b429\b/.test(msg)),
+      };
     }
   }
 

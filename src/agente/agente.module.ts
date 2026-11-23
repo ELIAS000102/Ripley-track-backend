@@ -21,6 +21,8 @@ import { AgendasDeAtajoService } from './edicion/capacidad/agendas-de-atajo.serv
 import { SimulacionAgenteService } from './consultas/simulacion/simulacion.service.js';
 import { TipoServicioAgenteService } from './consultas/tipo-servicio/tipo-servicio.service.js';
 import { TransferenciaAgenteService } from './consultas/transferencia/transferencia.service.js';
+import { ConsultasConIdsService } from './ids/consultas-con-ids.service.js';
+import { IdsRipleyService } from './ids/ids-ripley.service.js';
 
 import { EdicionAgenteController } from './edicion/edicion.controller.js';
 import { EditarCapacidadAgenteService } from './edicion/capacidad/capacidad.service.js';
@@ -88,6 +90,10 @@ import { SinRastroInterceptor } from '../seguridad/agente/sin-rastro.interceptor
     BusquedaMasivaAgenteService,
     SimulacionAgenteService,
 
+    // Los ids de Ripley guardados (atajos, consultas y cambios de Silvana)
+    IdsRipleyService,
+    ConsultasConIdsService,
+
     // Edición
     EditarCapacidadAgenteService,
     AgendasDeAtajoService,
@@ -118,6 +124,10 @@ import { SinRastroInterceptor } from '../seguridad/agente/sin-rastro.interceptor
     TipoServicioAgenteService,
     BusquedaMasivaAgenteService,
     SimulacionAgenteService,
+
+    // Los ids de Ripley guardados (atajos, consultas y cambios de Silvana)
+    IdsRipleyService,
+    ConsultasConIdsService,
 
     EditarCapacidadAgenteService,
     EditarTipoServicioAgenteService,

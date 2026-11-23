@@ -65,6 +65,13 @@ const OFICINAS_MAXIMAS = POR_VEZ;
  * debe poder editar, se añadirán endpoints explícitos con supervisión humana,
  * no se abrirá este.
  */
+/**
+ * Los avisos de las oficinas a las que se les cayó una agenda al leerla (un
+ * fallo que no es "no tiene días"): esa oficina sale incompleta, y sus ids no
+ * se guardan, que se quedaría sin esa agenda hasta que caducaran.
+ */
+const CON_FALLOS = new WeakSet<string[]>();
+
 @Injectable()
 export class CapacidadAgenteService {
   private readonly logger = new Logger(CapacidadAgenteService.name);
@@ -86,7 +93,13 @@ export class CapacidadAgenteService {
   async consultar(dto: ConsultarCapacidadDto, opciones: { conIds?: boolean } = {}): Promise<CapacidadRespuesta> {
     const r = await this.consultarTodo(dto);
     if (opciones.conIds) return r;
-    return { ...r, oficinas: r.oficinas.map((o) => ({ ...o, agendas: o.agendas.map(({ ids: _ids, ...a }) => a) })) };
+    return {
+      ...r,
+      oficinas: r.oficinas.map(({ incompleta: _i, ...o }) => ({
+        ...o,
+        agendas: o.agendas.map(({ ids: _ids, ...a }) => a),
+      })),
+    };
   }
 
   /**
@@ -96,15 +109,29 @@ export class CapacidadAgenteService {
    */
   async consultarPorIds(
     dto: ConsultarCapacidadDto,
-    oficina: string,
-    agendas: AgendaConIds[],
+    oficinas: Array<{ oficina: string; agendas: AgendaConIds[] }>,
     avisos: string[] = [],
   ): Promise<CapacidadRespuesta> {
     const pais = (dto.pais ?? 'PE').toUpperCase().trim();
     const desde = dto.desde ?? hoyEnPais(pais);
     const dias = dto.dias ?? 7;
+    const salida: OficinaCapacidad[] = [];
+    for (const o of oficinas)
+      salida.push({ oficina: o.oficina, agendas: await this.agendasPorIds(dto.tipo, o.agendas, pais, desde, dias) });
+    return { tipo: dto.tipo, pais, oficinas: salida, desde, sinDatos: avisos };
+  }
+
+  /** Los días de cada agenda ya resuelta, con su id; un id que Ripley no reconoce lanza */
+  private agendasPorIds(
+    tipo: ConsultarCapacidadDto['tipo'],
+    agendas: AgendaConIds[],
+    pais: string,
+    desde: string,
+    dias: number,
+  ): Promise<AgendaCapacidad[]> {
+    const dto = { tipo };
     const ripleyDesde = isoToRipleyDate(desde);
-    const leidas = await enLotes(agendas, this.CONCURRENCIA, async (a): Promise<AgendaCapacidad> => {
+    return enLotes(agendas, this.CONCURRENCIA, async (a): Promise<AgendaCapacidad> => {
       let lista: DiaCapacidad[] = [];
       let servicio = a.servicio;
       let unidad = a.unidad ?? null;
@@ -134,7 +161,6 @@ export class CapacidadAgenteService {
         primerDiaDisponible: primerDiaDisponible(recortados),
       };
     });
-    return { tipo: dto.tipo, pais, oficinas: [{ oficina, agendas: leidas }], desde, sinDatos: avisos };
   }
 
   private async consultarTodo(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {
@@ -247,6 +273,7 @@ export class CapacidadAgenteService {
           ...a,
           primerDiaDisponible: primerDiaDisponible(a.dias),
         })),
+        ...(CON_FALLOS.has(propios) ? { incompleta: true } : {}),
       };
     } catch (e) {
       return {
@@ -456,6 +483,7 @@ export class CapacidadAgenteService {
     if (e instanceof RipleyApiError && e.esNoEncontrado) return;
 
     sinDatos.push(`${nombre}: ${(e as Error).message}`);
+    CON_FALLOS.add(sinDatos);
   }
 
   private normalizar(fecha: string, activo: boolean, asignado: number, ocupado: number): DiaCapacidad {

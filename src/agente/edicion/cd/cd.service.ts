@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { ContextoPeticion } from '../../../nucleo/contexto/contexto-peticion.service.js';
 import type { UsuarioAutenticado } from '../../../nucleo/contexto/usuario.interface.js';
@@ -9,6 +9,8 @@ import { ConfiguracionCdsService } from '../../../reportes/cds/configuracion-cds
 import { esTodoElPais, listaDeCds, paisDelCd, resolverCd } from '../../constantes/cds.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { EditarCdDto } from '../../dto/edicion.dto.js';
+import { IdsRipleyService } from '../../ids/ids-ripley.service.js';
+import { conListados } from '../../ids/listados.js';
 import type { CdEditado, JornadaCerrada } from '../../interfaces/edicion.interface.js';
 import { partirLista } from '../../utils/lista.util.js';
 
@@ -40,6 +42,8 @@ export class EditarCdAgenteService {
     private readonly contexto: ContextoAgenteService,
     private readonly auditoria: ContextoPeticion,
     private readonly configuracionCds: ConfiguracionCdsService,
+    // Para guardar las agendas del CD con sus ids (las usan reasignar y los cambios de una jornada)
+    @Optional() private readonly ids?: IdsRipleyService,
   ) {}
 
   async editar(usuario: UsuarioAutenticado, dto: EditarCdDto): Promise<CdEditado> {
@@ -166,7 +170,11 @@ export class EditarCdAgenteService {
     jornadas: string[] | undefined,
     pais: string,
   ): Promise<JornadaCerrada[]> {
-    const todas = await this.picking.listarAgendasPorOficina(cd.code, pais);
+    // Cortar llega a todas las agendas del CD: se listan siempre en Ripley (una
+    // nueva no estaría en lo guardado), y el listado se guarda para los demás cambios
+    const todas = await conListados(this.ids, 'picking', pais, false, (l) =>
+      l.de(`agendas|${cd.code}`, () => this.picking.listarAgendasPorOficina(cd.code, pais)),
+    );
     const hoy = hoyEnPais(pais);
 
     // Solo las jornadas propias del CD: Ripley arrastra agendas de prueba y

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { DespachoService } from '../../../agendas/despacho/despacho.service.js';
 import { PickingService } from '../../../agendas/picking/picking.service.js';
 import { RecepcionService } from '../../../agendas/recepcion/recepcion.service.js';
@@ -24,6 +24,8 @@ import type {
 } from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { POR_VEZ } from '../../constantes/limites.constants.js';
+import { IdsRipleyService } from '../../ids/ids-ripley.service.js';
+import { conListados } from '../../ids/listados.js';
 
 /**
  * Tope de días por llamada.
@@ -150,6 +152,8 @@ export class EditarCapacidadAgenteService {
     private readonly transferencias: TransferenciaAgendasService,
     private readonly agendasGuardadas: AgendasDeAtajoService,
     private readonly almacenes: AlmacenesAgenteService,
+    // Los listados de Ripley guardados con sus ids; sin él, se lista cada vez
+    @Optional() private readonly ids?: IdsRipleyService,
   ) {}
 
   /**
@@ -477,39 +481,30 @@ export class EditarCapacidadAgenteService {
   // ---------- Picking: almacén → agenda → días ----------
 
   private async editarPicking(dto: Pedido, pais: string, fechas: string[]): Promise<AgendaEditada[]> {
-    const todas = await this.picking.listarAgendasPorOficina(dto.codigo, pais);
-    const utilizables = this.soloUtilizables(
-      todas,
-      comoFiltro(dto.agenda),
-      (a) => a.nombre,
-      hoyEnPais(pais),
-      (a) => a.vigenteHasta,
-    );
-
-    // Un mismo tipo de servicio puede repetirse en varias agendas del almacén,
-    // así que el nombre también filtra. Sin él no había forma de desempatar y
-    // la petición se quedaba en bucle: el agente preguntaba cuál y no tenía
-    // dónde mandar la respuesta.
-    const candidatas = this.filtrar(utilizables, [
-      [comoFiltro(dto.servicio), (a) => a.typeOfService],
-      [comoFiltro(dto.agenda), (a) => a.nombre],
-    ]);
-
-    const elegidas = this.seleccionar(
-      candidatas,
-      utilizables,
-      (a) => `${a.typeOfService} (${a.nombre})`,
-      `el almacén ${dto.codigo}`,
-      'el servicio',
-      'agenda',
-      esTodas(dto.agenda) || !!dto.delAtajo,
+    // Primero se resuelve y se lee cada agenda, sin escribir nada: así, con los
+    // ids guardados, un fallo deja repetirlo con lo de Ripley. "Todas" y los
+    // ítems de un atajo listan siempre en Ripley (una agenda nueva no estaría)
+    const leidas = await conListados(
+      this.ids,
+      'picking',
+      pais,
+      !esTodas(dto.agenda) && !dto.delAtajo,
+      async (l) => {
+        const todas = await l.de(`agendas|${dto.codigo}`, () => this.picking.listarAgendasPorOficina(dto.codigo, pais));
+        const salida = [];
+        for (const agenda of this.elegirPicking(dto, pais, todas))
+          salida.push({
+            agenda,
+            capacidades: await this.picking.obtener(agenda.scheduleId, isoToRipleyDate(fechas[0]), pais),
+          });
+        return salida;
+      },
+      this.logger,
     );
 
     const salida: AgendaEditada[] = [];
 
-    for (const agenda of elegidas) {
-      const capacidades = await this.picking.obtener(agenda.scheduleId, isoToRipleyDate(fechas[0]), pais);
-
+    for (const { agenda, capacidades } of leidas) {
       // Se lee una vez por agenda: Ripley devuelve la agenda entera desde esa
       // fecha, y escribir un día no cambia el estado de los otros
       const porFecha = new Map((capacidades?.capacityByDayArray ?? []).map((x) => [soloFecha(x.day), x]));
@@ -531,10 +526,93 @@ export class EditarCapacidadAgenteService {
     return salida;
   }
 
+  /** Las agendas de picking a las que va el cambio, entre las del almacén */
+  private elegirPicking<T extends { nombre: string; typeOfService: string; vigenteHasta: string | null }>(
+    dto: Pedido,
+    pais: string,
+    todas: T[],
+  ): T[] {
+    const utilizables = this.soloUtilizables(
+      todas,
+      comoFiltro(dto.agenda),
+      (a) => a.nombre,
+      hoyEnPais(pais),
+      (a) => a.vigenteHasta,
+    );
+
+    // Un mismo tipo de servicio puede repetirse en varias agendas del almacén,
+    // así que el nombre también filtra. Sin él no había forma de desempatar y
+    // la petición se quedaba en bucle: el agente preguntaba cuál y no tenía
+    // dónde mandar la respuesta.
+    const candidatas = this.filtrar(utilizables, [
+      [comoFiltro(dto.servicio), (a) => a.typeOfService],
+      [comoFiltro(dto.agenda), (a) => a.nombre],
+    ]);
+
+    return this.seleccionar(
+      candidatas,
+      utilizables,
+      (a) => `${a.typeOfService} (${a.nombre})`,
+      `el almacén ${dto.codigo}`,
+      'el servicio',
+      'agenda',
+      esTodas(dto.agenda) || !!dto.delAtajo,
+    );
+  }
+
   // ---------- Despacho: operador → zona → agenda → días ----------
 
   private async editarDespacho(dto: Pedido, pais: string, fechas: string[]): Promise<AgendaEditada[]> {
-    const zonas = await this.despacho.listarZonas(dto.codigo, pais);
+    // Como en picking: se resuelve y se lee todo antes de escribir
+    const leidas = await conListados(
+      this.ids,
+      'despacho',
+      pais,
+      !esTodas(dto.zona) && !esTodas(dto.agenda) && !dto.delAtajo,
+      (l) =>
+        this.leerDespacho(dto, pais, fechas, {
+          zonas: () => l.de(`zonas|${dto.codigo}`, () => this.despacho.listarZonas(dto.codigo, pais)),
+          agendas: (zoneId) => l.de(`agendas|${zoneId}`, () => this.despacho.listarAgendas(zoneId, pais)),
+        }),
+      this.logger,
+    );
+
+    const salida: AgendaEditada[] = [];
+
+    for (const { zona, agenda, detalle } of leidas) {
+      const porFecha = new Map(detalle.map((x) => [ripleyDateToIso(x.date), x]));
+
+      const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
+        this.despacho.actualizar(
+          dto.codigo,
+          zona.zoneId,
+          agenda.mainScheduleId,
+          {
+            date: dia.date,
+            assigned: cambio.asignado,
+            active: cambio.activa,
+          },
+          pais,
+        ),
+      );
+
+      salida.push({ agenda: agenda.nombre, zona: zona.nombre, dias });
+    }
+
+    return salida;
+  }
+
+  /** Las agendas de despacho a las que va el cambio, con sus días leídos */
+  private async leerDespacho(
+    dto: Pedido,
+    pais: string,
+    fechas: string[],
+    listar: {
+      zonas: () => ReturnType<DespachoService['listarZonas']>;
+      agendas: (zoneId: string) => ReturnType<DespachoService['listarAgendas']>;
+    },
+  ) {
+    const zonas = await listar.zonas();
 
     // Pedir "todas" las agendas de un operador que tiene varias zonas alcanza
     // también a las zonas: es lo que significa "a todos" cuando lo dice quien
@@ -549,11 +627,11 @@ export class EditarCapacidadAgenteService {
       esTodas(dto.zona) || esTodas(dto.agenda) || !!dto.delAtajo,
     );
 
-    const salida: AgendaEditada[] = [];
+    const salida = [];
 
     for (const zona of zonasElegidas) {
       const agendas = this.soloUtilizables(
-        await this.despacho.listarAgendas(zona.zoneId, pais),
+        await listar.agendas(zona.zoneId),
         comoFiltro(dto.agenda),
         (a) => a.nombre,
         hoyEnPais(pais),
@@ -576,23 +654,7 @@ export class EditarCapacidadAgenteService {
           pais,
         );
 
-        const porFecha = new Map(detalle.map((x) => [ripleyDateToIso(x.date), x]));
-
-        const dias = await this.recorrer(fechas, porFecha, dto, (dia, cambio) =>
-          this.despacho.actualizar(
-            dto.codigo,
-            zona.zoneId,
-            agenda.mainScheduleId,
-            {
-              date: dia.date,
-              assigned: cambio.asignado,
-              active: cambio.activa,
-            },
-            pais,
-          ),
-        );
-
-        salida.push({ agenda: agenda.nombre, zona: zona.nombre, dias });
+        salida.push({ zona, agenda, detalle });
       }
     }
 
