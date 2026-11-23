@@ -12,6 +12,7 @@ import { partirListaUnica } from '../../utils/lista.util.js';
 import { filtrarPorNombre } from '../../utils/nombre.util.js';
 import type {
   AgendaCapacidad,
+  AgendaConIds,
   OficinaCapacidad,
   CapacidadRespuesta,
   DiaCapacidad,
@@ -86,6 +87,54 @@ export class CapacidadAgenteService {
     const r = await this.consultarTodo(dto);
     if (opciones.conIds) return r;
     return { ...r, oficinas: r.oficinas.map((o) => ({ ...o, agendas: o.agendas.map(({ ids: _ids, ...a }) => a) })) };
+  }
+
+  /**
+   * Con las agendas ya resueltas (sus ids, de una consulta anterior): solo se
+   * leen sus días, sin buscar la oficina, sus zonas ni sus agendas. Una agenda
+   * que Ripley ya no reconoce LANZA: quien llama vuelve a consultar por nombre.
+   */
+  async consultarPorIds(
+    dto: ConsultarCapacidadDto,
+    oficina: string,
+    agendas: AgendaConIds[],
+    avisos: string[] = [],
+  ): Promise<CapacidadRespuesta> {
+    const pais = (dto.pais ?? 'PE').toUpperCase().trim();
+    const desde = dto.desde ?? hoyEnPais(pais);
+    const dias = dto.dias ?? 7;
+    const ripleyDesde = isoToRipleyDate(desde);
+    const leidas = await enLotes(agendas, this.CONCURRENCIA, async (a): Promise<AgendaCapacidad> => {
+      let lista: DiaCapacidad[] = [];
+      let servicio = a.servicio;
+      let unidad = a.unidad ?? null;
+      if (dto.tipo === 'picking') {
+        const r = await this.picking.obtener(a.id, ripleyDesde, pais);
+        lista = (r?.capacityByDayArray ?? []).map((d) =>
+          this.normalizar(soloFecha(d.day), d.active, Number(d.assigned), Number(d.occupied)),
+        );
+      } else if (dto.tipo === 'recepcion') {
+        const r = a.capacidadId ? await this.recepcion.diasPorCapacidad(a.capacidadId, ripleyDesde, pais) : [];
+        lista = r.map((d) => this.normalizar(soloFecha(d.day), d.active, Number(d.assigned), Number(d.occupied)));
+      } else {
+        const { agenda, dias: detalle } = await this.despacho.buscarCapacidades(a.id, ripleyDesde, pais);
+        servicio = agenda.servicios?.join(', ') || servicio;
+        unidad = agenda.unitMeasure ?? unidad;
+        lista = detalle.map((d) =>
+          this.normalizar(ripleyDateToIso(d.date), d.active, Number(d.assigned), Number(d.occupied)),
+        );
+      }
+      const recortados = this.recortar(lista, desde, dias);
+      return {
+        agenda: a.nombre,
+        servicio,
+        ...(a.zona ? { zona: a.zona } : {}),
+        unidad,
+        dias: recortados,
+        primerDiaDisponible: primerDiaDisponible(recortados),
+      };
+    });
+    return { tipo: dto.tipo, pais, oficinas: [{ oficina, agendas: leidas }], desde, sinDatos: avisos };
   }
 
   private async consultarTodo(dto: ConsultarCapacidadDto): Promise<CapacidadRespuesta> {

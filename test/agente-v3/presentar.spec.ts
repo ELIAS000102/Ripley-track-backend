@@ -10,7 +10,7 @@ import { leerPresentacion, promptPresentar, SISTEMA_PRESENTAR } from '../../src/
  * cómo lo pidió la persona, y redacta la frase con las cifras de los datos.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 const MENSAJE =
   'fijate que las sucursales de la RE se mantengan inactivas y en un cuadro solo dame el total de sucursales activas e inactivas de la RT';

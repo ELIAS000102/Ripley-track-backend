@@ -16,7 +16,7 @@ import type { ContextoTurno, Hecho, Turno } from '../../src/agente-v3/interfaces
  * una palabra, pregunta) y aprender palabras de la operación.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 const MENSAJE = 'dame las tiendas con un solo flujo de picking';
 const HOY = '2026-11-08';
@@ -260,7 +260,7 @@ describe('Aprender palabras de la operación', () => {
       choques: ['Tenía «flujo de picking» como «un turno»; pasaría a «una jornada de picking».'],
       intocables: [],
     });
-    expect(await s.guardar([termino], 'jhumanim8@ripley.com.pe')).toEqual({
+    expect(await s.guardar([termino], 'usuario.prueba@ripley.com.pe')).toEqual({
       guardados: ['«flujo de picking»'],
       omitidos: [],
     });
@@ -272,7 +272,7 @@ describe('Aprender palabras de la operación', () => {
           termino: 'flujo de picking',
           significa: 'una jornada de picking',
           fuente: 'usuario',
-          ensenado_por: 'jhumanim8@ripley.com.pe',
+          ensenado_por: 'usuario.prueba@ripley.com.pe',
         }),
       },
     ]);

@@ -14,7 +14,7 @@ import { vistasDe } from '../../src/agente-v3/presentar/prompt.js';
  * los pasos por dentro.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 const agendas = (n: number, activas: number) =>
   Array.from({ length: n }, (_, i) => ({

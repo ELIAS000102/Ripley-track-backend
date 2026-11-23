@@ -12,7 +12,7 @@ import type { ContextoTurno, Turno } from '../../src/agente-v3/interfaces/agente
  * se quedara con el primero y callara los otros dos.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 const MENSAJE =
   'activa las suc de la SE y desactva las suc de la ST que coincidan con los de la SE y el resto de suc de la ST activalas';

@@ -154,7 +154,7 @@ describe('Enseñar un alias a un CD de la configuración', () => {
     const { supabase, escrito } = supabaseDe([CD]);
     const s = new AprendizajeService(supabase as never);
     expect(await s.revisar([alias])).toEqual({ choques: [], intocables: [] });
-    expect(await s.guardar([alias], 'jhumanim8@ripley.com.pe')).toEqual({
+    expect(await s.guardar([alias], 'usuario.prueba@ripley.com.pe')).toEqual({
       guardados: ['20026 (alias «CD Villa»)'],
       omitidos: [],
     });

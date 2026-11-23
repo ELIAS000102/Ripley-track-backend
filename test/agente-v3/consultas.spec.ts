@@ -18,7 +18,7 @@ import { aplicarRespuesta, preguntaDeNombre } from '../../src/agente-v3/pregunta
  */
 
 const HOY = '2026-11-07';
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 
 const DIRECTORIO: EntidadDirectorio[] = [
   { pais: 'PE', codigo: '20021', tipo: 'tienda', es_cd: false, nombre: 'Ripley Chorrillos', alias: [] },

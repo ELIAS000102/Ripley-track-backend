@@ -82,6 +82,23 @@ export interface AgendaCapacidad {
 }
 
 /**
+ * Una agenda ya resuelta, con sus ids de Ripley: con ella se leen sus días
+ * directamente (los atajos la guardan tras su primera consulta; el G12 tiene la
+ * suya, con los mismos campos).
+ */
+export interface AgendaConIds {
+  /** scheduleId (picking y recepción) o mainScheduleId (despacho) */
+  id: string;
+  /** Recepción: el id de su capacidad, con el que se leen los días */
+  capacidadId?: string | null;
+  nombre: string;
+  servicio: string | null;
+  zona?: string | null;
+  zonaId?: string | null;
+  unidad?: string | null;
+}
+
+/**
  * Un almacén u operador con sus agendas.
  *
  * Anidado, igual que la consulta de tipos de servicio: es la forma que el
@@ -263,6 +280,21 @@ export interface OplConServicios {
   servicios: ServicioAgenda[];
   /** Por qué este operador no se pudo consultar, cuando los demás sí */
   error?: string;
+  /**
+   * Los ids de Ripley del operador, su zona y su agenda, solo si se piden
+   * (`consultar(u, dto, { conIds: true })`): los atajos los guardan para leer
+   * sus servicios directamente la próxima vez. `avisos`: los de ese operador
+   * ("tiene 3 zonas; se consultó …"), que se repiten al leer con los ids.
+   */
+  ids?: IdsOpl;
+}
+
+/** Lo que hace falta para leer los servicios de un operador sin buscarlo: su courier, zona y agenda */
+export interface IdsOpl {
+  courier: string;
+  mainZone: string;
+  mainSchedule: string;
+  avisos: string[];
 }
 
 export interface TipoServicioRespuesta {

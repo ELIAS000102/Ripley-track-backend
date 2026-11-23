@@ -1,7 +1,7 @@
 import type { AgenteV3Service } from '../../src/agente-v3/agente-v3.service.js';
 import type { SalidaRuta } from '../../src/agente-v3/interfaces/agente-v3.interface.js';
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 
 /**
  * Sigue un turno mientras avisa (un paso más) o pide Presentar. Presentar, sin

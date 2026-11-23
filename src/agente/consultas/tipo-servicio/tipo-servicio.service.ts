@@ -6,7 +6,12 @@ import { resolverAliasOpl } from '../../constantes/alias-opl.constants.js';
 import { ContextoAgenteService } from '../../contexto.service.js';
 import { partirListaUnica } from '../../utils/lista.util.js';
 import { ConsultarTipoServicioDto } from '../../dto/consultas.dto.js';
-import type { OplConServicios, ServicioAgenda, TipoServicioRespuesta } from '../../interfaces/agente.interface.js';
+import type {
+  IdsOpl,
+  OplConServicios,
+  ServicioAgenda,
+  TipoServicioRespuesta,
+} from '../../interfaces/agente.interface.js';
 import { motivoDelFallo } from '../../utils/error.util.js';
 import { numeroONulo } from '../../utils/numero.util.js';
 import { POR_VEZ } from '../../constantes/limites.constants.js';
@@ -41,7 +46,55 @@ export class TipoServicioAgenteService {
     private readonly contexto: ContextoAgenteService,
   ) {}
 
-  async consultar(usuario: UsuarioAutenticado, dto: ConsultarTipoServicioDto): Promise<TipoServicioRespuesta> {
+  /**
+   * `conIds`: cada operador trae los ids de su courier, zona y agenda (los
+   * atajos los guardan). Sin él no salen: al agente un id opaco solo le confunde.
+   */
+  async consultar(
+    usuario: UsuarioAutenticado,
+    dto: ConsultarTipoServicioDto,
+    opciones: { conIds?: boolean } = {},
+  ): Promise<TipoServicioRespuesta> {
+    const r = await this.consultarTodo(usuario, dto);
+    if (opciones.conIds) return r;
+    return { ...r, opls: r.opls.map(({ ids: _ids, ...o }) => o) };
+  }
+
+  /**
+   * Con el operador ya resuelto (sus ids, de una consulta anterior): una sola
+   * llamada, la de sus servicios, en vez de las cuatro encadenadas. Si Ripley ya
+   * no reconoce esos ids, LANZA: quien llama vuelve a consultar por nombre.
+   */
+  async consultarPorIds(
+    usuario: UsuarioAutenticado,
+    dto: ConsultarTipoServicioDto,
+    guardado: { opl: string; zona: string; agenda: string; ids: IdsOpl },
+  ): Promise<TipoServicioRespuesta> {
+    const contexto = await this.contexto.armar(usuario, dto.pais);
+    const { servicios } = await this.opl.listarServicios({
+      courier: guardado.ids.courier,
+      mainZone: guardado.ids.mainZone,
+      mainSchedule: guardado.ids.mainSchedule,
+      pais: contexto.pais,
+    });
+    return {
+      contexto,
+      opls: [
+        {
+          opl: guardado.opl,
+          zona: guardado.zona,
+          agenda: guardado.agenda,
+          servicios: servicios.map((s) => this.compactar(s)),
+        },
+      ],
+      sinDatos: [...guardado.ids.avisos],
+    };
+  }
+
+  private async consultarTodo(
+    usuario: UsuarioAutenticado,
+    dto: ConsultarTipoServicioDto,
+  ): Promise<TipoServicioRespuesta> {
     const contexto = await this.contexto.armar(usuario, dto.pais);
     const pais = contexto.pais;
     const sinDatos: string[] = [];
@@ -107,6 +160,8 @@ export class TipoServicioAgenteService {
     pais: string,
     sinDatos: string[],
   ): Promise<OplConServicios> {
+    // Los avisos de este operador: van al total y con sus ids (se repiten al leer con ellos)
+    const propios: string[] = [];
     try {
       // 1. OPL. "90 min" no existe en el catálogo: es como se conoce al 1130
       const buscado = resolverAliasOpl(termino);
@@ -129,7 +184,7 @@ export class TipoServicioAgenteService {
         );
       }
       if (!dto.zona && zonas.length > 1) {
-        sinDatos.push(
+        propios.push(
           `${etiqueta} tiene ${zonas.length} zonas; se consultó "${zona.nombre}". Las otras: ${zonas
             .filter((z) => z.mainZone !== zona.mainZone)
             .map((z) => z.nombre)
@@ -148,8 +203,9 @@ export class TipoServicioAgenteService {
         );
       }
       if (!dto.agenda && agendas.length > 1) {
-        sinDatos.push(`${etiqueta}: la zona tiene ${agendas.length} agendas; se consultó "${agenda.nombre}"`);
+        propios.push(`${etiqueta}: la zona tiene ${agendas.length} agendas; se consultó "${agenda.nombre}"`);
       }
+      sinDatos.push(...propios);
 
       // 4. Servicios
       const { servicios } = await this.opl.listarServicios({
@@ -164,6 +220,7 @@ export class TipoServicioAgenteService {
         zona: zona.nombre,
         agenda: agenda.nombre,
         servicios: servicios.map((s) => this.compactar(s)),
+        ids: { courier: operador.id, mainZone: zona.mainZone, mainSchedule: agenda.mainSchedule, avisos: propios },
       };
     } catch (e) {
       return {

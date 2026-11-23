@@ -22,7 +22,7 @@ import { armarRespuesta, noPedidos } from '../../src/agente-v3/respuesta/armar.j
  *   todas las jornadas del CD y la frase hablaba de la RC.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 
 const ctx = (pais: 'PE' | 'CL', servicios: string[]): ContextoTurno => ({

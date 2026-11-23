@@ -334,6 +334,21 @@ export class RecepcionService {
   }
 
   /**
+   * Los días de una agenda por el id de su capacidad, sin buscar la oficina ni
+   * sus agendas: lo que guardan los atajos tras su primera consulta. Sin
+   * capacidad creada (404), vacía, como en `diasDeLaAgenda`.
+   */
+  async diasPorCapacidad(capacityId: string, desde: string, pais: string): Promise<CapacityByDay[]> {
+    try {
+      const capacidades = await this.catalogos.capacidadesDeRecepcion(capacityId, pais, desde);
+      return capacidades?.capacityByDayArray ?? [];
+    } catch (e) {
+      if (e instanceof RipleyApiError && e.esNoEncontrado) return [];
+      throw e;
+    }
+  }
+
+  /**
    * Los días de una agenda concreta de la oficina.
    *
    * Sin `from` se arranca en **hoy**, no en el principio de la agenda. Es la

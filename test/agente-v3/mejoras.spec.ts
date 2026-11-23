@@ -23,7 +23,7 @@ import { filasDelCambio, markdownCambio, resumenCambio } from '../../src/agente-
 
 const HOY = '2026-11-07';
 const MANANA = '2026-11-08';
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 
 const DIRECTORIO: EntidadDirectorio[] = [
@@ -362,7 +362,7 @@ describe('Aprender: se pregunta al final y se guarda con un "sí"', () => {
     const r = await servicio.respuesta(USUARIO, t.turno_id, { respuestas: { aprender: 'si' } });
     expect(aprendizaje.guardar).toHaveBeenCalledWith(
       [expect.objectContaining({ codigo: 'SG', origen: '20096', fase: 'F2', metodo_entrega: 'RT' })],
-      'jhumanim8@ripley.com.pe',
+      'usuario.prueba@ripley.com.pe',
     );
     expect(r.camino).toBe('responder');
     expect(r.respuesta!.frase).toBe('Guardado para todos: SG. Ya lo uso desde el próximo mensaje.');

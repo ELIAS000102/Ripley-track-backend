@@ -3,6 +3,7 @@ import { AgenteModule } from '../../agente/agente.module.js';
 import { EjecutorAtajoService } from './ejecutor.service.js';
 import { AtajosController } from './atajos.controller.js';
 import { AtajosService } from './atajos.service.js';
+import { AtajoIdsService } from './ids-atajos.service.js';
 
 @Module({
   /**
@@ -12,7 +13,7 @@ import { AtajosService } from './atajos.service.js';
    */
   imports: [AgenteModule],
   controllers: [AtajosController],
-  providers: [AtajosService, EjecutorAtajoService],
+  providers: [AtajosService, EjecutorAtajoService, AtajoIdsService],
   // El agente las ejecuta por nombre: necesita las dos piezas
   exports: [AtajosService, EjecutorAtajoService],
 })

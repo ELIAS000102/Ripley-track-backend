@@ -11,7 +11,7 @@ import { MotorV3Service, type EventoV3 } from '../../src/agente-v3/motor/motor.s
  * que recorre el turno entero con eventos.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 
 describe('GeminiService: la llamada a la API', () => {
   const config = {

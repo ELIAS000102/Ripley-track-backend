@@ -18,7 +18,7 @@ import type {
  * forma?" como petición nueva.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 const HOY = '2026-11-09';
 const dia = (fecha: string) => ({ fecha, activo: true, asignado: 50, ocupado: 0, disponible: 50, uso: 0 });

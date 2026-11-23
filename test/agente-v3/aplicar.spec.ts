@@ -17,7 +17,7 @@ import { armarRespuesta } from '../../src/agente-v3/respuesta/armar.js';
  * lo enseña y pregunta otra vez.
  */
 
-const USUARIO = { id: 'u1', email: 'jhumanim8@ripley.com.pe' };
+const USUARIO = { id: 'u1', email: 'usuario.prueba@ripley.com.pe' };
 const M = { cuenta: 1, nombre: 'gemini-3.5-flash-lite' };
 const MENSAJE = 'cierra el picking de la 20021 el 14';
 const DIRECTORIO: EntidadDirectorio[] = [
