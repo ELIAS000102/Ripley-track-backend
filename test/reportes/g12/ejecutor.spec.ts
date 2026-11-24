@@ -275,6 +275,82 @@ describe('El ejecutor del G12', () => {
     ).toBe(true);
   });
 
+  it('Site to store: SE se simula solo en las tiendas con su recepción SE abierta y con cupo hoy', async () => {
+    const hoy = hoyEnPais('PE');
+    // La recepción SE de hoy de cada tienda: abierta con cupo, cerrada, llena
+    const hoyDe: Record<string, { activo: boolean; asignado: number; ocupado: number }> = {
+      '20031': { activo: true, asignado: 40, ocupado: 30 },
+      '20032': { activo: false, asignado: 40, ocupado: 0 },
+      '20033': { activo: true, asignado: 40, ocupado: 40 },
+    };
+    const { ejecutor, simulacion } = montar({
+      fechas: { '20031|SE': sumarDias(hoy, 1), '20031|ST': sumarDias(hoy, 3), '20032|ST': sumarDias(hoy, 3) },
+      consultar: async (dto) => {
+        const d = hoyDe[dto.codigo];
+        return {
+          tipo: 'recepcion',
+          pais: 'PE',
+          desde: hoy,
+          sinDatos: [],
+          oficinas: [
+            {
+              oficina: dto.codigo,
+              agendas: [
+                {
+                  agenda: `Recepción ${dto.servicio} ${dto.codigo}`,
+                  servicio: dto.servicio ?? null,
+                  unidad: null,
+                  dias: [{ fecha: hoy, ...d, disponible: d.asignado - d.ocupado, uso: 0 }],
+                },
+              ],
+            },
+          ],
+        };
+      },
+    });
+    const tiendas = ['20031', '20032', '20033', '20034'];
+    const config: ConfiguracionG12 = {
+      componentes: [
+        {
+          clave: 'sts_lima',
+          filas: tiendas.map((t) => ({ nombre: t })),
+          bloques: [
+            // La muestra ya no cuenta aquí: cada tienda decide por su agenda
+            { tipo: 'simulacion', muestra: true, items: tiendas.map((t) => simItem(t, t, 'SE')) },
+            { tipo: 'simulacion', items: tiendas.map((t) => simItem(t, t, 'ST')) },
+            // La 20034 no tiene agenda SE: se simula como siempre
+            {
+              tipo: 'recepcion',
+              items: tiendas.slice(0, 3).map((t) => ({ fila: t, campos: { codigo: t, servicio: 'SE' } })),
+            },
+          ],
+        },
+      ],
+      resumen: [],
+    };
+
+    const { entradas } = await ejecutor.ejecutar(config, 'PE');
+    const pedidas = simulacion.simularResuelto.mock.calls.map((c) => `${c[0].courier.code}|${c[0].typeOfServiceCode}`);
+    expect(pedidas.filter((p) => p.endsWith('|SE')).sort()).toEqual(['20031|SE', '20034|SE']);
+    expect(pedidas.filter((p) => p.endsWith('|ST'))).toHaveLength(4);
+
+    const se = (t: string) =>
+      entradas
+        .get('sts_lima')!
+        .get(t)!
+        .simulaciones.find((x) => x.servicio === 'SE')!;
+    expect(se('20031')).toMatchObject({ fecha: sumarDias(hoy, 1) });
+    expect(se('20032')).toMatchObject({
+      omitida: true,
+      mensaje: 'No se simuló: la agenda de recepción SE «Recepción SE 20032» está cerrada hoy',
+    });
+    expect(se('20033')).toMatchObject({
+      omitida: true,
+      mensaje: 'No se simuló: la agenda de recepción SE «Recepción SE 20033» no tiene capacidad hoy (ocupado 40 de 40)',
+    });
+    expect(se('20034').omitida).toBeUndefined();
+  });
+
   it('las agendas se leen desde ayer y seis semanas, con su código, servicio y nombre', async () => {
     const { ejecutor, capacidad, hoy } = montar();
     await ejecutor.probar(

@@ -25,6 +25,14 @@ export interface DefinicionComponente {
   diaAnterior?: string[];
   /** Solo de lunes a viernes (SE express); el fin de semana sale OFF */
   soloLaborables?: boolean;
+  /**
+   * Un servicio que solo se simula si la agenda de su fila está abierta HOY y
+   * con capacidad (Site to store: SE, con la recepción SE de cada tienda). Si
+   * está cerrada o sin cupo, no se simula y la fila sigue con el siguiente de
+   * la prioridad (ST). Cada fila mira su propia agenda; sustituye a la "muestra"
+   * (decisión del usuario, 2026-11-24).
+   */
+  simularSiAgenda?: { servicio: string; tipo: 'picking' | 'recepcion' };
 }
 
 export const COMPONENTES_G12: DefinicionComponente[] = [
@@ -58,6 +66,7 @@ export const COMPONENTES_G12: DefinicionComponente[] = [
     receta: 'simulada',
     tipos: ['simulacion', 'recepcion'],
     prioridad: ['SE', 'ST'],
+    simularSiAgenda: { servicio: 'SE', tipo: 'recepcion' },
   },
   {
     clave: 'sts_provincia',
@@ -65,6 +74,7 @@ export const COMPONENTES_G12: DefinicionComponente[] = [
     receta: 'simulada',
     tipos: ['simulacion', 'recepcion'],
     prioridad: ['SE', 'ST'],
+    simularSiAgenda: { servicio: 'SE', tipo: 'recepcion' },
   },
   {
     clave: 'dd_troncal',

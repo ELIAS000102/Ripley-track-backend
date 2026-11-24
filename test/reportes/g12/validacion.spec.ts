@@ -34,6 +34,22 @@ describe('La configuración del G12', () => {
     expect(configuracion.componentes).toHaveLength(CLAVES_COMPONENTES.length);
   });
 
+  it('en Site to store no se guarda la muestra: SE decide por la agenda de cada tienda', () => {
+    const bloque = (clave: string) => ({
+      clave,
+      filas: [{ nombre: 'A' }],
+      bloques: [{ tipo: 'simulacion', muestra: true, items: [{ fila: 'A', campos: { ...sim, servicio: 'SE' } }] }],
+    });
+    const { configuracion, errores } = normalizarConfiguracion({
+      componentes: [bloque('sts_lima'), bloque('pickup_lima')],
+      resumen: [],
+    });
+    expect(errores).toEqual([]);
+    const de = (clave: string) => configuracion.componentes.find((c) => c.clave === clave)!.bloques[0];
+    expect(de('sts_lima').muestra).toBeUndefined();
+    expect(de('pickup_lima').muestra).toBe(true);
+  });
+
   it('junta todos los errores: fila que no existe, bloque que el cuadro no admite, campos que faltan o sobran', () => {
     const { errores } = normalizarConfiguracion({
       componentes: [

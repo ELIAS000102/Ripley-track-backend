@@ -55,8 +55,9 @@ export interface BloqueG12 {
   /**
    * Solo en simulación: se simula primero un ítem y, si no da fecha, el resto
    * no se pide (quedan "omitidos"). Ahorra decenas de llamadas cuando un
-   * servicio —RE, SE— no está habilitado en ninguna tienda. Como la "muestra"
-   * del Excel.
+   * servicio —RE— no está habilitado en ninguna tienda. Como la "muestra"
+   * del Excel. En Site to store no se usa (2026-11-24): SE se simula según la
+   * agenda de recepción de cada tienda (`simularSiAgenda`).
    */
   muestra?: boolean;
   items: ItemG12[];
@@ -308,7 +309,7 @@ export interface SimulacionG12 {
   mensaje?: string | null;
   /** La simulación no se pudo hacer: el operador no existe, la API falló… */
   error?: string | null;
-  /** No se pidió: la muestra del bloque no dio fecha */
+  /** No se pidió: la muestra del bloque no dio fecha, o (Site to store SE) su agenda está cerrada o sin cupo hoy */
   omitida?: boolean;
   meta?: MetaPeticionG12;
   /** De la venta a la entrega, la opción que da la fecha: los pasos del cálculo y el recorrido. Falta en las de antes */

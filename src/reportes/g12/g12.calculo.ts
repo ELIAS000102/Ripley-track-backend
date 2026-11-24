@@ -169,6 +169,39 @@ function filaVacia(nombre: string): FilaReporteG12 {
   };
 }
 
+/**
+ * Si un servicio se simula, según la agenda de su fila (`simularSiAgenda`):
+ * sí, si una de sus agendas tiene HOY activo y con cupo disponible. Cada fila
+ * (tienda) mira solo las suyas.
+ *
+ * Devuelve null —se simula como siempre— si la fila no tiene agenda de ese
+ * servicio o no se pudo leer ninguna: sin agenda no hay con qué decidir, y
+ * dejar de simular por un fallo de la API perdería la fecha.
+ */
+export function permisoPorAgenda(
+  lecturas: AgendaG12[],
+  servicio: string,
+  hoy: string,
+): { simular: true } | { simular: false; motivo: string } | null {
+  const candidatas = lecturas
+    .filter((l) => !l.pedido.servicio || igual(String(l.pedido.servicio), servicio))
+    .flatMap((l) => (l.pedido.servicio ? l.agendas : l.agendas.filter((a) => igual(a.servicio, servicio))));
+  if (!candidatas.length) return null;
+
+  const deHoy = candidatas.map((a) => ({ a, d: a.dias.find((x) => x.fecha === hoy) }));
+  if (deHoy.some(({ d }) => d && d.activo && d.disponible > 0)) return { simular: true };
+
+  const { a, d } = deHoy[0];
+  const tipo = lecturas[0]?.tipo === 'picking' ? 'picking' : 'recepción';
+  const estado = !d
+    ? 'no tiene el día de hoy'
+    : !d.activo
+      ? 'está cerrada hoy'
+      : `no tiene capacidad hoy (ocupado ${d.ocupado} de ${d.asignado})`;
+  const otras = candidatas.length > 1 ? ` (ni las otras ${candidatas.length - 1} de ${servicio})` : '';
+  return { simular: false, motivo: `No se simuló: la agenda de ${tipo} ${servicio} «${a.agenda}» ${estado}${otras}` };
+}
+
 /** Receta "simulada": la fecha del simulador y la capacidad de ese día */
 export function filaSimulada(
   def: DefinicionComponente,

@@ -10,6 +10,7 @@ import {
   filaSimulada,
   leadTime,
   moda,
+  permisoPorAgenda,
   totalDe,
 } from '../../../src/reportes/g12/g12.calculo.js';
 import { definicionDe } from '../../../src/reportes/g12/g12.componentes.js';
@@ -491,5 +492,52 @@ describe('Las unidades del Oracle en Despacho domicilio (el SUMIFS del Excel)', 
     const r = aplicarUnidadesOracle({ ...comp(), filas: [fila('Nueva fila', '2026-11-14', 10)] }, [], [], 'x');
     expect(r.filas[0]).toMatchObject({ unidades: 0, subFlujosOracle: [] });
     expect(r.filas[0].detalle.avisos.at(-1)).toBe('Unidades del Oracle (x): no hay ningún SUB_FLUJO «Nueva fila».');
+  });
+});
+
+describe('Simular SE según su agenda de recepción', () => {
+  const se = (dias: DiaG12[], nombre = 'Recepción SE') => ({ agenda: nombre, servicio: 'SE', dias });
+
+  it('abierta hoy y con cupo: se simula; mañana no cuenta', () => {
+    expect(permisoPorAgenda([agenda('recepcion', { servicio: 'SE' }, [se([dia(HOY, 40, 10)])])], 'SE', HOY)).toEqual({
+      simular: true,
+    });
+    expect(
+      permisoPorAgenda([agenda('recepcion', { servicio: 'SE' }, [se([dia('2026-11-10', 40, 0)])])], 'SE', HOY),
+    ).toEqual({
+      simular: false,
+      motivo: 'No se simuló: la agenda de recepción SE «Recepción SE» no tiene el día de hoy',
+    });
+  });
+
+  it('cerrada o llena: no; con dos agendas basta con que una tenga cupo', () => {
+    expect(
+      permisoPorAgenda([agenda('recepcion', { servicio: 'SE' }, [se([dia(HOY, 40, 0, false)])])], 'SE', HOY),
+    ).toEqual({
+      simular: false,
+      motivo: 'No se simuló: la agenda de recepción SE «Recepción SE» está cerrada hoy',
+    });
+    const dos = [se([dia(HOY, 20, 20)], 'A'), se([dia(HOY, 20, 5)], 'B')];
+    expect(permisoPorAgenda([agenda('recepcion', { servicio: 'SE' }, dos)], 'SE', HOY)).toEqual({ simular: true });
+    expect(
+      permisoPorAgenda([agenda('recepcion', { servicio: 'SE' }, [dos[0], se([dia(HOY, 9, 9)], 'C')])], 'SE', HOY),
+    ).toEqual({
+      simular: false,
+      motivo:
+        'No se simuló: la agenda de recepción SE «A» no tiene capacidad hoy (ocupado 20 de 20) (ni las otras 1 de SE)',
+    });
+  });
+
+  it('sin agenda SE en la fila, o sin poder leerla: se simula como siempre', () => {
+    expect(permisoPorAgenda([], 'SE', HOY)).toBeNull();
+    expect(
+      permisoPorAgenda([agenda('recepcion', { servicio: 'ST' }, [se([dia(HOY, 0, 0, false)])])], 'SE', HOY),
+    ).toBeNull();
+    expect(permisoPorAgenda([agenda('recepcion', { servicio: 'SE' }, [], 'La API falló')], 'SE', HOY)).toBeNull();
+    // Un ítem sin servicio trae todas las agendas de la oficina: se mira solo la SE
+    const todas = [{ agenda: 'ST', servicio: 'ST', dias: [dia(HOY, 50, 0)] }, se([dia(HOY, 10, 10)])];
+    expect(permisoPorAgenda([agenda('recepcion', { codigo: '20031' }, todas)], 'SE', HOY)).toMatchObject({
+      simular: false,
+    });
   });
 });

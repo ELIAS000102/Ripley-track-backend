@@ -27,7 +27,8 @@ import type {
   SimulacionPayload,
 } from '../../simulacion/interfaces/simulacion.interface.js';
 import { SimulacionService } from '../../simulacion/simulacion.service.js';
-import { DIAS_LECTURA_AGENDAS, DIAS_SEMANA } from './g12.componentes.js';
+import { permisoPorAgenda } from './g12.calculo.js';
+import { definicionDe, DIAS_LECTURA_AGENDAS, DIAS_SEMANA } from './g12.componentes.js';
 import type {
   AgendaG12,
   BloqueG12,
@@ -159,6 +160,14 @@ function diaG12(fecha: string, activo: boolean, asignado: unknown, ocupado: unkn
   return { fecha, activo: !!activo, asignado: a, ocupado: o, disponible: a - o };
 }
 
+/** Si un ítem de simulación se pide (null: sin agenda con que decidirlo, se pide) */
+type PermisoSimular = (item: ItemG12) => Promise<ReturnType<typeof permisoPorAgenda>>;
+
+const mismoServicio = (a: unknown, b: string) =>
+  String(a ?? '')
+    .trim()
+    .toUpperCase() === b.trim().toUpperCase();
+
 function memo<T>(mapa: Map<string, Promise<T>>, clave: string, traer: () => Promise<T>): Promise<T> {
   if (!mapa.has(clave)) mapa.set(clave, traer());
   return mapa.get(clave)!;
@@ -234,15 +243,21 @@ export class EjecutorG12Service {
 
     // Todo sale a la vez por el limitador: de `aLaVez` en `aLaVez`, y por orden
     // de la configuración, porque el limitador atiende por orden de llegada
-    const resultados = componentes.map((comp) =>
-      comp.bloques.map((bloque) => {
-        if (bloque.tipo === 'simulacion') return this.simularBloque(bloque, sesion, limitar);
+    const resultados = componentes.map((comp) => {
+      const agendas = comp.bloques.map((bloque) =>
+        bloque.tipo === 'simulacion' || bloque.tipo === 'capacidad'
+          ? null
+          : Promise.all(
+              bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))),
+            ),
+      );
+      const permiso = this.permisoDe(comp, agendas, sesion);
+      return comp.bloques.map((bloque, b): Promise<Array<SimulacionG12 | AgendaG12>> => {
+        if (bloque.tipo === 'simulacion') return this.simularBloque(bloque, sesion, limitar, permiso);
         if (bloque.tipo === 'capacidad') return Promise.resolve([]);
-        return Promise.all(
-          bloque.items.map((it) => limitar(() => this.leerAgenda(bloque.tipo as AgendaG12['tipo'], it, sesion))),
-        );
-      }),
-    );
+        return agendas[b]!;
+      });
+    });
     const listos = await Promise.all(resultados.map((porBloque) => Promise.all(porBloque)));
 
     // Y se arma en el orden de la configuración, llegue lo que llegue antes
@@ -349,15 +364,67 @@ export class EjecutorG12Service {
   // ───────────────────────── Simulación ─────────────────────────
 
   /**
+   * En un cuadro con `simularSiAgenda` (Site to store: SE), si un ítem de
+   * simulación se pide: espera a las agendas de ese tipo de SU fila y mira si
+   * la de ese servicio está abierta hoy y con cupo. Los ítems de otro servicio
+   * (ST) se simulan siempre.
+   */
+  private permisoDe(
+    comp: ConfiguracionG12['componentes'][number],
+    agendas: Array<Promise<AgendaG12[]> | null>,
+    sesion: SesionG12,
+  ): PermisoSimular | undefined {
+    const cond = definicionDe(comp.clave)?.simularSiAgenda;
+    if (!cond) return undefined;
+    return async (item) => {
+      if (!mismoServicio(item.campos.servicio, cond.servicio)) return null;
+      const lecturas: AgendaG12[] = [];
+      for (const [b, bloque] of comp.bloques.entries()) {
+        if (bloque.tipo !== cond.tipo || !agendas[b]) continue;
+        const leidas = await agendas[b];
+        bloque.items.forEach((it, i) => {
+          if (it.fila === item.fila) lecturas.push(leidas[i]);
+        });
+      }
+      return permisoPorAgenda(lecturas, cond.servicio, sesion.hoy);
+    };
+  }
+
+  /**
    * Los ítems de un bloque de simulación, en su orden.
    *
    * Con "muestra", primero uno: si no da fecha, el resto no se pide. Si la
    * muestra falla por la API (no por falta de fecha) se simulan todos igual,
    * porque eso no dice nada del servicio.
+   *
+   * Con `permiso` (el cuadro decide por agenda), cada ítem pregunta antes por
+   * la suya y la muestra no se usa: cada tienda va por su cuenta.
    */
-  private async simularBloque(bloque: BloqueG12, sesion: SesionG12, limitar: Limitador): Promise<SimulacionG12[]> {
+  private async simularBloque(
+    bloque: BloqueG12,
+    sesion: SesionG12,
+    limitar: Limitador,
+    permiso?: PermisoSimular,
+  ): Promise<SimulacionG12[]> {
     const items = bloque.items;
     if (!items.length) return [];
+    if (permiso) {
+      return Promise.all(
+        items.map(async (it) => {
+          const p = await permiso(it);
+          if (p && !p.simular) {
+            return {
+              servicio: String(it.campos.servicio ?? '').toUpperCase(),
+              fecha: null,
+              pedido: pedidoDe(it),
+              omitida: true,
+              mensaje: p.motivo,
+            };
+          }
+          return limitar(() => this.simular(it, sesion));
+        }),
+      );
+    }
     const simular = (it: ItemG12) => limitar(() => this.simular(it, sesion));
 
     if (bloque.muestra && items.length > 1) {

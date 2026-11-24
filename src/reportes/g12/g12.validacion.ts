@@ -172,7 +172,8 @@ export function normalizarConfiguracion(entrada: Entrada): { configuracion: Conf
       const bloque: BloqueG12 = {
         tipo,
         ...(b.nota?.trim() ? { nota: b.nota.trim() } : {}),
-        ...(tipo === 'simulacion' && b.muestra ? { muestra: true } : {}),
+        // Donde decide la agenda (Site to store: SE) no hay muestra: cada tienda mira la suya
+        ...(tipo === 'simulacion' && b.muestra && !def.simularSiAgenda ? { muestra: true } : {}),
         items: [],
       };
 
